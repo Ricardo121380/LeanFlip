@@ -8,6 +8,11 @@
 //!   登录只在 `auth.json` 和设备本地的登录暂存里，不进可能被同步、导出的供应商库。
 //!   旧版 cc-switch 留在 `auth.json` 里的第三方 Key（没有登录、只有 `OPENAI_API_KEY`）
 //!   会作为这张第三方卡的 Key 导入。
+//! - Gemini CLI：`.env` 里有关键字段（地址、Key、模型……）就导入成第三方卡（只存关键
+//!   字段和 `model.name`），另补一张官方卡；没有就只建官方卡（Google 登录）。
+//! - Grok Build：`config.toml` 没有模型表就只建官方卡（xAI 登录）；有就把 `models.default`
+//!   指向的那张表（指不到时取唯一那张）导入成第三方卡，另补官方卡。只存这一张表，用户的
+//!   其他表和设置留在 live。
 
 use serde_json::{json, Value};
 
@@ -19,6 +24,8 @@ use crate::error::AppError;
 use crate::live::engine::read_current;
 use crate::live::project::claude::{store_into_row, ClaudeProjection};
 use crate::live::project::codex::{CodexProjection, Route, RowInput};
+use crate::live::project::gemini::GeminiProjection;
+use crate::live::project::grok::{normalized_text, GrokProjection};
 use crate::provider::{Provider, Tool};
 use crate::store;
 
@@ -45,6 +52,8 @@ pub fn import_live(env: &Env, tool: Tool) -> Result<ImportReport, AppError> {
     let (cards, current) = match tool {
         Tool::Claude => claude_cards(env)?,
         Tool::Codex => codex_cards(env)?,
+        Tool::Gemini => gemini_cards(env)?,
+        Tool::GrokBuild => grok_cards(env)?,
     };
     store::update(env, |data| {
         let app = data.app_mut(tool);
@@ -145,4 +154,59 @@ fn codex_cards(env: &Env) -> Result<(Vec<Provider>, String), AppError> {
             ))
         }
     }
+}
+
+fn gemini_cards(env: &Env) -> Result<(Vec<Provider>, String), AppError> {
+    let official = official_card(json!({ "env": {}, "config": {} }));
+    let dotenv = read_text(&env.gemini_env_path())?.unwrap_or_default();
+    let live_env: serde_json::Map<String, Value> = crate::live::patch::dotenv::entries(&dotenv)
+        .into_iter()
+        .map(|(key, value)| (key, Value::String(value)))
+        .collect();
+    let settings_path = env.gemini_settings_path();
+    let settings = match read_text(&settings_path)? {
+        Some(text) if !text.trim().is_empty() => serde_json::from_str::<Value>(&text)
+            .map_err(|source| AppError::json(&settings_path, source))?,
+        _ => json!({}),
+    };
+    let projection = GeminiProjection::of(
+        &json!({ "env": Value::Object(live_env), "config": settings }),
+        false,
+    );
+    if projection.env.is_empty() {
+        return Ok((vec![official], OFFICIAL_ID.to_string()));
+    }
+    let env_row: serde_json::Map<String, Value> = projection
+        .env
+        .iter()
+        .map(|(key, value)| (key.clone(), Value::String(value.clone())))
+        .collect();
+    let mut config = json!({});
+    if let Some(model) = &projection.model_name {
+        config = json!({ "model": { "name": model } });
+    }
+    let imported = Provider::new(
+        IMPORTED_ID,
+        "当前配置 (Imported)",
+        json!({ "env": Value::Object(env_row), "config": config }),
+    );
+    // 和切换时一样校验：缺凭据的第三方配置不导入，免得下次切回来写坏 live。
+    crate::switch::gemini::projection(&imported)?;
+    Ok((vec![imported, official], IMPORTED_ID.to_string()))
+}
+
+fn grok_cards(env: &Env) -> Result<(Vec<Provider>, String), AppError> {
+    let official = official_card(json!({ "config": "" }));
+    let text = read_text(&env.grok_config_path())?.unwrap_or_default();
+    if text.trim().is_empty() || crate::grok_config::is_official_live_config(&text) {
+        return Ok((vec![official], OFFICIAL_ID.to_string()));
+    }
+    let projection = GrokProjection::of(&json!({ "config": text }), false)?;
+    let (name, table) = projection.table.as_ref().expect("非官方投影一定有模型表");
+    let imported = Provider::new(
+        IMPORTED_ID,
+        "当前配置 (Imported)",
+        json!({ "config": normalized_text(name, table) }),
+    );
+    Ok((vec![imported, official], IMPORTED_ID.to_string()))
 }

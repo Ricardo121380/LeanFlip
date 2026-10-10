@@ -6,6 +6,8 @@
 
 pub mod claude;
 pub mod codex;
+pub mod gemini;
+pub mod grok;
 
 use crate::env::Env;
 use crate::error::AppError;
@@ -104,6 +106,8 @@ pub fn preflight(data: &store::StoreData, tool: Tool, provider: &Provider) -> Re
     match tool {
         Tool::Claude => Ok(()),
         Tool::Codex => codex::plan(data, None, provider).map(|_| ()),
+        Tool::Gemini => gemini::projection(provider).map(|_| ()),
+        Tool::GrokBuild => grok::projection(provider).map(|_| ()),
     }
 }
 
@@ -123,6 +127,8 @@ fn write(
             let planned = codex::plan(data, prev, target)?;
             codex::run(env, data, op, planned, pending)
         }
+        Tool::Gemini => gemini::write(env, target, op, pending),
+        Tool::GrokBuild => grok::write(env, prev, target, op, pending),
     }
 }
 
@@ -311,5 +317,113 @@ mod tests {
             .unwrap()
             .clone();
         assert_eq!(row.settings_config["auth"]["OPENAI_API_KEY"], "sk-rotated");
+    }
+
+    fn gemini_sandbox() -> (tempfile::TempDir, Env) {
+        let dir = tempfile::tempdir().unwrap();
+        let env = Env::with_home(dir.path());
+        for (id, url, key) in [
+            ("a", "https://a.example", "ka"),
+            ("b", "https://b.example", "kb"),
+        ] {
+            store::add_provider(
+                &env,
+                Tool::Gemini,
+                Provider::new(
+                    id,
+                    id,
+                    json!({"env": {"GOOGLE_GEMINI_BASE_URL": url, "GEMINI_API_KEY": key},
+                           "config": {"model": {"name": format!("m-{id}")}}}),
+                ),
+            )
+            .unwrap();
+        }
+        switch(&env, Tool::Gemini, "a").unwrap();
+        (dir, env)
+    }
+
+    /// Gemini 两个文件：`.env` 已经替换、`settings.json` 还没换时崩溃，启动时前滚，两个
+    /// 文件和指针一起落到目标卡，不会停在「Key 是 B、模型是 A」的半截状态。
+    #[test]
+    fn a_gemini_crash_between_the_two_files_rolls_forward_both() {
+        let (_dir, env) = gemini_sandbox();
+        failpoint::crash_at(Some("published:0"));
+        let result = switch(&env, Tool::Gemini, "b");
+        failpoint::crash_at(None);
+        assert!(result.is_err());
+        let dotenv = fs::read_to_string(env.gemini_env_path()).unwrap();
+        assert!(dotenv.contains("GEMINI_API_KEY=kb"), "{dotenv}");
+        let settings = fs::read_to_string(env.gemini_settings_path()).unwrap();
+        assert!(
+            settings.contains("m-a"),
+            "settings not published yet: {settings}"
+        );
+        assert_eq!(current(&env, Tool::Gemini).as_deref(), Some("a"));
+
+        let outcomes = recover_on_startup(&env);
+        assert!(
+            matches!(outcomes[..], [(_, Ok(RecoveryOutcome::RolledForward))]),
+            "{outcomes:?}"
+        );
+        let settings: Value =
+            serde_json::from_str(&fs::read_to_string(env.gemini_settings_path()).unwrap()).unwrap();
+        assert_eq!(settings["model"]["name"], "m-b");
+        assert_eq!(current(&env, Tool::Gemini).as_deref(), Some("b"));
+    }
+
+    /// 写之前崩溃（只留下暂存文件）：启动时丢弃，live 和指针都还是 A。
+    #[test]
+    fn a_gemini_crash_before_publishing_is_discarded() {
+        let (_dir, env) = gemini_sandbox();
+        let before = fs::read(env.gemini_env_path()).unwrap();
+        failpoint::crash_at(Some("pending"));
+        assert!(switch(&env, Tool::Gemini, "b").is_err());
+        failpoint::crash_at(None);
+        let outcomes = recover_on_startup(&env);
+        assert!(
+            outcomes
+                .iter()
+                .all(|(_, outcome)| matches!(outcome, Ok(RecoveryOutcome::Discarded))),
+            "{outcomes:?}"
+        );
+        assert_eq!(fs::read(env.gemini_env_path()).unwrap(), before);
+        assert_eq!(current(&env, Tool::Gemini).as_deref(), Some("a"));
+    }
+
+    fn grok_row(name: &str) -> Value {
+        json!({"config": format!(
+            "[models]\ndefault = \"{name}\"\n\n[model.{name}]\nmodel = \"m\"\nbase_url = \"https://{name}.example/v1\"\nname = \"{name}\"\napi_key = \"k-{name}\"\napi_backend = \"responses\"\ncontext_window = 1000\n"
+        )})
+    }
+
+    /// Grok：文件已替换、指针和写入记录还没落定时崩溃。下一次操作先前滚，写入记录跟着
+    /// 落到 B 的表，再从 B 切到 C 时删的是 B 的表，A 的表早已删掉，不会留下两家的表。
+    #[test]
+    fn a_grok_crash_before_the_target_commits_keeps_the_written_record_consistent() {
+        let dir = tempfile::tempdir().unwrap();
+        let env = Env::with_home(dir.path());
+        for id in ["ra", "rb", "rc"] {
+            store::add_provider(&env, Tool::GrokBuild, Provider::new(id, id, grok_row(id)))
+                .unwrap();
+        }
+        fs::create_dir_all(&env.grok_dir).unwrap();
+        fs::write(env.grok_config_path(), "[model.mine]\nmodel = \"x\"\n").unwrap();
+        switch(&env, Tool::GrokBuild, "ra").unwrap();
+        failpoint::crash_at(Some("published:0"));
+        assert!(switch(&env, Tool::GrokBuild, "rb").is_err());
+        failpoint::crash_at(None);
+        assert_eq!(current(&env, Tool::GrokBuild).as_deref(), Some("ra"));
+
+        switch(&env, Tool::GrokBuild, "rc").unwrap();
+        let text = fs::read_to_string(env.grok_config_path()).unwrap();
+        assert!(text.contains("[model.mine]"), "{text}");
+        assert!(text.contains("[model.rc]"), "{text}");
+        assert!(!text.contains("[model.ra]"), "{text}");
+        assert!(!text.contains("[model.rb]"), "{text}");
+        assert_eq!(current(&env, Tool::GrokBuild).as_deref(), Some("rc"));
+        let written = crate::state::written(&env.device_store(), "grokbuild")
+            .unwrap()
+            .unwrap();
+        assert_eq!(written.tables, vec!["rc".to_string()]);
     }
 }

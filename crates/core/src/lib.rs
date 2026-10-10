@@ -7,6 +7,7 @@ pub mod codex;
 pub mod env;
 pub mod error;
 pub mod fsutil;
+pub mod grok_config;
 pub mod import;
 pub mod live;
 pub mod operation;

@@ -21,6 +21,10 @@ pub struct Env {
     pub claude_dir: PathBuf,
     /// Codex 配置目录（默认 `~/.codex`）。
     pub codex_dir: PathBuf,
+    /// Gemini CLI 配置目录（默认 `~/.gemini`）。
+    pub gemini_dir: PathBuf,
+    /// Grok Build 配置目录（默认 `~/.grok`）。
+    pub grok_dir: PathBuf,
 }
 
 impl Env {
@@ -31,6 +35,8 @@ impl Env {
             data_dir: home.join(DATA_DIR_NAME),
             claude_dir: home.join(".claude"),
             codex_dir: home.join(".codex"),
+            gemini_dir: home.join(".gemini"),
+            grok_dir: home.join(".grok"),
             home,
         }
     }
@@ -73,6 +79,18 @@ impl Env {
 
     pub fn codex_auth_path(&self) -> PathBuf {
         self.codex_dir.join("auth.json")
+    }
+
+    pub fn gemini_env_path(&self) -> PathBuf {
+        self.gemini_dir.join(".env")
+    }
+
+    pub fn gemini_settings_path(&self) -> PathBuf {
+        self.gemini_dir.join("settings.json")
+    }
+
+    pub fn grok_config_path(&self) -> PathBuf {
+        self.grok_dir.join("config.toml")
     }
 
     /// 供应商库文件。

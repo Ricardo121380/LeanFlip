@@ -9,22 +9,25 @@ use serde_json::{Map, Value};
 
 use crate::error::AppError;
 
-/// 支持切换的工具。Phase 1 只有 Claude Code 和 Codex；Gemini CLI、Grok Build、
-/// Claude Desktop 和共存工具在 Phase 2 加进来。
+/// 支持切换的工具。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Tool {
     Claude,
     Codex,
+    Gemini,
+    GrokBuild,
 }
 
 impl Tool {
-    pub const ALL: [Tool; 2] = [Tool::Claude, Tool::Codex];
+    pub const ALL: [Tool; 4] = [Tool::Claude, Tool::Codex, Tool::Gemini, Tool::GrokBuild];
 
     /// 存储和写锁用的名字（和 cc-switch 的 `AppType::as_str` 一致）。
     pub fn as_str(self) -> &'static str {
         match self {
             Tool::Claude => "claude",
             Tool::Codex => "codex",
+            Tool::Gemini => "gemini",
+            Tool::GrokBuild => "grokbuild",
         }
     }
 }
@@ -36,6 +39,8 @@ impl std::str::FromStr for Tool {
         match value {
             "claude" => Ok(Tool::Claude),
             "codex" => Ok(Tool::Codex),
+            "gemini" => Ok(Tool::Gemini),
+            "grokbuild" => Ok(Tool::GrokBuild),
             other => Err(AppError::InvalidInput(format!("未知的工具: {other}"))),
         }
     }
@@ -164,6 +169,6 @@ mod tests {
         for tool in Tool::ALL {
             assert_eq!(tool.as_str().parse::<Tool>().unwrap(), tool);
         }
-        assert!("gemini".parse::<Tool>().is_err());
+        assert!("nope".parse::<Tool>().is_err());
     }
 }
