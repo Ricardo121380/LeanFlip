@@ -39,6 +39,15 @@ impl DeviceStore {
         self.root.join("live-state.json")
     }
 
+    /// 一个应用的写锁，进程内 + 跨进程：先拿进程内的（[`lock_app`]），再对
+    /// `<数据目录>/locks/<app>.lock` 加排他的文件锁（同一台机器上开了两个 ccswitch-lite，
+    /// 或者 CLI 和桌面应用同时在写，也互斥）。锁文件本身不删，进程退出时内核释放锁。
+    pub fn lock_app(&self, app: &str) -> AppWriteGuard {
+        let mut guard = lock_app(app);
+        guard._file = lock_file(&self.root.join("locks").join(format!("{app}.lock")), true);
+        guard
+    }
+
     /// 这台设备状态目录下的一个文件（比如 Codex 的登录暂存）。
     pub fn file(&self, name: &str) -> PathBuf {
         self.root.join(name)
@@ -183,6 +192,8 @@ pub fn ensure_first_write_backup(
 #[derive(Debug)]
 pub struct AppWriteGuard {
     app: String,
+    /// 跨进程的那一半（[`DeviceStore::lock_app`]）：持有期间对锁文件加排他锁。
+    _file: Option<std::fs::File>,
 }
 
 impl AppWriteGuard {
@@ -205,6 +216,35 @@ pub fn lock_app(app: &str) -> AppWriteGuard {
     held.insert(app.to_string());
     AppWriteGuard {
         app: app.to_string(),
+        _file: None,
+    }
+}
+
+/// 打开（必要时创建）锁文件并加锁。打不开时返回 `None`（只剩进程内的锁，记一条警告）。
+pub(crate) fn lock_file(path: &Path, exclusive: bool) -> Option<std::fs::File> {
+    let open = || -> std::io::Result<std::fs::File> {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let file = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(path)?;
+        if exclusive {
+            file.lock()?;
+        } else {
+            file.lock_shared()?;
+        }
+        Ok(file)
+    };
+    match open() {
+        Ok(file) => Some(file),
+        Err(err) => {
+            log::warn!("无法锁定 {}（只用进程内的锁）: {err}", path.display());
+            None
+        }
     }
 }
 

@@ -11,7 +11,7 @@ use serde_json::{json, Map, Value};
 use crate::codex::auth::extract_codex_auth_user_identity;
 use crate::env::Env;
 use crate::error::AppError;
-use crate::live::engine::{lock_app, read_current};
+use crate::live::engine::read_current;
 use crate::provider::Tool;
 
 /// 标记文件（和 cc-switch 同名，放在 ccswitch-lite 的数据目录里）。
@@ -256,7 +256,7 @@ pub fn sync_live_after_refresh(
     expected_refresh: &str,
     refreshed: &Value,
 ) -> Result<bool, AppError> {
-    let _guard = lock_app(Tool::Codex.as_str());
+    let _guard = env.device_store().lock_app(Tool::Codex.as_str());
     if crate::state::pending(&env.device_store(), Tool::Codex.as_str())?.is_some() {
         return Ok(false);
     }
@@ -278,7 +278,7 @@ pub fn sync_live_after_refresh(
 
 /// 删除托管账号时清掉它留在 live 的登录和标记。live 不是它的就只清标记（如果标记是它的）。
 pub fn clear_live_for_account(env: &Env, account_id: &str) -> Result<(), AppError> {
-    let _guard = lock_app(Tool::Codex.as_str());
+    let _guard = env.device_store().lock_app(Tool::Codex.as_str());
     let marker = read_marker(env);
     let auth = read_live_auth(env).unwrap_or(None);
     if auth

@@ -120,7 +120,18 @@ fn store_lock() -> &'static Mutex<()> {
 /// 读供应商库。文件不存在时是空库。
 pub fn load(env: &Env) -> Result<StoreData, AppError> {
     let _guard = store_lock().lock().unwrap_or_else(|e| e.into_inner());
+    // 数据目录还不存在时库一定是空的，不为了读去建目录。
+    let _file = env
+        .data_dir
+        .is_dir()
+        .then(|| crate::live::engine::lock_file(&store_lock_path(env), false));
     load_unlocked(env)
+}
+
+/// 跨进程的库锁：读加共享锁、读改写加排他锁（两个 ccswitch-lite 进程同时改库时，
+/// 后一个等前一个写完再读，不会互相覆盖）。
+fn store_lock_path(env: &Env) -> std::path::PathBuf {
+    env.data_dir.join("providers.json.lock")
 }
 
 fn load_unlocked(env: &Env) -> Result<StoreData, AppError> {
@@ -145,6 +156,7 @@ pub fn update<R>(
     change: impl FnOnce(&mut StoreData) -> Result<R, AppError>,
 ) -> Result<R, AppError> {
     let _guard = store_lock().lock().unwrap_or_else(|e| e.into_inner());
+    let _file = crate::live::engine::lock_file(&store_lock_path(env), true);
     let mut data = load_unlocked(env)?;
     let result = change(&mut data)?;
     save_unlocked(env, &data)?;

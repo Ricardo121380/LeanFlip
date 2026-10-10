@@ -313,7 +313,7 @@ pub fn settle(
     app: &str,
     commit_target: CommitTarget<'_>,
 ) -> Result<Option<RecoveryOutcome>, AppError> {
-    let guard = crate::live::engine::lock_app(app);
+    let guard = store.lock_app(app);
     recover(store, &guard, commit_target)
 }
 
@@ -357,9 +357,10 @@ impl<'a> AppWrite<'a> {
         app: &str,
         commit: CommitTarget<'a>,
     ) -> Result<Self, AppError> {
+        let guard = store.lock_app(app);
         let write = Self {
             store,
-            guard: crate::live::engine::lock_app(app),
+            guard,
             commit,
         };
         recover_before_write(&write.store, &write.guard, write.commit)?;
@@ -388,7 +389,7 @@ pub fn recover_all(
     };
     apps.into_iter()
         .filter_map(|app| {
-            let guard = crate::live::engine::lock_app(&app);
+            let guard = store.lock_app(&app);
             let commit = |target: &PendingTarget| commit_target(&app, target);
             match recover(store, &guard, &commit) {
                 Ok(Some(outcome)) => Some((app, Ok(outcome))),
