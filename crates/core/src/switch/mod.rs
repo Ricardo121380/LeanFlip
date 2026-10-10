@@ -5,6 +5,7 @@
 //! 时（[`recover_on_startup`]）按 pending 前滚或丢弃。
 
 pub mod claude;
+pub mod claude_desktop;
 pub mod codex;
 pub mod gemini;
 pub mod grok;
@@ -153,6 +154,7 @@ pub fn preflight(data: &store::StoreData, tool: Tool, provider: &Provider) -> Re
         Tool::Codex => codex::plan(data, None, provider).map(|_| ()),
         Tool::Gemini => gemini::projection(provider).map(|_| ()),
         Tool::GrokBuild => grok::projection(provider).map(|_| ()),
+        Tool::ClaudeDesktop => claude_desktop::validate(provider),
     }
 }
 
@@ -178,6 +180,7 @@ fn write(
         }
         Tool::Gemini => gemini::write(env, target, op, pending),
         Tool::GrokBuild => grok::write(env, prev, target, op, pending),
+        Tool::ClaudeDesktop => claude_desktop::write(env, target, op, pending),
     }
 }
 

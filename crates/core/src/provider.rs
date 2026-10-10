@@ -16,10 +16,17 @@ pub enum Tool {
     Codex,
     Gemini,
     GrokBuild,
+    ClaudeDesktop,
 }
 
 impl Tool {
-    pub const ALL: [Tool; 4] = [Tool::Claude, Tool::Codex, Tool::Gemini, Tool::GrokBuild];
+    pub const ALL: [Tool; 5] = [
+        Tool::Claude,
+        Tool::Codex,
+        Tool::Gemini,
+        Tool::GrokBuild,
+        Tool::ClaudeDesktop,
+    ];
 
     /// 存储和写锁用的名字（和 cc-switch 的 `AppType::as_str` 一致）。
     pub fn as_str(self) -> &'static str {
@@ -28,6 +35,7 @@ impl Tool {
             Tool::Codex => "codex",
             Tool::Gemini => "gemini",
             Tool::GrokBuild => "grokbuild",
+            Tool::ClaudeDesktop => "claude-desktop",
         }
     }
 }
@@ -41,6 +49,7 @@ impl std::str::FromStr for Tool {
             "codex" => Ok(Tool::Codex),
             "gemini" => Ok(Tool::Gemini),
             "grokbuild" => Ok(Tool::GrokBuild),
+            "claude-desktop" => Ok(Tool::ClaudeDesktop),
             other => Err(AppError::InvalidInput(format!("未知的工具: {other}"))),
         }
     }

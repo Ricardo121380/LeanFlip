@@ -25,6 +25,10 @@ pub struct Env {
     pub gemini_dir: PathBuf,
     /// Grok Build 配置目录（默认 `~/.grok`）。
     pub grok_dir: PathBuf,
+    /// Claude Desktop 的普通配置目录（`Claude`）和第三方部署目录（`Claude-3p`）的父目录：
+    /// macOS `~/Library/Application Support`，Windows `%LOCALAPPDATA%`，Linux
+    /// `$XDG_CONFIG_HOME`（默认 `~/.config`）。
+    pub claude_desktop_root: PathBuf,
 }
 
 impl Env {
@@ -37,6 +41,7 @@ impl Env {
             codex_dir: home.join(".codex"),
             gemini_dir: home.join(".gemini"),
             grok_dir: home.join(".grok"),
+            claude_desktop_root: default_desktop_root(&home),
             home,
         }
     }
@@ -53,7 +58,41 @@ impl Env {
         if let Some(codex_home) = std::env::var_os("CODEX_HOME").filter(|v| !v.is_empty()) {
             env.codex_dir = PathBuf::from(codex_home);
         }
+        if cfg!(windows) {
+            if let Some(local) = std::env::var_os("LOCALAPPDATA").filter(|v| !v.is_empty()) {
+                env.claude_desktop_root = PathBuf::from(local);
+            }
+        } else if cfg!(target_os = "linux") && !std::path::Path::new("/.flatpak-info").is_file() {
+            // Flatpak 里的 XDG_CONFIG_HOME 是沙箱私有的，宿主上的 Claude Desktop 用 ~/.config。
+            if let Some(xdg) = std::env::var_os("XDG_CONFIG_HOME")
+                .map(PathBuf::from)
+                .filter(|path| path.is_absolute())
+            {
+                env.claude_desktop_root = xdg;
+            }
+        }
         env
+    }
+
+    /// `Claude/claude_desktop_config.json`。
+    pub fn claude_desktop_config_path(&self) -> PathBuf {
+        self.claude_desktop_root
+            .join("Claude")
+            .join("claude_desktop_config.json")
+    }
+
+    /// `Claude-3p/claude_desktop_config.json`。
+    pub fn claude_desktop_3p_config_path(&self) -> PathBuf {
+        self.claude_desktop_root
+            .join("Claude-3p")
+            .join("claude_desktop_config.json")
+    }
+
+    /// `Claude-3p/configLibrary`（第三方 profile 和 `_meta.json`）。
+    pub fn claude_desktop_library_dir(&self) -> PathBuf {
+        self.claude_desktop_root
+            .join("Claude-3p")
+            .join("configLibrary")
     }
 
     pub fn device_store(&self) -> DeviceStore {
@@ -100,6 +139,16 @@ impl Env {
 
     pub fn data_file(&self, name: &str) -> PathBuf {
         self.data_dir.join(name)
+    }
+}
+
+fn default_desktop_root(home: &std::path::Path) -> PathBuf {
+    if cfg!(target_os = "macos") {
+        home.join("Library").join("Application Support")
+    } else if cfg!(windows) {
+        home.join("AppData").join("Local")
+    } else {
+        home.join(".config")
     }
 }
 

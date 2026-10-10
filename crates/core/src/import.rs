@@ -10,6 +10,8 @@
 //!   会作为这张第三方卡的 Key 导入。
 //! - Gemini CLI：`.env` 里有关键字段（地址、Key、模型……）就导入成第三方卡（只存关键
 //!   字段和 `model.name`），另补一张官方卡；没有就只建官方卡（Google 登录）。
+//! - Claude Desktop：`_meta.json` 里 CC Switch 的 profile 正生效、有网关地址和 Key 就导入
+//!   成第三方卡，另补官方卡；否则只建官方卡。
 //! - Grok Build：`config.toml` 没有模型表就只建官方卡（xAI 登录）；有就把 `models.default`
 //!   指向的那张表（指不到时取唯一那张）导入成第三方卡，另补官方卡。只存这一张表，用户的
 //!   其他表和设置留在 live。
@@ -54,6 +56,13 @@ pub fn import_live(env: &Env, tool: Tool) -> Result<ImportReport, AppError> {
         Tool::Codex => codex_cards(env)?,
         Tool::Gemini => gemini_cards(env)?,
         Tool::GrokBuild => grok_cards(env)?,
+        Tool::ClaudeDesktop => {
+            let official = official_card(json!({ "env": {} }));
+            match crate::switch::claude_desktop::imported_card(env)? {
+                Some(card) => (vec![card, official], IMPORTED_ID.to_string()),
+                None => (vec![official], OFFICIAL_ID.to_string()),
+            }
+        }
     };
     store::update(env, |data| {
         let app = data.app_mut(tool);
