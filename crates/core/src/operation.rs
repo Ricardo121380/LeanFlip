@@ -63,6 +63,9 @@ pub struct OperationReport {
     pub changed: Vec<PathBuf>,
     /// 开始前补完或放弃的上一次未完成操作。
     pub recovered: Option<RecoveryOutcome>,
+    /// 操作成功但值得告诉用户的事（比如 Codex `auth.json` 读不了、这次没动它）。
+    /// ccswitch-lite 新增：cc-switch 原版把警告放在切换服务的返回值里。
+    pub warnings: Vec<String>,
 }
 
 /// 执行一次操作。调用方持有这个应用的写锁。
