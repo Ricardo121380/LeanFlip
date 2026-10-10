@@ -4,6 +4,7 @@
 //! （MIT，Copyright (c) 2025 Jason Young），见仓库根目录的 `NOTICE.md`。
 
 pub mod codex;
+pub mod coexist;
 pub mod env;
 pub mod error;
 pub mod fsutil;

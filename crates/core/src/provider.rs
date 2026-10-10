@@ -17,16 +17,35 @@ pub enum Tool {
     Gemini,
     GrokBuild,
     ClaudeDesktop,
+    OpenCode,
+    OpenClaw,
+    Hermes,
+    Pi,
+    Mcode,
 }
 
 impl Tool {
-    pub const ALL: [Tool; 5] = [
+    pub const ALL: [Tool; 10] = [
         Tool::Claude,
         Tool::Codex,
         Tool::Gemini,
         Tool::GrokBuild,
         Tool::ClaudeDesktop,
+        Tool::OpenCode,
+        Tool::OpenClaw,
+        Tool::Hermes,
+        Tool::Pi,
+        Tool::Mcode,
     ];
+
+    /// 并存式工具：多家供应商同时写在客户端配置里，没有「当前供应商」，
+    /// 只有「写进 / 移出客户端配置」（见 [`crate::coexist`]）。
+    pub fn is_coexist(self) -> bool {
+        matches!(
+            self,
+            Tool::OpenCode | Tool::OpenClaw | Tool::Hermes | Tool::Pi | Tool::Mcode
+        )
+    }
 
     /// 存储和写锁用的名字（和 cc-switch 的 `AppType::as_str` 一致）。
     pub fn as_str(self) -> &'static str {
@@ -36,6 +55,11 @@ impl Tool {
             Tool::Gemini => "gemini",
             Tool::GrokBuild => "grokbuild",
             Tool::ClaudeDesktop => "claude-desktop",
+            Tool::OpenCode => "opencode",
+            Tool::OpenClaw => "openclaw",
+            Tool::Hermes => "hermes",
+            Tool::Pi => "pi",
+            Tool::Mcode => "mcode",
         }
     }
 }
@@ -50,6 +74,11 @@ impl std::str::FromStr for Tool {
             "gemini" => Ok(Tool::Gemini),
             "grokbuild" => Ok(Tool::GrokBuild),
             "claude-desktop" => Ok(Tool::ClaudeDesktop),
+            "opencode" => Ok(Tool::OpenCode),
+            "openclaw" => Ok(Tool::OpenClaw),
+            "hermes" => Ok(Tool::Hermes),
+            "pi" => Ok(Tool::Pi),
+            "mcode" => Ok(Tool::Mcode),
             other => Err(AppError::InvalidInput(format!("未知的工具: {other}"))),
         }
     }

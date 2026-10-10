@@ -22,6 +22,18 @@ impl Sandbox {
         assert!(real_home.as_deref() != Some(dir.path()));
         assert!(env.claude_dir.starts_with(dir.path()));
         assert!(env.codex_dir.starts_with(dir.path()));
+        for path in [
+            &env.gemini_dir,
+            &env.grok_dir,
+            &env.claude_desktop_root,
+            &env.opencode_dir,
+            &env.openclaw_dir,
+            &env.hermes_dir,
+            &env.pi_agent_dir,
+            &env.mcode_dir,
+        ] {
+            assert!(path.starts_with(dir.path()), "{}", path.display());
+        }
         Self { _dir: dir, env }
     }
 

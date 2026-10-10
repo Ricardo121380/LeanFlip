@@ -44,6 +44,10 @@ pub struct ImportReport {
 
 /// 这个工具还没有卡时，按 live 导入。
 pub fn import_live(env: &Env, tool: Tool) -> Result<ImportReport, AppError> {
+    if tool.is_coexist() {
+        // 并存式工具：live 里每个条目一张卡，可以重复调用（只补缺的）。
+        return crate::coexist::import_live(env, tool);
+    }
     crate::switch::settle(env, tool)?;
     if !store::load(env)?.providers(tool).is_empty() {
         return Ok(ImportReport {
@@ -63,6 +67,7 @@ pub fn import_live(env: &Env, tool: Tool) -> Result<ImportReport, AppError> {
                 None => (vec![official], OFFICIAL_ID.to_string()),
             }
         }
+        Tool::OpenCode | Tool::OpenClaw | Tool::Hermes | Tool::Pi | Tool::Mcode => unreachable!(),
     };
     store::update(env, |data| {
         let app = data.app_mut(tool);

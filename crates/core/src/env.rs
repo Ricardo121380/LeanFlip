@@ -29,6 +29,16 @@ pub struct Env {
     /// macOS `~/Library/Application Support`，Windows `%LOCALAPPDATA%`，Linux
     /// `$XDG_CONFIG_HOME`（默认 `~/.config`）。
     pub claude_desktop_root: PathBuf,
+    /// OpenCode 配置目录（所有平台都是 `~/.config/opencode`，OpenCode 不按平台约定）。
+    pub opencode_dir: PathBuf,
+    /// OpenClaw 配置目录（`~/.openclaw`）。
+    pub openclaw_dir: PathBuf,
+    /// Hermes 配置目录（`HERMES_HOME`；默认 `~/.hermes`，Windows `%LOCALAPPDATA%\hermes`）。
+    pub hermes_dir: PathBuf,
+    /// Pi 的 agent 目录（`PI_CODING_AGENT_DIR`；默认 `~/.pi/agent`）。
+    pub pi_agent_dir: PathBuf,
+    /// MiniMax Code 数据目录（`MINIMAX_DATA_DIR` / `MAVIS_DATA_DIR`；默认 `~/.minimax`）。
+    pub mcode_dir: PathBuf,
 }
 
 impl Env {
@@ -42,6 +52,15 @@ impl Env {
             gemini_dir: home.join(".gemini"),
             grok_dir: home.join(".grok"),
             claude_desktop_root: default_desktop_root(&home),
+            opencode_dir: home.join(".config").join("opencode"),
+            openclaw_dir: home.join(".openclaw"),
+            hermes_dir: if cfg!(windows) {
+                home.join("AppData").join("Local").join("hermes")
+            } else {
+                home.join(".hermes")
+            },
+            pi_agent_dir: home.join(".pi").join("agent"),
+            mcode_dir: home.join(".minimax"),
             home,
         }
     }
@@ -60,7 +79,11 @@ impl Env {
         }
         if cfg!(windows) {
             if let Some(local) = std::env::var_os("LOCALAPPDATA").filter(|v| !v.is_empty()) {
-                env.claude_desktop_root = PathBuf::from(local);
+                env.claude_desktop_root = PathBuf::from(&local);
+                let trimmed = local.to_string_lossy().trim().to_string();
+                if !trimmed.is_empty() {
+                    env.hermes_dir = PathBuf::from(trimmed).join("hermes");
+                }
             }
         } else if cfg!(target_os = "linux") && !std::path::Path::new("/.flatpak-info").is_file() {
             // Flatpak 里的 XDG_CONFIG_HOME 是沙箱私有的，宿主上的 Claude Desktop 用 ~/.config。
@@ -71,7 +94,48 @@ impl Env {
                 env.claude_desktop_root = xdg;
             }
         }
+        let trimmed_var = |name: &str| {
+            std::env::var_os(name)
+                .map(|v| v.to_string_lossy().trim().to_string())
+                .filter(|v| !v.is_empty())
+                .map(PathBuf::from)
+        };
+        if let Some(dir) = trimmed_var("HERMES_HOME") {
+            env.hermes_dir = dir;
+        }
+        if let Some(dir) = trimmed_var("PI_CODING_AGENT_DIR").filter(|p| p.is_absolute()) {
+            env.pi_agent_dir = dir;
+        }
+        if let Some(dir) = trimmed_var("MINIMAX_DATA_DIR").or_else(|| trimmed_var("MAVIS_DATA_DIR"))
+        {
+            env.mcode_dir = dir;
+        }
         env
+    }
+
+    /// OpenCode 配置文件：已有 `opencode.jsonc` 就用它，否则 `opencode.json`。
+    pub fn opencode_config_path(&self) -> PathBuf {
+        let jsonc = self.opencode_dir.join("opencode.jsonc");
+        if jsonc.exists() {
+            return jsonc;
+        }
+        self.opencode_dir.join("opencode.json")
+    }
+
+    pub fn openclaw_config_path(&self) -> PathBuf {
+        self.openclaw_dir.join("openclaw.json")
+    }
+
+    pub fn hermes_config_path(&self) -> PathBuf {
+        self.hermes_dir.join("config.yaml")
+    }
+
+    pub fn pi_models_path(&self) -> PathBuf {
+        self.pi_agent_dir.join("models.json")
+    }
+
+    pub fn mcode_config_path(&self) -> PathBuf {
+        self.mcode_dir.join("config.yaml")
     }
 
     /// `Claude/claude_desktop_config.json`。

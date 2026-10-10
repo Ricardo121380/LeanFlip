@@ -63,6 +63,10 @@ pub fn switch_with(
     tool: Tool,
     id: &str,
 ) -> Result<OperationReport, AppError> {
+    if tool.is_coexist() {
+        // 并存式工具没有当前指针：「切换」= 写进客户端配置（Hermes 还改顶层 model:）。
+        return crate::coexist::activate(env, tool, id);
+    }
     settle(env, tool)?;
     let data = store::load(env)?;
     let target = data
@@ -121,6 +125,9 @@ pub fn update_provider_with(
     tool: Tool,
     provider: Provider,
 ) -> Result<Option<OperationReport>, AppError> {
+    if tool.is_coexist() {
+        return crate::coexist::update_provider(env, tool, provider);
+    }
     settle(env, tool)?;
     let data = store::load(env)?;
     let old = data
@@ -155,6 +162,9 @@ pub fn preflight(data: &store::StoreData, tool: Tool, provider: &Provider) -> Re
         Tool::Gemini => gemini::projection(provider).map(|_| ()),
         Tool::GrokBuild => grok::projection(provider).map(|_| ()),
         Tool::ClaudeDesktop => claude_desktop::validate(provider),
+        Tool::OpenCode | Tool::OpenClaw | Tool::Hermes | Tool::Pi | Tool::Mcode => {
+            crate::coexist::validate(tool, provider)
+        }
     }
 }
 
@@ -181,6 +191,9 @@ fn write(
         Tool::Gemini => gemini::write(env, target, op, pending),
         Tool::GrokBuild => grok::write(env, prev, target, op, pending),
         Tool::ClaudeDesktop => claude_desktop::write(env, target, op, pending),
+        Tool::OpenCode | Tool::OpenClaw | Tool::Hermes | Tool::Pi | Tool::Mcode => Err(
+            AppError::InvalidInput(format!("{tool} 是并存式工具，没有当前供应商")),
+        ),
     }
 }
 

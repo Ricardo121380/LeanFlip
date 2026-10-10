@@ -6,6 +6,7 @@
 
 pub mod dotenv;
 pub mod json;
+pub mod jsonc;
 pub mod toml;
 
 use std::fmt;
@@ -145,6 +146,9 @@ pub enum LiveWriteError {
     /// 写完之后客户端实际走的路由不是目标供应商：当前生效的 profile 覆盖了选路。
     #[error("Codex 当前生效的 profile \"{profile}\" 覆盖了 {key}")]
     Route { profile: String, key: String },
+    /// 工具自己的规则拒绝了这次修改（并存式工具的条目校验、键冲突等）。
+    #[error("{0}")]
+    Rejected(Box<crate::error::AppError>),
 }
 
 /// 编辑冲突的错误码。命令返回 JSON 字符串，前端据此让用户选保留哪一边。
@@ -200,6 +204,7 @@ impl From<LiveWriteError> for crate::error::AppError {
                     "The active Codex profile \"{profile}\" ([profiles.{profile}]) sets {key}, so requests would keep following it instead of the target provider. Remove {key} from that profile or change the top-level profile. Nothing was written"
                 ),
             ),
+            LiveWriteError::Rejected(error) => *error,
             LiveWriteError::EditConflict { path, keys } => AppError::Message(
                 serde_json::json!({
                     "code": EDIT_CONFLICT_CODE,

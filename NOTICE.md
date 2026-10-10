@@ -32,6 +32,12 @@ cc-switch 以 MIT 许可证发布：
 | `crates/core/src/switch/gemini.rs` | `src-tauri/src/services/provider/gemini_direct.rs` | 去掉数据库 |
 | `crates/core/src/switch/grok.rs` | `src-tauri/src/services/provider/grok_direct.rs` | 去掉数据库 |
 | `crates/core/src/switch/claude_desktop.rs` | `src-tauri/src/claude_desktop_config.rs`（直连部分：路径、profile、`_meta.json`、模型名校验） | 去掉 proxy 模式和模型映射；官方按分类识别；四个文件一个操作 |
+| `crates/core/src/live/patch/jsonc.rs` | `src-tauri/src/jsonc_document.rs` | 可见性改为 `pub`；删除成员时不再留下只有缩进的空行 |
+| `crates/core/src/coexist/opencode.rs` | `src-tauri/src/opencode_config.rs`（供应商部分、V2 字段校验） | 不含 OMO；`provider` 段形状不对时拒绝而不是清空 |
+| `crates/core/src/coexist/openclaw.rs` | `src-tauri/src/openclaw_config.rs`（`models.providers`） | 改为节点级保留格式编辑 |
+| `crates/core/src/coexist/hermes.rs` | `src-tauri/src/hermes_config.rs`（段替换、键名清洗、models 转换、`apply_switch_defaults`） | 不含 memory / MCP；条目和 `model:` 在一个操作里写 |
+| `crates/core/src/coexist/pi.rs` | `src-tauri/src/pi_config/mod.rs`（`models.json`） | 改为保留格式编辑 |
+| `crates/core/src/coexist/mcode.rs` | `src-tauri/src/mcode_config.rs` | URL 校验不依赖 `url` crate |
 | `crates/core/src/codex/oauth/mod.rs` | `src-tauri/src/proxy/providers/codex_oauth_auth.rs`（`CodexOAuthManager`） | 改为同步；网络抽成 `OAuthTransport`；采纳判定、拒绝后恢复、代数锁、重复账号检查照搬；坏账号库报错不覆盖 |
 | `crates/core/src/codex/oauth/live.rs` | `src-tauri/src/codex_config.rs`（托管 OAuth 标记、读回/同步 live） | 只认 v3 标记；刷新后同步 live 时拿 Codex 写锁、有未完成操作时跳过 |
 | `crates/core/tests/codex_red_lines.rs` | `src-tauri/tests/golden/codex_red_lines.rs` | 改用临时 HOME 沙箱；代理相关红线未移植 |
