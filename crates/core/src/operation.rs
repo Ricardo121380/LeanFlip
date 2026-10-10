@@ -352,7 +352,11 @@ pub struct AppWrite<'a> {
 
 impl<'a> AppWrite<'a> {
     /// 拿写锁，先补完上一次的操作；补完过就停下（见 [`recover_before_write`]）。
-    pub fn begin(store: DeviceStore, app: &str, commit: CommitTarget<'a>) -> Result<Self, AppError> {
+    pub fn begin(
+        store: DeviceStore,
+        app: &str,
+        commit: CommitTarget<'a>,
+    ) -> Result<Self, AppError> {
         let write = Self {
             store,
             guard: crate::live::engine::lock_app(app),

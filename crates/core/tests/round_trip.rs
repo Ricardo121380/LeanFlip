@@ -78,7 +78,10 @@ fn claude_settings_round_trip_a_b_a() {
     assert_eq!(report.changed, vec![settings.clone()]);
     let on_b = sb.json(&settings);
     let env = on_b["env"].as_object().unwrap();
-    assert_eq!(env["ANTHROPIC_BASE_URL"], "https://relay-b.example/anthropic");
+    assert_eq!(
+        env["ANTHROPIC_BASE_URL"],
+        "https://relay-b.example/anthropic"
+    );
     assert_eq!(env["ANTHROPIC_API_KEY"], "sk-b");
     assert_eq!(env["ANTHROPIC_DEFAULT_SONNET_MODEL"], "kimi-k2");
     assert_eq!(env["CLAUDE_CODE_DISABLE_THINKING"], "1");
@@ -88,7 +91,10 @@ fn claude_settings_round_trip_a_b_a() {
         "ANTHROPIC_MODEL",
         "CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS",
     ] {
-        assert!(!env.contains_key(gone), "A's {gone} must not survive: {on_b:#}");
+        assert!(
+            !env.contains_key(gone),
+            "A's {gone} must not survive: {on_b:#}"
+        );
     }
     // 用户自己的 env（不是关键字段、也不是任何供应商的独有字段）留着。
     assert_eq!(env["API_TIMEOUT_MS"], "600000");
@@ -129,9 +135,8 @@ fn claude_settings_round_trip_a_b_a() {
     let back = sb.read(&settings);
     let back_json: serde_json::Value = serde_json::from_str(&back).unwrap();
     assert_eq!(back_json, original);
-    let keys = |v: &serde_json::Value| -> Vec<String> {
-        v.as_object().unwrap().keys().cloned().collect()
-    };
+    let keys =
+        |v: &serde_json::Value| -> Vec<String> { v.as_object().unwrap().keys().cloned().collect() };
     assert_eq!(keys(&back_json), keys(&original), "top-level order kept");
     // 第一次写入会把文件规范化成 serde_json 的 pretty 格式（行内数组展开、`\u00e9` 写成
     // 字符），被清掉再写回的关键字段排到 env 末尾：这是移植来的 JsonPatch 的既定行为，值和
@@ -139,7 +144,11 @@ fn claude_settings_round_trip_a_b_a() {
     assert_ne!(back, CLAUDE_LIVE);
     switch::switch(&sb.env, Tool::Claude, "b").unwrap();
     switch::switch(&sb.env, Tool::Claude, "a").unwrap();
-    assert_eq!(sb.read(&settings), back, "second A -> B -> A is byte-identical");
+    assert_eq!(
+        sb.read(&settings),
+        back,
+        "second A -> B -> A is byte-identical"
+    );
     assert_eq!(sb.read(&backup), CLAUDE_LIVE, "backup is never overwritten");
     assert_eq!(sb.current(Tool::Claude).as_deref(), Some("a"));
     assert!(sb.temp_files().is_empty(), "{:?}", sb.temp_files());
@@ -219,7 +228,10 @@ fn codex_official_to_third_party_and_back_keeps_the_chatgpt_login() {
     sb.write(&auth, OAUTH_LOGIN);
     let report = ccsl_core::import::import_live(&sb.env, Tool::Codex).unwrap();
     assert_eq!(report.current.as_deref(), Some("official"));
-    sb.add(Tool::Codex, relay("relay-a", "sk-a", "https://a.example/v1", "a-model"));
+    sb.add(
+        Tool::Codex,
+        relay("relay-a", "sk-a", "https://a.example/v1", "a-model"),
+    );
 
     // 官方 → A
     switch::switch(&sb.env, Tool::Codex, "relay-a").unwrap();
@@ -229,7 +241,10 @@ fn codex_official_to_third_party_and_back_keeps_the_chatgpt_login() {
     assert_eq!(doc["model_provider"].as_str(), Some("custom"));
     assert_eq!(doc["model"].as_str(), Some("a-model"));
     assert_eq!(doc["model_context_window"].as_integer(), Some(128000));
-    assert!(doc.get("model_reasoning_effort").is_none(), "official's key field left");
+    assert!(
+        doc.get("model_reasoning_effort").is_none(),
+        "official's key field left"
+    );
     let custom = doc["model_providers"]["custom"].as_table().unwrap();
     assert_eq!(custom["experimental_bearer_token"].as_str(), Some("sk-a"));
     assert_eq!(custom["base_url"].as_str(), Some("https://a.example/v1"));
@@ -239,7 +254,10 @@ fn codex_official_to_third_party_and_back_keeps_the_chatgpt_login() {
         "login was removed from disk; true would trap Codex on the login screen"
     );
     // auth.json 被删（不是写成 {}），登录进了暂存（0600）。
-    assert!(!auth.exists(), "auth.json must be deleted, never rewritten as {{}}");
+    assert!(
+        !auth.exists(),
+        "auth.json must be deleted, never rewritten as {{}}"
+    );
     let stash_path = sb.env.data_file("codex-login-stash.json");
     let stash = sb.json(&stash_path);
     let stashed = &stash["logins"]["sub:alice|account:acc-plus"];
@@ -259,7 +277,10 @@ fn codex_official_to_third_party_and_back_keeps_the_chatgpt_login() {
     }
     // 第三方 Key 绝不进库里的官方卡、不进 auth.json。
     let store_text = sb.read(&sb.env.store_path());
-    assert!(!store_text.contains("refresh-alice"), "OAuth tokens never enter the store");
+    assert!(
+        !store_text.contains("refresh-alice"),
+        "OAuth tokens never enter the store"
+    );
 
     // A → 官方
     #[cfg(unix)]
@@ -271,14 +292,20 @@ fn codex_official_to_third_party_and_back_keeps_the_chatgpt_login() {
     assert!(doc.get("model_provider").is_none());
     assert_eq!(doc["model"].as_str(), Some("gpt-5.5"));
     assert_eq!(doc["model_reasoning_effort"].as_str(), Some("high"));
-    assert!(doc.get("model_context_window").is_none(), "A's exclusive field left");
+    assert!(
+        doc.get("model_context_window").is_none(),
+        "A's exclusive field left"
+    );
     // custom 表留着（会话分桶），但不带真实 Key。
     let dormant = doc["model_providers"]["custom"].as_table().unwrap();
     assert!(dormant.get("experimental_bearer_token").is_none());
     assert!(!back.contains("sk-a"));
     // 登录原样回来，暂存清空。
     let restored = sb.json(&auth);
-    assert_eq!(restored, serde_json::from_str::<serde_json::Value>(OAUTH_LOGIN).unwrap());
+    assert_eq!(
+        restored,
+        serde_json::from_str::<serde_json::Value>(OAUTH_LOGIN).unwrap()
+    );
     let stash = sb.json(&stash_path);
     assert!(stash["logins"].as_object().unwrap().is_empty());
     #[cfg(unix)]
@@ -304,8 +331,14 @@ fn codex_third_party_a_b_a_is_byte_stable() {
         sb.write(&auth, OAUTH_LOGIN);
         ccsl_core::import::import_live(&sb.env, Tool::Codex).unwrap();
         sb.set_preserve(preserve);
-        sb.add(Tool::Codex, relay("relay-a", "sk-a", "https://a.example/v1", "a-model"));
-        sb.add(Tool::Codex, relay("relay-b", "sk-b", "https://b.example/v1", "b-model"));
+        sb.add(
+            Tool::Codex,
+            relay("relay-a", "sk-a", "https://a.example/v1", "a-model"),
+        );
+        sb.add(
+            Tool::Codex,
+            relay("relay-b", "sk-b", "https://b.example/v1", "b-model"),
+        );
 
         switch::switch(&sb.env, Tool::Codex, "relay-a").unwrap();
         let on_a = sb.read(&config);
@@ -323,7 +356,11 @@ fn codex_third_party_a_b_a_is_byte_stable() {
         assert_eq!(sb.read(&config), on_a, "preserve={preserve}: A -> B -> A");
 
         if preserve {
-            assert_eq!(sb.read(&auth), OAUTH_LOGIN, "preserved login is byte-identical");
+            assert_eq!(
+                sb.read(&auth),
+                OAUTH_LOGIN,
+                "preserved login is byte-identical"
+            );
         } else {
             assert!(!auth.exists());
         }

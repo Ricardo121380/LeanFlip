@@ -11,7 +11,9 @@
 
 use serde_json::{json, Value};
 
-use crate::codex::auth::{codex_live_auth_is_stale_third_party_residue, extract_codex_auth_api_key};
+use crate::codex::auth::{
+    codex_live_auth_is_stale_third_party_residue, extract_codex_auth_api_key,
+};
 use crate::env::Env;
 use crate::error::AppError;
 use crate::live::engine::read_current;

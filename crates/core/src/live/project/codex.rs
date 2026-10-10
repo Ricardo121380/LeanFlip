@@ -187,7 +187,6 @@ impl CodexProjection {
             exclusive,
         })
     }
-
 }
 
 fn undecorated(mut value: TomlValue) -> TomlValue {
@@ -663,7 +662,9 @@ impl CodexConfigPatch {
         }
 
         match &self.route {
-            RouteWrite::Official | RouteWrite::Default | RouteWrite::BuiltIn { table: None, .. } => {
+            RouteWrite::Official
+            | RouteWrite::Default
+            | RouteWrite::BuiltIn { table: None, .. } => {
                 // custom 表没人选了也留着（会话按 provider id 分桶），只保证不留真实 Key。
                 if let Some(item) = providers.get_mut(ROUTE_ID) {
                     if let Some(table) = item.as_table_like_mut() {
@@ -978,7 +979,10 @@ mod tests {
         assert!(!providers.contains_key(OFFICIAL_PROXY_ROUTE_ID), "{doc}");
         assert!(!providers.contains_key("stale"), "{doc}");
         let dormant = providers[ROUTE_ID].as_table().unwrap();
-        assert_eq!(dormant["base_url"].as_str(), Some("https://relay.example/v1"));
+        assert_eq!(
+            dormant["base_url"].as_str(),
+            Some("https://relay.example/v1")
+        );
         assert!(dormant.get("experimental_bearer_token").is_none());
         assert!(!doc.to_string().contains("sk-relay"));
 

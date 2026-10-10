@@ -17,8 +17,8 @@ use std::sync::{Condvar, Mutex, OnceLock};
 
 use sha2::{Digest, Sha256};
 
-use crate::fsutil::{atomic_write_private, stage_write, StagedWrite};
 use crate::error::AppError;
+use crate::fsutil::{atomic_write_private, stage_write, StagedWrite};
 
 use super::patch::{LivePatch, LiveWriteError};
 

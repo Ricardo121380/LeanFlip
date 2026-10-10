@@ -98,7 +98,9 @@ impl StoreData {
     }
 
     pub fn providers(&self, tool: Tool) -> &[Provider] {
-        self.app(tool).map(|app| app.providers.as_slice()).unwrap_or(&[])
+        self.app(tool)
+            .map(|app| app.providers.as_slice())
+            .unwrap_or(&[])
     }
 
     pub fn provider(&self, tool: Tool, id: &str) -> Option<&Provider> {

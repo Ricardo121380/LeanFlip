@@ -20,8 +20,8 @@ use std::sync::Mutex;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
-use crate::fsutil::stage_write;
 use crate::error::AppError;
+use crate::fsutil::stage_write;
 use crate::live::engine::DeviceStore;
 
 pub const STATE_VERSION: u32 = 1;

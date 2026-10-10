@@ -58,7 +58,6 @@ pub fn test_codex_id_token(subject: &str) -> String {
     format!("{header}.{payload}.")
 }
 
-
 pub fn extract_codex_auth_api_key(auth: &Value) -> Option<String> {
     auth.get("OPENAI_API_KEY")
         .and_then(|value| value.as_str())
@@ -66,7 +65,6 @@ pub fn extract_codex_auth_api_key(auth: &Value) -> Option<String> {
         .filter(|key| !key.is_empty())
         .map(str::to_string)
 }
-
 
 pub fn codex_auth_has_login_material(auth: &Value) -> bool {
     let Some(obj) = auth.as_object() else {
@@ -289,12 +287,16 @@ mod tests {
             extract_codex_auth_user_identity(&auth).as_deref(),
             Some("sub:alice")
         );
-        assert_eq!(extract_codex_auth_user_identity(&json!({"tokens": {"id_token": "x.y"}})), None);
+        assert_eq!(
+            extract_codex_auth_user_identity(&json!({"tokens": {"id_token": "x.y"}})),
+            None
+        );
     }
 
     #[test]
     fn login_material_ignores_metadata() {
-        let metadata = json!({"auth_mode": "chatgpt", "last_refresh": "t", "tokens": {"account_id": "a"}});
+        let metadata =
+            json!({"auth_mode": "chatgpt", "last_refresh": "t", "tokens": {"account_id": "a"}});
         assert!(!codex_auth_has_credential_login_material(&metadata));
         assert!(!codex_auth_has_openai_account_material(&metadata));
         let oauth = json!({"tokens": {"refresh_token": "r"}});
@@ -307,7 +309,9 @@ mod tests {
     fn bedrock_outranks_a_stale_api_key() {
         let auth = json!({"bedrock_api_key": "b", "OPENAI_API_KEY": "sk"});
         assert!(!codex_auth_has_openai_account_material(&auth));
-        assert!(codex_auth_has_openai_account_material(&json!({"OPENAI_API_KEY": "sk"})));
+        assert!(codex_auth_has_openai_account_material(
+            &json!({"OPENAI_API_KEY": "sk"})
+        ));
     }
 
     #[test]

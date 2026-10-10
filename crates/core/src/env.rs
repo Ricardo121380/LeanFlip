@@ -4,7 +4,7 @@
 //! 而是把所有路径收进一个 [`Env`] 值显式传下去：测试各用自己的临时目录，互不干扰，
 //! 也不可能误碰真实的 `~/.claude`、`~/.codex`。
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use crate::live::engine::DeviceStore;
 
@@ -82,10 +82,6 @@ impl Env {
 
     pub fn data_file(&self, name: &str) -> PathBuf {
         self.data_dir.join(name)
-    }
-
-    pub fn is_under(&self, path: &Path) -> bool {
-        path.starts_with(&self.home)
     }
 }
 
