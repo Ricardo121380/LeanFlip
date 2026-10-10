@@ -38,3 +38,16 @@ describe("trimmed cc-switch presets", () => {
     expect(slugify(presetsFor("opencode")[0].name)).toMatch(/^[a-z0-9-]+$/);
   });
 });
+
+describe("preset links", () => {
+  it("carry no referral or tracking parameters", () => {
+    const tracking = /[?&](aff|track_id|ref|invite\w*|ic|code|source|from|ch|ytag|ac|rc|utm_\w+)=/i;
+    for (const tool of TOOLS) {
+      for (const p of presetsFor(tool.id)) {
+        for (const url of [p.websiteUrl, p.apiKeyUrl]) {
+          if (url) expect(url, `${tool.id}/${p.name}`).not.toMatch(tracking);
+        }
+      }
+    }
+  });
+});

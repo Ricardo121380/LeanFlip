@@ -126,6 +126,8 @@ pub struct SettingsView {
     pub home: PathBuf,
     /// 当前生效的各工具配置文件（套过覆盖）。
     pub live_paths: BTreeMap<String, Vec<PathBuf>>,
+    /// 当前生效的各目录，键和 `DirOverrides` 的字段一致（设置页的占位文字）。
+    pub dirs: BTreeMap<String, PathBuf>,
     pub ccswitch_dir: PathBuf,
 }
 
@@ -141,6 +143,24 @@ pub struct SettingsInput {
 pub struct SaveSettingsResult {
     /// 目录覆盖改了：重启后生效。
     pub restart_required: bool,
+}
+
+fn effective_dirs(env: &Env) -> BTreeMap<String, PathBuf> {
+    [
+        ("claudeDir", &env.claude_dir),
+        ("codexDir", &env.codex_dir),
+        ("geminiDir", &env.gemini_dir),
+        ("grokDir", &env.grok_dir),
+        ("claudeDesktopRoot", &env.claude_desktop_root),
+        ("opencodeDir", &env.opencode_dir),
+        ("openclawDir", &env.openclaw_dir),
+        ("hermesDir", &env.hermes_dir),
+        ("piAgentDir", &env.pi_agent_dir),
+        ("mcodeDir", &env.mcode_dir),
+    ]
+    .into_iter()
+    .map(|(k, v)| (k.to_string(), v.clone()))
+    .collect()
 }
 
 pub struct Service {
@@ -425,6 +445,7 @@ impl Service {
                 .iter()
                 .map(|&t| (t.as_str().to_string(), self.env.live_paths(t)))
                 .collect(),
+            dirs: effective_dirs(&self.env),
             ccswitch_dir: ccswitch_import::default_dir(&self.env),
         })
     }

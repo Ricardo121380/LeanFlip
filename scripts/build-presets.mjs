@@ -4,7 +4,8 @@
 //
 // 裁剪规则：去掉 hidden、requiresOAuth、带 providerType（Copilot / 托管 OAuth 等需要
 // 代理或专用登录的）、Claude / Claude Desktop 里 apiFormat 不是 anthropic（需要本地
-// 格式转换代理）的预设；去掉合作伙伴推广、主题、图标等界面字段。
+// 格式转换代理）的预设；去掉合作伙伴推广、主题、图标等界面字段，以及链接里的返利 /
+// 追踪参数。
 import { build } from "esbuild";
 import { mkdirSync, writeFileSync, rmSync } from "node:fs";
 import path from "node:path";
@@ -62,9 +63,29 @@ function keep(tool, preset) {
   return true;
 }
 
+// 去掉推广 / 追踪参数（cc-switch 的赞助返利码不该跟着进别的应用）。
+const TRACKING_PARAMS = new Set([
+  "aff", "track_id", "ref", "invite", "invite_code", "invitecode", "inviteCode", "ic", "code",
+  "source", "from", "ch", "ytag", "ac", "rc",
+]);
+function cleanUrl(value) {
+  if (typeof value !== "string" || !value) return value;
+  try {
+    const url = new URL(value);
+    for (const key of [...url.searchParams.keys()]) {
+      if (TRACKING_PARAMS.has(key) || key.startsWith("utm_")) url.searchParams.delete(key);
+    }
+    return url.toString().replace(/\?(?=#|$)/, "");
+  } catch {
+    return value;
+  }
+}
+
 function trim(preset) {
   const out = {};
   for (const key of KEEP) if (preset[key] !== undefined) out[key] = preset[key];
+  if (out.websiteUrl) out.websiteUrl = cleanUrl(out.websiteUrl);
+  if (out.apiKeyUrl) out.apiKeyUrl = cleanUrl(out.apiKeyUrl);
   return out;
 }
 

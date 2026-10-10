@@ -131,7 +131,15 @@ fn skip_reason(data: &store::StoreData, tool: Tool, provider: &Provider) -> Opti
     if data.provider(tool, &provider.id).is_some() {
         return Some("已有同 id 的卡".into());
     }
-    let meta = |key: &str| provider.meta.extra.get(key).and_then(Value::as_str);
+    // cc-switch 把这些放在 meta 里；手改过的旧版 config.json 也可能放在顶层。
+    let meta = |key: &str| {
+        provider
+            .meta
+            .extra
+            .get(key)
+            .or_else(|| provider.extra.get(key))
+            .and_then(Value::as_str)
+    };
     if let Some(kind @ ("github_copilot" | "codex_oauth" | "xai_oauth")) = meta("providerType") {
         return Some(format!("需要本地路由（{kind}）"));
     }

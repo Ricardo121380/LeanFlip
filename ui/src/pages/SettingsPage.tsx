@@ -117,7 +117,7 @@ export function SettingsPage() {
               <Label htmlFor={`dir-${f.key}`}>{f.label}</Label>
               <Input
                 id={`dir-${f.key}`}
-                placeholder={data.livePaths[f.tool]?.[0]}
+                placeholder={data.dirs?.[f.key] ?? data.livePaths[f.tool]?.[0]}
                 value={app.dirOverrides[f.key] ?? ""}
                 onChange={(e) => set({ dirOverrides: { ...app.dirOverrides, [f.key]: e.target.value } })}
               />

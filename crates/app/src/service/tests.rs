@@ -212,6 +212,12 @@ fn settings_round_trip_and_restart_flag() {
     assert!(!view.keep_codex_login);
     assert_eq!(view.app, AppSettings::default());
     assert_eq!(view.ccswitch_dir, sb.home.join(".cc-switch"));
+    assert_eq!(view.dirs["claudeDir"], sb.home.join(".claude"));
+    assert_eq!(view.dirs.len(), 10, "one per DirOverrides field");
+    let fields = serde_json::to_value(ccsl_core::env::DirOverrides::default()).unwrap();
+    for key in fields.as_object().unwrap().keys() {
+        assert!(view.dirs.contains_key(key), "{key}");
+    }
 
     let mut app = view.app.clone();
     app.language = Some("fr".into());

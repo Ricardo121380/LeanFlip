@@ -138,7 +138,10 @@ fn imports_the_legacy_config_json_and_managed_accounts() {
     let dir = ccswitch_import::default_dir(&sb.env);
     sb.write(
         &dir.join("config.json"),
-        &json!({"claude": {"providers": {"a": {"name": "A", "settingsConfig": {"env": {}}}}, "current": "a"}})
+        &json!({"claude": {"providers": {
+            "a": {"name": "A", "settingsConfig": {"env": {}}},
+            "cp": {"name": "Copilot", "providerType": "github_copilot", "settingsConfig": {"env": {}}}
+        }, "current": "a"}})
             .to_string(),
     );
     // cc-switch 的账号库：用假的 OAuth 先造一个。
@@ -156,6 +159,11 @@ fn imports_the_legacy_config_json_and_managed_accounts() {
     let report =
         ccswitch_import::apply(&sb.env, &dir, &[Tool::Claude, Tool::Codex], Some(&ours)).unwrap();
     assert_eq!(report.created, [(Tool::Claude, "a".to_string())]);
+    assert_eq!(
+        report.skipped.len(),
+        1,
+        "top-level providerType is honoured too"
+    );
     assert_eq!(report.accounts_added, vec![account.id.clone()]);
     let listed = ours.list_accounts();
     assert_eq!(listed[0].plan.as_deref(), Some("team"));

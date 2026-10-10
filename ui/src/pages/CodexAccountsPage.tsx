@@ -155,7 +155,7 @@ export function CodexAccountsPage() {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {a.workspace && a.email ? `${a.workspace} · ` : ""}
-                  {t("codex.authenticatedAt", { time: new Date(a.authenticatedAt).toLocaleString(i18n.language) })}
+                  {t("codex.authenticatedAt", { time: new Date(a.authenticatedAt * 1000).toLocaleString(i18n.language) })}
                 </p>
               </div>
               {!a.isDefault && (

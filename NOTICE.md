@@ -43,3 +43,14 @@ cc-switch 以 MIT 许可证发布：
 | `crates/core/tests/codex_red_lines.rs` | `src-tauri/tests/golden/codex_red_lines.rs` | 改用临时 HOME 沙箱；代理相关红线未移植 |
 | `crates/core/tests/claude_key_fields.rs` | `src-tauri/tests/golden/claude_key_fields.rs` | 同上；通用配置相关未移植 |
 | `crates/core/tests/fixtures/claudeKeyFields.json` | `tests/config/claudeKeyFields.json` | 未改 |
+
+### Phase 3：桌面应用
+
+| ccswitch-lite | cc-switch 来源 | 说明 |
+|---|---|---|
+| `crates/app/src/oauth_http.rs` | `src-tauri/src/proxy/providers/codex_oauth_auth.rs`（设备码 / 换 token / 刷新的 HTTP 请求形状、轮询间隔解析、刷新错误码判定） | 改为 reqwest blocking 实现 `OAuthTransport`；自有 User-Agent；错误信息不回显响应体 |
+| `crates/core/src/ccswitch_import.rs` | `src-tauri/src/database/*`（`providers` 表结构）、旧版 `config.json` 格式 | 只读打开；跳过需要本地路由 / 专用登录的卡 |
+| `ui/src/presets/*.json` | `src/config/*ProviderPresets.ts` | 由 `scripts/build-presets.mjs` 裁剪生成：去掉 hidden / requiresOAuth / providerType（官方 Codex 卡除外）、需要格式转换的 apiFormat、Claude Desktop proxy 模式；去掉推广、主题、图标字段和链接里的返利 / 追踪参数；Codex / Grok / Claude Desktop 预设转成卡片的 `settingsConfig` |
+
+前端（`ui/`）是新写的（React 18 + TanStack Query + shadcn/ui 风格组件），界面结构参考 cc-switch，
+没有复制其组件代码。

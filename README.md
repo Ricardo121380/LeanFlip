@@ -8,8 +8,13 @@
 
 ## 状态
 
-Phase 1：Rust 核心库 `ccsl-core`（无 Tauri 依赖），支持 Claude Code 和 Codex（API Key 供应商 +
-ChatGPT 原生登录的混合登录保护）。桌面应用（Tauri 2 + React）在后续阶段。
+- `crates/core`：Rust 核心库（无 Tauri 依赖）。切换式工具：Claude Code、Codex（含 ChatGPT 混合登录
+  保护和多个托管 ChatGPT 账号）、Gemini CLI、Grok Build、Claude Desktop（直连）；并存式工具：
+  OpenCode、OpenClaw、Hermes、Pi、MCode。
+- `crates/app`：Tauri 2 桌面外壳（薄命令层 + 托盘 + 文件监听 + 托管账号后台刷新）。
+- `ui/`：React + TypeScript + Vite + TanStack Query + shadcn/ui 风格组件，中英文界面。
+
+还没有发布版本。截图见 `docs/screenshots/`。
 
 ## 结构
 
@@ -39,10 +44,24 @@ crates/core/src
 ## 开发
 
 ```sh
-cargo build
 cargo test        # 测试全部使用临时 HOME，不会碰真实的 ~/.claude、~/.codex
 cargo clippy --all-targets -- -D warnings
+pnpm install
+pnpm typecheck && pnpm test     # 前端
+pnpm tauri dev                  # 开发运行（会读写当前用户的真实配置！）
+pnpm tauri build --bundles deb  # 本地打包，不发布
+pnpm presets ../ccswitch        # 从 cc-switch 源码重新生成裁剪后的预设
 ```
+
+用演示数据安全地跑一遍（临时 HOME，不碰真实配置）：
+
+```sh
+DEMO=$(mktemp -d)
+cargo run -p ccsl-app --example seed_demo -- $DEMO/home
+HOME=$DEMO/home CCSL_HOME=$DEMO/home XDG_CONFIG_HOME=$DEMO/xdg target/release/ccswitch-lite
+```
+
+桌面应用自己的设置在 `~/.cc-switch-lite/app-settings.json`（语言、目录覆盖、开机自启、后台刷新）。
 
 ## 许可证
 

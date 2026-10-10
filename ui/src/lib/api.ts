@@ -117,6 +117,7 @@ export interface SettingsView {
   dataDir: string;
   home: string;
   livePaths: Record<string, string[]>;
+  dirs: Record<string, string>;
   ccswitchDir: string;
 }
 

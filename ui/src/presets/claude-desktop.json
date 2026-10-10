@@ -10,8 +10,8 @@
   },
   {
     "name": "PackyCode",
-    "websiteUrl": "https://www.packyapi.ai",
-    "apiKeyUrl": "https://www.packyapi.ai/register?aff=cc-switch",
+    "websiteUrl": "https://www.packyapi.ai/",
+    "apiKeyUrl": "https://www.packyapi.ai/register",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://www.packyapi.ai",
@@ -22,7 +22,7 @@
   },
   {
     "name": "ZetaAPI",
-    "websiteUrl": "https://zetaapi.ai",
+    "websiteUrl": "https://zetaapi.ai/",
     "apiKeyUrl": "https://zetaapi.ai/go/u117",
     "settingsConfig": {
       "env": {
@@ -34,7 +34,7 @@
   },
   {
     "name": "APINebula",
-    "websiteUrl": "https://apinebula.ai",
+    "websiteUrl": "https://apinebula.ai/",
     "apiKeyUrl": "https://apinebula.ai/VjM74M",
     "settingsConfig": {
       "env": {
@@ -46,8 +46,8 @@
   },
   {
     "name": "AICodeMirror",
-    "websiteUrl": "https://www.aicodemirror.ai",
-    "apiKeyUrl": "https://www.aicodemirror.ai/register?invitecode=9915W3",
+    "websiteUrl": "https://www.aicodemirror.ai/",
+    "apiKeyUrl": "https://www.aicodemirror.ai/register",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://api.aicodemirror.ai/api/claudecode",
@@ -58,8 +58,8 @@
   },
   {
     "name": "PatewayAI",
-    "websiteUrl": "https://pateway.ai",
-    "apiKeyUrl": "https://pateway.ai/?ch=etzpm8&aff=WB6M6F67#/",
+    "websiteUrl": "https://pateway.ai/",
+    "apiKeyUrl": "https://pateway.ai/#/",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://api.pateway.ai",
@@ -70,8 +70,8 @@
   },
   {
     "name": "FennoAI",
-    "websiteUrl": "https://api.fenno.ai",
-    "apiKeyUrl": "https://api.fenno.ai/register?redirect=/purchase?tab=subscription%26group=16&aff=P9MR3D3PLCNL",
+    "websiteUrl": "https://api.fenno.ai/",
+    "apiKeyUrl": "https://api.fenno.ai/register?redirect=%2Fpurchase%3Ftab%3Dsubscription%26group%3D16",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://api.fenno.ai",
@@ -82,8 +82,8 @@
   },
   {
     "name": "RunAPI",
-    "websiteUrl": "https://runapi.host",
-    "apiKeyUrl": "https://runapi.host/register?aff=iOKB",
+    "websiteUrl": "https://runapi.host/",
+    "apiKeyUrl": "https://runapi.host/register",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://runapi.host",
@@ -94,8 +94,8 @@
   },
   {
     "name": "Shengsuanyun",
-    "websiteUrl": "https://www.shengsuanyun.com/?from=CH_4HHXMRYF",
-    "apiKeyUrl": "https://www.shengsuanyun.com/?from=CH_4HHXMRYF",
+    "websiteUrl": "https://www.shengsuanyun.com/",
+    "apiKeyUrl": "https://www.shengsuanyun.com/",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://router.shengsuanyun.com/api",
@@ -106,7 +106,7 @@
   },
   {
     "name": "AIGoCode",
-    "websiteUrl": "https://aigocode.app",
+    "websiteUrl": "https://aigocode.app/",
     "apiKeyUrl": "https://aigocode.app/invite/CC-SWITCH",
     "settingsConfig": {
       "env": {
@@ -130,7 +130,7 @@
   },
   {
     "name": "AICoding",
-    "websiteUrl": "https://aicoding.inc",
+    "websiteUrl": "https://aicoding.inc/",
     "apiKeyUrl": "https://aicoding.inc/i/CCSWITCH",
     "settingsConfig": {
       "env": {
@@ -142,8 +142,8 @@
   },
   {
     "name": "SubRouter",
-    "websiteUrl": "https://subrouter.ai",
-    "apiKeyUrl": "https://subrouter.ai/register?aff=l3ri",
+    "websiteUrl": "https://subrouter.ai/",
+    "apiKeyUrl": "https://subrouter.ai/register",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://subrouter.ai",
@@ -154,8 +154,8 @@
   },
   {
     "name": "88API",
-    "websiteUrl": "https://88api.ai",
-    "apiKeyUrl": "https://88api.ai/sign-up?aff=HSGY",
+    "websiteUrl": "https://88api.ai/",
+    "apiKeyUrl": "https://88api.ai/sign-up",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://api.88api.ai",
@@ -166,8 +166,8 @@
   },
   {
     "name": "APIKEY.FUN",
-    "websiteUrl": "https://apikey.fan",
-    "apiKeyUrl": "https://apikey.fan/register?aff=CCSwitch",
+    "websiteUrl": "https://apikey.fan/",
+    "apiKeyUrl": "https://apikey.fan/register",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://api.apikey.fan",
@@ -178,8 +178,8 @@
   },
   {
     "name": "9527CODE",
-    "websiteUrl": "https://9527.codes",
-    "apiKeyUrl": "https://9527.codes/register?aff=e5zI",
+    "websiteUrl": "https://9527.codes/",
+    "apiKeyUrl": "https://9527.codes/register",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://9527.codes",
@@ -190,7 +190,7 @@
   },
   {
     "name": "ClaudeAPI",
-    "websiteUrl": "https://www.apito.ai",
+    "websiteUrl": "https://www.apito.ai/",
     "apiKeyUrl": "https://console.apito.ai/agent/register/pQBql2buaqiX3dDS",
     "settingsConfig": {
       "env": {
@@ -202,7 +202,7 @@
   },
   {
     "name": "Code0",
-    "websiteUrl": "https://code0.ai",
+    "websiteUrl": "https://code0.ai/",
     "apiKeyUrl": "https://code0.ai/agent/register/B2XHxGjGmRvqgznY",
     "settingsConfig": {
       "env": {
@@ -214,8 +214,8 @@
   },
   {
     "name": "TeamoRouter",
-    "websiteUrl": "https://teamorouter.cn",
-    "apiKeyUrl": "https://teamorouter.cn/?utm_source=cc_switch&utm_medium=referral&utm_campaign=ai_directory",
+    "websiteUrl": "https://teamorouter.cn/",
+    "apiKeyUrl": "https://teamorouter.cn/",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://api.teamorouter.cn",
@@ -226,8 +226,8 @@
   },
   {
     "name": "ClaudeCN",
-    "websiteUrl": "https://claudecn.top",
-    "apiKeyUrl": "https://claudecn.ai/register?aff=HEL9",
+    "websiteUrl": "https://claudecn.top/",
+    "apiKeyUrl": "https://claudecn.ai/register",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://claudecn.top",
@@ -238,8 +238,8 @@
   },
   {
     "name": "A6API",
-    "websiteUrl": "https://www.a6api.com",
-    "apiKeyUrl": "https://a6api.com/register?aff=AqNr",
+    "websiteUrl": "https://www.a6api.com/",
+    "apiKeyUrl": "https://a6api.com/register",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://api.a6api.com",
@@ -250,8 +250,8 @@
   },
   {
     "name": "Compshare",
-    "websiteUrl": "https://www.compshare.cn",
-    "apiKeyUrl": "https://www.compshare.cn/coding-plan?ytag=GPU_YY_YX_git_cc-switch",
+    "websiteUrl": "https://www.compshare.cn/",
+    "apiKeyUrl": "https://www.compshare.cn/coding-plan",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://api.modelverse.cn",
@@ -262,8 +262,8 @@
   },
   {
     "name": "Compshare Coding Plan",
-    "websiteUrl": "https://www.compshare.cn",
-    "apiKeyUrl": "https://www.compshare.cn/coding-plan?ytag=GPU_YY_YX_git_cc-switch",
+    "websiteUrl": "https://www.compshare.cn/",
+    "apiKeyUrl": "https://www.compshare.cn/coding-plan",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://cp.compshare.cn",
@@ -274,8 +274,8 @@
   },
   {
     "name": "CCSub",
-    "websiteUrl": "https://www.ccsub.net",
-    "apiKeyUrl": "https://www.ccsub.net/register?ref=Y6Z8DXEA",
+    "websiteUrl": "https://www.ccsub.net/",
+    "apiKeyUrl": "https://www.ccsub.net/register",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://www.ccsub.net",
@@ -286,8 +286,8 @@
   },
   {
     "name": "SSSAiCode",
-    "websiteUrl": "https://sssaicodeapi.com",
-    "apiKeyUrl": "https://sssaicodeapi.com/register?ref=DCP0SM",
+    "websiteUrl": "https://sssaicodeapi.com/",
+    "apiKeyUrl": "https://sssaicodeapi.com/register",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://node-hk.sssaicodeapi.com/api",
@@ -298,7 +298,7 @@
   },
   {
     "name": "SoleAPI",
-    "websiteUrl": "https://soleapi.com",
+    "websiteUrl": "https://soleapi.com/",
     "apiKeyUrl": "https://soleapi.com/r/ccswitch",
     "settingsConfig": {
       "env": {
@@ -310,8 +310,8 @@
   },
   {
     "name": "Micu",
-    "websiteUrl": "https://www.micuapi.ai",
-    "apiKeyUrl": "https://www.micuapi.ai/register?aff=aOYQ",
+    "websiteUrl": "https://www.micuapi.ai/",
+    "apiKeyUrl": "https://www.micuapi.ai/register",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://www.micuapi.ai",
@@ -322,8 +322,8 @@
   },
   {
     "name": "RightCode",
-    "websiteUrl": "https://www.rightapi.ai",
-    "apiKeyUrl": "https://www.rightapi.ai/register?aff=CCSWITCH",
+    "websiteUrl": "https://www.rightapi.ai/",
+    "apiKeyUrl": "https://www.rightapi.ai/register",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://www.rightapi.ai/claude",
@@ -334,8 +334,8 @@
   },
   {
     "name": "Cubence",
-    "websiteUrl": "https://cubence.com",
-    "apiKeyUrl": "https://cubence.com/signup?code=CCSWITCH&source=ccs",
+    "websiteUrl": "https://cubence.com/",
+    "apiKeyUrl": "https://cubence.com/signup",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://api.cubence.com",
@@ -346,8 +346,8 @@
   },
   {
     "name": "CrazyRouter",
-    "websiteUrl": "https://www.crazyrouter.com",
-    "apiKeyUrl": "https://www.crazyrouter.com/register?aff=OZcm&ref=cc-switch",
+    "websiteUrl": "https://www.crazyrouter.com/",
+    "apiKeyUrl": "https://www.crazyrouter.com/register",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://cn.crazyrouter.com",
@@ -358,8 +358,8 @@
   },
   {
     "name": "DMXAPI",
-    "websiteUrl": "https://www.dmxapi.cn",
-    "apiKeyUrl": "https://www.dmxapi.cn",
+    "websiteUrl": "https://www.dmxapi.cn/",
+    "apiKeyUrl": "https://www.dmxapi.cn/",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://www.dmxapi.cn",
@@ -370,8 +370,8 @@
   },
   {
     "name": "SudoCode.chat",
-    "websiteUrl": "https://sudocode.chat",
-    "apiKeyUrl": "https://sudocode.chat/sign-up?aff=CC-SWITCH&utm_source=cc-switch&utm_medium=sponsor&utm_campaign=ccswitch",
+    "websiteUrl": "https://sudocode.chat/",
+    "apiKeyUrl": "https://sudocode.chat/sign-up",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://api.sudocode.chat",
@@ -382,8 +382,8 @@
   },
   {
     "name": "SudoCode.us",
-    "websiteUrl": "https://sudocode.us",
-    "apiKeyUrl": "https://sudocode.us",
+    "websiteUrl": "https://sudocode.us/",
+    "apiKeyUrl": "https://sudocode.us/",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://sudocode.us",
@@ -394,8 +394,8 @@
   },
   {
     "name": "XycAi",
-    "websiteUrl": "https://xycai.us",
-    "apiKeyUrl": "https://xycai.us/register?aff=Uhu9",
+    "websiteUrl": "https://xycai.us/",
+    "apiKeyUrl": "https://xycai.us/register",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://apicdn.xycai.us",
@@ -406,7 +406,7 @@
   },
   {
     "name": "Tu-zi",
-    "websiteUrl": "https://api.tu-zi.com",
+    "websiteUrl": "https://api.tu-zi.com/",
     "apiKeyUrl": "https://api.tu-zi.com/token",
     "settingsConfig": {
       "env": {
@@ -418,8 +418,8 @@
   },
   {
     "name": "Amux",
-    "websiteUrl": "https://amux.ai",
-    "apiKeyUrl": "https://amux.ai",
+    "websiteUrl": "https://amux.ai/",
+    "apiKeyUrl": "https://amux.ai/",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://api.amux.ai",
@@ -442,7 +442,7 @@
   },
   {
     "name": "Soshow",
-    "websiteUrl": "https://aimarket.so-show.com",
+    "websiteUrl": "https://aimarket.so-show.com/",
     "apiKeyUrl": "https://aimarket.so-show.com/workbench/access-key",
     "settingsConfig": {
       "env": {
@@ -454,8 +454,8 @@
   },
   {
     "name": "AiHubMix",
-    "websiteUrl": "https://aihubmix.com",
-    "apiKeyUrl": "https://aihubmix.com",
+    "websiteUrl": "https://aihubmix.com/",
+    "apiKeyUrl": "https://aihubmix.com/",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://aihubmix.com",
@@ -467,7 +467,7 @@
   },
   {
     "name": "CherryIN",
-    "websiteUrl": "https://open.cherryin.ai",
+    "websiteUrl": "https://open.cherryin.ai/",
     "apiKeyUrl": "https://open.cherryin.ai/console/token",
     "settingsConfig": {
       "env": {
@@ -479,7 +479,7 @@
   },
   {
     "name": "RelaxyCode",
-    "websiteUrl": "https://www.relaxycode.com",
+    "websiteUrl": "https://www.relaxycode.com/",
     "apiKeyUrl": "https://www.relaxycode.com/register",
     "settingsConfig": {
       "env": {
@@ -491,8 +491,8 @@
   },
   {
     "name": "E-FlowCode",
-    "websiteUrl": "https://e-flowcode.cc",
-    "apiKeyUrl": "https://e-flowcode.cc",
+    "websiteUrl": "https://e-flowcode.cc/",
+    "apiKeyUrl": "https://e-flowcode.cc/",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://e-flowcode.cc",
@@ -503,8 +503,8 @@
   },
   {
     "name": "PIPELLM",
-    "websiteUrl": "https://code.pipellm.ai",
-    "apiKeyUrl": "https://code.pipellm.ai/login?ref=uvw650za",
+    "websiteUrl": "https://code.pipellm.ai/",
+    "apiKeyUrl": "https://code.pipellm.ai/login",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://cc-api.pipellm.ai",
