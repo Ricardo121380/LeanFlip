@@ -6,8 +6,15 @@
 //! 2. [`run`]：拿写锁，读 live 的 `auth.json` 决定它的去向（见 [`crate::codex::login`]），
 //!    再按「写完之后盘上有没有登录」定下路由表的 `requires_openai_auth`，一起提交。
 //!
-//! 和原版的差异：没有代理契约、模型目录、Stack、钥匙串预读和托管账号（Phase 2）。
-//! 混合登录的保护全部保留：
+//! 托管 ChatGPT 账号（Phase 2）：拿写锁之前先 [`prepare`]（可能联网：取目标账号的 token
+//! 束、把要切走的账号在盘上轮换过的 refresh token 采纳回来），再 plan / run。写锁里：
+//! - 切走的账号：采纳时记下的那一代还在 live 里，否则停下（[`SwitchAwayGuard`]）；
+//! - 目标账号：生成 bundle 时看到的 live 代数还在，否则停下（不拿旧 bundle 覆盖 Codex CLI
+//!   刚轮换出的 refresh token）；
+//! - 托管登录不进暂存，切走时删掉；写入托管登录时同一次提交写所有权标记，写别的东西时
+//!   删掉标记（原版只在删 `auth.json` 时删标记）。
+//!
+//! 和原版的差异：没有代理契约、模型目录、Stack、钥匙串预读。混合登录的保护全部保留：
 //! - `auth.json` 只放官方登录；第三方 Key 写进 `config.toml` 的路由表；
 //! - 切到第三方（保留登录关闭）时先把原生登录存进登录暂存，再删 `auth.json`；不写 `{}`；
 //! - 切回官方卡时按身份（用户 + workspace）还原；在官方卡上登出后切走，登出生效；
@@ -28,6 +35,8 @@ use crate::codex::auth::{
     extract_codex_auth_api_key, CodexAuthStoreMode,
 };
 use crate::codex::login::{self, AuthInput, AuthTarget, LoginStash, STASH_FILENAME};
+use crate::codex::oauth::live as managed_live;
+use crate::codex::oauth::{CodexOAuthManager, SwitchAwayGuard};
 use crate::env::Env;
 use crate::error::AppError;
 use crate::fsutil::sorted_json_bytes;
@@ -45,6 +54,9 @@ use crate::store::StoreData;
 /// `auth.json` 读不了（比如被换成了目录）时的警告前缀（对应 cc-switch 的
 /// `codex_auth_cleanup_failed`）。
 pub const WARN_AUTH_UNREADABLE: &str = "codex_auth_unreadable";
+
+/// 目标官方卡引用的登录在暂存和 live 里都没有（被登出了）时的警告前缀。
+pub const WARN_LOGIN_REF_MISSING: &str = "codex_login_ref_missing";
 
 /// 官方卡：`category == "official"`，或绑定了托管账号的卡。
 pub fn is_official(provider: &Provider) -> bool {
@@ -64,6 +76,7 @@ struct RowFacts {
     retired: Vec<KnownTable>,
     third_party_keys: Vec<String>,
     official_logins: Vec<Value>,
+    official_api_keys: Vec<String>,
 }
 
 fn row_facts(data: &StoreData) -> RowFacts {
@@ -71,6 +84,7 @@ fn row_facts(data: &StoreData) -> RowFacts {
         retired: Vec::new(),
         third_party_keys: Vec::new(),
         official_logins: Vec::new(),
+        official_api_keys: Vec::new(),
     };
     for provider in data.providers(Tool::Codex) {
         let auth = provider.settings_config.get("auth");
@@ -80,6 +94,8 @@ fn row_facts(data: &StoreData) -> RowFacts {
                     auth.filter(|auth| codex_auth_has_credential_login_material(auth))
                 {
                     facts.official_logins.push(auth.clone());
+                } else if let Some(key) = auth.and_then(extract_codex_auth_api_key) {
+                    facts.official_api_keys.push(key);
                 }
             }
             continue;
@@ -135,7 +151,9 @@ fn row_facts(data: &StoreData) -> RowFacts {
 #[derive(Debug, Clone)]
 enum AuthGoal {
     ThirdParty,
-    Official(Value),
+    /// 行里的 `auth` 和卡引用的登录身份。
+    Official(Value, Option<String>),
+    Managed,
 }
 
 /// 行里的 `auth`（没有时是空对象）。
@@ -170,10 +188,12 @@ pub struct Planned {
     /// 第三方路由表的凭据来源：写入时按盘上有没有登录定 `requires_openai_auth`。
     stamp: Option<RouteAuth>,
     auth: AuthGoal,
-    /// 切走的是没绑托管账号的官方卡：它行里的 `auth`。
+    /// 切走的是没绑托管账号的官方卡：它行里的 `auth` 和引用的登录。
     leaving_official: Option<Value>,
+    leaving_official_ref: Option<String>,
     retired_keys: Vec<String>,
     official_logins: Vec<Value>,
+    official_api_keys: Vec<String>,
 }
 
 impl Planned {
@@ -189,17 +209,22 @@ pub fn plan(
     prev: Option<&Provider>,
     target: &Provider,
 ) -> Result<Planned, AppError> {
-    if target.managed_codex_account().is_some() {
+    if target.managed_codex_account() == Some("") {
         return Err(AppError::localized(
-            "codex.managed_account_unsupported",
-            "这张卡绑定了托管的 ChatGPT 账号，ccswitch-lite 目前（Phase 1）还不支持托管账号，什么都没改",
-            "This card is bound to a managed ChatGPT account, which ccswitch-lite does not support yet (phase 1). Nothing was changed",
+            "codex.oauth.binding_without_account",
+            "这张卡绑定了托管 ChatGPT 账号，但没有指定是哪个账号，什么都没改",
+            "This card is bound to a managed ChatGPT account but names no account. Nothing was changed",
         ));
     }
     let facts = row_facts(data);
     let projection = project(target)?;
-    let auth = if is_official(target) {
-        AuthGoal::Official(row_auth(target))
+    let auth = if target.managed_codex_account().is_some() {
+        AuthGoal::Managed
+    } else if is_official(target) {
+        AuthGoal::Official(
+            row_auth(target),
+            target.codex_login_ref().map(str::to_string),
+        )
     } else {
         AuthGoal::ThirdParty
     };
@@ -215,9 +240,12 @@ pub fn plan(
         ),
         Route::Default => (RouteWrite::Default, None),
     };
-    let leaving_official = prev
-        .filter(|provider| is_official(provider) && provider.managed_codex_account().is_none())
-        .map(row_auth);
+    let leaving =
+        prev.filter(|provider| is_official(provider) && provider.managed_codex_account().is_none());
+    let leaving_official = leaving.map(row_auth);
+    let leaving_official_ref = leaving
+        .and_then(Provider::codex_login_ref)
+        .map(str::to_string);
     let config = CodexConfigPatch {
         top: projection.top,
         nested: projection.nested,
@@ -231,8 +259,66 @@ pub fn plan(
         stamp,
         auth,
         leaving_official,
+        leaving_official_ref,
         retired_keys: facts.third_party_keys,
         official_logins: facts.official_logins,
+        official_api_keys: facts.official_api_keys,
+    })
+}
+
+/// 拿写锁之前准备好的托管账号凭据。
+#[derive(Debug, Default)]
+pub struct Prepared {
+    /// 目标托管账号、它的登录，和生成时 live 里它的 refresh token。
+    target_login: Option<(String, Value, Option<String>)>,
+    /// 要切走的托管账号和采纳后记下的那一代。
+    outgoing: Option<(String, SwitchAwayGuard)>,
+}
+
+fn manager_required(manager: Option<&CodexOAuthManager>) -> Result<&CodexOAuthManager, AppError> {
+    manager.ok_or_else(|| {
+        AppError::localized(
+            "codex.oauth.manager_unavailable",
+            "这次切换涉及托管的 ChatGPT 账号，但账号管理器不可用，什么都没改",
+            "This switch involves a managed ChatGPT account, but the account manager is unavailable. Nothing was changed",
+        )
+    })
+}
+
+/// 取目标托管账号的登录（必要时刷新），并在切走托管账号前采纳 Codex CLI 轮换过的
+/// refresh token。都可能联网，所以在拿写锁之前做。
+pub fn prepare(
+    manager: Option<&CodexOAuthManager>,
+    prev: Option<&Provider>,
+    target: &Provider,
+) -> Result<Prepared, AppError> {
+    let target_account = target
+        .managed_codex_account()
+        .filter(|account| !account.is_empty());
+    let target_login = match target_account {
+        Some(account) => {
+            let bundle = manager_required(manager)?.token_bundle(account)?;
+            Some((
+                account.to_string(),
+                bundle.auth_value(),
+                bundle.observed_live_refresh.clone(),
+            ))
+        }
+        None => None,
+    };
+    let outgoing = match prev
+        .and_then(Provider::managed_codex_account)
+        .filter(|account| !account.is_empty() && Some(*account) != target_account)
+    {
+        Some(account) => Some((
+            account.to_string(),
+            manager_required(manager)?.prepare_switch_away(account)?,
+        )),
+        None => None,
+    };
+    Ok(Prepared {
+        target_login,
+        outgoing,
     })
 }
 
@@ -292,12 +378,18 @@ pub fn run(
     data: &StoreData,
     op: &str,
     planned: Planned,
+    prepared: &Prepared,
     pending: PendingTarget,
 ) -> Result<OperationReport, AppError> {
     let commit = |target: &PendingTarget| super::commit_target(env, Tool::Codex, target);
     // 先补完上一次的操作，再读 auth.json 和登录暂存：补完会改写它们。
     let write = AppWrite::begin(env.device_store(), Tool::Codex.as_str(), &commit)?;
     let store = &write.store;
+
+    // 切走的托管账号：采纳之后 CLI 又刷新（或登出）了就停下，免得删掉新 token。
+    if let Some((account, guard)) = &prepared.outgoing {
+        guard.ensure_unchanged(env, account)?;
+    }
 
     // auth.json 读不了（比如被换成了目录）：不碰它，其余照常写。
     let auth_path = env.codex_auth_path();
@@ -317,25 +409,85 @@ pub fn run(
         .as_deref()
         .map(|bytes| serde_json::from_slice::<Value>(bytes).unwrap_or(Value::Null));
 
+    // live 是不是这次涉及的托管账号的登录（切走时清掉，不进暂存）。已删除的账号放弃了
+    // 所有权：它留下的登录按用户自己的登录处理。
+    let marker_path = managed_live::marker_path(env);
+    let marker_pre = read_current(&marker_path).ok().flatten();
+    let marker = managed_live::read_marker(env);
+    let managed_accounts: Vec<&str> = prepared
+        .outgoing
+        .iter()
+        .filter(|(_, guard)| !matches!(guard, SwitchAwayGuard::MissingAccount))
+        .map(|(account, _)| account.as_str())
+        .chain(
+            prepared
+                .target_login
+                .iter()
+                .map(|(account, _, _)| account.as_str()),
+        )
+        .collect();
+    let live_is_managed = live_auth.as_ref().is_some_and(|auth| {
+        managed_accounts
+            .iter()
+            .any(|account| managed_live::auth_matches_marker(auth, marker.as_ref(), account))
+    });
+    let outgoing_missing = prepared
+        .outgoing
+        .as_ref()
+        .is_some_and(|(_, guard)| matches!(guard, SwitchAwayGuard::MissingAccount));
+
+    // 目标托管账号：生成 bundle 时看到的 live 代数要还在（期间 Codex CLI 轮换了 refresh
+    // token，拿旧 bundle 覆盖会让新 token 作废）。
+    if let Some((account, _, observed)) = &prepared.target_login {
+        let now = live_auth
+            .as_ref()
+            .filter(|auth| managed_live::auth_matches_marker(auth, marker.as_ref(), account))
+            .and_then(|auth| auth.pointer("/tokens/refresh_token"))
+            .and_then(Value::as_str)
+            .map(|token| token.trim().to_string());
+        if now.is_some() && now != *observed {
+            return Err(AppError::localized(
+                "codex.oauth.live_changed",
+                format!("Codex CLI 账号 {account} 的 live 凭据在切换期间已刷新；为避免覆盖新的 refresh token，本次操作已取消，请重试"),
+                format!("The live credentials of Codex account {account} were refreshed during the switch; to avoid overwriting the new refresh token nothing was changed. Please try again"),
+            ));
+        }
+    }
+
     let LoadedStash {
         stash,
         pre: stash_pre,
         unreadable: stash_unreadable,
     } = load_stash(store, &planned.official_logins, live_auth.as_ref());
     let preserve = data.settings.preserve_codex_official_auth_on_switch;
-    let target = match &planned.auth {
-        AuthGoal::ThirdParty => AuthTarget::ThirdParty { preserve },
-        AuthGoal::Official(row_auth) => AuthTarget::Official { row_auth },
+    let target = match (&planned.auth, &prepared.target_login) {
+        (AuthGoal::Managed, Some((_, auth, _))) => AuthTarget::Managed { auth },
+        (AuthGoal::Managed, None) => {
+            return Err(AppError::Message(
+                "托管账号卡没有准备好登录（缺少 prepare 步骤），什么都没改".into(),
+            ))
+        }
+        (AuthGoal::ThirdParty, _) => AuthTarget::ThirdParty { preserve },
+        (AuthGoal::Official(row_auth, login_ref), _) => AuthTarget::Official {
+            row_auth,
+            login_ref: login_ref.as_deref(),
+        },
     };
     let auth_plan = login::plan(AuthInput {
         live: live_auth.as_ref(),
-        // Phase 1 没有托管账号：live 里的登录一律按用户自己的原生登录处理。
-        live_is_managed: false,
+        live_is_managed,
         third_party_keys: &planned.retired_keys,
         leaving_official: planned.leaving_official.as_ref(),
+        leaving_official_ref: planned.leaving_official_ref.as_deref(),
+        official_api_keys: &planned.official_api_keys,
         target,
         stash,
     });
+    if let Some(id) = &auth_plan.missing_login {
+        warnings.push(format!(
+            "{WARN_LOGIN_REF_MISSING}: 这张官方卡引用的登录 {id} 已不在暂存里（可能在 Codex 里登出了），auth.json 没有改动；请在 Codex 里重新登录"
+        ));
+    }
 
     // 暂存坏了只当它是空的读；要往里存登录时照写会覆盖掉里面原有的登录，停下。
     if let (Some(err), Some(_)) = (&stash_unreadable, &auth_plan.stash) {
@@ -387,6 +539,31 @@ pub fn run(
         })
         .transpose()?;
 
+    // 所有权标记：写入托管登录时同一次提交写它；把 auth.json 换成别的（或删掉）、切走的
+    // 账号已删除、标记已经对不上 live 时删掉它。auth.json 读不了时不动标记。
+    let writes_managed = matches!(
+        (&prepared.target_login, &auth_plan.auth),
+        (Some((_, login, _)), Some(Some(written))) if written == login
+    );
+    let marker_stale = marker_pre.is_some()
+        && !live_auth.as_ref().is_some_and(|auth| {
+            marker
+                .as_ref()
+                .is_some_and(|m| managed_live::auth_matches_marker(auth, Some(m), &m.account_id))
+        });
+    let marker_patch = if writes_managed {
+        let (account, login, _) = prepared.target_login.as_ref().expect("writes_managed");
+        managed_live::marker_bytes(login, account)?
+            .map(|bytes| guarded(marker_pre.as_deref(), WholeFile::Write(bytes)))
+    } else if marker_pre.is_some()
+        && auth_readable
+        && (auth_plan.auth.is_some() || outgoing_missing || marker_stale)
+    {
+        Some(guarded(marker_pre.as_deref(), WholeFile::Delete))
+    } else {
+        None
+    };
+
     let stash_patch = auth_plan
         .stash
         .as_ref()
@@ -409,6 +586,12 @@ pub fn run(
         file: LiveFile::private(env.codex_config_path()),
         patch: &config,
     });
+    if let Some(patch) = &marker_patch {
+        changes.push(FileChange {
+            file: LiveFile::private(&marker_path),
+            patch,
+        });
+    }
     if let Some(patch) = &stash_patch {
         changes.push(FileChange {
             file: LiveFile::private(store.file(STASH_FILENAME)),
@@ -418,4 +601,77 @@ pub fn run(
     let mut report = write.run(op, &changes, pending)?;
     report.warnings.extend(warnings);
     Ok(report)
+}
+
+/// 能被官方卡引用的原生登录：登录暂存里的，加上 live 里现在的（托管账号写的不算）。
+/// 只读，不写任何文件。
+pub fn available_logins(env: &Env) -> Result<Vec<login::LoginSummary>, AppError> {
+    super::settle(env, Tool::Codex)?;
+    let data = crate::store::load(env)?;
+    let facts = row_facts(&data);
+    let live = read_current(&env.codex_auth_path())
+        .ok()
+        .flatten()
+        .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok());
+    let marker = managed_live::read_marker(env);
+    let live_native = live.as_ref().filter(|auth| {
+        !marker
+            .as_ref()
+            .is_some_and(|m| managed_live::auth_matches_marker(auth, Some(m), &m.account_id))
+    });
+    let loaded = load_stash(&env.device_store(), &facts.official_logins, live_native);
+    let mut logins: Vec<login::LoginSummary> = Vec::new();
+    if let Some(summary) = live_native.and_then(|auth| login::summarize(auth, true)) {
+        logins.push(summary);
+    }
+    for auth in loaded.stash.logins.values() {
+        if let Some(summary) = login::summarize(auth, false) {
+            if !logins.iter().any(|l| l.identity == summary.identity) {
+                logins.push(summary);
+            }
+        }
+    }
+    Ok(logins)
+}
+
+/// 让官方卡引用某个登录（`None` 取消引用，回到「跟随当前登录」）。是当前卡时立刻
+/// 换上那个登录。只接受没绑托管账号、行里没存 API Key 的官方卡，和 [`available_logins`]
+/// 里有的身份。
+pub fn set_login_ref(
+    env: &Env,
+    services: super::Services<'_>,
+    provider_id: &str,
+    identity: Option<&str>,
+) -> Result<Option<OperationReport>, AppError> {
+    let data = crate::store::load(env)?;
+    let mut provider = data
+        .provider(Tool::Codex, provider_id)
+        .cloned()
+        .ok_or_else(|| AppError::NotFound(format!("codex 供应商 {provider_id}")))?;
+    let row = row_auth(&provider);
+    if !provider.is_official_category()
+        || provider.managed_codex_account().is_some()
+        || extract_codex_auth_api_key(&row)
+            .is_some_and(|_| !codex_auth_has_credential_login_material(&row))
+    {
+        return Err(AppError::localized(
+            "codex.login_ref.not_applicable",
+            "只有不绑定托管账号、不存 API Key 的官方卡可以引用登录",
+            "Only official cards without a managed account or API key can reference a login",
+        ));
+    }
+    if let Some(id) = identity {
+        if !available_logins(env)?
+            .iter()
+            .any(|login| login.identity == id)
+        {
+            return Err(AppError::localized(
+                "codex.login_ref.unknown",
+                format!("找不到登录 {id}（暂存和当前 auth.json 里都没有）"),
+                format!("Login {id} was not found in the stash or the current auth.json"),
+            ));
+        }
+    }
+    provider.set_codex_login_ref(identity);
+    super::update_provider_with(env, services, Tool::Codex, provider)
 }

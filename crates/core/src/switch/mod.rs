@@ -9,6 +9,7 @@ pub mod codex;
 pub mod gemini;
 pub mod grok;
 
+use crate::codex::oauth::CodexOAuthManager;
 use crate::env::Env;
 use crate::error::AppError;
 use crate::operation::{self, OperationReport, RecoveryOutcome};
@@ -39,18 +40,44 @@ pub fn recover_on_startup(env: &Env) -> Vec<(String, Result<RecoveryOutcome, App
     })
 }
 
+/// 切换要用到的长生命周期服务（桌面应用里只建一次）。
+#[derive(Default, Clone, Copy)]
+pub struct Services<'a> {
+    /// 托管 ChatGPT 账号。没有时涉及托管账号卡的 Codex 切换会被拒绝。
+    pub codex_oauth: Option<&'a CodexOAuthManager>,
+}
+
 /// 切到 `id` 这张卡：同一个操作里改写客户端文件、再把当前指针改成它。
 ///
 /// 目标行有问题（比如 Codex 第三方卡没有 Key、却会让 Codex 拿 ChatGPT 登录访问第三方
 /// 地址）时在算补丁阶段就报错，什么都不写、指针也不动。
 pub fn switch(env: &Env, tool: Tool, id: &str) -> Result<OperationReport, AppError> {
+    switch_with(env, Services::default(), tool, id)
+}
+
+/// 同 [`switch`]，带上托管账号管理器等服务。
+pub fn switch_with(
+    env: &Env,
+    services: Services<'_>,
+    tool: Tool,
+    id: &str,
+) -> Result<OperationReport, AppError> {
     settle(env, tool)?;
     let data = store::load(env)?;
     let target = data
         .provider(tool, id)
         .ok_or_else(|| AppError::NotFound(format!("{tool} 供应商 {id}")))?;
     let prev = data.current(tool);
-    write(env, &data, tool, prev, target, op::SWITCH, Some(id))
+    write(
+        env,
+        services,
+        &data,
+        tool,
+        prev,
+        target,
+        op::SWITCH,
+        Some(id),
+    )
 }
 
 /// 把当前卡重新写进客户端文件（编辑当前卡之后），不改指针。`prev` 是 live 现在对应的
@@ -60,18 +87,36 @@ pub fn reapply(
     tool: Tool,
     prev: Option<&Provider>,
 ) -> Result<OperationReport, AppError> {
+    reapply_with(env, Services::default(), tool, prev)
+}
+
+pub fn reapply_with(
+    env: &Env,
+    services: Services<'_>,
+    tool: Tool,
+    prev: Option<&Provider>,
+) -> Result<OperationReport, AppError> {
     settle(env, tool)?;
     let data = store::load(env)?;
     let target = data
         .current(tool)
         .ok_or_else(|| AppError::NotFound(format!("{tool} 没有当前供应商")))?;
-    write(env, &data, tool, prev, target, op::APPLY, None)
+    write(env, services, &data, tool, prev, target, op::APPLY, None)
 }
 
 /// 编辑一张卡。是当前卡时同时把新内容写进客户端文件；写入被拒绝（行有问题）时库里
 /// 也不改。
 pub fn update_provider(
     env: &Env,
+    tool: Tool,
+    provider: Provider,
+) -> Result<Option<OperationReport>, AppError> {
+    update_provider_with(env, Services::default(), tool, provider)
+}
+
+pub fn update_provider_with(
+    env: &Env,
+    services: Services<'_>,
     tool: Tool,
     provider: Provider,
 ) -> Result<Option<OperationReport>, AppError> {
@@ -88,7 +133,7 @@ pub fn update_provider(
     if !is_current {
         return Ok(None);
     }
-    match reapply(env, tool, Some(&old)) {
+    match reapply_with(env, services, tool, Some(&old)) {
         Ok(report) => Ok(Some(report)),
         Err(err) => {
             // 还没开始发布就失败（并发冲突等）：库里回到旧版本，和 live 保持一致。已经
@@ -111,8 +156,10 @@ pub fn preflight(data: &store::StoreData, tool: Tool, provider: &Provider) -> Re
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn write(
     env: &Env,
+    services: Services<'_>,
     data: &store::StoreData,
     tool: Tool,
     prev: Option<&Provider>,
@@ -125,7 +172,9 @@ fn write(
         Tool::Claude => claude::write(env, prev, target, op, pending),
         Tool::Codex => {
             let planned = codex::plan(data, prev, target)?;
-            codex::run(env, data, op, planned, pending)
+            // 可能联网（刷新托管账号的 token），在拿写锁之前做。
+            let prepared = codex::prepare(services.codex_oauth, prev, target)?;
+            codex::run(env, data, op, planned, &prepared, pending)
         }
         Tool::Gemini => gemini::write(env, target, op, pending),
         Tool::GrokBuild => grok::write(env, prev, target, op, pending),
@@ -425,5 +474,185 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(written.tables, vec!["rc".to_string()]);
+    }
+
+    // ==================== 托管账号的崩溃注入 ====================
+
+    use crate::codex::oauth::testing::{FakeTransport, Identity};
+    use crate::codex::oauth::CodexOAuthManager;
+    use crate::provider::AuthBinding;
+    use std::sync::Arc;
+
+    struct Managed {
+        _dir: tempfile::TempDir,
+        env: Env,
+        mgr: CodexOAuthManager,
+        account: String,
+        alice: Value,
+    }
+
+    fn managed_sandbox() -> Managed {
+        let (dir, env) = codex_sandbox();
+        let fake = Arc::new(FakeTransport::new());
+        let mgr = CodexOAuthManager::new(&env, Some(fake.clone())).unwrap();
+        let bob = Identity::new("bob", "ws-team", "team");
+        let account = mgr
+            .add_account_from_tokens(&fake.issue(&bob), None)
+            .unwrap()
+            .id;
+        let mut card = Provider::new("bob", "Bob", json!({"auth": {}, "config": ""})).official();
+        card.meta.auth_binding = Some(AuthBinding {
+            auth_provider: "codex_oauth".into(),
+            account_id: Some(account.clone()),
+        });
+        store::add_provider(&env, Tool::Codex, card).unwrap();
+        let alice: Value =
+            serde_json::from_slice(&fs::read(env.codex_auth_path()).unwrap()).unwrap();
+        Managed {
+            _dir: dir,
+            env,
+            mgr,
+            account,
+            alice,
+        }
+    }
+
+    impl Managed {
+        fn go(&self, id: &str) -> Result<OperationReport, AppError> {
+            switch_with(
+                &self.env,
+                Services {
+                    codex_oauth: Some(&self.mgr),
+                },
+                Tool::Codex,
+                id,
+            )
+        }
+        fn live(&self) -> Option<Value> {
+            fs::read(self.env.codex_auth_path())
+                .ok()
+                .map(|b| serde_json::from_slice(&b).unwrap())
+        }
+        fn marker(&self) -> bool {
+            crate::codex::oauth::live::marker_path(&self.env).exists()
+        }
+        fn stash(&self) -> Value {
+            fs::read(self.env.data_file(crate::codex::login::STASH_FILENAME))
+                .ok()
+                .map(|b| serde_json::from_slice(&b).unwrap())
+                .unwrap_or(Value::Null)
+        }
+        fn managed_live(&self) -> bool {
+            self.live().is_some_and(|auth| {
+                crate::codex::oauth::live::live_is_managed(&self.env, &auth, &self.account)
+            })
+        }
+    }
+
+    fn crash(point: &str, run: impl FnOnce() -> Result<OperationReport, AppError>) {
+        failpoint::crash_at(Some(point));
+        let result = run();
+        failpoint::crash_at(None);
+        assert!(result.is_err(), "crash at {point} did not abort");
+    }
+
+    /// 原生 → 托管，每个发布点之后崩溃：启动时前滚，auth.json、标记、暂存、指针一起落定；
+    /// alice 的原生登录进了暂存，不会因为崩溃丢掉，托管登录被标记认出来。
+    #[test]
+    fn a_crash_while_switching_to_a_managed_account_rolls_forward_completely() {
+        for point in ["published:0", "published:1", "published:2"] {
+            let m = managed_sandbox();
+            crash(point, || m.go("bob"));
+            assert_eq!(current(&m.env, Tool::Codex).as_deref(), Some("official"));
+            let outcomes = recover_on_startup(&m.env);
+            assert!(
+                matches!(outcomes[..], [(_, Ok(RecoveryOutcome::RolledForward))]),
+                "{point}: {outcomes:?}"
+            );
+            assert_eq!(
+                current(&m.env, Tool::Codex).as_deref(),
+                Some("bob"),
+                "{point}"
+            );
+            assert!(m.marker(), "{point}: marker written");
+            assert!(m.managed_live(), "{point}: live is recognised as managed");
+            assert_eq!(
+                m.stash()["logins"]["sub:alice|account:acc-plus"],
+                m.alice,
+                "{point}: alice is stashed"
+            );
+            // 落定后照常切走：alice 回来，标记删掉。
+            m.go("official").unwrap();
+            assert_eq!(m.live(), Some(m.alice.clone()), "{point}");
+            assert!(!m.marker(), "{point}");
+        }
+    }
+
+    /// 托管 → 第三方，删掉 auth.json 之后、删标记之前崩溃：启动时前滚，标记也删掉，
+    /// 不会留下「标记指向一个不存在的登录」。
+    #[test]
+    fn a_crash_after_deleting_the_managed_login_rolls_forward_and_drops_the_marker() {
+        let m = managed_sandbox();
+        m.go("bob").unwrap();
+        crash("published:0", || m.go("relay"));
+        assert!(m.live().is_none());
+        assert!(m.marker(), "marker not deleted yet");
+        let outcomes = recover_on_startup(&m.env);
+        assert!(
+            matches!(outcomes[..], [(_, Ok(RecoveryOutcome::RolledForward))]),
+            "{outcomes:?}"
+        );
+        assert!(!m.marker());
+        assert_eq!(current(&m.env, Tool::Codex).as_deref(), Some("relay"));
+        assert!(!m.stash().to_string().contains("rt-bob"));
+        m.go("bob").unwrap();
+        assert!(m.managed_live());
+    }
+
+    /// 托管 → 官方，发布之前崩溃：丢弃，托管登录和标记都还在，再切一次照常。
+    #[test]
+    fn a_crash_before_publishing_a_managed_switch_away_is_discarded() {
+        let m = managed_sandbox();
+        m.go("bob").unwrap();
+        let before = m.live();
+        crash("pending", || m.go("official"));
+        let outcomes = recover_on_startup(&m.env);
+        assert!(
+            outcomes
+                .iter()
+                .all(|(_, o)| matches!(o, Ok(RecoveryOutcome::Discarded))),
+            "{outcomes:?}"
+        );
+        assert_eq!(m.live(), before);
+        assert!(m.marker() && m.managed_live());
+        assert_eq!(current(&m.env, Tool::Codex).as_deref(), Some("bob"));
+        m.go("official").unwrap();
+        assert_eq!(m.live(), Some(m.alice.clone()));
+    }
+
+    /// 崩溃留下的操作没补完时，管理器刷新后不去同步 live（会和恢复打架）。恢复后 live 是
+    /// 可证明更旧的一代，再写一次当前卡就换成新一代。
+    #[test]
+    fn a_refresh_does_not_touch_live_while_a_codex_operation_is_pending() {
+        let m = managed_sandbox();
+        m.go("bob").unwrap();
+        let stale = m.live();
+        crash("pending", || m.go("relay"));
+        m.mgr.test_forget_access_tokens();
+        let bundle = m.mgr.token_bundle(&m.account).unwrap();
+        assert_eq!(
+            m.live(),
+            stale,
+            "live untouched while the operation is pending"
+        );
+        recover_on_startup(&m.env);
+        assert_eq!(current(&m.env, Tool::Codex).as_deref(), Some("bob"));
+        assert_eq!(m.live(), stale);
+        m.go("bob").unwrap();
+        assert_eq!(
+            m.live().unwrap()["tokens"]["refresh_token"],
+            json!(bundle.refresh_token)
+        );
+        assert!(m.managed_live());
     }
 }

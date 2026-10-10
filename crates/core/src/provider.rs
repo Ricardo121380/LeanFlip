@@ -136,7 +136,34 @@ impl Provider {
             .filter(|binding| binding.auth_provider == AUTH_PROVIDER_CODEX_OAUTH)
             .map(|binding| binding.account_id.as_deref().unwrap_or(""))
     }
+
+    /// Codex 官方卡引用的那份原生登录（登录暂存里的身份，`sub:<用户>|account:<workspace>`）。
+    /// 卡里只存身份，不存 token。
+    pub fn codex_login_ref(&self) -> Option<&str> {
+        self.meta
+            .extra
+            .get(META_CODEX_LOGIN_REF)
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|id| !id.is_empty())
+    }
+
+    pub fn set_codex_login_ref(&mut self, identity: Option<&str>) {
+        match identity.map(str::trim).filter(|id| !id.is_empty()) {
+            Some(id) => {
+                self.meta
+                    .extra
+                    .insert(META_CODEX_LOGIN_REF.into(), Value::String(id.into()));
+            }
+            None => {
+                self.meta.extra.remove(META_CODEX_LOGIN_REF);
+            }
+        }
+    }
 }
+
+/// `meta` 里 Codex 官方卡引用登录的键。
+pub const META_CODEX_LOGIN_REF: &str = "codexLoginRef";
 
 pub(crate) fn now_millis() -> i64 {
     std::time::SystemTime::now()

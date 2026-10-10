@@ -50,6 +50,29 @@ pub fn extract_codex_id_token_subject(id_token: &str) -> Option<String> {
         .map(str::to_string)
 }
 
+/// 测试用：带任意 claims 的未签名 id_token。
+#[doc(hidden)]
+pub fn test_id_token_with_claims(claims: &Value) -> String {
+    let header = URL_SAFE_NO_PAD.encode(br#"{"alg":"none"}"#);
+    let payload = URL_SAFE_NO_PAD.encode(claims.to_string());
+    format!("{header}.{payload}.")
+}
+
+/// 解出 JWT 的 claims（不验签：只用来认人和显示，信任来自 OAuth 服务端的 TLS 响应）。
+pub fn jwt_claims(token: &str) -> Option<Value> {
+    let mut segments = token.split('.');
+    let _header = segments.next()?;
+    let payload = segments.next()?;
+    segments.next()?;
+    if segments.next().is_some() {
+        return None;
+    }
+    URL_SAFE_NO_PAD
+        .decode(payload)
+        .ok()
+        .and_then(|decoded| serde_json::from_slice(&decoded).ok())
+}
+
 /// 测试用：只带 `sub` 的未签名 id_token（和 Codex 写出的一样能解出用户）。
 #[doc(hidden)]
 pub fn test_codex_id_token(subject: &str) -> String {

@@ -31,6 +31,8 @@ cc-switch 以 MIT 许可证发布：
 | `crates/core/src/switch/codex.rs` | `src-tauri/src/services/provider/codex_direct.rs`（直连路径） | 去掉代理、模型目录、钥匙串、托管账号 |
 | `crates/core/src/switch/gemini.rs` | `src-tauri/src/services/provider/gemini_direct.rs` | 去掉数据库 |
 | `crates/core/src/switch/grok.rs` | `src-tauri/src/services/provider/grok_direct.rs` | 去掉数据库 |
+| `crates/core/src/codex/oauth/mod.rs` | `src-tauri/src/proxy/providers/codex_oauth_auth.rs`（`CodexOAuthManager`） | 改为同步；网络抽成 `OAuthTransport`；采纳判定、拒绝后恢复、代数锁、重复账号检查照搬；坏账号库报错不覆盖 |
+| `crates/core/src/codex/oauth/live.rs` | `src-tauri/src/codex_config.rs`（托管 OAuth 标记、读回/同步 live） | 只认 v3 标记；刷新后同步 live 时拿 Codex 写锁、有未完成操作时跳过 |
 | `crates/core/tests/codex_red_lines.rs` | `src-tauri/tests/golden/codex_red_lines.rs` | 改用临时 HOME 沙箱；代理相关红线未移植 |
 | `crates/core/tests/claude_key_fields.rs` | `src-tauri/tests/golden/claude_key_fields.rs` | 同上；通用配置相关未移植 |
 | `crates/core/tests/fixtures/claudeKeyFields.json` | `tests/config/claudeKeyFields.json` | 未改 |

@@ -161,10 +161,9 @@ fn only_provable_third_party_key_residue_is_removed() {
 
 /// 直连 OpenAI API 的官方卡（行里存 API Key）：整份写它，换下来的 ChatGPT 登录进暂存。
 ///
-/// 已知边界（和 cc-switch 原版一致，这里锁住现状）：再切回「跟随当前登录」的官方卡
-/// （行里 `auth` 为空）时，auth.json 里此刻的登录就是那个 API Key，于是保持不动；ChatGPT
-/// 登录不会丢，但留在暂存里，要靠存了身份的官方卡（或重新 `codex login`）取回。Phase 2
-/// 让官方卡按身份引用暂存里的登录来解决。
+/// Phase 1 锁住的边界（和 cc-switch 原版一致）：再切回「跟随当前登录」的官方卡时
+/// API Key 留着，ChatGPT 登录困在暂存里。Phase 2 修掉：官方卡写进去的 API Key 不算原生
+/// 登录，切回 OAuth 官方卡时换回暂存里的登录；API Key 不进暂存（它本来就在卡里）。
 #[test]
 fn an_api_key_official_card_stashes_the_chatgpt_login() {
     let alice = login("alice", "acc-plus");
@@ -182,14 +181,23 @@ fn an_api_key_official_card_stashes_the_chatgpt_login() {
     go(&sb, "chatgpt");
     assert_eq!(
         live_auth(&sb),
-        Some(api),
-        "follows the login auth.json holds now"
+        Some(alice.clone()),
+        "the ChatGPT login is back"
     );
     let stash = sb.json(&sb.env.data_file("codex-login-stash.json"));
-    assert_eq!(
-        stash["logins"]["sub:alice|account:acc-plus"], alice,
-        "never lost"
-    );
+    assert_eq!(stash["logins"], json!({}), "the API key is not stashed");
+
+    // 来回再走一次，结果一样；从 API Key 卡切到第三方时 Key 不进暂存、登录也不丢。
+    go(&sb, "api");
+    assert_eq!(live_auth(&sb), Some(api));
+    sb.add(Tool::Codex, relay("relay", "sk-relay"));
+    go(&sb, "relay");
+    assert_eq!(live_auth(&sb), None);
+    let stash = sb.json(&sb.env.data_file("codex-login-stash.json"));
+    assert_eq!(stash["logins"]["sub:alice|account:acc-plus"], alice);
+    assert!(stash["logins"].get("api-key").is_none(), "{stash}");
+    go(&sb, "chatgpt");
+    assert_eq!(live_auth(&sb), Some(alice));
 }
 
 /// 暂存文件坏了、这次又要往里存登录：停下，什么都不写，指针不动。
@@ -249,9 +257,10 @@ fn credential_store_modes_decide_requires_openai_auth() {
     }
 }
 
-/// 绑定了托管账号的卡（Phase 2）：明确拒绝，不写任何东西。
+/// 绑定了托管账号的卡，但没有账号管理器（`switch` 而不是 `switch_with`）：明确拒绝，
+/// 不写任何东西。
 #[test]
-fn managed_account_cards_are_refused_in_phase_1() {
+fn managed_account_cards_need_the_account_manager() {
     let alice = login("alice", "acc-plus");
     let mut managed = official("managed", json!({}));
     managed.meta.auth_binding = Some(ccsl_core::provider::AuthBinding {

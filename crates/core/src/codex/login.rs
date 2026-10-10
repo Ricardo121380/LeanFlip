@@ -15,8 +15,15 @@
 //! 作为暂存的初始内容；之后以暂存为准，行里的快照不再使用。
 //!
 //! 移植自 cc-switch `services/provider/codex_login.rs`，纯函数部分原样保留；去掉了代理用的
-//! `ProxyThirdParty` 目标和代理契约用的 `official_login_requirement`。`Managed` 目标和
-//! `live_is_managed` 保留给 Phase 2 的多 ChatGPT 账号（托管 OAuth）。
+//! `ProxyThirdParty` 目标和代理契约用的 `official_login_requirement`。
+//!
+//! ccswitch-lite 新增（Phase 2）：
+//! - **官方卡按身份引用暂存里的登录**（`login_ref`，存在卡的 `meta.codexLoginRef`，只有
+//!   身份不含 token）：切到这张卡时换成那个人的登录；暂存里没有（被登出了）就不动并
+//!   报告 `missing_login`；
+//! - **官方卡写进去的 API Key 不当成原生登录**（`official_api_keys`）：从 API Key 官方卡
+//!   切到 OAuth 官方卡时，换回暂存里的登录（原版会保留 API Key，登录困在暂存里取不到）；
+//!   切到第三方时不把它存进暂存（它本来就在卡里）。
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -179,8 +186,11 @@ fn is_residue(auth: &Value, third_party_keys: &[String]) -> bool {
 pub enum AuthTarget<'a> {
     /// 第三方：保留登录开关关闭时删掉 `auth.json`。
     ThirdParty { preserve: bool },
-    /// 没绑托管账号的官方卡。
-    Official { row_auth: &'a Value },
+    /// 没绑托管账号的官方卡。`login_ref` 是卡引用的登录身份（优先于行里的快照）。
+    Official {
+        row_auth: &'a Value,
+        login_ref: Option<&'a str>,
+    },
     /// 托管账号：整份写它的登录（Phase 2）。
     Managed { auth: &'a Value },
 }
@@ -195,6 +205,10 @@ pub struct AuthInput<'a> {
     /// 切走的是没绑托管账号的官方卡（它的行 `auth`）：live 里没有登录，说明用户在
     /// Codex 里登出了，暂存里对应的登录也作废，免得切回来又登上。
     pub leaving_official: Option<&'a Value>,
+    /// 切走的官方卡引用的登录身份（登出时作废暂存里的这一份）。
+    pub leaving_official_ref: Option<&'a str>,
+    /// 官方卡行里的 API Key：live 是其中之一时，是 CC Switch 从卡里写进去的，不算原生登录。
+    pub official_api_keys: &'a [String],
     pub target: AuthTarget<'a>,
     pub stash: LoginStash,
 }
@@ -208,6 +222,14 @@ pub struct AuthPlan {
     /// 写完之后 `auth.json` 里有没有登录（第三方路由表的 `requires_openai_auth` 跟着它；
     /// 登录存在系统钥匙串里时另算，见 `switch::codex`）。
     pub login_on_disk: bool,
+    /// 目标官方卡引用的登录在暂存和 live 里都没有（被登出了）：`auth.json` 没动。
+    pub missing_login: Option<String>,
+}
+
+/// live 是官方卡从行里写进去的 API Key（只有 Key，没有登录，且是某张官方卡的 Key）。
+fn is_official_row_key(auth: &Value, official_api_keys: &[String]) -> bool {
+    codex_live_auth_is_stale_third_party_residue(auth)
+        && extract_codex_auth_api_key(auth).is_some_and(|key| official_api_keys.contains(&key))
 }
 
 pub fn plan(input: AuthInput<'_>) -> AuthPlan {
@@ -217,13 +239,22 @@ pub fn plan(input: AuthInput<'_>) -> AuthPlan {
     let residue = input
         .live
         .is_some_and(|auth| !managed && is_residue(auth, input.third_party_keys));
+    let row_key = input.live.is_some_and(|auth| {
+        !managed && !residue && is_official_row_key(auth, input.official_api_keys)
+    });
     let native = input
         .live
-        .filter(|auth| !managed && !residue && codex_auth_has_login_material(auth));
+        .filter(|auth| !managed && !residue && !row_key && codex_auth_has_login_material(auth));
 
     if let Some(row_auth) = input.leaving_official {
-        if native.is_none() && !managed {
-            match oauth_identity(row_auth) {
+        // 切走 API Key 官方卡不是登出：live 里本来就是卡里的 Key。
+        let leaving_key_card = row_key || is_api_key_credential(row_auth);
+        if native.is_none() && !managed && !leaving_key_card {
+            let referenced = input
+                .leaving_official_ref
+                .map(str::to_string)
+                .or_else(|| oauth_identity(row_auth));
+            match referenced {
                 Some(id) => {
                     stash.take(&id);
                 }
@@ -237,6 +268,7 @@ pub fn plan(input: AuthInput<'_>) -> AuthPlan {
         }
     }
 
+    let mut missing_login = None;
     let auth = match input.target {
         AuthTarget::ThirdParty { preserve } => {
             if let Some(live) = native.filter(|_| !preserve) {
@@ -251,8 +283,19 @@ pub fn plan(input: AuthInput<'_>) -> AuthPlan {
             }
             Some(Some(auth.clone()))
         }
-        AuthTarget::Official { row_auth } => {
-            official(row_auth, native, managed || residue, &mut stash)
+        AuthTarget::Official {
+            row_auth,
+            login_ref,
+        } => {
+            let outcome = official(
+                row_auth,
+                login_ref,
+                native,
+                managed || residue || row_key,
+                &mut stash,
+            );
+            missing_login = outcome.missing;
+            outcome.auth
         }
     };
 
@@ -270,43 +313,100 @@ pub fn plan(input: AuthInput<'_>) -> AuthPlan {
             ..stash
         }),
         login_on_disk,
+        missing_login,
     }
 }
 
+struct OfficialOutcome {
+    auth: Option<Option<Value>>,
+    missing: Option<String>,
+}
+
 /// 切到没绑托管账号的官方卡。`clearable` 表示 live 里是要清掉的东西（托管账号的登录、
-/// 旧版的第三方 Key 残留）。
+/// 旧版的第三方 Key 残留、官方卡写进去的 API Key）。
 fn official(
     row_auth: &Value,
+    login_ref: Option<&str>,
     native: Option<&Value>,
     clearable: bool,
     stash: &mut LoginStash,
-) -> Option<Option<Value>> {
+) -> OfficialOutcome {
+    let done = |auth| OfficialOutcome {
+        auth,
+        missing: None,
+    };
     if is_api_key_credential(row_auth) {
         if let Some(live) = native.filter(|live| *live != row_auth) {
             stash.put(live);
         }
-        return Some(Some(row_auth.clone()));
+        return done(Some(Some(row_auth.clone())));
     }
 
-    let wanted = oauth_identity(row_auth);
+    let wanted = login_ref
+        .map(str::to_string)
+        .or_else(|| oauth_identity(row_auth));
+    let missing = |id: &str| login_ref.is_some().then(|| id.to_string());
     if let Some(live) = native {
-        // 行里没存登录：跟随 Codex 当前的登录。存的就是当前这个人：不动。
-        let id = wanted.filter(|id| identity(live) != *id)?;
-        // 行里存的是另一个人：暂存里有他才换，否则不动（行里的快照可能早已作废，也可能是
-        // 在 Codex 里登出了）。旧版漏掉的 workspace 在读暂存时补回（见 `LoginStash::upgraded`）。
-        let saved = stash.take(&id)?;
+        // 卡没指定登录：跟随 Codex 当前的登录。指定的就是当前这个人：不动。
+        let Some(id) = wanted.filter(|id| identity(live) != *id) else {
+            return done(None);
+        };
+        // 指定的是另一个人：暂存里有他才换，否则不动（快照可能早已作废，也可能是在
+        // Codex 里登出了）。旧版漏掉的 workspace 在读暂存时补回（见 `LoginStash::upgraded`）。
+        let Some(saved) = stash.take(&id) else {
+            return OfficialOutcome {
+                auth: None,
+                missing: missing(&id),
+            };
+        };
         stash.put(live);
-        return Some(Some(saved));
+        return done(Some(Some(saved)));
     }
 
-    let restored = match wanted {
-        Some(id) => stash.take(&id),
+    let restored = match &wanted {
+        Some(id) => stash.take(id),
         None => stash.last.clone().and_then(|id| stash.take(&id)),
     };
     match restored {
-        Some(saved) => Some(Some(saved)),
-        None => clearable.then_some(None),
+        Some(saved) => done(Some(Some(saved))),
+        None => OfficialOutcome {
+            auth: clearable.then_some(None),
+            missing: wanted.as_deref().and_then(missing),
+        },
     }
+}
+
+/// 暂存和 live 里能被官方卡引用的登录（OAuth 登录，不含 API Key）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoginSummary {
+    pub identity: String,
+    pub email: Option<String>,
+    pub workspace: Option<String>,
+    pub plan: Option<String>,
+    /// 现在就在 `auth.json` 里。
+    pub live: bool,
+}
+
+pub fn summarize(auth: &Value, live: bool) -> Option<LoginSummary> {
+    let identity = oauth_identity(auth)?;
+    let claims = auth
+        .pointer("/tokens/id_token")
+        .and_then(Value::as_str)
+        .and_then(crate::codex::auth::jwt_claims)
+        .unwrap_or(Value::Null);
+    let text = |value: Option<&Value>| value.and_then(Value::as_str).map(str::to_string);
+    Some(LoginSummary {
+        identity,
+        email: text(claims.get("email")),
+        workspace: text(auth.pointer("/tokens/account_id")),
+        plan: text(
+            claims
+                .pointer("/https:~1~1api.openai.com~1auth/chatgpt_plan_type")
+                .or_else(|| claims.get("chatgpt_plan_type")),
+        ),
+        live,
+    })
 }
 
 #[cfg(test)]
@@ -346,6 +446,8 @@ mod tests {
             live_is_managed: false,
             third_party_keys: &[],
             leaving_official: None,
+            leaving_official_ref: None,
+            official_api_keys: &[],
             target,
             stash,
         }
@@ -375,7 +477,10 @@ mod tests {
 
         let back = plan(input(
             None,
-            AuthTarget::Official { row_auth: &empty },
+            AuthTarget::Official {
+                row_auth: &empty,
+                login_ref: None,
+            },
             stash,
         ));
         assert_eq!(back.auth, Some(Some(alice)), "the same login comes back");
@@ -412,7 +517,10 @@ mod tests {
 
         let back = plan(input(
             None,
-            AuthTarget::Official { row_auth: &empty },
+            AuthTarget::Official {
+                row_auth: &empty,
+                login_ref: None,
+            },
             stash,
         ));
         assert_eq!(back.auth, None, "stays logged out");
@@ -427,7 +535,10 @@ mod tests {
         // 升级前切到第三方时旧版删了 auth.json、把登录回填进了官方行：第一次切回官方时还回去。
         let back = plan(input(
             None,
-            AuthTarget::Official { row_auth: &alice },
+            AuthTarget::Official {
+                row_auth: &alice,
+                login_ref: None,
+            },
             stash,
         ));
         assert_eq!(back.auth, Some(Some(alice.clone())));
@@ -437,7 +548,10 @@ mod tests {
         // 之后在 Codex 里登出，再切回这张卡：行里的旧快照不再使用。
         let again = plan(input(
             None,
-            AuthTarget::Official { row_auth: &alice },
+            AuthTarget::Official {
+                row_auth: &alice,
+                login_ref: None,
+            },
             stash,
         ));
         assert_eq!(again.auth, None);
@@ -451,7 +565,10 @@ mod tests {
 
         let to_bob = plan(input(
             Some(&alice),
-            AuthTarget::Official { row_auth: &bob },
+            AuthTarget::Official {
+                row_auth: &bob,
+                login_ref: None,
+            },
             stash,
         ));
         assert_eq!(to_bob.auth, Some(Some(bob.clone())));
@@ -463,7 +580,10 @@ mod tests {
         rotated_bob["tokens"]["refresh_token"] = json!("refresh-bob-2");
         let to_alice = plan(input(
             Some(&rotated_bob),
-            AuthTarget::Official { row_auth: &alice },
+            AuthTarget::Official {
+                row_auth: &alice,
+                login_ref: None,
+            },
             stash,
         ));
         assert_eq!(to_alice.auth, Some(Some(alice)));
@@ -484,7 +604,10 @@ mod tests {
 
         let to_team = plan(input(
             Some(&plus),
-            AuthTarget::Official { row_auth: &team },
+            AuthTarget::Official {
+                row_auth: &team,
+                login_ref: None,
+            },
             stash,
         ));
         assert_eq!(to_team.auth, Some(Some(team.clone())));
@@ -496,7 +619,10 @@ mod tests {
 
         let back = plan(input(
             Some(&team),
-            AuthTarget::Official { row_auth: &plus },
+            AuthTarget::Official {
+                row_auth: &plus,
+                login_ref: None,
+            },
             stash,
         ));
         assert_eq!(back.auth, Some(Some(plus)));
@@ -512,13 +638,23 @@ mod tests {
 
         let to_bob = plan(AuthInput {
             leaving_official: Some(&alice),
-            ..input(None, AuthTarget::Official { row_auth: &bob }, stash)
+            ..input(
+                None,
+                AuthTarget::Official {
+                    row_auth: &bob,
+                    login_ref: None,
+                },
+                stash,
+            )
         });
         assert_eq!(to_bob.auth, Some(Some(bob.clone())));
 
         let back = plan(input(
             Some(&bob),
-            AuthTarget::Official { row_auth: &alice },
+            AuthTarget::Official {
+                row_auth: &alice,
+                login_ref: None,
+            },
             to_bob.stash.unwrap(),
         ));
         assert_eq!(back.auth, None, "alice stays logged out");
@@ -556,7 +692,10 @@ mod tests {
 
         let to_team2 = plan(input(
             Some(&plus),
-            AuthTarget::Official { row_auth: &team2 },
+            AuthTarget::Official {
+                row_auth: &team2,
+                login_ref: None,
+            },
             stash,
         ));
         assert_eq!(to_team2.auth, Some(Some(team2)));
@@ -589,7 +728,10 @@ mod tests {
         let empty = json!({});
         let plan = plan(input(
             Some(&alice),
-            AuthTarget::Official { row_auth: &empty },
+            AuthTarget::Official {
+                row_auth: &empty,
+                login_ref: None,
+            },
             ready(),
         ));
         assert_eq!(plan.auth, None);
@@ -601,7 +743,10 @@ mod tests {
         let api = json!({ "OPENAI_API_KEY": "sk-openai" });
         let plan = plan(input(
             Some(&alice),
-            AuthTarget::Official { row_auth: &api },
+            AuthTarget::Official {
+                row_auth: &api,
+                login_ref: None,
+            },
             ready(),
         ));
         assert_eq!(plan.auth, Some(Some(api)));
@@ -619,7 +764,10 @@ mod tests {
             third_party_keys: &keys,
             ..input(
                 Some(&residue),
-                AuthTarget::Official { row_auth: &empty },
+                AuthTarget::Official {
+                    row_auth: &empty,
+                    login_ref: None,
+                },
                 ready(),
             )
         });
@@ -629,7 +777,10 @@ mod tests {
             third_party_keys: &keys,
             ..input(
                 Some(&own),
-                AuthTarget::Official { row_auth: &empty },
+                AuthTarget::Official {
+                    row_auth: &empty,
+                    login_ref: None,
+                },
                 ready(),
             )
         });
@@ -642,7 +793,10 @@ mod tests {
         let empty = json!({});
         for target in [
             AuthTarget::ThirdParty { preserve: true },
-            AuthTarget::Official { row_auth: &empty },
+            AuthTarget::Official {
+                row_auth: &empty,
+                login_ref: None,
+            },
         ] {
             let plan = plan(AuthInput {
                 live_is_managed: true,
