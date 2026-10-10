@@ -1,0 +1,35 @@
+[package]
+name = "ccsl-app"
+description = "CC Switch Lite desktop app (Tauri 2): thin command layer over ccsl-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "ccsl_app"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "ccswitch-lite"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+ccsl-core = { path = "../core" }
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-autostart = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-single-instance = "2"
+serde.workspace = true
+serde_json.workspace = true
+log.workspace = true
+thiserror.workspace = true
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+notify = "6"
+notify-debouncer-mini = "0.4"
+
+[dev-dependencies]
+tempfile.workspace = true
