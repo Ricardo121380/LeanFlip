@@ -3,6 +3,7 @@
 //! 大部分写入逻辑移植自 [farion1231/cc-switch](https://github.com/farion1231/cc-switch)
 //! （MIT，Copyright (c) 2025 Jason Young），见仓库根目录的 `NOTICE.md`。
 
+pub mod ccswitch_import;
 pub mod codex;
 pub mod coexist;
 pub mod env;

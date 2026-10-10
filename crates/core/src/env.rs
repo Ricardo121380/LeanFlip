@@ -206,6 +206,71 @@ impl Env {
     }
 }
 
+/// 用户在设置里覆盖的目录（没填的用默认值）。桌面应用存在自己的设置文件里，
+/// 启动时套到 [`Env::from_system`] 上。
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct DirOverrides {
+    pub claude_dir: Option<PathBuf>,
+    pub codex_dir: Option<PathBuf>,
+    pub gemini_dir: Option<PathBuf>,
+    pub grok_dir: Option<PathBuf>,
+    pub claude_desktop_root: Option<PathBuf>,
+    pub opencode_dir: Option<PathBuf>,
+    pub openclaw_dir: Option<PathBuf>,
+    pub hermes_dir: Option<PathBuf>,
+    pub pi_agent_dir: Option<PathBuf>,
+    pub mcode_dir: Option<PathBuf>,
+}
+
+impl Env {
+    /// 套上目录覆盖。空路径和相对路径忽略（避免把配置写到当前目录下）。
+    pub fn with_overrides(mut self, overrides: &DirOverrides) -> Self {
+        let pairs: [(&Option<PathBuf>, &mut PathBuf); 10] = [
+            (&overrides.claude_dir, &mut self.claude_dir),
+            (&overrides.codex_dir, &mut self.codex_dir),
+            (&overrides.gemini_dir, &mut self.gemini_dir),
+            (&overrides.grok_dir, &mut self.grok_dir),
+            (
+                &overrides.claude_desktop_root,
+                &mut self.claude_desktop_root,
+            ),
+            (&overrides.opencode_dir, &mut self.opencode_dir),
+            (&overrides.openclaw_dir, &mut self.openclaw_dir),
+            (&overrides.hermes_dir, &mut self.hermes_dir),
+            (&overrides.pi_agent_dir, &mut self.pi_agent_dir),
+            (&overrides.mcode_dir, &mut self.mcode_dir),
+        ];
+        for (value, slot) in pairs {
+            if let Some(path) = value.as_ref().filter(|p| p.is_absolute()) {
+                *slot = path.clone();
+            }
+        }
+        self
+    }
+
+    /// 各工具的客户端配置文件（给文件监听和界面显示用）。
+    pub fn live_paths(&self, tool: crate::provider::Tool) -> Vec<PathBuf> {
+        use crate::provider::Tool;
+        match tool {
+            Tool::Claude => vec![self.claude_settings_path()],
+            Tool::Codex => vec![self.codex_config_path(), self.codex_auth_path()],
+            Tool::Gemini => vec![self.gemini_env_path(), self.gemini_settings_path()],
+            Tool::GrokBuild => vec![self.grok_config_path()],
+            Tool::ClaudeDesktop => vec![
+                self.claude_desktop_config_path(),
+                self.claude_desktop_3p_config_path(),
+                self.claude_desktop_library_dir().join("_meta.json"),
+            ],
+            Tool::OpenCode => vec![self.opencode_config_path()],
+            Tool::OpenClaw => vec![self.openclaw_config_path()],
+            Tool::Hermes => vec![self.hermes_config_path()],
+            Tool::Pi => vec![self.pi_models_path()],
+            Tool::Mcode => vec![self.mcode_config_path()],
+        }
+    }
+}
+
 fn default_desktop_root(home: &std::path::Path) -> PathBuf {
     if cfg!(target_os = "macos") {
         home.join("Library").join("Application Support")
@@ -240,5 +305,17 @@ mod tests {
             env.claude_settings_path(),
             dir.path().join(".claude/settings.json")
         );
+    }
+
+    #[test]
+    fn overrides_only_take_absolute_paths() {
+        let env = Env::with_home("/h").with_overrides(&DirOverrides {
+            codex_dir: Some("/custom/codex".into()),
+            hermes_dir: Some("relative".into()),
+            ..DirOverrides::default()
+        });
+        assert_eq!(env.codex_dir, PathBuf::from("/custom/codex"));
+        assert_eq!(env.hermes_dir, Env::with_home("/h").hermes_dir);
+        assert_eq!(env.data_dir, PathBuf::from("/h").join(DATA_DIR_NAME));
     }
 }

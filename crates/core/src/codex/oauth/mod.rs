@@ -1013,6 +1013,89 @@ impl CodexOAuthManager {
         }
     }
 
+    /// 从 cc-switch 的账号库（同格式 v2）读出的账号。id 不变（卡上的绑定照样能用）；
+    /// 已有的 id 不覆盖。不联网。
+    pub fn import_accounts(
+        &self,
+        accounts: Vec<AccountData>,
+        default_account_id: Option<String>,
+    ) -> Result<Vec<String>, AppError> {
+        let _generation = lock(&self.generation);
+        let mut inner = lock(&self.inner);
+        let mut added = Vec::new();
+        for account in accounts {
+            if account.refresh_token.trim().is_empty()
+                || inner.accounts.contains_key(&account.account_id)
+            {
+                continue;
+            }
+            added.push(account.account_id.clone());
+            inner.accounts.insert(account.account_id.clone(), account);
+        }
+        if inner.default_account_id.is_none() {
+            inner.default_account_id = default_account_id
+                .filter(|id| inner.accounts.contains_key(id))
+                .or_else(|| inner.accounts.keys().next().cloned());
+        }
+        if !added.is_empty() {
+            self.save(&inner)?;
+        }
+        Ok(added)
+    }
+
+    /// 读一个账号库文件（只读）。不存在时为空。
+    pub fn read_store_file(
+        path: &std::path::Path,
+    ) -> Result<(Vec<AccountData>, Option<String>), AppError> {
+        let bytes = match std::fs::read(path) {
+            Ok(bytes) => bytes,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+                return Ok((Vec::new(), None))
+            }
+            Err(err) => return Err(AppError::io(path, err)),
+        };
+        let file: StoreFile =
+            serde_json::from_slice(&bytes).map_err(|source| AppError::json(path, source))?;
+        Ok((
+            file.accounts.into_values().collect(),
+            file.default_account_id,
+        ))
+    }
+
+    /// 后台保活：上次取得 token 超过 `max_age_ms` 的账号各刷新一次（换一代 refresh
+    /// token，live 是这个账号的旧一代时一并同步）。需要重新登录的账号跳过。返回
+    /// `(账号, 是否刷新了)`；单个账号失败不影响其他账号。
+    pub fn refresh_stale(&self, max_age_ms: i64) -> Vec<(String, Result<bool, AppError>)> {
+        let due: Vec<String> = {
+            let inner = lock(&self.inner);
+            let now = self.now_ms();
+            inner
+                .accounts
+                .values()
+                .filter(|account| !account.reauth_required())
+                .filter(|account| now - account.token_updated_at_ms >= max_age_ms)
+                .map(|account| account.account_id.clone())
+                .collect()
+        };
+        due.into_iter()
+            .map(|account_id| {
+                let result = (|| {
+                    let _generation = lock(&self.generation);
+                    let still_due = lock(&self.inner)
+                        .accounts
+                        .get(&account_id)
+                        .is_some_and(|a| self.now_ms() - a.token_updated_at_ms >= max_age_ms);
+                    if !still_due {
+                        return Ok(false);
+                    }
+                    lock(&self.inner).tokens.remove(&account_id);
+                    self.resolve_locked(&account_id).map(|_| true)
+                })();
+                (account_id, result)
+            })
+            .collect()
+    }
+
     /// 测试用：直接放一个缓存的 access token。
     #[doc(hidden)]
     pub fn test_cache_access_token(&self, account_id: &str, token: &str, expires_at_ms: i64) {
@@ -1206,5 +1289,38 @@ mod tests {
         let offline = CodexOAuthManager::new(&Env::with_home(dir.path()), None).unwrap();
         let err = offline.token_bundle(&id).unwrap_err();
         assert!(err.to_string().contains("网络"), "{err}");
+    }
+
+    #[test]
+    fn refresh_stale_only_touches_old_generations() {
+        let dir = tempfile::tempdir().unwrap();
+        let env = Env::with_home(dir.path());
+        let fake = Arc::new(FakeTransport::new());
+        let clock = Arc::new(ManualClock::new(T));
+        let mgr = CodexOAuthManager::new(&env, Some(fake.clone()))
+            .unwrap()
+            .with_clock(clock.clone());
+        let id = mgr
+            .add_account_from_tokens(&fake.issue(&Identity::new("u", "ws", "plus")), None)
+            .unwrap()
+            .id;
+        let day = 24 * 3600 * 1000;
+        assert!(mgr.refresh_stale(7 * day).is_empty(), "fresh account");
+        let before = mgr.account(&id).unwrap().refresh_token;
+        clock.advance(8 * day);
+        let results = mgr.refresh_stale(7 * day);
+        assert!(
+            matches!(results[..], [(ref a, Ok(true))] if *a == id),
+            "{results:?}"
+        );
+        let after = mgr.account(&id).unwrap().refresh_token;
+        assert_ne!(before, after, "rotated");
+        assert_eq!(fake.refresh_calls().len(), 1);
+        assert!(mgr.refresh_stale(7 * day).is_empty(), "now fresh again");
+        // 服务端作废了：报错，不影响下次。
+        clock.advance(8 * day);
+        fake.invalidate(&after);
+        let results = mgr.refresh_stale(7 * day);
+        assert!(matches!(results[..], [(_, Err(_))]), "{results:?}");
     }
 }

@@ -95,6 +95,20 @@ pub const CATEGORY_OFFICIAL: &str = "official";
 /// 托管 OAuth 绑定的提供方（和 cc-switch 的 `meta.authBinding.authProvider` 一致）。
 pub const AUTH_PROVIDER_CODEX_OAUTH: &str = "codex_oauth";
 
+impl Serialize for Tool {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for Tool {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let text = String::deserialize(deserializer)?;
+        text.parse()
+            .map_err(|_| serde::de::Error::custom(format!("unknown tool: {text}")))
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Provider {
