@@ -1,0 +1,488 @@
+[
+  {
+    "name": "Grok Official",
+    "websiteUrl": "https://x.ai/grok",
+    "settingsConfig": {
+      "auth": {},
+      "config": ""
+    },
+    "isOfficial": true,
+    "category": "official"
+  },
+  {
+    "name": "PackyCode",
+    "websiteUrl": "https://www.packyapi.ai",
+    "apiKeyUrl": "https://www.packyapi.ai/register?aff=cc-switch",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"grok-4.5\"\n\n[model_providers.custom]\nname = \"PackyCode\"\nbase_url = \"https://www.packyapi.ai/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    },
+    "category": "third_party"
+  },
+  {
+    "name": "ZetaAPI",
+    "websiteUrl": "https://zetaapi.ai",
+    "apiKeyUrl": "https://zetaapi.ai/go/u117",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"grok-4.5\"\n\n[model_providers.custom]\nname = \"ZetaAPI\"\nbase_url = \"https://api.zetaapi.ai/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    },
+    "category": "aggregator"
+  },
+  {
+    "name": "APINebula",
+    "websiteUrl": "https://apinebula.ai",
+    "apiKeyUrl": "https://apinebula.ai/VjM74M",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"grok-4.5\"\n\n[model_providers.custom]\nname = \"APINebula\"\nbase_url = \"https://apinebula.ai/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    },
+    "category": "third_party"
+  },
+  {
+    "name": "AICodeMirror",
+    "websiteUrl": "https://www.aicodemirror.ai",
+    "apiKeyUrl": "https://www.aicodemirror.ai/register?invitecode=9915W3",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"grok-4.5\"\n\n[model_providers.custom]\nname = \"AICodeMirror\"\nbase_url = \"https://api.aicodemirror.ai/api/codex/backend-api/codex\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    }
+  },
+  {
+    "name": "PatewayAI",
+    "websiteUrl": "https://pateway.ai",
+    "apiKeyUrl": "https://pateway.ai/?ch=etzpm8&aff=WB6M6F67#/",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"grok-4.5\"\n\n[model_providers.custom]\nname = \"PatewayAI\"\nbase_url = \"https://api.pateway.ai/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    },
+    "category": "third_party"
+  },
+  {
+    "name": "FennoAI",
+    "websiteUrl": "https://api.fenno.ai",
+    "apiKeyUrl": "https://api.fenno.ai/register?redirect=/purchase?tab=subscription%26group=16&aff=P9MR3D3PLCNL",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"grok-4.5\"\n\n[model_providers.custom]\nname = \"FennoAI\"\nbase_url = \"https://api.fenno.ai\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    },
+    "category": "aggregator"
+  },
+  {
+    "name": "RunAPI",
+    "websiteUrl": "https://runapi.host",
+    "apiKeyUrl": "https://runapi.host/register?aff=iOKB",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"grok-4.5\"\n\n[model_providers.custom]\nname = \"RunAPI\"\nbase_url = \"https://runapi.host/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    },
+    "category": "aggregator"
+  },
+  {
+    "name": "Shengsuanyun",
+    "websiteUrl": "https://www.shengsuanyun.com/?from=CH_4HHXMRYF",
+    "apiKeyUrl": "https://www.shengsuanyun.com/?from=CH_4HHXMRYF",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"x-ai/grok-4.5\"\n\n[model_providers.custom]\nname = \"Shengsuanyun\"\nbase_url = \"https://router.shengsuanyun.com/api/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    },
+    "category": "aggregator"
+  },
+  {
+    "name": "AIGoCode",
+    "websiteUrl": "https://aigocode.app",
+    "apiKeyUrl": "https://aigocode.app/invite/CC-SWITCH",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"grok-4.5\"\n\n[model_providers.custom]\nname = \"AIGoCode\"\nbase_url = \"https://api.aigocode.app\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    },
+    "category": "third_party"
+  },
+  {
+    "name": "Qiniu",
+    "websiteUrl": "https://s.qiniu.com/nMvAvy",
+    "apiKeyUrl": "https://s.qiniu.com/nMvAvy",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"grok-4.5\"\n\n[model_providers.custom]\nname = \"Qiniu\"\nbase_url = \"https://api.qnaigc.com/bypass/openai/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    },
+    "category": "aggregator"
+  },
+  {
+    "name": "SubRouter",
+    "websiteUrl": "https://subrouter.ai",
+    "apiKeyUrl": "https://subrouter.ai/register?aff=l3ri",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"grok-4.5\"\n\n[model_providers.custom]\nname = \"SubRouter\"\nbase_url = \"https://subrouter.ai/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    },
+    "category": "aggregator"
+  },
+  {
+    "name": "88API",
+    "websiteUrl": "https://88api.ai",
+    "apiKeyUrl": "https://88api.ai/sign-up?aff=HSGY",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"grok-4.5\"\n\n[model_providers.custom]\nname = \"88API\"\nbase_url = \"https://api.88api.ai/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    },
+    "category": "aggregator"
+  },
+  {
+    "name": "APIKEY.FUN",
+    "websiteUrl": "https://apikey.fan",
+    "apiKeyUrl": "https://apikey.fan/register?aff=CCSwitch",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"grok-4.5\"\n\n[model_providers.custom]\nname = \"APIKEY.FUN\"\nbase_url = \"https://api.apikey.fan/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    },
+    "category": "third_party"
+  },
+  {
+    "name": "9527CODE",
+    "websiteUrl": "https://9527.codes",
+    "apiKeyUrl": "https://9527.codes/register?aff=e5zI",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"grok-4.5\"\n\n[model_providers.custom]\nname = \"9527CODE\"\nbase_url = \"https://9527.codes/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    },
+    "category": "aggregator"
+  },
+  {
+    "name": "Code0",
+    "websiteUrl": "https://code0.ai",
+    "apiKeyUrl": "https://code0.ai/agent/register/B2XHxGjGmRvqgznY",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"grok-4.5\"\n\n[model_providers.custom]\nname = \"Code0\"\nbase_url = \"https://code0.ai/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    },
+    "category": "aggregator"
+  },
+  {
+    "name": "TeamoRouter",
+    "websiteUrl": "https://teamorouter.cn",
+    "apiKeyUrl": "https://teamorouter.cn/?utm_source=cc_switch&utm_medium=referral&utm_campaign=ai_directory",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"grok-4.5\"\n\n[model_providers.custom]\nname = \"TeamoRouter\"\nbase_url = \"https://api.teamorouter.cn/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    },
+    "category": "aggregator"
+  },
+  {
+    "name": "ClaudeCN",
+    "websiteUrl": "https://claudecn.top",
+    "apiKeyUrl": "https://claudecn.ai/register?aff=HEL9",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"grok-4.5\"\n\n[model_providers.custom]\nname = \"ClaudeCN\"\nbase_url = \"https://claudecn.top/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    },
+    "category": "third_party"
+  },
+  {
+    "name": "A6API",
+    "websiteUrl": "https://www.a6api.com",
+    "apiKeyUrl": "https://a6api.com/register?aff=AqNr",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"grok-4.5\"\n\n[model_providers.custom]\nname = \"A6API\"\nbase_url = \"https://api.a6api.com/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    },
+    "category": "aggregator"
+  },
+  {
+    "name": "Compshare",
+    "websiteUrl": "https://www.compshare.cn",
+    "apiKeyUrl": "https://www.compshare.cn/coding-plan?ytag=GPU_YY_YX_git_cc-switch",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"grok-4.5\"\n\n[model_providers.custom]\nname = \"Compshare\"\nbase_url = \"https://api.modelverse.cn/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    },
+    "category": "aggregator"
+  },
+  {
+    "name": "Compshare Coding Plan",
+    "websiteUrl": "https://www.compshare.cn",
+    "apiKeyUrl": "https://www.compshare.cn/coding-plan?ytag=GPU_YY_YX_git_cc-switch",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"grok-4.5\"\n\n[model_providers.custom]\nname = \"Compshare Coding Plan\"\nbase_url = \"https://cp.compshare.cn/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    },
+    "category": "aggregator"
+  },
+  {
+    "name": "CCSub",
+    "websiteUrl": "https://www.ccsub.net",
+    "apiKeyUrl": "https://www.ccsub.net/register?ref=Y6Z8DXEA",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"grok-4.5\"\n\n[model_providers.custom]\nname = \"CCSub\"\nbase_url = \"https://www.ccsub.net/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    },
+    "category": "aggregator"
+  },
+  {
+    "name": "SSSAiCode",
+    "websiteUrl": "https://sssaicodeapi.com",
+    "apiKeyUrl": "https://sssaicodeapi.com/register?ref=DCP0SM",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"grok-4.5\"\n\n[model_providers.custom]\nname = \"SSSAiCode\"\nbase_url = \"https://node-hk.sssaicodeapi.com/api/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    },
+    "category": "third_party"
+  },
+  {
+    "name": "SoleAPI",
+    "websiteUrl": "https://soleapi.com",
+    "apiKeyUrl": "https://soleapi.com/r/ccswitch",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"grok-4.5\"\n\n[model_providers.custom]\nname = \"SoleAPI\"\nbase_url = \"https://soleapi.com/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    },
+    "category": "aggregator"
+  },
+  {
+    "name": "Micu",
+    "websiteUrl": "https://www.micuapi.ai",
+    "apiKeyUrl": "https://www.micuapi.ai/register?aff=aOYQ",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"grok-4.5\"\n\n[model_providers.custom]\nname = \"Micu\"\nbase_url = \"https://www.micuapi.ai/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    },
+    "category": "third_party"
+  },
+  {
+    "name": "RightCode",
+    "websiteUrl": "https://www.rightapi.ai",
+    "apiKeyUrl": "https://www.rightapi.ai/register?aff=CCSWITCH",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"grok-4.5\"\n\n[model_providers.custom]\nname = \"RightCode\"\nbase_url = \"https://www.rightapi.ai/codex/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    },
+    "category": "third_party"
+  },
+  {
+    "name": "Cubence",
+    "websiteUrl": "https://cubence.com",
+    "apiKeyUrl": "https://cubence.com/signup?code=CCSWITCH&source=ccs",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"grok-4.5\"\n\n[model_providers.custom]\nname = \"Cubence\"\nbase_url = \"https://api.cubence.com/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    },
+    "category": "third_party"
+  },
+  {
+    "name": "CrazyRouter",
+    "websiteUrl": "https://www.crazyrouter.com",
+    "apiKeyUrl": "https://www.crazyrouter.com/register?aff=OZcm&ref=cc-switch",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"grok-4.5\"\n\n[model_providers.custom]\nname = \"CrazyRouter\"\nbase_url = \"https://cn.crazyrouter.com/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    }
+  },
+  {
+    "name": "DMXAPI",
+    "websiteUrl": "https://www.dmxapi.cn",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"grok-4.5\"\n\n[model_providers.custom]\nname = \"DMXAPI\"\nbase_url = \"https://www.dmxapi.cn/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    },
+    "category": "aggregator"
+  },
+  {
+    "name": "SudoCode.chat",
+    "websiteUrl": "https://sudocode.chat",
+    "apiKeyUrl": "https://sudocode.chat/sign-up?aff=CC-SWITCH&utm_source=cc-switch&utm_medium=sponsor&utm_campaign=ccswitch",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"grok-4.5\"\n\n[model_providers.custom]\nname = \"SudoCode.chat\"\nbase_url = \"https://api.sudocode.chat/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    },
+    "category": "third_party"
+  },
+  {
+    "name": "SudoCode.us",
+    "websiteUrl": "https://sudocode.us",
+    "apiKeyUrl": "https://sudocode.us",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"grok-4.5\"\n\n[model_providers.custom]\nname = \"SudoCode.us\"\nbase_url = \"https://sudocode.us/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    },
+    "category": "third_party"
+  },
+  {
+    "name": "Tu-zi",
+    "websiteUrl": "https://api.tu-zi.com",
+    "apiKeyUrl": "https://api.tu-zi.com/token",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"grok-4.5\"\n\n[model_providers.custom]\nname = \"Tu-zi\"\nbase_url = \"https://api.tu-zi.com/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    },
+    "category": "aggregator"
+  },
+  {
+    "name": "xAI (Grok)",
+    "websiteUrl": "https://x.ai/api",
+    "apiKeyUrl": "https://console.x.ai",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"grok-4.5\"\n\n[model_providers.custom]\nname = \"xAI (Grok)\"\nbase_url = \"https://api.x.ai/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    },
+    "category": "third_party"
+  },
+  {
+    "name": "Amux",
+    "websiteUrl": "https://amux.ai",
+    "apiKeyUrl": "https://amux.ai",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"grok-4.5\"\n\n[model_providers.custom]\nname = \"Amux\"\nbase_url = \"https://api.amux.ai/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    },
+    "category": "aggregator"
+  },
+  {
+    "name": "AiHubMix",
+    "websiteUrl": "https://aihubmix.com",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"grok-4.5\"\n\n[model_providers.custom]\nname = \"AiHubMix\"\nbase_url = \"https://aihubmix.com/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    },
+    "category": "aggregator"
+  },
+  {
+    "name": "CherryIN",
+    "websiteUrl": "https://open.cherryin.ai",
+    "apiKeyUrl": "https://open.cherryin.ai/console/token",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"x-ai/grok-4.5\"\n\n[model_providers.custom]\nname = \"CherryIN\"\nbase_url = \"https://open.cherryin.net/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    },
+    "category": "aggregator"
+  },
+  {
+    "name": "RelaxyCode",
+    "websiteUrl": "https://www.relaxycode.com",
+    "apiKeyUrl": "https://www.relaxycode.com/register",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"grok-4.5\"\n\n[model_providers.custom]\nname = \"RelaxyCode\"\nbase_url = \"https://www.relaxycode.com/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    },
+    "category": "third_party"
+  },
+  {
+    "name": "E-FlowCode",
+    "websiteUrl": "https://e-flowcode.cc",
+    "apiKeyUrl": "https://e-flowcode.cc",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"grok-4.5\"\n\n[model_providers.custom]\nname = \"E-FlowCode\"\nbase_url = \"https://e-flowcode.cc/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    },
+    "category": "third_party"
+  },
+  {
+    "name": "PIPELLM",
+    "websiteUrl": "https://code.pipellm.ai",
+    "apiKeyUrl": "https://code.pipellm.ai/login?ref=uvw650za",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"grok-4.5\"\n\n[model_providers.custom]\nname = \"PIPELLM\"\nbase_url = \"https://cc-api.pipellm.ai/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    },
+    "category": "aggregator"
+  },
+  {
+    "name": "OpenRouter",
+    "websiteUrl": "https://openrouter.ai",
+    "apiKeyUrl": "https://openrouter.ai/keys",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"x-ai/grok-4.5\"\n\n[model_providers.custom]\nname = \"OpenRouter\"\nbase_url = \"https://openrouter.ai/api/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    },
+    "category": "aggregator"
+  },
+  {
+    "name": "TheRouter",
+    "websiteUrl": "https://therouter.ai",
+    "apiKeyUrl": "https://dashboard.therouter.ai",
+    "settingsConfig": {
+      "auth": {
+        "OPENAI_API_KEY": ""
+      },
+      "config": "model_provider = \"custom\"\nmodel = \"x-ai/grok-4.5\"\n\n[model_providers.custom]\nname = \"TheRouter\"\nbase_url = \"https://api.therouter.ai/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = true"
+    },
+    "category": "aggregator"
+  }
+]

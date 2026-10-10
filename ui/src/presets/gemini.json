@@ -1,0 +1,337 @@
+[
+  {
+    "name": "Google Official",
+    "websiteUrl": "https://ai.google.dev/",
+    "apiKeyUrl": "https://aistudio.google.com/apikey",
+    "settingsConfig": {
+      "env": {}
+    },
+    "category": "official"
+  },
+  {
+    "name": "PackyCode",
+    "websiteUrl": "https://www.packyapi.ai",
+    "apiKeyUrl": "https://www.packyapi.ai/register?aff=cc-switch",
+    "settingsConfig": {
+      "env": {
+        "GOOGLE_GEMINI_BASE_URL": "https://www.packyapi.ai",
+        "GEMINI_MODEL": "gemini-3.6-flash"
+      }
+    },
+    "category": "third_party"
+  },
+  {
+    "name": "APINebula",
+    "websiteUrl": "https://apinebula.ai",
+    "apiKeyUrl": "https://apinebula.ai/VjM74M",
+    "settingsConfig": {
+      "env": {
+        "GOOGLE_GEMINI_BASE_URL": "https://apinebula.ai",
+        "GEMINI_API_KEY": "",
+        "GEMINI_MODEL": "gemini-3.6-flash"
+      }
+    },
+    "category": "third_party"
+  },
+  {
+    "name": "AICodeMirror",
+    "websiteUrl": "https://www.aicodemirror.ai",
+    "apiKeyUrl": "https://www.aicodemirror.ai/register?invitecode=9915W3",
+    "settingsConfig": {
+      "env": {
+        "GOOGLE_GEMINI_BASE_URL": "https://api.aicodemirror.ai/api/gemini",
+        "GEMINI_MODEL": "gemini-3.6-flash"
+      }
+    },
+    "category": "third_party"
+  },
+  {
+    "name": "Shengsuanyun",
+    "websiteUrl": "https://www.shengsuanyun.com/?from=CH_4HHXMRYF",
+    "apiKeyUrl": "https://www.shengsuanyun.com/?from=CH_4HHXMRYF",
+    "settingsConfig": {
+      "env": {
+        "GOOGLE_GEMINI_BASE_URL": "https://router.shengsuanyun.com/api",
+        "GEMINI_MODEL": "google/gemini-3.6-flash"
+      }
+    },
+    "category": "aggregator"
+  },
+  {
+    "name": "AIGoCode",
+    "websiteUrl": "https://aigocode.app",
+    "apiKeyUrl": "https://aigocode.app/invite/CC-SWITCH",
+    "settingsConfig": {
+      "env": {
+        "GOOGLE_GEMINI_BASE_URL": "https://api.aigocode.app",
+        "GEMINI_MODEL": "gemini-3.6-flash"
+      }
+    },
+    "category": "third_party"
+  },
+  {
+    "name": "Qiniu",
+    "websiteUrl": "https://s.qiniu.com/nMvAvy",
+    "apiKeyUrl": "https://s.qiniu.com/nMvAvy",
+    "settingsConfig": {
+      "env": {
+        "GOOGLE_GEMINI_BASE_URL": "https://api.qnaigc.com/bypass/vertex",
+        "GEMINI_MODEL": "gemini-3.6-flash"
+      }
+    },
+    "category": "aggregator"
+  },
+  {
+    "name": "AICoding",
+    "websiteUrl": "https://aicoding.inc",
+    "apiKeyUrl": "https://aicoding.inc/i/CCSWITCH",
+    "settingsConfig": {
+      "env": {
+        "GOOGLE_GEMINI_BASE_URL": "https://api.aicoding.inc",
+        "GEMINI_MODEL": "gemini-3.6-flash"
+      }
+    },
+    "category": "third_party"
+  },
+  {
+    "name": "SubRouter",
+    "websiteUrl": "https://subrouter.ai",
+    "apiKeyUrl": "https://subrouter.ai/register?aff=l3ri",
+    "settingsConfig": {
+      "env": {
+        "GOOGLE_GEMINI_BASE_URL": "https://subrouter.ai/v1beta",
+        "GEMINI_MODEL": "gemini-3.6-flash"
+      }
+    },
+    "category": "aggregator"
+  },
+  {
+    "name": "88API",
+    "websiteUrl": "https://88api.ai",
+    "apiKeyUrl": "https://88api.ai/sign-up?aff=HSGY",
+    "settingsConfig": {
+      "env": {
+        "GOOGLE_GEMINI_BASE_URL": "https://api.88api.ai",
+        "GEMINI_API_KEY": "",
+        "GEMINI_MODEL": "gemini-3.8-flash"
+      }
+    },
+    "category": "aggregator"
+  },
+  {
+    "name": "APIKEY.FUN",
+    "websiteUrl": "https://apikey.fan",
+    "apiKeyUrl": "https://apikey.fan/register?aff=CCSwitch",
+    "settingsConfig": {
+      "env": {
+        "GOOGLE_GEMINI_BASE_URL": "https://api.apikey.fan",
+        "GEMINI_API_KEY": "",
+        "GEMINI_MODEL": "gemini-3.6-flash"
+      }
+    },
+    "category": "third_party"
+  },
+  {
+    "name": "9527CODE",
+    "websiteUrl": "https://9527.codes",
+    "apiKeyUrl": "https://9527.codes/register?aff=e5zI",
+    "settingsConfig": {
+      "env": {
+        "GOOGLE_GEMINI_BASE_URL": "https://9527.codes",
+        "GEMINI_API_KEY": "",
+        "GEMINI_MODEL": "gemini-3.6-flash"
+      }
+    },
+    "category": "aggregator"
+  },
+  {
+    "name": "Code0",
+    "websiteUrl": "https://code0.ai",
+    "apiKeyUrl": "https://code0.ai/agent/register/B2XHxGjGmRvqgznY",
+    "settingsConfig": {
+      "env": {
+        "GOOGLE_GEMINI_BASE_URL": "https://code0.ai",
+        "GEMINI_MODEL": "gemini-3.6-flash"
+      }
+    },
+    "category": "aggregator"
+  },
+  {
+    "name": "A6API",
+    "websiteUrl": "https://www.a6api.com",
+    "apiKeyUrl": "https://a6api.com/register?aff=AqNr",
+    "settingsConfig": {
+      "env": {
+        "GOOGLE_GEMINI_BASE_URL": "https://api.a6api.com",
+        "GEMINI_MODEL": "gemini-3.6-flash"
+      }
+    },
+    "category": "aggregator"
+  },
+  {
+    "name": "SSSAiCode",
+    "websiteUrl": "https://sssaicodeapi.com",
+    "apiKeyUrl": "https://sssaicodeapi.com/register?ref=DCP0SM",
+    "settingsConfig": {
+      "env": {
+        "GOOGLE_GEMINI_BASE_URL": "https://node-hk.sssaicodeapi.com/api",
+        "GEMINI_MODEL": "gemini-3.6-flash"
+      }
+    },
+    "category": "third_party"
+  },
+  {
+    "name": "SoleAPI",
+    "websiteUrl": "https://soleapi.com",
+    "apiKeyUrl": "https://soleapi.com/r/ccswitch",
+    "settingsConfig": {
+      "env": {
+        "GOOGLE_GEMINI_BASE_URL": "https://soleapi.com",
+        "GEMINI_API_KEY": "",
+        "GEMINI_MODEL": "gemini-3.8-flash"
+      }
+    },
+    "category": "aggregator"
+  },
+  {
+    "name": "Cubence",
+    "websiteUrl": "https://cubence.com",
+    "apiKeyUrl": "https://cubence.com/signup?code=CCSWITCH&source=ccs",
+    "settingsConfig": {
+      "env": {
+        "GOOGLE_GEMINI_BASE_URL": "https://api.cubence.com",
+        "GEMINI_MODEL": "gemini-3.6-flash"
+      }
+    },
+    "category": "third_party"
+  },
+  {
+    "name": "CrazyRouter",
+    "websiteUrl": "https://www.crazyrouter.com",
+    "apiKeyUrl": "https://www.crazyrouter.com/register?aff=OZcm&ref=cc-switch",
+    "settingsConfig": {
+      "env": {
+        "GOOGLE_GEMINI_BASE_URL": "https://cn.crazyrouter.com",
+        "GEMINI_MODEL": "gemini-3.6-flash"
+      }
+    },
+    "category": "third_party"
+  },
+  {
+    "name": "SudoCode.us",
+    "websiteUrl": "https://sudocode.us",
+    "apiKeyUrl": "https://sudocode.us",
+    "settingsConfig": {
+      "env": {
+        "GOOGLE_GEMINI_BASE_URL": "https://sudocode.us",
+        "GEMINI_API_KEY": "",
+        "GEMINI_MODEL": "gemini-3.1-flash-lite"
+      }
+    },
+    "category": "third_party"
+  },
+  {
+    "name": "XycAi",
+    "websiteUrl": "https://xycai.us",
+    "apiKeyUrl": "https://xycai.us/register?aff=Uhu9",
+    "settingsConfig": {
+      "env": {
+        "GOOGLE_GEMINI_BASE_URL": "https://apicdn.xycai.us",
+        "GEMINI_API_KEY": "",
+        "GEMINI_MODEL": "gemini-3.6-flash"
+      }
+    },
+    "category": "aggregator"
+  },
+  {
+    "name": "Tu-zi",
+    "websiteUrl": "https://api.tu-zi.com",
+    "apiKeyUrl": "https://api.tu-zi.com/token",
+    "settingsConfig": {
+      "env": {
+        "GOOGLE_GEMINI_BASE_URL": "https://api.tu-zi.com",
+        "GEMINI_API_KEY": "",
+        "GEMINI_MODEL": "gemini-3.8-flash"
+      }
+    },
+    "category": "aggregator"
+  },
+  {
+    "name": "E-FlowCode",
+    "websiteUrl": "https://e-flowcode.cc",
+    "apiKeyUrl": "https://e-flowcode.cc",
+    "settingsConfig": {
+      "env": {
+        "GOOGLE_GEMINI_BASE_URL": "https://e-flowcode.cc",
+        "GEMINI_API_KEY": "",
+        "GEMINI_MODEL": "gemini-3.6-flash"
+      },
+      "config": {
+        "general": {
+          "previewFeatures": true,
+          "sessionRetention": {
+            "enabled": true,
+            "maxAge": "30d",
+            "warningAcknowledged": true
+          }
+        },
+        "mcpServers": {},
+        "security": {
+          "auth": {
+            "selectedType": "gemini-api-key"
+          }
+        }
+      }
+    },
+    "category": "third_party"
+  },
+  {
+    "name": "CherryIN",
+    "websiteUrl": "https://open.cherryin.ai",
+    "apiKeyUrl": "https://open.cherryin.ai/console/token",
+    "settingsConfig": {
+      "env": {
+        "GOOGLE_GEMINI_BASE_URL": "https://open.cherryin.net",
+        "GEMINI_API_KEY": "",
+        "GEMINI_MODEL": "google/gemini-3.6-flash"
+      }
+    },
+    "category": "aggregator"
+  },
+  {
+    "name": "OpenRouter",
+    "websiteUrl": "https://openrouter.ai",
+    "apiKeyUrl": "https://openrouter.ai/keys",
+    "settingsConfig": {
+      "env": {
+        "GOOGLE_GEMINI_BASE_URL": "https://openrouter.ai/api",
+        "GEMINI_MODEL": "gemini-3.6-flash"
+      }
+    },
+    "category": "aggregator"
+  },
+  {
+    "name": "TheRouter",
+    "websiteUrl": "https://therouter.ai",
+    "apiKeyUrl": "https://dashboard.therouter.ai",
+    "settingsConfig": {
+      "env": {
+        "GOOGLE_GEMINI_BASE_URL": "https://api.therouter.ai",
+        "GEMINI_MODEL": "gemini-3.6-flash"
+      }
+    },
+    "category": "aggregator"
+  },
+  {
+    "name": "AICodeWith",
+    "websiteUrl": "https://aicodewith.ai",
+    "apiKeyUrl": "https://aicodewith.ai/login?tab=register",
+    "settingsConfig": {
+      "env": {
+        "GOOGLE_GEMINI_BASE_URL": "https://api.aicodewith.ai/gemini_cli",
+        "GEMINI_MODEL": "gemini-3.1-pro-preview"
+      }
+    },
+    "category": "aggregator"
+  }
+]
