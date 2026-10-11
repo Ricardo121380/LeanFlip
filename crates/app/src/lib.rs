@@ -59,6 +59,10 @@ fn start_background_refresh(app: tauri::AppHandle, service: Arc<Service>) {
         .expect("spawn refresh thread");
 }
 
+fn app_context() -> tauri::Context<tauri::Wry> {
+    tauri::generate_context!()
+}
+
 pub fn run() {
     let _ = env_logger_init();
     tauri::Builder::default()
@@ -126,7 +130,7 @@ pub fn run() {
             commands::ccswitch_export_discard,
             commands::open_url,
         ])
-        .run(tauri::generate_context!())
+        .run(app_context())
         .expect("error while running CC Switch Lite");
 }
 
@@ -157,4 +161,18 @@ fn env_logger_init() -> Result<(), log::SetLoggerError> {
     log::set_logger(Box::leak(Box::new(Stderr(level))))?;
     log::set_max_level(level);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn generated_window_icon_has_rgba8_pixels_for_the_tray() {
+        let context = super::app_context();
+        let icon = context.default_window_icon().expect("window and tray icon");
+        assert_eq!(
+            icon.rgba().len(),
+            (icon.width() * icon.height() * 4) as usize,
+            "the tray requires four bytes per pixel"
+        );
+    }
 }
