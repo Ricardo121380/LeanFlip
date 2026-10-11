@@ -139,6 +139,38 @@ export interface ImportReport {
   accountsAdded: string[];
 }
 
+export type DuplicatePolicy = "skip" | "rename";
+
+/** 后端给的中英双语说明。 */
+export interface Reason {
+  code: string;
+  zh: string;
+  en: string;
+}
+
+export interface ExportItem {
+  /** cc-switch 的 app_type（不支持的应用也原样给出）。 */
+  app: string;
+  tool: ToolId | null;
+  sourceId: string;
+  name: string;
+  status: "import" | "skip" | "duplicate";
+  targetId: string | null;
+  reason: Reason | null;
+  notes: Reason[];
+}
+
+export interface ExportPreview {
+  format: "sql-dump" | "sqlite-db" | "legacy-json";
+  schemaVersion: number | null;
+  items: ExportItem[];
+}
+
+export interface ExportReport {
+  created: [ToolId, string, string][];
+  skipped: number;
+}
+
 export const api = {
   overview: () => invoke<ToolSummary[]>("get_overview"),
   listProviders: (tool: ToolId) => invoke<ToolProviders>("list_providers", { tool }),
@@ -165,6 +197,13 @@ export const api = {
   ccswitchScan: (dir?: string) => invoke<ImportScan>("ccswitch_scan", { dir: dir ?? null }),
   ccswitchApply: (tools: ToolId[], dir?: string) =>
     invoke<ImportReport>("ccswitch_apply", { tools, dir: dir ?? null }),
+  /** 文件原始字节作为请求体发给后端（不经 JSON），后端暂存等确认。 */
+  exportLoad: (bytes: Uint8Array, policy: DuplicatePolicy) =>
+    invoke<ExportPreview>("ccswitch_export_load", bytes, { headers: { "x-duplicate-policy": policy } }),
+  exportPreview: (policy: DuplicatePolicy) => invoke<ExportPreview>("ccswitch_export_preview", { policy }),
+  exportApply: (tools: ToolId[], policy: DuplicatePolicy) =>
+    invoke<ExportReport>("ccswitch_export_apply", { tools, policy }),
+  exportDiscard: () => invoke<void>("ccswitch_export_discard"),
   openUrl: (url: string) => invoke<void>("open_url", { url }),
 };
 

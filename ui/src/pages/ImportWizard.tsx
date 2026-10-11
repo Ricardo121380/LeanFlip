@@ -13,6 +13,7 @@ import { useSettings, refreshAll } from "@/hooks/queries";
 import { api, errorMessage, type ImportReport, type ImportScan, type ToolId } from "@/lib/api";
 import { TOOLS, toolMeta } from "@/lib/tools";
 import { cn } from "@/lib/utils";
+import { ExportImport } from "./ExportImport";
 
 export function ImportWizard() {
   const { t } = useTranslation();
@@ -68,6 +69,7 @@ export function ImportWizard() {
         <h1 className="text-xl font-semibold">{t("wizard.title")}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{t("wizard.hint")}</p>
       </header>
+      <h2 className="-mb-2 text-base font-semibold">{t("wizard.localTitle")}</h2>
       <ol className="flex gap-4 text-sm">
         {[1, 2, 3].map((n) => (
           <li key={n} className={cn("text-muted-foreground", step === n && "font-semibold text-foreground")}>
@@ -161,6 +163,9 @@ export function ImportWizard() {
           </div>
         </Card>
       )}
+
+      <hr className="my-2" />
+      <ExportImport />
     </div>
   );
 }

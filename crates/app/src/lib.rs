@@ -119,6 +119,10 @@ pub fn run() {
             commands::save_settings,
             commands::ccswitch_scan,
             commands::ccswitch_apply,
+            commands::ccswitch_export_load,
+            commands::ccswitch_export_preview,
+            commands::ccswitch_export_apply,
+            commands::ccswitch_export_discard,
             commands::open_url,
         ])
         .run(tauri::generate_context!())

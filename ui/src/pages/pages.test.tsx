@@ -5,7 +5,8 @@ import { fakeBackend, renderWithClient, type Handler } from "@/test/utils";
 
 const backend: { invoke: ReturnType<typeof vi.fn> | null } = { invoke: null };
 vi.mock("@tauri-apps/api/core", () => ({
-  invoke: (cmd: string, args?: Record<string, unknown>) => backend.invoke!(cmd, args),
+  invoke: (cmd: string, args?: Record<string, unknown>, options?: { headers?: Record<string, string> }) =>
+    backend.invoke!(cmd, options?.headers ? { body: args, headers: options.headers } : args),
 }));
 
 import { ToolPage } from "./ToolPage";
@@ -253,5 +254,75 @@ describe("SettingsPage", () => {
     const input = (fake.calls.find((c) => c.cmd === "save_settings")!.args as { input: { app: { dirOverrides: unknown }; keepCodexLogin: boolean } }).input;
     expect(input.keepCodexLogin).toBe(true);
     expect(input.app.dirOverrides).toEqual({ codexDir: "/alt/codex" });
+  });
+});
+
+describe("ExportImport", () => {
+  // 前面的设置页测试可能切过界面语言。
+  beforeEach(async () => {
+    const { default: i18n } = await import("@/i18n");
+    await i18n.changeLanguage("zh");
+  });
+  const reason = (code: string, zh: string) => ({ code, zh, en: zh });
+  const preview = (policy: string) => ({
+    format: "sql-dump",
+    schemaVersion: 12,
+    items: [
+      { app: "claude", tool: "claude", sourceId: "relay", name: "Relay", status: "import", targetId: "relay", reason: null, notes: [] },
+      {
+        app: "claude",
+        tool: "claude",
+        sourceId: "taken",
+        name: "Taken",
+        status: "duplicate",
+        targetId: policy === "rename" ? "taken-2" : null,
+        reason: policy === "rename" ? reason("renamed", "已有同 id 的卡，改名为 taken-2 导入") : reason("same_id", "已有同 id 的卡，跳过"),
+        notes: [],
+      },
+      { app: "codex", tool: "codex", sourceId: "copilot", name: "Copilot", status: "skip", targetId: null, reason: reason("routing", "需要 cc-switch 的本地路由 / 反代（github_copilot）"), notes: [] },
+      { app: "copilot-cli", tool: null, sourceId: "x", name: "X", status: "skip", targetId: null, reason: reason("unsupported_app", "ccswitch-lite 不支持这个应用（copilot-cli）"), notes: [] },
+    ],
+  });
+
+  it("picks a file, previews per tool with reasons, switches duplicate policy and confirms", async () => {
+    const fake = use({
+      ccswitch_export_load: () => preview("skip"),
+      ccswitch_export_preview: (args) => preview((args as { policy: string }).policy),
+      ccswitch_export_apply: () => ({ created: [["claude", "relay", "relay"], ["claude", "taken", "taken-2"]], skipped: 2 }),
+    });
+    const { ExportImport } = await import("./ExportImport");
+    renderWithClient(<ExportImport />);
+    const file = new File(["-- CC Switch SQLite 导出\n"], "cc-switch-export-20261001_080000.sql", { type: "application/sql" });
+    await userEvent.upload(screen.getByTestId("export-file"), file);
+
+    await waitFor(() => expect(fake.calls.some((c) => c.cmd === "ccswitch_export_load")).toBe(true));
+    expect(await screen.findByText(/可导入 1 · 重复 1 · 跳过 2/, undefined, { timeout: 4000 })).toBeInTheDocument();
+    const load = fake.calls.find((c) => c.cmd === "ccswitch_export_load")!.args as { body: Uint8Array; headers: Record<string, string> };
+    expect(new TextDecoder().decode(load.body)).toContain("CC Switch SQLite");
+    expect(load.headers["x-duplicate-policy"]).toBe("skip");
+    expect(within(screen.getByTestId("export-item-codex-copilot")).getByText(/本地路由/)).toBeInTheDocument();
+    expect(within(screen.getByTestId("export-group-other")).getByText(/不支持这个应用/)).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "导入 Codex" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "确认导入 1 张卡" })).toBeEnabled();
+
+    await userEvent.selectOptions(screen.getByLabelText("同 id 的卡"), "rename");
+    expect(await screen.findByText(/taken → taken-2/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "确认导入 2 张卡" }));
+    await waitFor(() => expect(screen.getByText(/新增 2 张卡，跳过 2 张/)).toBeInTheDocument());
+    const apply = fake.calls.find((c) => c.cmd === "ccswitch_export_apply")!.args as { tools: string[]; policy: string };
+    expect(apply).toEqual({ tools: ["claude"], policy: "rename" });
+  });
+
+  it("shows the backend error for a malformed file and stays idle", async () => {
+    const fake = use({
+      ccswitch_export_load: () => {
+        throw "不是 cc-switch 的导出文件（支持 SQL 导出、.db 备份、旧版 JSON 配置）";
+      },
+    });
+    const { ExportImport } = await import("./ExportImport");
+    renderWithClient(<ExportImport />);
+    await userEvent.upload(screen.getByTestId("export-file"), new File(["hello"], "notes.sql"));
+    await waitFor(() => expect(fake.calls.some((c) => c.cmd === "ccswitch_export_load")).toBe(true));
+    expect(screen.queryByRole("button", { name: /确认导入/ })).not.toBeInTheDocument();
   });
 });

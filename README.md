@@ -35,7 +35,10 @@ crates/core/src
 ├── provider.rs     供应商模型（兼容 cc-switch 行格式）
 ├── store.rs        providers.json 供应商库
 ├── switch/         切换入口（claude、codex）
-└── import.rs       首次运行导入 live 配置
+├── import.rs       首次运行导入 live 配置
+├── ccswitch_import.rs  只读导入本机 ~/.cc-switch（cc-switch.db / 旧版 config.json）
+├── ccswitch_export.rs  导入 cc-switch 的导出文件（SQL 导出 / .db 快照 / 旧版 JSON），只进卡片库
+└── promo.rs        认出推广链接（返利 / 追踪 / 短链），导入时丢掉
 ```
 
 数据目录：`~/.cc-switch-lite/`（`providers.json`、`live-state.json`、`codex-login-stash.json`、
@@ -50,7 +53,8 @@ pnpm install
 pnpm typecheck && pnpm test     # 前端
 pnpm tauri dev                  # 开发运行（会读写当前用户的真实配置！）
 pnpm tauri build --bundles deb  # 本地打包，不发布
-pnpm presets ../ccswitch        # 从 cc-switch 源码重新生成裁剪后的预设
+pnpm presets ../ccswitch        # 从 cc-switch 源码重新生成裁剪后的预设（推广链接整条删除，
+                                # 删了哪些字段记在 ui/src/lib/removed-preset-links.json）
 ```
 
 用演示数据安全地跑一遍（临时 HOME，不碰真实配置）：

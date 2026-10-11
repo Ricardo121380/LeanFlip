@@ -3,6 +3,7 @@
 
 use std::path::PathBuf;
 
+use ccsl_core::ccswitch_export::{self, DuplicatePolicy};
 use ccsl_core::codex::login::LoginSummary;
 use ccsl_core::codex::oauth::{AccountInfo, DeviceFlow};
 use ccsl_core::{ccswitch_import, Provider, Tool};
@@ -228,6 +229,53 @@ pub async fn ccswitch_apply(
     tools: Vec<Tool>,
 ) -> ApiResult<ccswitch_import::Report> {
     mutating(&app, &state, move |s| s.ccswitch_apply(dir, tools)).await
+}
+
+/// 读 cc-switch 导出文件：请求体是文件的原始字节（前端 `<input type="file">` 读出来的），
+/// 重复策略放在 `x-duplicate-policy` 头里。
+#[tauri::command]
+pub async fn ccswitch_export_load(
+    state: State<'_, AppState>,
+    request: tauri::ipc::Request<'_>,
+) -> ApiResult<ccswitch_export::Preview> {
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
+        return Err(ApiError(
+            "expected the file bytes as the request body".into(),
+        ));
+    };
+    let bytes = bytes.clone();
+    let policy = match request
+        .headers()
+        .get("x-duplicate-policy")
+        .and_then(|v| v.to_str().ok())
+    {
+        Some("rename") => DuplicatePolicy::Rename,
+        _ => DuplicatePolicy::Skip,
+    };
+    blocking(&state, move |s| s.export_load(&bytes, policy)).await
+}
+
+#[tauri::command]
+pub async fn ccswitch_export_preview(
+    state: State<'_, AppState>,
+    policy: DuplicatePolicy,
+) -> ApiResult<ccswitch_export::Preview> {
+    blocking(&state, move |s| s.export_preview(policy)).await
+}
+
+#[tauri::command]
+pub async fn ccswitch_export_apply(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    tools: Vec<Tool>,
+    policy: DuplicatePolicy,
+) -> ApiResult<ccswitch_export::Report> {
+    mutating(&app, &state, move |s| s.export_apply(tools, policy)).await
+}
+
+#[tauri::command]
+pub fn ccswitch_export_discard(state: State<'_, AppState>) {
+    state.0.export_discard();
 }
 
 /// 只允许打开 https 地址（设备码登录页等）。

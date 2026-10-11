@@ -11,7 +11,9 @@ use ccsl_core::codex::oauth::transport::OAuthTransport;
 use ccsl_core::codex::oauth::{AccountInfo, CodexOAuthManager, DeviceFlow, DeviceFlowPoll};
 use ccsl_core::operation::OperationReport;
 use ccsl_core::switch::{self, Services};
-use ccsl_core::{ccswitch_import, coexist, import, store, AppError, Env, Provider, Tool};
+use ccsl_core::{
+    ccswitch_export, ccswitch_import, coexist, import, store, AppError, Env, Provider, Tool,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::redact;
@@ -177,6 +179,8 @@ pub struct Service {
     runtime: RwLock<Arc<Runtime>>,
     settings: Mutex<AppSettings>,
     recovery: Vec<String>,
+    /// 读进来、等用户确认的 cc-switch 导出文件。
+    staged_export: Mutex<Option<ccswitch_export::ParsedExport>>,
 }
 
 fn services(rt: &Runtime) -> Services<'_> {
@@ -216,6 +220,7 @@ impl Service {
             runtime: RwLock::new(Arc::new(Runtime { env, oauth })),
             settings: Mutex::new(app_settings),
             recovery,
+            staged_export: Mutex::new(None),
         })
     }
 
@@ -549,6 +554,58 @@ impl Service {
         let rt = self.runtime();
         ccswitch_import::apply(&rt.env, &self.ccswitch_dir(dir), &tools, Some(&rt.oauth))
             .map_err(|e| self.err(e))
+    }
+
+    // ---- 导入 cc-switch 的导出文件（只进卡片库） ----
+
+    /// 解析导出文件并暂存，返回预览。文件内容不落盘。
+    pub fn export_load(
+        &self,
+        bytes: &[u8],
+        policy: ccswitch_export::DuplicatePolicy,
+    ) -> ApiResult<ccswitch_export::Preview> {
+        let parsed = ccswitch_export::parse(bytes).map_err(|e| self.err(e))?;
+        let preview = ccswitch_export::preview(&self.runtime().env, &parsed, policy)
+            .map_err(|e| self.err(e))?;
+        *self.staged_export.lock().unwrap_or_else(|e| e.into_inner()) = Some(parsed);
+        Ok(preview)
+    }
+
+    fn staged(&self) -> ApiResult<ccswitch_export::ParsedExport> {
+        self.staged_export
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+            .ok_or_else(|| {
+                self.err(AppError::localized(
+                    "ccswitch_export.none",
+                    "请先选择导出文件",
+                    "Choose an export file first",
+                ))
+            })
+    }
+
+    pub fn export_preview(
+        &self,
+        policy: ccswitch_export::DuplicatePolicy,
+    ) -> ApiResult<ccswitch_export::Preview> {
+        ccswitch_export::preview(&self.runtime().env, &self.staged()?, policy)
+            .map_err(|e| self.err(e))
+    }
+
+    pub fn export_apply(
+        &self,
+        tools: Vec<Tool>,
+        policy: ccswitch_export::DuplicatePolicy,
+    ) -> ApiResult<ccswitch_export::Report> {
+        let report = ccswitch_export::apply(&self.runtime().env, &self.staged()?, &tools, policy)
+            .map_err(|e| self.err(e))?;
+        self.export_discard();
+        Ok(report)
+    }
+
+    pub fn export_discard(&self) {
+        *self.staged_export.lock().unwrap_or_else(|e| e.into_inner()) = None;
     }
 }
 

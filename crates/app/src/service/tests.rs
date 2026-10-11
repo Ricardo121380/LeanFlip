@@ -370,3 +370,64 @@ fn dir_overrides_apply_live_and_keep_the_account_manager_when_codex_dir_is_uncha
             .dirs_changed
     );
 }
+
+#[test]
+fn export_file_is_staged_previewed_and_applied_into_the_store_only() {
+    use ccsl_core::ccswitch_export::{DuplicatePolicy, ItemStatus};
+    let sb = Sandbox::new();
+    let service = sb.service();
+    service
+        .add_provider(Tool::Claude, claude_card("relay", "https://mine"), false)
+        .unwrap();
+    let sql = std::fs::read(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../core/tests/fixtures/ccswitch-export/cc-switch-export-20261001_080000.sql"),
+    )
+    .unwrap();
+
+    assert!(
+        service.export_preview(DuplicatePolicy::Skip).is_err(),
+        "nothing staged yet"
+    );
+    assert!(service.export_load(b"nope", DuplicatePolicy::Skip).is_err());
+
+    let preview = service.export_load(&sql, DuplicatePolicy::Skip).unwrap();
+    let relay = preview
+        .items
+        .iter()
+        .find(|i| i.app == "claude" && i.source_id == "relay")
+        .unwrap();
+    assert_eq!(relay.status, ItemStatus::Duplicate);
+    let preview = service.export_preview(DuplicatePolicy::Rename).unwrap();
+    let relay = preview
+        .items
+        .iter()
+        .find(|i| i.app == "claude" && i.source_id == "relay")
+        .unwrap();
+    assert_eq!(relay.target_id.as_deref(), Some("relay-2"));
+    // 预览里不带任何 key。
+    let json = serde_json::to_string(&preview).unwrap();
+    assert!(!json.contains("sk-test"), "{json}");
+
+    let report = service
+        .export_apply(vec![Tool::Claude, Tool::Gemini], DuplicatePolicy::Rename)
+        .unwrap();
+    assert!(report
+        .created
+        .iter()
+        .all(|(t, _, _)| matches!(t, Tool::Claude | Tool::Gemini)));
+    assert!(report
+        .created
+        .contains(&(Tool::Claude, "relay".into(), "relay-2".into())));
+    assert!(
+        !sb.home.join(".claude/settings.json").exists(),
+        "live config untouched"
+    );
+    assert!(
+        service.export_preview(DuplicatePolicy::Skip).is_err(),
+        "staged file discarded after apply"
+    );
+    let listing = service.list_providers(Tool::Claude).unwrap();
+    assert!(listing.providers.iter().any(|p| p.id == "relay-2"));
+    assert_eq!(listing.current, None);
+}
