@@ -16,6 +16,7 @@ const zh = {
     inLiveCount: "{{count}} 个已写入",
   },
   card: {
+    toggleInLive: "把 {{name}} 写入/移出客户端配置",
     current: "当前",
     switch: "切换",
     edit: "编辑",
@@ -66,6 +67,7 @@ const zh = {
     cancel: "取消",
     saved: "已保存",
     invalid: "格式错误",
+    notObject: "顶层必须是对象",
   },
   codex: {
     title: "Codex 托管账号",
@@ -95,6 +97,7 @@ const zh = {
     live: "当前生效",
   },
   wizard: {
+    selectTool: "导入 {{tool}}",
     localTitle: "从本机 cc-switch 数据目录导入",
     title: "从 cc-switch 导入",
     hint: "只读读取 cc-switch 的数据（cc-switch.db 或旧版 config.json），不会修改 cc-switch 的任何文件。已存在的卡不会被覆盖，不会改变当前供应商。",

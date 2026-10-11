@@ -18,6 +18,7 @@ const en: Messages = {
     inLiveCount: "{{count}} written",
   },
   card: {
+    toggleInLive: "Write {{name}} into / remove it from the client config",
     current: "Current",
     switch: "Switch",
     edit: "Edit",
@@ -68,6 +69,7 @@ const en: Messages = {
     cancel: "Cancel",
     saved: "Saved",
     invalid: "Invalid format",
+    notObject: "expected an object",
   },
   codex: {
     title: "Codex managed accounts",
@@ -97,6 +99,7 @@ const en: Messages = {
     live: "Active",
   },
   wizard: {
+    selectTool: "Import {{tool}}",
     localTitle: "From the local cc-switch data directory",
     title: "Import from cc-switch",
     hint: "Reads cc-switch data (cc-switch.db or the legacy config.json) read-only and never modifies cc-switch files. Existing cards are not overwritten and current providers are not changed.",

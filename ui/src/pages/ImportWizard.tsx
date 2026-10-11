@@ -10,13 +10,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSettings, refreshAll } from "@/hooks/queries";
-import { api, errorMessage, type ImportReport, type ImportScan, type ToolId } from "@/lib/api";
+import { api, errorMessage, reasonText, type ImportReport, type ImportScan, type ToolId } from "@/lib/api";
 import { TOOLS, toolMeta } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 import { ExportImport } from "./ExportImport";
 
 export function ImportWizard() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const client = useQueryClient();
   const settings = useSettings().data;
   const [dir, setDir] = useState<string>("");
@@ -103,7 +103,7 @@ export function ImportWizard() {
                     <Checkbox
                       checked={selected.has(tool)}
                       disabled={ok.length === 0 && !(tool === "codex" && scan.accounts > 0)}
-                      aria-label={`select ${tool}`}
+                      aria-label={t("wizard.selectTool", { tool: toolMeta(tool).label })}
                       onCheckedChange={(v) =>
                         setSelected((s) => {
                           const next = new Set(s);
@@ -122,7 +122,7 @@ export function ImportWizard() {
                         {c.provider.name} <span className="font-mono text-xs text-muted-foreground">{c.provider.id}</span>
                         {c.skipReason && (
                           <span className="ml-2 text-xs">
-                            · {t("wizard.skipped")}: {c.skipReason}
+                            · {t("wizard.skipped")}: {reasonText(c.skipReason, i18n.language)}
                           </span>
                         )}
                       </li>
@@ -155,7 +155,7 @@ export function ImportWizard() {
               <ul className="mt-2 text-xs text-muted-foreground">
                 {report.skipped.map(([tool, id, reason]) => (
                   <li key={`${tool}/${id}`}>
-                    {toolMeta(tool).label} / {id}: {reason}
+                    {toolMeta(tool).label} / {id}: {reasonText(reason, i18n.language)}
                   </li>
                 ))}
               </ul>

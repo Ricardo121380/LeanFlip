@@ -13,6 +13,7 @@ import { refreshAll } from "@/hooks/queries";
 import {
   api,
   errorMessage,
+  reasonText,
   type DuplicatePolicy,
   type ExportItem,
   type ExportPreview,
@@ -63,7 +64,7 @@ export function ExportImport() {
   const [selected, setSelected] = useState<Set<ToolId>>(new Set());
   const [report, setReport] = useState<ExportReport | null>(null);
   const [busy, setBusy] = useState(false);
-  const text = (r: Reason) => (i18n.language.startsWith("en") ? r.en : r.zh);
+  const text = (r: Reason) => reasonText(r, i18n.language);
   const groups = useMemo(() => groupItems(preview?.items ?? []), [preview]);
 
   function show(next: ExportPreview) {

@@ -1,5 +1,6 @@
 // 卡片相关的纯函数（有单元测试）。
 import { parse as parseToml } from "smol-toml";
+import i18n from "@/i18n";
 import type { AccountInfo, Provider, ToolId } from "./api";
 
 /** 后端用来替换 ChatGPT 登录凭据的占位符（crates/app/src/redact.rs）。 */
@@ -108,7 +109,7 @@ export function fromEditorText(
     return { ok: false, error: `JSON: ${(e as Error).message}` };
   }
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    return { ok: false, error: "JSON: expected an object" };
+    return { ok: false, error: `JSON: ${i18n.t("editor.notObject")}` };
   }
   if (editor !== "codex") return { ok: true, value: parsed as Record<string, unknown> };
 

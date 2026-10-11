@@ -93,12 +93,12 @@ describe("ToolPage (coexist tool)", () => {
       },
     });
     renderWithClient(<ToolPage tool="opencode" />);
-    const toggleA = await screen.findByRole("switch", { name: "toggle a" });
-    const toggleB = screen.getByRole("switch", { name: "toggle b" });
+    const toggleA = await screen.findByRole("switch", { name: "把 A 写入/移出客户端配置" });
+    const toggleB = screen.getByRole("switch", { name: "把 B 写入/移出客户端配置" });
     expect(toggleA).toBeChecked();
     expect(toggleB).not.toBeChecked();
     await userEvent.click(toggleB);
-    await waitFor(() => expect(screen.getByRole("switch", { name: "toggle b" })).toBeChecked());
+    await waitFor(() => expect(screen.getByRole("switch", { name: "把 B 写入/移出客户端配置" })).toBeChecked());
     expect(fake.calls.find((c) => c.cmd === "set_in_live")!.args).toEqual({ tool: "opencode", id: "b", enabled: true });
   });
 
@@ -117,7 +117,7 @@ describe("ToolPage (coexist tool)", () => {
     });
     renderWithClient(<ToolPage tool="opencode" />);
     expect(await screen.findByText(/bad json/)).toBeInTheDocument();
-    expect(screen.getByRole("switch", { name: "toggle a" })).toBeDisabled();
+    expect(screen.getByRole("switch", { name: "把 A 写入/移出客户端配置" })).toBeDisabled();
   });
 });
 
@@ -261,32 +261,60 @@ describe("CodexAccountsPage", () => {
 });
 
 describe("ImportWizard", () => {
-  it("scans read-only, preselects importable tools and applies", async () => {
-    const fake = use({
+  beforeEach(async () => {
+    const { default: i18n } = await import("@/i18n");
+    await i18n.changeLanguage("zh");
+  });
+  const routing = { code: "routing", zh: "需要本地路由（github_copilot）", en: "Needs local routing (github_copilot)" };
+  const duplicate = { code: "duplicate", zh: "已有同 id 的卡", en: "A card with this id already exists" };
+  const wizardBackend = () =>
+    use({
       get_settings: () => ({ app: {}, keepCodexLogin: false, dataDir: "/d", home: "/h", livePaths: {}, ccswitchDir: "/h/.cc-switch" }),
       ccswitch_scan: () => ({
         source: "/h/.cc-switch/cc-switch.db",
         accounts: 1,
         candidates: [
           { tool: "claude", provider: { id: "k", name: "Kimi", settingsConfig: {} }, skipReason: null },
-          { tool: "claude", provider: { id: "c", name: "Copilot", settingsConfig: {} }, skipReason: "需要本地路由" },
-          { tool: "gemini", provider: { id: "g", name: "G", settingsConfig: {} }, skipReason: "id 已存在" },
+          { tool: "claude", provider: { id: "c", name: "Copilot", settingsConfig: {} }, skipReason: routing },
+          { tool: "gemini", provider: { id: "g", name: "G", settingsConfig: {} }, skipReason: duplicate },
         ],
       }),
-      ccswitch_apply: () => ({ created: [["claude", "k"]], skipped: [["claude", "c", "需要本地路由"]], accountsAdded: [] }),
+      ccswitch_apply: () => ({ created: [["claude", "k"]], skipped: [["claude", "c", routing]], accountsAdded: [] }),
     });
+
+  it("scans read-only, preselects importable tools and applies", async () => {
+    const fake = wizardBackend();
     renderWithClient(<ImportWizard />);
     await userEvent.click(screen.getByRole("button", { name: /扫描/ }));
-    expect(await screen.findByText(/需要本地路由/)).toBeInTheDocument();
-    expect(screen.getByRole("checkbox", { name: "select claude" })).toBeChecked();
-    expect(screen.getByRole("checkbox", { name: "select gemini" })).toBeDisabled();
+    expect(await screen.findByText(/需要本地路由（github_copilot）/)).toBeInTheDocument();
+    expect(screen.getByText(/已有同 id 的卡/)).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "导入 Claude Code" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "导入 Gemini CLI" })).toBeDisabled();
     await userEvent.click(screen.getByRole("button", { name: /导入所选工具/ }));
     expect(await screen.findByText(/新增 1 张卡/)).toBeInTheDocument();
     expect(fake.calls.find((c) => c.cmd === "ccswitch_apply")!.args).toEqual({ tools: ["claude"], dir: null });
   });
+
+  it("shows skip reasons and labels in English", async () => {
+    const { default: i18n } = await import("@/i18n");
+    await i18n.changeLanguage("en");
+    wizardBackend();
+    renderWithClient(<ImportWizard />);
+    await userEvent.click(screen.getByRole("button", { name: /^Scan$/ }));
+    expect(await screen.findByText(/Needs local routing \(github_copilot\)/)).toBeInTheDocument();
+    expect(screen.getByText(/A card with this id already exists/)).toBeInTheDocument();
+    expect(screen.queryByText(/本地路由|已有同 id/)).toBeNull();
+    expect(screen.getByRole("checkbox", { name: "Import Claude Code" })).toBeChecked();
+    await userEvent.click(screen.getByRole("button", { name: /Import selected tools/ }));
+    expect(await screen.findByText(/Claude Code \/ c: Needs local routing/)).toBeInTheDocument();
+  });
 });
 
 describe("SettingsPage", () => {
+  beforeEach(async () => {
+    const { default: i18n } = await import("@/i18n");
+    await i18n.changeLanguage("zh");
+  });
   it("drops empty overrides", () => {
     expect(cleanOverrides({ claudeDir: "  ", codexDir: "/x/codex ", geminiDir: null })).toEqual({ codexDir: "/x/codex" });
   });

@@ -174,7 +174,7 @@ export function ToolPage({ tool }: { tool: ToolId }) {
                   checked={inLive}
                   disabled={Boolean(data.liveError) || toggleAction.isPending}
                   onCheckedChange={(enabled) => toggleAction.mutate({ id: p.id, enabled })}
-                  aria-label={`toggle ${p.id}`}
+                  aria-label={t("card.toggleInLive", { name: p.name })}
                 />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">

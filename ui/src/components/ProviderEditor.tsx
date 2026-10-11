@@ -276,14 +276,14 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, existingIds
             {meta.editor === "codex" ? (
               <>
                 <Label>{t("editor.auth")}</Label>
-                <CodeEditor language="json" minHeight={90} value={text.json} onChange={(json) => setText((s) => ({ ...s, json }))} ariaLabel="auth.json" />
+                <CodeEditor language="json" minHeight={90} value={text.json} onChange={(json) => setText((s) => ({ ...s, json }))} ariaLabel={t("editor.auth")} />
                 <Label>{t("editor.config")}</Label>
-                <CodeEditor language="toml" value={text.toml ?? ""} onChange={(toml) => setText((s) => ({ ...s, toml }))} ariaLabel="config.toml" />
+                <CodeEditor language="toml" value={text.toml ?? ""} onChange={(toml) => setText((s) => ({ ...s, toml }))} ariaLabel={t("editor.config")} />
               </>
             ) : (
               <>
                 <Label>{t("editor.settings")}</Label>
-                <CodeEditor language="json" minHeight={220} value={text.json} onChange={(json) => setText({ json })} ariaLabel="settings" />
+                <CodeEditor language="json" minHeight={220} value={text.json} onChange={(json) => setText({ json })} ariaLabel={t("editor.settings")} />
               </>
             )}
             {showRoutes && <ModelRoutesEditor rows={routes} onChange={setRoutes} />}
@@ -295,7 +295,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, existingIds
 
             {!editing && (
               <label className="flex items-center gap-2 text-sm">
-                <Checkbox checked={apply} onCheckedChange={(v) => setApply(v === true)} aria-label="apply" />
+                <Checkbox checked={apply} onCheckedChange={(v) => setApply(v === true)} />
                 {meta.kind === "coexist" ? t("editor.addToLive") : t("editor.switchAfterAdd")}
               </label>
             )}

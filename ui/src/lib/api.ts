@@ -124,7 +124,7 @@ export interface SettingsView {
 export interface ImportCandidate {
   tool: ToolId;
   provider: Provider;
-  skipReason: string | null;
+  skipReason: Reason | null;
 }
 
 export interface ImportScan {
@@ -135,7 +135,7 @@ export interface ImportScan {
 
 export interface ImportReport {
   created: [ToolId, string][];
-  skipped: [ToolId, string, string][];
+  skipped: [ToolId, string, Reason][];
   accountsAdded: string[];
 }
 
@@ -146,6 +146,11 @@ export interface Reason {
   code: string;
   zh: string;
   en: string;
+}
+
+/** 按界面语言挑后端双语说明。 */
+export function reasonText(reason: Reason, language: string): string {
+  return language.startsWith("en") ? reason.en : reason.zh;
 }
 
 export interface ExportItem {
