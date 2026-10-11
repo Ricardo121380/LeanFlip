@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Download, Settings, UsersRound } from "lucide-react";
 import { useBackendEvents, useOverview, useSettings } from "@/hooks/queries";
@@ -7,9 +7,11 @@ import { TOOLS } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 import { applyLanguage } from "@/i18n";
 import { ToolPage } from "@/pages/ToolPage";
-import { CodexAccountsPage } from "@/pages/CodexAccountsPage";
-import { ImportWizard } from "@/pages/ImportWizard";
-import { SettingsPage } from "@/pages/SettingsPage";
+
+// 不常用的页面按需加载。
+const CodexAccountsPage = lazy(() => import("@/pages/CodexAccountsPage").then((m) => ({ default: m.CodexAccountsPage })));
+const ImportWizard = lazy(() => import("@/pages/ImportWizard").then((m) => ({ default: m.ImportWizard })));
+const SettingsPage = lazy(() => import("@/pages/SettingsPage").then((m) => ({ default: m.SettingsPage })));
 
 export type View = { type: "tool"; tool: ToolId } | { type: "codex" } | { type: "import" } | { type: "settings" };
 
@@ -87,10 +89,12 @@ export default function App() {
         </div>
       </aside>
       <main className="min-w-0 flex-1 overflow-y-auto">
-        {view.type === "tool" && <ToolPage key={view.tool} tool={view.tool} />}
-        {view.type === "codex" && <CodexAccountsPage />}
-        {view.type === "import" && <ImportWizard />}
-        {view.type === "settings" && <SettingsPage />}
+        <Suspense fallback={<p className="p-8 text-sm text-muted-foreground">{t("common.loading")}</p>}>
+          {view.type === "tool" && <ToolPage key={view.tool} tool={view.tool} />}
+          {view.type === "codex" && <CodexAccountsPage />}
+          {view.type === "import" && <ImportWizard />}
+          {view.type === "settings" && <SettingsPage />}
+        </Suspense>
       </main>
     </div>
   );

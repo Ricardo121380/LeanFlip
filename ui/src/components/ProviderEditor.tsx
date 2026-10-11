@@ -19,11 +19,11 @@ import {
   uniqueId,
   type EditorText,
 } from "@/lib/cards";
-import { searchPresets, type Preset } from "@/lib/presets";
+import { filterPresets, loadPresets, type Preset } from "@/lib/presets";
 import { toolMeta } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 import { showWarnings } from "@/hooks/queries";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 const CODEX_TEMPLATE = (model: string) =>
   `model_provider = "custom"\nmodel = "${model}"\n\n[model_providers.custom]\nname = "custom"\nbase_url = ""\nwire_api = "responses"\nrequires_openai_auth = true\n`;
@@ -104,7 +104,13 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, existingIds
   const [apply, setApply] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const presets = useMemo(() => searchPresets(tool, query), [tool, query]);
+  const presetList = useQuery({
+    queryKey: ["presets", tool],
+    queryFn: () => loadPresets(tool),
+    enabled: !editing,
+    staleTime: Infinity,
+  });
+  const presets = useMemo(() => filterPresets(presetList.data ?? [], query), [presetList.data, query]);
   const parsed = fromEditorText(meta.editor, text, provider?.settingsConfig);
   const official = isOfficial({ category });
   const showLogin = tool === "codex" && official;
@@ -178,6 +184,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, existingIds
                 >
                   {t("editor.custom")}
                 </button>
+                {presetList.isLoading && <p className="px-2 py-1.5 text-xs text-muted-foreground">{t("common.loading")}</p>}
                 {presets.map((p) => (
                   <button
                     type="button"

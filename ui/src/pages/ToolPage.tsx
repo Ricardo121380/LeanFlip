@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, ArrowRightLeft, Download, Pencil, Plus, Star, Trash2, UserRound } from "lucide-react";
 import { toast } from "sonner";
@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { ProviderEditor } from "@/components/ProviderEditor";
+// 编辑器（CodeMirror）按需加载。
+const ProviderEditor = lazy(() => import("@/components/ProviderEditor").then((m) => ({ default: m.ProviderEditor })));
 import { useAccounts, useAction, useLogins, useProviders } from "@/hooks/queries";
 import { api, type AccountInfo, type Provider, type ToolId } from "@/lib/api";
 import { accountLabel, endpointOf, isOfficial } from "@/lib/cards";
@@ -198,6 +199,7 @@ export function ToolPage({ tool }: { tool: ToolId }) {
         </Card>
       )}
 
+      <Suspense fallback={null}>
       {adding && (
         <ProviderEditor
           tool={tool}
@@ -220,6 +222,7 @@ export function ToolPage({ tool }: { tool: ToolId }) {
           logins={logins}
         />
       )}
+      </Suspense>
     </div>
   );
 }

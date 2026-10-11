@@ -1,8 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { parse } from "smol-toml";
 import { TOOLS } from "./tools";
-import { presetsFor, searchPresets } from "./presets";
+import { filterPresets, loadPresets, type Preset } from "./presets";
 import { slugify } from "./cards";
+
+const all = new Map<string, Preset[]>();
+const presetsFor = (tool: string) => all.get(tool) ?? [];
+const searchPresets = (tool: string, q: string) => filterPresets(presetsFor(tool), q);
+beforeAll(async () => {
+  for (const tool of TOOLS) all.set(tool.id, await loadPresets(tool.id));
+});
 
 describe("trimmed cc-switch presets", () => {
   it("exist for every tool and are well-formed", () => {
@@ -29,6 +36,12 @@ describe("trimmed cc-switch presets", () => {
         if (config.trim()) expect(() => parse(config), `${tool}/${p.name}`).not.toThrow();
       }
     }
+  });
+
+  it("loads lazily and caches per tool", async () => {
+    const a = loadPresets("claude");
+    expect(loadPresets("claude")).toBe(a);
+    expect((await a).length).toBeGreaterThan(0);
   });
 
   it("official presets come first-class and searchable", () => {
