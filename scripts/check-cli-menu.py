@@ -55,8 +55,13 @@ class Terminal:
     def send(self, text):
         os.write(self.fd, text.encode())
 
-    def leave(self, ctrl_c=False, english=False):
-        self.send("\x03" if ctrl_c else "\x1b")
+    def leave(self, ctrl_c=False, english=False, signal_target=None):
+        if signal_target == "group":
+            os.killpg(self.pid, signal.SIGINT)
+        elif signal_target == "process":
+            os.kill(self.pid, signal.SIGINT)
+        else:
+            self.send("\x03" if ctrl_c else "\x1b")
         self.expect("\x1b[?25h" if ctrl_c else "Menu closed." if english else "已退出菜单。")
         deadline = time.monotonic() + 5
         while time.monotonic() < deadline:
@@ -194,6 +199,16 @@ def check(binary):
             assert terminal.leave(ctrl_c=True) == 130
             assert terminal.output.rfind(b"\x1b[?25h") > terminal.output.rfind(b"\x1b[?25l")
         print("PASS: Ctrl+C exits with code 130 and restores the cursor")
+
+        # Package launchers must let the native menu restore the terminal even
+        # when a signal reaches the whole foreground group or only the launcher.
+        for target in ("group", "process"):
+            with Terminal(binary, ["--home", str(empty), "menu"]) as terminal:
+                terminal.expect("选择工具")
+                terminal.expect("12. 退出")
+                assert terminal.leave(ctrl_c=True, signal_target=target) == 130
+                assert terminal.output.rfind(b"\x1b[?25h") > terminal.output.rfind(b"\x1b[?25l")
+        print("PASS: process-group and launcher SIGINT preserve cleanup and exit code")
 
 
 if __name__ == "__main__":

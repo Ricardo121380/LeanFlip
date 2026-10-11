@@ -117,11 +117,24 @@ jobs:
           pattern: release-*
           merge-multiple: true
           path: release-assets
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
       - name: Generate and verify checksums
         working-directory: release-assets
         run: |
           test "$(find . -type f | wc -l)" -eq 4
           sha256sum *.tar.gz *.deb *.dmg > SHA256SUMS
+          sha256sum --check SHA256SUMS
+      - name: Package npm entry points for the same native release
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          node scripts/prepare-distribution.mjs "${RELEASE_TAG#v}" release-assets
+          node --test packages/npm/test/*.test.mjs
+          npm pack ./packages/npm --ignore-scripts --pack-destination release-assets
+          cd release-assets
+          sha256sum *.tar.gz *.deb *.dmg *.tgz > SHA256SUMS
           sha256sum --check SHA256SUMS
       - name: Create draft with packages and release notes
         env:

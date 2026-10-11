@@ -1,0 +1,30 @@
+{
+  "version": "0.1.0",
+  "homepage": "https://github.com/Ricardo121380/ccswitch-lite",
+  "platforms": {
+    "darwin-arm64": {
+      "cli": {
+        "name": "ccsl_0.1.0_macos-arm64.tar.gz",
+        "sha256": "a79afdd7d7b88446ae566eea30e4ae54fc41b3ee34dce5fffcf1b14c78085942",
+        "url": "https://github.com/Ricardo121380/ccswitch-lite/releases/download/v0.1.0/ccsl_0.1.0_macos-arm64.tar.gz"
+      },
+      "app": {
+        "name": "ccswitch-lite_0.1.0_macos-arm64.dmg",
+        "sha256": "394cadaf5bb675a634057b20553f3177c866dc3b644aa49bed0d4ad2f5ab22e0",
+        "url": "https://github.com/Ricardo121380/ccswitch-lite/releases/download/v0.1.0/ccswitch-lite_0.1.0_macos-arm64.dmg"
+      }
+    },
+    "linux-x64": {
+      "cli": {
+        "name": "ccsl_0.1.0_linux-x64.tar.gz",
+        "sha256": "c5a130afeda9afac52c8e3e780a150e431bec9f47c4c028838787159bd874909",
+        "url": "https://github.com/Ricardo121380/ccswitch-lite/releases/download/v0.1.0/ccsl_0.1.0_linux-x64.tar.gz"
+      },
+      "app": {
+        "name": "ccswitch-lite_0.1.0_linux-x64.deb",
+        "sha256": "b71ac96f4bcdab455f622c46fb9577e2822b695f60baabcfd115f6b62fcafeea",
+        "url": "https://github.com/Ricardo121380/ccswitch-lite/releases/download/v0.1.0/ccswitch-lite_0.1.0_linux-x64.deb"
+      }
+    }
+  }
+}

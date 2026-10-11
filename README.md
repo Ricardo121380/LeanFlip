@@ -38,6 +38,51 @@ App 和 CLI 可以单独安装，也可以一起使用。运行预编译的 CLI 
 
 ## 下载与安装
 
+### 通过 Homebrew 或 npm 安装
+
+**Homebrew：**先将本仓库添加为软件源，然后按需安装 App 或 CLI：
+
+```sh
+brew tap ricardo121380/ccswitch-lite https://github.com/Ricardo121380/ccswitch-lite.git
+
+# 桌面 App：macOS Apple Silicon
+brew install --cask ricardo121380/ccswitch-lite/ccswitch-lite
+
+# CLI：macOS Apple Silicon / Linux x86_64
+brew install --cask ricardo121380/ccswitch-lite/ccsl
+ccsl
+```
+
+两个入口都使用二进制 Cask，直接安装发布包、校验 SHA256，并管理安装与升级；无需本机编译。Linux CLI Cask 需要支持 Linux Cask 的 Homebrew 7 或更新版本。桌面 Cask 当前支持 macOS ARM64；Linux 桌面端使用下面的 DEB 安装方式或 npm 桌面安装器。
+
+macOS 的 App 和 CLI 当前都未做 Apple Developer ID 签名及公证。Homebrew 安装成功后，首次运行仍可能被系统拦截，包括 `ccsl --version`；请按下文的[首次启动说明](#macos-提示无法验证开发者或文件已损坏)手动允许。
+
+```sh
+brew update
+brew upgrade --cask ricardo121380/ccswitch-lite/ccsl
+brew upgrade --cask ricardo121380/ccswitch-lite/ccswitch-lite
+```
+
+**npm：**安装器已准备好，目前尚未发布到 npm 官方仓库，不能直接执行 `npm install -g ccswitch-lite`。可以从仓库生成并安装本地 npm 包，无需编译 Rust 或安装前端依赖：
+
+```sh
+git clone https://github.com/Ricardo121380/ccswitch-lite.git
+cd ccswitch-lite
+mkdir -p target/npm
+CCSL_NPM_TARBALL=$(npm pack ./packages/npm --ignore-scripts --pack-destination target/npm --silent)
+npm install -g "./target/npm/$CCSL_NPM_TARBALL" --ignore-scripts
+
+ccsl                         # 原生 CLI 菜单
+ccsl-app install             # 安装桌面 App
+ccsl-app open                # 启动桌面 App
+```
+
+npm 方式需要 Node.js 20 或更新版本。一个包提供两个命令，安装时不执行生命周期脚本；首次使用时从 GitHub 下载固定版本的原生程序并校验 SHA256。CLI 与直接下载的二进制具有相同的命令、JSON 输出和交互菜单。
+
+macOS 的 `ccsl-app install` 默认将 App 安装到 `~/Applications`；Linux 使用 `apt` 安装 DEB，普通用户需在终端中通过 `sudo` 确认。更新 App 前先退出应用，再运行 `ccsl-app install --replace`。也可先用 `ccsl-app download --output ./downloads` 仅下载并校验安装包。完整参数见 [npm 安装器说明](packages/npm/README.md)。
+
+CLI 选择一种包管理方式即可；如果同时安装了多份，可用 `command -v ccsl` 确认正在使用的入口。
+
 ### 1. 选择对应的安装包
 
 下面的链接对应 **v0.1.0**。GitHub 页面里的 `Source code (zip)` / `Source code (tar.gz)` 是源码，需要自行构建；直接使用请选择下表中的附件。
@@ -486,7 +531,11 @@ ccsl recover         # 处理所有工具
 
 ### macOS 提示无法验证开发者或文件已损坏
 
-本版未做 Apple Developer ID 签名与公证，首次打开可能被拦截。按[安装说明](#2-安装桌面-app)和 Apple 官方指引处理。若提示文件已损坏或校验不一致，先重新下载并核对 SHA256；仍有问题时附上系统版本及完整提示反馈。
+本版 macOS App 和 CLI 均未做 Apple Developer ID 签名与公证。Homebrew 安装完成不代表已获得系统运行许可，首次打开 App 或执行 `ccsl` 都可能被拦截。
+
+先确认下载来源与 SHA256，再到“系统设置 → 隐私与安全性”找到刚刚被拦截的 **CC Switch Lite** 或 **ccsl**，按提示选择“仍要打开”，然后重新启动 App 或执行 CLI。详见 [Apple 官方说明](https://support.apple.com/zh-cn/102445)。安装器不会替用户关闭系统安全检查。
+
+若提示文件已损坏或校验不一致，先重新下载并核对 SHA256；仍有问题时附上系统版本及完整提示反馈。
 
 ### 工具显示“未检测到配置文件”
 
@@ -528,11 +577,15 @@ ccsl recover         # 处理所有工具
 
 ## 升级与卸载
 
-升级时，先退出 App 和 CLI 交互菜单，再下载对应平台的新版本：macOS 替换“应用程序”中的 App；Linux 使用 `apt install ./新版本.deb`；CLI 使用新二进制替换原安装位置。升级前建议备份本应用数据和客户端配置。
+通过 Homebrew 安装的版本使用上面的 `brew upgrade` 命令升级。npm 方式先更新安装器包，再按需执行 `ccsl-app install --replace`；仅更新 npm 包不会自动替换桌面 App。
+
+手动下载的版本，升级时先退出 App 和 CLI 交互菜单，再下载对应平台的新版本：macOS 替换“应用程序”中的 App；Linux 使用 `apt install ./新版本.deb`；CLI 使用新二进制替换原安装位置。升级前建议备份本应用数据和客户端配置。
 
 卸载 App 或 CLI 二进制不会自动还原已经写入客户端的供应商配置。若希望回到官方或其他供应商，请在卸载前先完成切换。
 
-- macOS：从“应用程序”移除 CC Switch Lite。
+- Homebrew：使用 `brew uninstall --cask ricardo121380/ccswitch-lite/ccsl` 或 `brew uninstall --cask ricardo121380/ccswitch-lite/ccswitch-lite`。
+- npm：使用 `npm uninstall -g ccswitch-lite` 移除两个命令入口；它不会移除已经安装的桌面 App。
+- 手动安装的 macOS App：从对应的“应用程序”目录移除 CC Switch Lite。
 - Linux DEB：使用 `sudo apt remove cc-switch-lite`。
 - CLI：移除自己安装的 `ccsl` 二进制。
 
@@ -619,8 +672,9 @@ python3 scripts/check-cli-menu.py --binary target/release/ccsl
 测试及交互菜单检查使用临时 HOME。菜单脚本面向 macOS / Linux，需要 Python 3，并需先构建 CLI。
 
 - [检查工作流](.github/workflows/ci.yml)：主分支 push 和 PR 时运行类型检查、前端测试、Rust 测试、Clippy，以及 Linux / macOS 桌面打包验证；CLI 单独构建、检查并上传压缩包。
-- [发布工作流](.github/workflows/release.yml)：版本标签触发正式 App / CLI 构建，校验版本与架构，生成 SHA256 文件并创建草稿 Release，再确认发布。
+- [发布工作流](.github/workflows/release.yml)：版本标签触发正式 App / CLI 构建，校验版本与架构，生成 SHA256 文件并创建草稿 Release，再确认发布。包含分发工作流的后续版本还会生成 npm 安装器附件；不自动发布 npm 官方仓库。
 - [v0.1.0 发布说明](docs/releases/v0.1.0.md)：首版功能与平台范围。
+- [分发维护说明](docs/distribution.md)：更新 Homebrew Cask、生成 npm 包和手动发布流程。
 
 重新生成内置预设时，使用本机的上游源码目录：
 
@@ -639,6 +693,8 @@ pnpm presets /absolute/path/to/cc-switch
 | [`crates/app`](crates/app) | Tauri 2 桌面外壳、托盘、文件监听及后台账号刷新 |
 | [`crates/cli`](crates/cli) | 独立命令行 `ccsl` 及交互菜单 |
 | [`ui`](ui) | React、TypeScript、Vite、TanStack Query 前端及中英文界面 |
-| [`scripts`](scripts) | 预设生成与 CLI 伪终端检查脚本 |
+| [`scripts`](scripts) | 预设生成、CLI 伪终端检查及分发元数据生成脚本 |
+| [`Casks`](Casks) | Homebrew 原生 CLI 与 macOS 桌面 App 的二进制 Cask |
+| [`packages/npm`](packages/npm) | 零运行时依赖的 npm CLI 启动器与桌面安装器 |
 
 本项目基于 [farion1231/cc-switch](https://github.com/farion1231/cc-switch) 的写入引擎重写，保留其 MIT 版权声明。许可证见 [LICENSE](LICENSE)，移植来源与改动说明见 [NOTICE.md](NOTICE.md)。原作版权 © 2025 Jason Young。
