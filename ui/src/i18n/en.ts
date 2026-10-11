@@ -23,6 +23,8 @@ const en: Messages = {
     inLiveCount: "{{count}} written",
     loading: "Loading {{tool}} configuration…",
     loadError: "Could not load {{tool}} providers",
+    refreshError: "Could not refresh providers",
+    refreshErrorHint: "Showing the last loaded data. Your open edits are preserved.",
     noData: "No configuration data was received. Please try again.",
     stateUnknown: "Configuration unreadable; current state is unverified",
     currentConfig: "Current selection",
