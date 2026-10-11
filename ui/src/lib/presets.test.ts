@@ -53,18 +53,34 @@ describe("trimmed cc-switch presets", () => {
 });
 
 describe("preset links", () => {
-  it("carry no referral or tracking parameters", () => {
+  const SHORT_CODE = /^\/(?=[A-Za-z0-9]*\d)(?=[A-Za-z0-9]*[A-Z])[A-Za-z0-9]{5,10}\/?$/;
+  const PROMO_HOSTS = ["s.qiniu.com", "zetaapi.ai", "apinebula.ai", "aigocode.app", "aicoding.inc", "console.apito.ai", "code0.ai", "ppio.com", "soleapi.com", "cloud.siliconflow.cn"];
+
+  it("carry no referral, tracking or short links", () => {
     const tracking = /[?&](aff|track_id|ref|invite\w*|ic|code|source|from|ch|ytag|ac|rc|utm_\w+)=/i;
     for (const tool of TOOLS) {
       for (const p of presetsFor(tool.id)) {
         for (const url of [p.websiteUrl, p.apiKeyUrl]) {
           if (!url) continue;
-          expect(url, `${tool.id}/${p.name}`).not.toMatch(tracking);
-          const path = new URL(url).pathname;
-          expect(path, `${tool.id}/${p.name}: ${url}`).not.toMatch(/^\/(i|invite|r|go)\/|cc-?switch|\/register\/[A-Za-z0-9]{6,}/i);
-          expect(new URL(url).host, url).not.toBe("s.qiniu.com");
+          const label = `${tool.id}/${p.name}: ${url}`;
+          expect(url, label).not.toMatch(tracking);
+          const parsed = new URL(url);
+          expect(parsed.pathname, label).not.toMatch(/^\/(i|invite|r|ref|go|aff|s)\/|cc-?switch|\/register\/[A-Za-z0-9_-]{6,}/i);
+          expect(parsed.pathname, label).not.toMatch(SHORT_CODE);
+          // 之前只留了域名的那 10 条推广链接，现在连域名也不留。
+          expect(PROMO_HOSTS, label).not.toContain(parsed.host);
         }
       }
+    }
+  });
+
+  it("drop every link field listed in the removal manifest (partner / promo presets)", async () => {
+    const removed = (await import("./removed-preset-links.json")).default as { tool: string; name: string; field: "websiteUrl" | "apiKeyUrl" }[];
+    expect(removed.length).toBeGreaterThan(0);
+    for (const r of removed) {
+      const preset = presetsFor(r.tool).find((p) => p.name === r.name);
+      expect(preset, `${r.tool}/${r.name}`).toBeDefined();
+      expect(preset![r.field], `${r.tool}/${r.name}.${r.field}`).toBeUndefined();
     }
   });
 });

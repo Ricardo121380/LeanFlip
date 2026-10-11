@@ -1,0 +1,4892 @@
+[
+ {
+  "tool": "claude",
+  "name": "Kimi",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "Kimi Global",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "Kimi For Coding",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "Kimi For Coding Global",
+  "field": "websiteUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "claude",
+  "name": "PackyCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "PackyCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "ZetaAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "ZetaAPI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "APINebula",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "APINebula",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "AICodeMirror",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "AICodeMirror",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "PatewayAI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "PatewayAI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "FennoAI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "FennoAI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "RunAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "RunAPI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "Shengsuanyun",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "Shengsuanyun",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "AIGoCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "AIGoCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "Qiniu",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "Qiniu",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "AICoding",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "AICoding",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "SubRouter",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "SubRouter",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "FluxA Token Plan",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "FluxA Token Plan",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "88API",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "88API",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "APIKEY.FUN",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "APIKEY.FUN",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "9527CODE",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "9527CODE",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "ClaudeAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "ClaudeAPI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "Code0",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "Code0",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "TeamoRouter",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "TeamoRouter",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "PPIO",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "PPIO",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "ClaudeCN",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "ClaudeCN",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "火山 Agent Plan",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "火山 Agent Plan",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "火山 Coding Plan",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "火山 Coding Plan",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "BytePlus",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "BytePlus",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "Volcengine Doubao",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "Volcengine Doubao",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "SiliconFlow",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "SiliconFlow",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "SiliconFlow en",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "SiliconFlow en",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "A6API",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "A6API",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "Compshare",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "Compshare",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "Compshare Coding Plan",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "Compshare Coding Plan",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "CCSub",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "CCSub",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "SSSAiCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "SSSAiCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "SoleAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "SoleAPI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "Micu",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "Micu",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "RightCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "RightCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "Cubence",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "Cubence",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "CrazyRouter",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "CrazyRouter",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "DMXAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "DMXAPI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "SudoCode.chat",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "SudoCode.chat",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "SudoCode.us",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "SudoCode.us",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "XycAi",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "XycAi",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "OpenCode Go",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "OpenCode Go",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude",
+  "name": "Zhipu GLM",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "claude",
+  "name": "Zhipu GLM en",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "claude",
+  "name": "千问AI平台",
+  "field": "websiteUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "claude",
+  "name": "千问AI平台",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "claude",
+  "name": "千问AI平台 Token Plan",
+  "field": "websiteUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "claude",
+  "name": "千问AI平台 Token Plan",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "claude",
+  "name": "QwenCloud",
+  "field": "websiteUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "claude",
+  "name": "QwenCloud",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "claude",
+  "name": "QwenCloud Token Plan",
+  "field": "websiteUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "claude",
+  "name": "QwenCloud Token Plan",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "claude",
+  "name": "PIPELLM",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "codex",
+  "name": "Kimi",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "Kimi",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "Kimi Global",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "Kimi Global",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "Kimi For Coding",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "Kimi For Coding",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "Kimi For Coding Global",
+  "field": "websiteUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "codex",
+  "name": "Kimi For Coding Global",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "codex",
+  "name": "PackyCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "PackyCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "ZetaAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "ZetaAPI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "APINebula",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "APINebula",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "AICodeMirror",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "AICodeMirror",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "PatewayAI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "PatewayAI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "FennoAI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "FennoAI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "RunAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "RunAPI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "Shengsuanyun",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "Shengsuanyun",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "AIGoCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "AIGoCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "Qiniu",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "Qiniu",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "AICoding",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "AICoding",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "SubRouter",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "SubRouter",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "88API",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "88API",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "APIKEY.FUN",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "APIKEY.FUN",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "9527CODE",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "9527CODE",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "Code0",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "Code0",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "TeamoRouter",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "TeamoRouter",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "ClaudeCN",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "ClaudeCN",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "火山 Agent Plan",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "火山 Agent Plan",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "火山 Coding Plan",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "火山 Coding Plan",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "BytePlus",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "BytePlus",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "Volcengine Doubao",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "Volcengine Doubao",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "A6API",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "A6API",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "Compshare",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "Compshare",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "Compshare Coding Plan",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "Compshare Coding Plan",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "CCSub",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "CCSub",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "SSSAiCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "SSSAiCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "SoleAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "SoleAPI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "Micu",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "Micu",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "RightCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "RightCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "Cubence",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "Cubence",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "CrazyRouter",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "CrazyRouter",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "DMXAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "SudoCode.chat",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "SudoCode.chat",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "SudoCode.us",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "SudoCode.us",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "XycAi",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "XycAi",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "codex",
+  "name": "Zhipu GLM",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "codex",
+  "name": "Zhipu GLM en",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "codex",
+  "name": "千问AI平台",
+  "field": "websiteUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "codex",
+  "name": "千问AI平台",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "codex",
+  "name": "千问AI平台 Token Plan",
+  "field": "websiteUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "codex",
+  "name": "千问AI平台 Token Plan",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "codex",
+  "name": "QwenCloud",
+  "field": "websiteUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "codex",
+  "name": "QwenCloud",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "codex",
+  "name": "QwenCloud Token Plan",
+  "field": "websiteUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "codex",
+  "name": "QwenCloud Token Plan",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "codex",
+  "name": "PIPELLM",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "gemini",
+  "name": "Google Official",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "Google Official",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "PackyCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "PackyCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "APINebula",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "APINebula",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "AICodeMirror",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "AICodeMirror",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "Shengsuanyun",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "Shengsuanyun",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "AIGoCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "AIGoCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "Qiniu",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "Qiniu",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "AICoding",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "AICoding",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "SubRouter",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "SubRouter",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "88API",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "88API",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "APIKEY.FUN",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "APIKEY.FUN",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "9527CODE",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "9527CODE",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "Code0",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "Code0",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "A6API",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "A6API",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "SSSAiCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "SSSAiCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "SoleAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "SoleAPI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "Cubence",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "Cubence",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "CrazyRouter",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "CrazyRouter",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "SudoCode.us",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "SudoCode.us",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "XycAi",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "gemini",
+  "name": "XycAi",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "PackyCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "PackyCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "ZetaAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "ZetaAPI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "APINebula",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "APINebula",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "AICodeMirror",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "AICodeMirror",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "PatewayAI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "PatewayAI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "FennoAI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "FennoAI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "RunAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "RunAPI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "Shengsuanyun",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "Shengsuanyun",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "AIGoCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "AIGoCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "Qiniu",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "Qiniu",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "SubRouter",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "SubRouter",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "88API",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "88API",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "APIKEY.FUN",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "APIKEY.FUN",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "9527CODE",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "9527CODE",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "Code0",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "Code0",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "TeamoRouter",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "TeamoRouter",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "ClaudeCN",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "ClaudeCN",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "A6API",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "A6API",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "Compshare",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "Compshare",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "Compshare Coding Plan",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "Compshare Coding Plan",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "CCSub",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "CCSub",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "SSSAiCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "SSSAiCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "SoleAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "SoleAPI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "Micu",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "Micu",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "RightCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "RightCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "Cubence",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "Cubence",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "CrazyRouter",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "CrazyRouter",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "DMXAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "SudoCode.chat",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "SudoCode.chat",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "SudoCode.us",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "SudoCode.us",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "grokbuild",
+  "name": "PIPELLM",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "PackyCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "PackyCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "ZetaAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "ZetaAPI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "APINebula",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "APINebula",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "AICodeMirror",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "AICodeMirror",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "PatewayAI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "PatewayAI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "FennoAI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "FennoAI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "RunAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "RunAPI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "Shengsuanyun",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "Shengsuanyun",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "AIGoCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "AIGoCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "Qiniu",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "Qiniu",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "AICoding",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "AICoding",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "SubRouter",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "SubRouter",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "88API",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "88API",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "APIKEY.FUN",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "APIKEY.FUN",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "9527CODE",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "9527CODE",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "ClaudeAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "ClaudeAPI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "Code0",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "Code0",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "TeamoRouter",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "TeamoRouter",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "ClaudeCN",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "ClaudeCN",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "A6API",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "A6API",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "Compshare",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "Compshare",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "Compshare Coding Plan",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "Compshare Coding Plan",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "CCSub",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "CCSub",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "SSSAiCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "SSSAiCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "SoleAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "SoleAPI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "Micu",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "Micu",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "RightCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "RightCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "Cubence",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "Cubence",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "CrazyRouter",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "CrazyRouter",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "DMXAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "DMXAPI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "SudoCode.chat",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "SudoCode.chat",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "SudoCode.us",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "SudoCode.us",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "XycAi",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "XycAi",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "claude-desktop",
+  "name": "PIPELLM",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "opencode",
+  "name": "Kimi",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "Kimi",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "Kimi Global",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "Kimi Global",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "Kimi For Coding",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "Kimi For Coding",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "Kimi For Coding Global",
+  "field": "websiteUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "opencode",
+  "name": "Kimi For Coding Global",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "opencode",
+  "name": "PackyCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "PackyCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "ZetaAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "ZetaAPI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "APINebula",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "APINebula",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "AICodeMirror",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "AICodeMirror",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "FennoAI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "FennoAI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "RunAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "RunAPI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "Shengsuanyun",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "Shengsuanyun",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "AIGoCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "AIGoCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "Qiniu",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "Qiniu",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "AICoding",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "AICoding",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "SubRouter",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "SubRouter",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "FluxA Token Plan",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "FluxA Token Plan",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "88API",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "88API",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "APIKEY.FUN",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "APIKEY.FUN",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "9527CODE",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "9527CODE",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "Code0",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "Code0",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "TeamoRouter",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "TeamoRouter",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "PPIO",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "PPIO",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "ClaudeCN",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "ClaudeCN",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "火山 Agent Plan",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "火山 Agent Plan",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "火山 Coding Plan",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "火山 Coding Plan",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "BytePlus",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "BytePlus",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "Volcengine Doubao",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "Volcengine Doubao",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "A6API",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "A6API",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "CCSub",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "CCSub",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "SSSAiCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "SSSAiCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "SoleAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "SoleAPI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "Micu",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "Micu",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "RightCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "RightCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "Cubence",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "Cubence",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "CrazyRouter",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "CrazyRouter",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "DMXAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "DMXAPI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "SudoCode.chat",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "SudoCode.chat",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "SudoCode.us",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "SudoCode.us",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "XycAi",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "XycAi",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "Zhipu GLM",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "opencode",
+  "name": "Zhipu GLM en",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "opencode",
+  "name": "千问AI平台",
+  "field": "websiteUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "opencode",
+  "name": "千问AI平台",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "opencode",
+  "name": "千问AI平台 Token Plan",
+  "field": "websiteUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "opencode",
+  "name": "千问AI平台 Token Plan",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "opencode",
+  "name": "QwenCloud",
+  "field": "websiteUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "opencode",
+  "name": "QwenCloud",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "opencode",
+  "name": "QwenCloud Token Plan",
+  "field": "websiteUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "opencode",
+  "name": "QwenCloud Token Plan",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "opencode",
+  "name": "OpenCode Go",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "OpenCode Go",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "opencode",
+  "name": "PIPELLM",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "openclaw",
+  "name": "Kimi",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "Kimi",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "Kimi Global",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "Kimi Global",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "Kimi For Coding",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "Kimi For Coding",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "Kimi For Coding Global",
+  "field": "websiteUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "openclaw",
+  "name": "Kimi For Coding Global",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "openclaw",
+  "name": "PackyCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "PackyCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "ZetaAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "ZetaAPI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "APINebula",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "APINebula",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "AICodeMirror",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "AICodeMirror",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "FennoAI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "FennoAI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "RunAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "RunAPI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "Shengsuanyun",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "Shengsuanyun",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "AIGoCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "AIGoCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "Qiniu",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "Qiniu",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "AICoding",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "AICoding",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "SubRouter",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "SubRouter",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "FluxA Token Plan",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "FluxA Token Plan",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "88API",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "88API",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "APIKEY.FUN",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "APIKEY.FUN",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "9527CODE",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "9527CODE",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "Code0",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "Code0",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "TeamoRouter",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "TeamoRouter",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "PPIO",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "PPIO",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "ClaudeCN",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "ClaudeCN",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "火山 Agent Plan",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "火山 Agent Plan",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "火山 Coding Plan",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "火山 Coding Plan",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "BytePlus",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "BytePlus",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "Volcengine Doubao",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "Volcengine Doubao",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "SiliconFlow",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "SiliconFlow",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "SiliconFlow en",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "SiliconFlow en",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "A6API",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "A6API",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "Compshare",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "Compshare",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "Compshare Coding Plan",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "Compshare Coding Plan",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "CCSub",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "CCSub",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "SSSAiCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "SSSAiCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "SoleAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "SoleAPI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "Micu",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "Micu",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "RightCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "RightCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "Cubence",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "Cubence",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "CrazyRouter",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "CrazyRouter",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "DMXAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "DMXAPI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "SudoCode.chat",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "SudoCode.chat",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "SudoCode.us",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "SudoCode.us",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "XycAi",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "XycAi",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "openclaw",
+  "name": "Zhipu GLM",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "openclaw",
+  "name": "Zhipu GLM en",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "openclaw",
+  "name": "千问AI平台",
+  "field": "websiteUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "openclaw",
+  "name": "千问AI平台",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "openclaw",
+  "name": "千问AI平台 Token Plan",
+  "field": "websiteUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "openclaw",
+  "name": "千问AI平台 Token Plan",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "openclaw",
+  "name": "QwenCloud",
+  "field": "websiteUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "openclaw",
+  "name": "QwenCloud",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "openclaw",
+  "name": "QwenCloud Token Plan",
+  "field": "websiteUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "openclaw",
+  "name": "QwenCloud Token Plan",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "openclaw",
+  "name": "PIPELLM",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "hermes",
+  "name": "Kimi",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "Kimi Global",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "Kimi For Coding",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "Kimi For Coding Global",
+  "field": "websiteUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "hermes",
+  "name": "PackyCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "PackyCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "ZetaAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "ZetaAPI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "APINebula",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "APINebula",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "AICodeMirror",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "AICodeMirror",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "FennoAI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "FennoAI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "RunAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "RunAPI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "Shengsuanyun",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "Shengsuanyun",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "AIGoCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "AIGoCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "Qiniu",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "Qiniu",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "AICoding",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "AICoding",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "SubRouter",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "SubRouter",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "FluxA Token Plan",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "FluxA Token Plan",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "88API",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "88API",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "APIKEY.FUN",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "APIKEY.FUN",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "9527CODE",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "9527CODE",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "Code0",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "Code0",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "TeamoRouter",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "TeamoRouter",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "PPIO",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "PPIO",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "ClaudeCN",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "ClaudeCN",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "火山 Agent Plan",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "火山 Agent Plan",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "火山 Coding Plan",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "火山 Coding Plan",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "BytePlus",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "BytePlus",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "Volcengine Doubao",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "Volcengine Doubao",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "SiliconFlow",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "SiliconFlow",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "SiliconFlow en",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "SiliconFlow en",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "A6API",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "A6API",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "Compshare",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "Compshare",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "Compshare Coding Plan",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "Compshare Coding Plan",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "CCSub",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "CCSub",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "SSSAiCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "SSSAiCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "SoleAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "SoleAPI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "Micu",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "Micu",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "RightCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "RightCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "Cubence",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "Cubence",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "CrazyRouter",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "CrazyRouter",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "DMXAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "DMXAPI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "SudoCode.chat",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "SudoCode.chat",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "SudoCode.us",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "SudoCode.us",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "XycAi",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "XycAi",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "hermes",
+  "name": "Zhipu GLM",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "hermes",
+  "name": "Zhipu GLM en",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "hermes",
+  "name": "千问AI平台",
+  "field": "websiteUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "hermes",
+  "name": "千问AI平台",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "hermes",
+  "name": "千问AI平台 Token Plan",
+  "field": "websiteUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "hermes",
+  "name": "千问AI平台 Token Plan",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "hermes",
+  "name": "QwenCloud",
+  "field": "websiteUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "hermes",
+  "name": "QwenCloud",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "hermes",
+  "name": "QwenCloud Token Plan",
+  "field": "websiteUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "hermes",
+  "name": "QwenCloud Token Plan",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "hermes",
+  "name": "PIPELLM",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "pi",
+  "name": "Kimi",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "Kimi",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "Kimi Global",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "Kimi Global",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "Kimi For Coding",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "Kimi For Coding",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "Kimi For Coding Global",
+  "field": "websiteUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "pi",
+  "name": "Kimi For Coding Global",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "pi",
+  "name": "PackyCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "PackyCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "ZetaAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "ZetaAPI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "APINebula",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "APINebula",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "AICodeMirror",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "AICodeMirror",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "FennoAI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "FennoAI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "RunAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "RunAPI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "Shengsuanyun",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "Shengsuanyun",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "AIGoCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "AIGoCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "Qiniu",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "Qiniu",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "AICoding",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "AICoding",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "SubRouter",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "SubRouter",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "FluxA Token Plan",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "FluxA Token Plan",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "88API",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "88API",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "APIKEY.FUN",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "APIKEY.FUN",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "9527CODE",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "9527CODE",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "Code0",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "Code0",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "TeamoRouter",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "TeamoRouter",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "PPIO",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "PPIO",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "ClaudeCN",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "ClaudeCN",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "火山 Agent Plan",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "火山 Agent Plan",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "火山 Coding Plan",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "火山 Coding Plan",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "BytePlus",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "BytePlus",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "Volcengine Doubao",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "Volcengine Doubao",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "A6API",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "A6API",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "CCSub",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "CCSub",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "SSSAiCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "SSSAiCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "SoleAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "SoleAPI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "Micu",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "Micu",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "RightCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "RightCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "Cubence",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "Cubence",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "CrazyRouter",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "CrazyRouter",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "DMXAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "DMXAPI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "SudoCode.chat",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "SudoCode.chat",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "SudoCode.us",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "SudoCode.us",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "Zhipu GLM",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "pi",
+  "name": "Zhipu GLM en",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "pi",
+  "name": "千问AI平台",
+  "field": "websiteUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "pi",
+  "name": "千问AI平台",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "pi",
+  "name": "千问AI平台 Token Plan",
+  "field": "websiteUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "pi",
+  "name": "千问AI平台 Token Plan",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "pi",
+  "name": "QwenCloud",
+  "field": "websiteUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "pi",
+  "name": "QwenCloud",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "pi",
+  "name": "QwenCloud Token Plan",
+  "field": "websiteUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "pi",
+  "name": "QwenCloud Token Plan",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "pi",
+  "name": "OpenCode Go",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "OpenCode Go",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "pi",
+  "name": "PIPELLM",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "mcode",
+  "name": "Kimi",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "Kimi",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "Kimi Global",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "Kimi Global",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "Kimi For Coding",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "Kimi For Coding",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "Kimi For Coding Global",
+  "field": "websiteUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "mcode",
+  "name": "Kimi For Coding Global",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "mcode",
+  "name": "PackyCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "PackyCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "ZetaAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "ZetaAPI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "APINebula",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "APINebula",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "AICodeMirror",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "AICodeMirror",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "FennoAI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "FennoAI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "RunAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "RunAPI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "Shengsuanyun",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "Shengsuanyun",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "AIGoCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "AIGoCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "Qiniu",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "Qiniu",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "AICoding",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "AICoding",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "SubRouter",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "SubRouter",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "FluxA Token Plan",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "FluxA Token Plan",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "88API",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "88API",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "APIKEY.FUN",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "APIKEY.FUN",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "9527CODE",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "9527CODE",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "Code0",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "Code0",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "TeamoRouter",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "TeamoRouter",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "PPIO",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "PPIO",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "ClaudeCN",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "ClaudeCN",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "火山 Agent Plan",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "火山 Agent Plan",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "火山 Coding Plan",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "火山 Coding Plan",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "BytePlus",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "BytePlus",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "Volcengine Doubao",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "Volcengine Doubao",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "A6API",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "A6API",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "CCSub",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "CCSub",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "SSSAiCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "SSSAiCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "SoleAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "SoleAPI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "Micu",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "Micu",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "RightCode",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "RightCode",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "Cubence",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "Cubence",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "CrazyRouter",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "CrazyRouter",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "DMXAPI",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "DMXAPI",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "SudoCode.chat",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "SudoCode.chat",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "SudoCode.us",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "SudoCode.us",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "Zhipu GLM",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "mcode",
+  "name": "Zhipu GLM en",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "mcode",
+  "name": "千问AI平台",
+  "field": "websiteUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "mcode",
+  "name": "千问AI平台",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "mcode",
+  "name": "千问AI平台 Token Plan",
+  "field": "websiteUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "mcode",
+  "name": "千问AI平台 Token Plan",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "mcode",
+  "name": "QwenCloud",
+  "field": "websiteUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "mcode",
+  "name": "QwenCloud",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "mcode",
+  "name": "QwenCloud Token Plan",
+  "field": "websiteUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "mcode",
+  "name": "QwenCloud Token Plan",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ },
+ {
+  "tool": "mcode",
+  "name": "OpenCode Go",
+  "field": "websiteUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "OpenCode Go",
+  "field": "apiKeyUrl",
+  "reason": "partner"
+ },
+ {
+  "tool": "mcode",
+  "name": "PIPELLM",
+  "field": "apiKeyUrl",
+  "reason": "tracking-query"
+ }
+]

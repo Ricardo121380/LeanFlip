@@ -1,8 +1,6 @@
 [
   {
     "name": "Kimi",
-    "websiteUrl": "https://platform.kimi.com/",
-    "apiKeyUrl": "https://platform.kimi.com/console/api-keys",
     "settingsConfig": {
       "name": "Kimi",
       "kind": "custom",
@@ -70,8 +68,6 @@
   },
   {
     "name": "Kimi Global",
-    "websiteUrl": "https://platform.kimi.ai/",
-    "apiKeyUrl": "https://platform.kimi.ai/console/api-keys",
     "settingsConfig": {
       "name": "Kimi Global",
       "kind": "custom",
@@ -139,8 +135,6 @@
   },
   {
     "name": "Kimi For Coding",
-    "websiteUrl": "https://www.kimi.com/code/",
-    "apiKeyUrl": "https://platform.kimi.com/console/api-keys",
     "settingsConfig": {
       "name": "Kimi For Coding",
       "kind": "custom",
@@ -174,8 +168,6 @@
   },
   {
     "name": "Kimi For Coding Global",
-    "websiteUrl": "https://www.kimi.ai/code",
-    "apiKeyUrl": "https://www.kimi.ai/code",
     "settingsConfig": {
       "name": "Kimi For Coding Global",
       "kind": "custom",
@@ -209,8 +201,6 @@
   },
   {
     "name": "PackyCode",
-    "websiteUrl": "https://www.packyapi.ai/",
-    "apiKeyUrl": "https://www.packyapi.ai/register",
     "settingsConfig": {
       "name": "PackyCode",
       "kind": "custom",
@@ -343,8 +333,6 @@
   },
   {
     "name": "ZetaAPI",
-    "websiteUrl": "https://zetaapi.ai/",
-    "apiKeyUrl": "https://zetaapi.ai/",
     "settingsConfig": {
       "name": "ZetaAPI",
       "kind": "custom",
@@ -378,8 +366,6 @@
   },
   {
     "name": "APINebula",
-    "websiteUrl": "https://apinebula.ai/",
-    "apiKeyUrl": "https://apinebula.ai/",
     "settingsConfig": {
       "name": "APINebula",
       "kind": "custom",
@@ -430,8 +416,6 @@
   },
   {
     "name": "AICodeMirror",
-    "websiteUrl": "https://www.aicodemirror.ai/",
-    "apiKeyUrl": "https://www.aicodemirror.ai/register",
     "settingsConfig": {
       "name": "AICodeMirror",
       "kind": "custom",
@@ -506,8 +490,6 @@
   },
   {
     "name": "FennoAI",
-    "websiteUrl": "https://api.fenno.ai/",
-    "apiKeyUrl": "https://api.fenno.ai/register?redirect=%2Fpurchase%3Ftab%3Dsubscription%26group%3D16",
     "settingsConfig": {
       "name": "FennoAI",
       "kind": "custom",
@@ -541,8 +523,6 @@
   },
   {
     "name": "RunAPI",
-    "websiteUrl": "https://runapi.co/",
-    "apiKeyUrl": "https://runapi.co/register",
     "settingsConfig": {
       "name": "RunAPI",
       "kind": "custom",
@@ -692,8 +672,6 @@
   },
   {
     "name": "Shengsuanyun",
-    "websiteUrl": "https://www.shengsuanyun.com/",
-    "apiKeyUrl": "https://www.shengsuanyun.com/",
     "settingsConfig": {
       "name": "Shengsuanyun",
       "kind": "custom",
@@ -826,8 +804,6 @@
   },
   {
     "name": "AIGoCode",
-    "websiteUrl": "https://aigocode.app/",
-    "apiKeyUrl": "https://aigocode.app/",
     "settingsConfig": {
       "name": "AIGoCode",
       "kind": "custom",
@@ -902,8 +878,6 @@
   },
   {
     "name": "Qiniu",
-    "websiteUrl": "https://www.qiniu.com/",
-    "apiKeyUrl": "https://www.qiniu.com/",
     "settingsConfig": {
       "name": "Qiniu",
       "kind": "custom",
@@ -987,8 +961,6 @@
   },
   {
     "name": "AICoding",
-    "websiteUrl": "https://aicoding.inc/",
-    "apiKeyUrl": "https://aicoding.inc/",
     "settingsConfig": {
       "name": "AICoding",
       "kind": "custom",
@@ -1063,8 +1035,6 @@
   },
   {
     "name": "SubRouter",
-    "websiteUrl": "https://subrouter.ai/",
-    "apiKeyUrl": "https://subrouter.ai/register",
     "settingsConfig": {
       "name": "SubRouter",
       "kind": "custom",
@@ -1115,8 +1085,6 @@
   },
   {
     "name": "FluxA Token Plan",
-    "websiteUrl": "https://agentmarket.fluxapay.xyz/",
-    "apiKeyUrl": "https://agentmarket.fluxapay.xyz/marketplace/tokenplans",
     "settingsConfig": {
       "name": "FluxA Token Plan",
       "kind": "custom",
@@ -1262,8 +1230,6 @@
   },
   {
     "name": "88API",
-    "websiteUrl": "https://88api.ai/",
-    "apiKeyUrl": "https://88api.ai/sign-up",
     "settingsConfig": {
       "name": "88API",
       "kind": "custom",
@@ -1372,8 +1338,6 @@
   },
   {
     "name": "APIKEY.FUN",
-    "websiteUrl": "https://apikey.fan/",
-    "apiKeyUrl": "https://apikey.fan/register",
     "settingsConfig": {
       "name": "APIKEY.FUN",
       "kind": "custom",
@@ -1465,8 +1429,6 @@
   },
   {
     "name": "9527CODE",
-    "websiteUrl": "https://9527.codes/",
-    "apiKeyUrl": "https://9527.codes/register",
     "settingsConfig": {
       "name": "9527CODE",
       "kind": "custom",
@@ -1616,8 +1578,6 @@
   },
   {
     "name": "Code0",
-    "websiteUrl": "https://code0.ai/",
-    "apiKeyUrl": "https://code0.ai/",
     "settingsConfig": {
       "name": "Code0",
       "kind": "custom",
@@ -1668,8 +1628,6 @@
   },
   {
     "name": "TeamoRouter",
-    "websiteUrl": "https://teamorouter.cn/",
-    "apiKeyUrl": "https://teamorouter.cn/",
     "settingsConfig": {
       "name": "TeamoRouter",
       "kind": "custom",
@@ -1703,8 +1661,6 @@
   },
   {
     "name": "PPIO",
-    "websiteUrl": "https://ppio.com/",
-    "apiKeyUrl": "https://ppio.com/",
     "settingsConfig": {
       "name": "PPIO",
       "kind": "custom",
@@ -1744,8 +1700,6 @@
   },
   {
     "name": "ClaudeCN",
-    "websiteUrl": "https://claudecn.top/",
-    "apiKeyUrl": "https://claudecn.ai/register",
     "settingsConfig": {
       "name": "ClaudeCN",
       "kind": "custom",
@@ -1895,8 +1849,6 @@
   },
   {
     "name": "火山 Agent Plan",
-    "websiteUrl": "https://www.volcengine.com/activity/agentplan",
-    "apiKeyUrl": "https://www.volcengine.com/activity/agentplan",
     "settingsConfig": {
       "name": "火山 Agent Plan",
       "kind": "custom",
@@ -1929,8 +1881,6 @@
   },
   {
     "name": "火山 Coding Plan",
-    "websiteUrl": "https://www.volcengine.com/activity/codingplan",
-    "apiKeyUrl": "https://www.volcengine.com/activity/codingplan",
     "settingsConfig": {
       "name": "火山 Coding Plan",
       "kind": "custom",
@@ -1963,8 +1913,6 @@
   },
   {
     "name": "BytePlus",
-    "websiteUrl": "https://www.byteplus.com/en/product/modelark",
-    "apiKeyUrl": "https://www.byteplus.com/en/product/modelark",
     "settingsConfig": {
       "name": "BytePlus",
       "kind": "custom",
@@ -1997,8 +1945,6 @@
   },
   {
     "name": "Volcengine Doubao",
-    "websiteUrl": "https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey?apikey=%7B%7D",
-    "apiKeyUrl": "https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey?apikey=%7B%7D",
     "settingsConfig": {
       "name": "Volcengine Doubao",
       "kind": "custom",
@@ -2032,8 +1978,6 @@
   },
   {
     "name": "A6API",
-    "websiteUrl": "https://www.a6api.com/",
-    "apiKeyUrl": "https://a6api.com/register",
     "settingsConfig": {
       "name": "A6API",
       "kind": "custom",
@@ -2084,8 +2028,6 @@
   },
   {
     "name": "CCSub",
-    "websiteUrl": "https://www.ccsub.net/",
-    "apiKeyUrl": "https://www.ccsub.net/register",
     "settingsConfig": {
       "name": "CCSub",
       "kind": "custom",
@@ -2119,8 +2061,6 @@
   },
   {
     "name": "SSSAiCode",
-    "websiteUrl": "https://sssaicodeapi.com/",
-    "apiKeyUrl": "https://sssaicodeapi.com/register",
     "settingsConfig": {
       "name": "SSSAiCode",
       "kind": "custom",
@@ -2195,8 +2135,6 @@
   },
   {
     "name": "SoleAPI",
-    "websiteUrl": "https://soleapi.com/",
-    "apiKeyUrl": "https://soleapi.com/",
     "settingsConfig": {
       "name": "SoleAPI",
       "kind": "custom",
@@ -2288,8 +2226,6 @@
   },
   {
     "name": "Micu",
-    "websiteUrl": "https://www.micuapi.ai/",
-    "apiKeyUrl": "https://www.micuapi.ai/register",
     "settingsConfig": {
       "name": "Micu",
       "kind": "custom",
@@ -2364,8 +2300,6 @@
   },
   {
     "name": "RightCode",
-    "websiteUrl": "https://www.rightapi.ai/",
-    "apiKeyUrl": "https://www.rightapi.ai/register",
     "settingsConfig": {
       "name": "RightCode",
       "kind": "custom",
@@ -2399,8 +2333,6 @@
   },
   {
     "name": "Cubence",
-    "websiteUrl": "https://cubence.com/",
-    "apiKeyUrl": "https://cubence.com/signup",
     "settingsConfig": {
       "name": "Cubence",
       "kind": "custom",
@@ -2475,8 +2407,6 @@
   },
   {
     "name": "CrazyRouter",
-    "websiteUrl": "https://www.crazyrouter.com/",
-    "apiKeyUrl": "https://www.crazyrouter.com/register",
     "settingsConfig": {
       "name": "CrazyRouter",
       "kind": "custom",
@@ -2580,8 +2510,6 @@
   },
   {
     "name": "DMXAPI",
-    "websiteUrl": "https://www.dmxapi.cn/",
-    "apiKeyUrl": "https://www.dmxapi.cn/",
     "settingsConfig": {
       "name": "DMXAPI",
       "kind": "custom",
@@ -2656,8 +2584,6 @@
   },
   {
     "name": "SudoCode.chat",
-    "websiteUrl": "https://sudocode.chat/",
-    "apiKeyUrl": "https://sudocode.chat/sign-up",
     "settingsConfig": {
       "name": "SudoCode.chat",
       "kind": "custom",
@@ -2742,8 +2668,6 @@
   },
   {
     "name": "SudoCode.us",
-    "websiteUrl": "https://sudocode.us/",
-    "apiKeyUrl": "https://sudocode.us/",
     "settingsConfig": {
       "name": "SudoCode.us",
       "kind": "custom",
@@ -2811,8 +2735,8 @@
   },
   {
     "name": "Amux",
-    "websiteUrl": "https://amux.ai/",
-    "apiKeyUrl": "https://amux.ai/",
+    "websiteUrl": "https://amux.ai",
+    "apiKeyUrl": "https://amux.ai",
     "settingsConfig": {
       "name": "Amux",
       "kind": "custom",
@@ -2897,7 +2821,7 @@
   },
   {
     "name": "Soshow",
-    "websiteUrl": "https://aimarket.so-show.com/",
+    "websiteUrl": "https://aimarket.so-show.com",
     "apiKeyUrl": "https://aimarket.so-show.com/workbench/access-key",
     "settingsConfig": {
       "name": "Soshow",
@@ -2973,7 +2897,7 @@
   },
   {
     "name": "DeepSeek",
-    "websiteUrl": "https://platform.deepseek.com/",
+    "websiteUrl": "https://platform.deepseek.com",
     "apiKeyUrl": "https://platform.deepseek.com/api_keys",
     "settingsConfig": {
       "name": "DeepSeek",
@@ -3024,8 +2948,7 @@
   },
   {
     "name": "Zhipu GLM",
-    "websiteUrl": "https://open.bigmodel.cn/",
-    "apiKeyUrl": "https://www.bigmodel.cn/claude-code",
+    "websiteUrl": "https://open.bigmodel.cn",
     "settingsConfig": {
       "name": "Zhipu GLM",
       "kind": "custom",
@@ -3075,8 +2998,7 @@
   },
   {
     "name": "Zhipu GLM en",
-    "websiteUrl": "https://z.ai/",
-    "apiKeyUrl": "https://z.ai/subscribe",
+    "websiteUrl": "https://z.ai",
     "settingsConfig": {
       "name": "Zhipu GLM en",
       "kind": "custom",
@@ -3126,8 +3048,6 @@
   },
   {
     "name": "千问AI平台",
-    "websiteUrl": "https://platform.qianwenai.com/",
-    "apiKeyUrl": "https://platform.qianwenai.com/home/api-keys",
     "settingsConfig": {
       "name": "千问AI平台",
       "kind": "custom",
@@ -3165,8 +3085,6 @@
   },
   {
     "name": "千问AI平台 Token Plan",
-    "websiteUrl": "https://platform.qianwenai.com/pricing/token-plan",
-    "apiKeyUrl": "https://platform.qianwenai.com/home/api-keys",
     "settingsConfig": {
       "name": "千问AI平台 Token Plan",
       "kind": "custom",
@@ -3225,8 +3143,6 @@
   },
   {
     "name": "QwenCloud",
-    "websiteUrl": "https://home.qwencloud.com/",
-    "apiKeyUrl": "https://home.qwencloud.com/api-keys",
     "settingsConfig": {
       "name": "QwenCloud",
       "kind": "custom",
@@ -3305,7 +3221,7 @@
   },
   {
     "name": "QwenCloud For Coding",
-    "websiteUrl": "https://www.qwencloud.com/",
+    "websiteUrl": "https://www.qwencloud.com",
     "apiKeyUrl": "https://home.qwencloud.com/api-keys",
     "settingsConfig": {
       "name": "QwenCloud For Coding",
@@ -3356,8 +3272,6 @@
   },
   {
     "name": "QwenCloud Token Plan",
-    "websiteUrl": "https://www.qwencloud.com/pricing/token-plan",
-    "apiKeyUrl": "https://home.qwencloud.com/api-keys",
     "settingsConfig": {
       "name": "QwenCloud Token Plan",
       "kind": "custom",
@@ -3672,7 +3586,7 @@
   },
   {
     "name": "ModelScope",
-    "websiteUrl": "https://modelscope.cn/",
+    "websiteUrl": "https://modelscope.cn",
     "apiKeyUrl": "https://modelscope.cn/my/myaccesstoken",
     "settingsConfig": {
       "name": "ModelScope",
@@ -3706,7 +3620,7 @@
   },
   {
     "name": "KAT-Coder",
-    "websiteUrl": "https://console.streamlake.ai/",
+    "websiteUrl": "https://console.streamlake.ai",
     "apiKeyUrl": "https://console.streamlake.ai/console/api-key",
     "settingsConfig": {
       "name": "KAT-Coder",
@@ -3774,7 +3688,7 @@
   },
   {
     "name": "MiniMax",
-    "websiteUrl": "https://platform.minimax.cn/",
+    "websiteUrl": "https://platform.minimax.cn",
     "apiKeyUrl": "https://platform.minimax.cn/subscribe/token-plan",
     "settingsConfig": {
       "name": "MiniMax",
@@ -3809,7 +3723,7 @@
   },
   {
     "name": "MiniMax en",
-    "websiteUrl": "https://platform.minimax.io/",
+    "websiteUrl": "https://platform.minimax.io",
     "apiKeyUrl": "https://platform.minimax.io/subscribe/coding-plan",
     "settingsConfig": {
       "name": "MiniMax en",
@@ -3878,7 +3792,7 @@
   },
   {
     "name": "Xiaomi MiMo",
-    "websiteUrl": "https://platform.xiaomimimo.com/",
+    "websiteUrl": "https://platform.xiaomimimo.com",
     "apiKeyUrl": "https://platform.xiaomimimo.com/#/console/api-keys",
     "settingsConfig": {
       "name": "Xiaomi MiMo",
@@ -4093,8 +4007,6 @@
   },
   {
     "name": "OpenCode Go",
-    "websiteUrl": "https://opencode.ai/go",
-    "apiKeyUrl": "https://opencode.ai/go",
     "settingsConfig": {
       "name": "OpenCode Go",
       "kind": "custom",
@@ -4221,8 +4133,8 @@
   },
   {
     "name": "AiHubMix",
-    "websiteUrl": "https://aihubmix.com/",
-    "apiKeyUrl": "https://aihubmix.com/",
+    "websiteUrl": "https://aihubmix.com",
+    "apiKeyUrl": "https://aihubmix.com",
     "settingsConfig": {
       "name": "AiHubMix",
       "kind": "custom",
@@ -4355,7 +4267,7 @@
   },
   {
     "name": "CherryIN",
-    "websiteUrl": "https://open.cherryin.ai/",
+    "websiteUrl": "https://open.cherryin.ai",
     "apiKeyUrl": "https://open.cherryin.ai/console/token",
     "settingsConfig": {
       "name": "CherryIN",
@@ -4460,7 +4372,7 @@
   },
   {
     "name": "OpenRouter",
-    "websiteUrl": "https://openrouter.ai/",
+    "websiteUrl": "https://openrouter.ai",
     "apiKeyUrl": "https://openrouter.ai/keys",
     "settingsConfig": {
       "name": "OpenRouter",
@@ -4594,8 +4506,8 @@
   },
   {
     "name": "TheRouter",
-    "websiteUrl": "https://therouter.ai/",
-    "apiKeyUrl": "https://dashboard.therouter.ai/",
+    "websiteUrl": "https://therouter.ai",
+    "apiKeyUrl": "https://dashboard.therouter.ai",
     "settingsConfig": {
       "name": "TheRouter",
       "kind": "custom",
@@ -4696,8 +4608,8 @@
   },
   {
     "name": "Novita AI",
-    "websiteUrl": "https://novita.ai/",
-    "apiKeyUrl": "https://novita.ai/",
+    "websiteUrl": "https://novita.ai",
+    "apiKeyUrl": "https://novita.ai",
     "settingsConfig": {
       "name": "Novita AI",
       "kind": "custom",
@@ -4780,7 +4692,7 @@
   },
   {
     "name": "Nvidia",
-    "websiteUrl": "https://build.nvidia.com/",
+    "websiteUrl": "https://build.nvidia.com",
     "apiKeyUrl": "https://build.nvidia.com/settings/api-keys",
     "settingsConfig": {
       "name": "Nvidia",
@@ -4848,8 +4760,7 @@
   },
   {
     "name": "PIPELLM",
-    "websiteUrl": "https://code.pipellm.ai/",
-    "apiKeyUrl": "https://code.pipellm.ai/login",
+    "websiteUrl": "https://code.pipellm.ai",
     "settingsConfig": {
       "name": "PIPELLM",
       "kind": "custom",
@@ -4941,7 +4852,7 @@
   },
   {
     "name": "AICodeWith",
-    "websiteUrl": "https://aicodewith.ai/",
+    "websiteUrl": "https://aicodewith.ai",
     "apiKeyUrl": "https://aicodewith.ai/login?tab=register",
     "settingsConfig": {
       "name": "AICodeWith",
@@ -5010,8 +4921,8 @@
   },
   {
     "name": "E-FlowCode",
-    "websiteUrl": "https://e-flowcode.cc/",
-    "apiKeyUrl": "https://e-flowcode.cc/",
+    "websiteUrl": "https://e-flowcode.cc",
+    "apiKeyUrl": "https://e-flowcode.cc",
     "settingsConfig": {
       "name": "E-FlowCode",
       "kind": "custom",
@@ -6973,7 +6884,7 @@
   },
   {
     "name": "Tu-zi",
-    "websiteUrl": "https://api.tu-zi.com/",
+    "websiteUrl": "https://api.tu-zi.com",
     "apiKeyUrl": "https://api.tu-zi.com/token",
     "settingsConfig": {
       "name": "Tu-zi",
@@ -7066,7 +6977,7 @@
   },
   {
     "name": "模力方舟",
-    "websiteUrl": "https://moark.com/",
+    "websiteUrl": "https://moark.com",
     "apiKeyUrl": "https://moark.com/dashboard/tokens",
     "settingsConfig": {
       "name": "模力方舟",

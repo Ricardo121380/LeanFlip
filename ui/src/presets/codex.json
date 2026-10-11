@@ -11,8 +11,6 @@
   },
   {
     "name": "Kimi",
-    "websiteUrl": "https://platform.kimi.com/",
-    "apiKeyUrl": "https://platform.kimi.com/console/api-keys",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -23,8 +21,6 @@
   },
   {
     "name": "Kimi Global",
-    "websiteUrl": "https://platform.kimi.ai/",
-    "apiKeyUrl": "https://platform.kimi.ai/console/api-keys",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -35,8 +31,6 @@
   },
   {
     "name": "Kimi For Coding",
-    "websiteUrl": "https://www.kimi.com/code/",
-    "apiKeyUrl": "https://www.kimi.com/code/",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -47,8 +41,6 @@
   },
   {
     "name": "Kimi For Coding Global",
-    "websiteUrl": "https://www.kimi.ai/code",
-    "apiKeyUrl": "https://www.kimi.ai/code",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -59,8 +51,6 @@
   },
   {
     "name": "PackyCode",
-    "websiteUrl": "https://www.packyapi.ai/",
-    "apiKeyUrl": "https://www.packyapi.ai/register",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -71,8 +61,6 @@
   },
   {
     "name": "ZetaAPI",
-    "websiteUrl": "https://zetaapi.ai/",
-    "apiKeyUrl": "https://zetaapi.ai/",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -83,8 +71,6 @@
   },
   {
     "name": "APINebula",
-    "websiteUrl": "https://apinebula.ai/",
-    "apiKeyUrl": "https://apinebula.ai/",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -95,8 +81,6 @@
   },
   {
     "name": "AICodeMirror",
-    "websiteUrl": "https://www.aicodemirror.ai/",
-    "apiKeyUrl": "https://www.aicodemirror.ai/register",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -106,8 +90,6 @@
   },
   {
     "name": "PatewayAI",
-    "websiteUrl": "https://pateway.ai/",
-    "apiKeyUrl": "https://pateway.ai/#/",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -118,8 +100,6 @@
   },
   {
     "name": "FennoAI",
-    "websiteUrl": "https://api.fenno.ai/",
-    "apiKeyUrl": "https://api.fenno.ai/register?redirect=%2Fpurchase%3Ftab%3Dsubscription%26group%3D16",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -130,8 +110,6 @@
   },
   {
     "name": "RunAPI",
-    "websiteUrl": "https://runapi.host/",
-    "apiKeyUrl": "https://runapi.host/register",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -142,8 +120,6 @@
   },
   {
     "name": "Shengsuanyun",
-    "websiteUrl": "https://www.shengsuanyun.com/",
-    "apiKeyUrl": "https://www.shengsuanyun.com/",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -154,8 +130,6 @@
   },
   {
     "name": "AIGoCode",
-    "websiteUrl": "https://aigocode.app/",
-    "apiKeyUrl": "https://aigocode.app/",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -166,8 +140,6 @@
   },
   {
     "name": "Qiniu",
-    "websiteUrl": "https://www.qiniu.com/",
-    "apiKeyUrl": "https://www.qiniu.com/",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -178,8 +150,6 @@
   },
   {
     "name": "AICoding",
-    "websiteUrl": "https://aicoding.inc/",
-    "apiKeyUrl": "https://aicoding.inc/",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -189,8 +159,6 @@
   },
   {
     "name": "SubRouter",
-    "websiteUrl": "https://subrouter.ai/",
-    "apiKeyUrl": "https://subrouter.ai/register",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -201,8 +169,6 @@
   },
   {
     "name": "88API",
-    "websiteUrl": "https://88api.ai/",
-    "apiKeyUrl": "https://88api.ai/sign-up",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -213,8 +179,6 @@
   },
   {
     "name": "APIKEY.FUN",
-    "websiteUrl": "https://apikey.fan/",
-    "apiKeyUrl": "https://apikey.fan/register",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -225,8 +189,6 @@
   },
   {
     "name": "9527CODE",
-    "websiteUrl": "https://9527.codes/",
-    "apiKeyUrl": "https://9527.codes/register",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -237,8 +199,6 @@
   },
   {
     "name": "Code0",
-    "websiteUrl": "https://code0.ai/",
-    "apiKeyUrl": "https://code0.ai/",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -249,8 +209,6 @@
   },
   {
     "name": "TeamoRouter",
-    "websiteUrl": "https://teamorouter.cn/",
-    "apiKeyUrl": "https://teamorouter.cn/",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -261,8 +219,6 @@
   },
   {
     "name": "ClaudeCN",
-    "websiteUrl": "https://claudecn.top/",
-    "apiKeyUrl": "https://claudecn.ai/register",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -273,8 +229,6 @@
   },
   {
     "name": "火山 Agent Plan",
-    "websiteUrl": "https://www.volcengine.com/activity/agentplan",
-    "apiKeyUrl": "https://www.volcengine.com/activity/agentplan",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -285,8 +239,6 @@
   },
   {
     "name": "火山 Coding Plan",
-    "websiteUrl": "https://www.volcengine.com/activity/codingplan",
-    "apiKeyUrl": "https://www.volcengine.com/activity/codingplan",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -297,8 +249,6 @@
   },
   {
     "name": "BytePlus",
-    "websiteUrl": "https://www.byteplus.com/en/product/modelark",
-    "apiKeyUrl": "https://www.byteplus.com/en/product/modelark",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -309,8 +259,6 @@
   },
   {
     "name": "Volcengine Doubao",
-    "websiteUrl": "https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey?apikey=%7B%7D",
-    "apiKeyUrl": "https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey?apikey=%7B%7D",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -321,8 +269,6 @@
   },
   {
     "name": "A6API",
-    "websiteUrl": "https://www.a6api.com/",
-    "apiKeyUrl": "https://a6api.com/register",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -333,8 +279,6 @@
   },
   {
     "name": "Compshare",
-    "websiteUrl": "https://www.compshare.cn/",
-    "apiKeyUrl": "https://www.compshare.cn/coding-plan",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -345,8 +289,6 @@
   },
   {
     "name": "Compshare Coding Plan",
-    "websiteUrl": "https://www.compshare.cn/",
-    "apiKeyUrl": "https://www.compshare.cn/coding-plan",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -357,8 +299,6 @@
   },
   {
     "name": "CCSub",
-    "websiteUrl": "https://www.ccsub.net/",
-    "apiKeyUrl": "https://www.ccsub.net/register",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -369,8 +309,6 @@
   },
   {
     "name": "SSSAiCode",
-    "websiteUrl": "https://sssaicodeapi.com/",
-    "apiKeyUrl": "https://sssaicodeapi.com/register",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -381,8 +319,6 @@
   },
   {
     "name": "SoleAPI",
-    "websiteUrl": "https://soleapi.com/",
-    "apiKeyUrl": "https://soleapi.com/",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -393,8 +329,6 @@
   },
   {
     "name": "Micu",
-    "websiteUrl": "https://www.micuapi.ai/",
-    "apiKeyUrl": "https://www.micuapi.ai/register",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -405,8 +339,6 @@
   },
   {
     "name": "RightCode",
-    "websiteUrl": "https://www.rightapi.ai/",
-    "apiKeyUrl": "https://www.rightapi.ai/register",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -417,8 +349,6 @@
   },
   {
     "name": "Cubence",
-    "websiteUrl": "https://cubence.com/",
-    "apiKeyUrl": "https://cubence.com/signup",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -429,8 +359,6 @@
   },
   {
     "name": "CrazyRouter",
-    "websiteUrl": "https://www.crazyrouter.com/",
-    "apiKeyUrl": "https://www.crazyrouter.com/register",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -440,7 +368,6 @@
   },
   {
     "name": "DMXAPI",
-    "websiteUrl": "https://www.dmxapi.cn/",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -451,8 +378,6 @@
   },
   {
     "name": "SudoCode.chat",
-    "websiteUrl": "https://sudocode.chat/",
-    "apiKeyUrl": "https://sudocode.chat/sign-up",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -463,8 +388,6 @@
   },
   {
     "name": "SudoCode.us",
-    "websiteUrl": "https://sudocode.us/",
-    "apiKeyUrl": "https://sudocode.us/",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -475,8 +398,6 @@
   },
   {
     "name": "XycAi",
-    "websiteUrl": "https://xycai.us/",
-    "apiKeyUrl": "https://xycai.us/register",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -487,7 +408,7 @@
   },
   {
     "name": "Tu-zi",
-    "websiteUrl": "https://api.tu-zi.com/",
+    "websiteUrl": "https://api.tu-zi.com",
     "apiKeyUrl": "https://api.tu-zi.com/token",
     "settingsConfig": {
       "auth": {
@@ -499,8 +420,8 @@
   },
   {
     "name": "Amux",
-    "websiteUrl": "https://amux.ai/",
-    "apiKeyUrl": "https://amux.ai/",
+    "websiteUrl": "https://amux.ai",
+    "apiKeyUrl": "https://amux.ai",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -511,7 +432,7 @@
   },
   {
     "name": "Soshow",
-    "websiteUrl": "https://aimarket.so-show.com/",
+    "websiteUrl": "https://aimarket.so-show.com",
     "apiKeyUrl": "https://aimarket.so-show.com/workbench/access-key",
     "settingsConfig": {
       "auth": {
@@ -535,7 +456,7 @@
   },
   {
     "name": "DeepSeek",
-    "websiteUrl": "https://platform.deepseek.com/",
+    "websiteUrl": "https://platform.deepseek.com",
     "apiKeyUrl": "https://platform.deepseek.com/api_keys",
     "settingsConfig": {
       "auth": {
@@ -547,8 +468,7 @@
   },
   {
     "name": "Zhipu GLM",
-    "websiteUrl": "https://open.bigmodel.cn/",
-    "apiKeyUrl": "https://www.bigmodel.cn/claude-code",
+    "websiteUrl": "https://open.bigmodel.cn",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -559,8 +479,7 @@
   },
   {
     "name": "Zhipu GLM en",
-    "websiteUrl": "https://z.ai/",
-    "apiKeyUrl": "https://z.ai/subscribe",
+    "websiteUrl": "https://z.ai",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -583,8 +502,6 @@
   },
   {
     "name": "千问AI平台",
-    "websiteUrl": "https://platform.qianwenai.com/",
-    "apiKeyUrl": "https://platform.qianwenai.com/home/api-keys",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -595,8 +512,6 @@
   },
   {
     "name": "千问AI平台 Token Plan",
-    "websiteUrl": "https://platform.qianwenai.com/pricing/token-plan",
-    "apiKeyUrl": "https://platform.qianwenai.com/home/api-keys",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -607,8 +522,6 @@
   },
   {
     "name": "QwenCloud",
-    "websiteUrl": "https://home.qwencloud.com/",
-    "apiKeyUrl": "https://home.qwencloud.com/api-keys",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -619,8 +532,6 @@
   },
   {
     "name": "QwenCloud Token Plan",
-    "websiteUrl": "https://www.qwencloud.com/pricing/token-plan",
-    "apiKeyUrl": "https://home.qwencloud.com/api-keys",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -643,7 +554,7 @@
   },
   {
     "name": "StepFun API",
-    "websiteUrl": "https://platform.stepfun.com/",
+    "websiteUrl": "https://platform.stepfun.com",
     "apiKeyUrl": "https://platform.stepfun.com/interface-key",
     "settingsConfig": {
       "auth": {
@@ -655,7 +566,7 @@
   },
   {
     "name": "StepFun API en",
-    "websiteUrl": "https://platform.stepfun.ai/",
+    "websiteUrl": "https://platform.stepfun.ai",
     "apiKeyUrl": "https://platform.stepfun.ai/interface-key",
     "settingsConfig": {
       "auth": {
@@ -679,7 +590,7 @@
   },
   {
     "name": "MiniMax",
-    "websiteUrl": "https://platform.minimax.cn/",
+    "websiteUrl": "https://platform.minimax.cn",
     "apiKeyUrl": "https://platform.minimax.cn/subscribe/token-plan",
     "settingsConfig": {
       "auth": {
@@ -691,7 +602,7 @@
   },
   {
     "name": "MiniMax en",
-    "websiteUrl": "https://platform.minimax.io/",
+    "websiteUrl": "https://platform.minimax.io",
     "apiKeyUrl": "https://platform.minimax.io/subscribe/coding-plan",
     "settingsConfig": {
       "auth": {
@@ -715,7 +626,7 @@
   },
   {
     "name": "Xiaomi MiMo",
-    "websiteUrl": "https://platform.xiaomimimo.com/",
+    "websiteUrl": "https://platform.xiaomimimo.com",
     "apiKeyUrl": "https://platform.xiaomimimo.com/#/console/api-keys",
     "settingsConfig": {
       "auth": {
@@ -740,7 +651,7 @@
   {
     "name": "xAI (Grok)",
     "websiteUrl": "https://x.ai/api",
-    "apiKeyUrl": "https://console.x.ai/",
+    "apiKeyUrl": "https://console.x.ai",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -763,7 +674,7 @@
   },
   {
     "name": "AiHubMix",
-    "websiteUrl": "https://aihubmix.com/",
+    "websiteUrl": "https://aihubmix.com",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -774,7 +685,7 @@
   },
   {
     "name": "CherryIN",
-    "websiteUrl": "https://open.cherryin.ai/",
+    "websiteUrl": "https://open.cherryin.ai",
     "apiKeyUrl": "https://open.cherryin.ai/console/token",
     "settingsConfig": {
       "auth": {
@@ -786,7 +697,7 @@
   },
   {
     "name": "RelaxyCode",
-    "websiteUrl": "https://www.relaxycode.com/",
+    "websiteUrl": "https://www.relaxycode.com",
     "apiKeyUrl": "https://www.relaxycode.com/register",
     "settingsConfig": {
       "auth": {
@@ -798,8 +709,8 @@
   },
   {
     "name": "E-FlowCode",
-    "websiteUrl": "https://e-flowcode.cc/",
-    "apiKeyUrl": "https://e-flowcode.cc/",
+    "websiteUrl": "https://e-flowcode.cc",
+    "apiKeyUrl": "https://e-flowcode.cc",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -810,8 +721,7 @@
   },
   {
     "name": "PIPELLM",
-    "websiteUrl": "https://code.pipellm.ai/",
-    "apiKeyUrl": "https://code.pipellm.ai/login",
+    "websiteUrl": "https://code.pipellm.ai",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -822,7 +732,7 @@
   },
   {
     "name": "OpenRouter",
-    "websiteUrl": "https://openrouter.ai/",
+    "websiteUrl": "https://openrouter.ai",
     "apiKeyUrl": "https://openrouter.ai/keys",
     "settingsConfig": {
       "auth": {
@@ -834,8 +744,8 @@
   },
   {
     "name": "TheRouter",
-    "websiteUrl": "https://therouter.ai/",
-    "apiKeyUrl": "https://dashboard.therouter.ai/",
+    "websiteUrl": "https://therouter.ai",
+    "apiKeyUrl": "https://dashboard.therouter.ai",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -846,7 +756,7 @@
   },
   {
     "name": "AICodeWith",
-    "websiteUrl": "https://aicodewith.ai/",
+    "websiteUrl": "https://aicodewith.ai",
     "apiKeyUrl": "https://aicodewith.ai/login?tab=register",
     "settingsConfig": {
       "auth": {
@@ -858,7 +768,7 @@
   },
   {
     "name": "Command Code",
-    "websiteUrl": "https://commandcode.ai/",
+    "websiteUrl": "https://commandcode.ai",
     "apiKeyUrl": "https://commandcode.ai/settings/keys",
     "settingsConfig": {
       "auth": {
@@ -870,7 +780,7 @@
   },
   {
     "name": "模力方舟",
-    "websiteUrl": "https://moark.com/",
+    "websiteUrl": "https://moark.com",
     "apiKeyUrl": "https://moark.com/dashboard/tokens",
     "settingsConfig": {
       "auth": {

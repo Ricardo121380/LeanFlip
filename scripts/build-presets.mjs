@@ -63,59 +63,55 @@ function keep(tool, preset) {
   return true;
 }
 
-// 去掉推广 / 追踪参数（cc-switch 的赞助返利码不该跟着进别的应用）。
+// 推广链接（返利 / 邀请 / 赞助 / 合作伙伴）整条删掉，不留域名：
+// - 查询参数里带返利 / 追踪码（?aff=、?ref=、?invite=、utm_* …）
+// - 路径形式的邀请码：/i/CODE、/invite/CODE、/r/CODE、/go/CODE、/register/CODE、
+//   /agent/register/CODE、路径里带 ccswitch 的活动页、单段随机短码（/VjM74M）
+// - 短链接服务（跳转目标未知）
+// - cc-switch 标成商业合作伙伴的预设（isPartner / partnerPromotionKey）的所有链接
+// 只动 websiteUrl / apiKeyUrl；settingsConfig 里的 API 地址是配置，不动。
 const TRACKING_PARAMS = new Set([
-  "aff", "track_id", "ref", "invite", "invite_code", "invitecode", "inviteCode", "ic", "code",
+  "aff", "track_id", "ref", "invite", "invite_code", "invitecode", "ic", "code",
   "source", "from", "ch", "ytag", "ac", "rc",
 ]);
-// 路径形式的返利 / 邀请码：/i/CODE、/invite/CODE、/r/CODE、/go/CODE、/register/CODE、
-// /agent/register/CODE、路径里带 ccswitch 的活动页、单段随机短码（/VjM74M）。命中时只留域名。
 const REFERRAL_PATH = [
   /^\/(i|invite|r|ref|go|aff|s)\/[^/]+\/?$/i,
   /^\/(agent\/)?register\/[A-Za-z0-9_-]{6,}\/?$/,
   /cc-?switch/i,
 ];
 const SHORT_CODE = /^\/(?=[A-Za-z0-9]*\d)(?=[A-Za-z0-9]*[A-Z])[A-Za-z0-9]{5,10}\/?$/;
-// 短链接服务：跳转目标未知，换成厂商主页。
-const SHORTENERS = { "s.qiniu.com": "https://www.qiniu.com/" };
+const SHORTENER_HOSTS = new Set(["s.qiniu.com", "bit.ly", "t.cn", "dwz.cn", "tinyurl.com", "url.cn"]);
 
-export function stripReferralPath(value) {
+/** 推广链接返回原因，普通链接返回 null。 */
+export function promoReason(value, preset = {}) {
+  if (preset.isPartner || preset.primePartner || preset.partnerPromotionKey) return "partner";
   let url;
   try {
     url = new URL(value);
   } catch {
-    return value;
+    return null;
   }
-  if (SHORTENERS[url.host]) return SHORTENERS[url.host];
-  if (REFERRAL_PATH.some((re) => re.test(url.pathname)) || SHORT_CODE.test(url.pathname)) {
-    return `${url.origin}/`;
+  if (SHORTENER_HOSTS.has(url.host)) return "short-link";
+  for (const key of url.searchParams.keys()) {
+    if (TRACKING_PARAMS.has(key.toLowerCase()) || key.toLowerCase().startsWith("utm_")) return `query:${key}`;
   }
-  return value;
+  if (REFERRAL_PATH.some((re) => re.test(url.pathname)) || SHORT_CODE.test(url.pathname)) return "referral-path";
+  return null;
 }
 
-export const changedLinks = [];
+export const removedLinks = [];
 
-function cleanUrl(value) {
-  if (typeof value !== "string" || !value) return value;
-  try {
-    const before = value;
-    value = stripReferralPath(value);
-    if (value !== before) changedLinks.push(`${before} -> ${value}`);
-    const url = new URL(value);
-    for (const key of [...url.searchParams.keys()]) {
-      if (TRACKING_PARAMS.has(key) || key.startsWith("utm_")) url.searchParams.delete(key);
-    }
-    return url.toString().replace(/\?(?=#|$)/, "");
-  } catch {
-    return value;
-  }
-}
-
-function trim(preset) {
+function trim(tool, preset) {
   const out = {};
   for (const key of KEEP) if (preset[key] !== undefined) out[key] = preset[key];
-  if (out.websiteUrl) out.websiteUrl = cleanUrl(out.websiteUrl);
-  if (out.apiKeyUrl) out.apiKeyUrl = cleanUrl(out.apiKeyUrl);
+  for (const field of ["websiteUrl", "apiKeyUrl"]) {
+    if (typeof out[field] !== "string" || !out[field]) continue;
+    const reason = promoReason(out[field], preset);
+    if (reason) {
+      removedLinks.push({ tool, name: preset.name, field, reason: reason.startsWith("query:") ? "tracking-query" : reason });
+      delete out[field];
+    }
+  }
   return out;
 }
 
@@ -141,11 +137,23 @@ for (const [tool, [file, exportName]] of Object.entries(sources)) {
   const seen = new Set();
   const presets = all
     .filter((p) => keep(tool, p))
-    .map(trim)
+    .map((p) => trim(tool, p))
     .filter((p) => !seen.has(p.name) && seen.add(p.name));
   writeFileSync(path.join(outDir, `${tool}.json`), JSON.stringify(presets, null, 2) + "\n");
   counts[tool] = `${presets.length}/${all.length}`;
 }
 rmSync(tmp, { recursive: true, force: true });
 console.log("presets kept/total:", counts);
-if (changedLinks.length) console.log("path-form referral links rewritten:\n  " + [...new Set(changedLinks)].join("\n  "));
+// 记录删掉了哪些字段（不写原链接，免得把返利码又带回仓库）；presets.test.ts 用它做守卫。
+const kept = new Set(Object.keys(counts));
+const seenRemoved = new Set();
+const removed = removedLinks
+  .filter((r) => kept.has(r.tool))
+  .filter((r) => {
+    const key = `${r.tool}\u0000${r.name}\u0000${r.field}`;
+    return !seenRemoved.has(key) && seenRemoved.add(key);
+  });
+writeFileSync(path.join(outDir, "..", "lib", "removed-preset-links.json"), JSON.stringify(removed, null, 1) + "\n");
+const byReason = {};
+for (const r of removed) byReason[r.reason] = (byReason[r.reason] ?? 0) + 1;
+console.log(`promo link fields removed: ${removed.length}`, byReason);

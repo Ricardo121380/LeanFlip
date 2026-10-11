@@ -1,8 +1,6 @@
 [
   {
     "name": "Google Official",
-    "websiteUrl": "https://ai.google.dev/",
-    "apiKeyUrl": "https://aistudio.google.com/apikey",
     "settingsConfig": {
       "env": {}
     },
@@ -10,8 +8,6 @@
   },
   {
     "name": "PackyCode",
-    "websiteUrl": "https://www.packyapi.ai/",
-    "apiKeyUrl": "https://www.packyapi.ai/register",
     "settingsConfig": {
       "env": {
         "GOOGLE_GEMINI_BASE_URL": "https://www.packyapi.ai",
@@ -22,8 +18,6 @@
   },
   {
     "name": "APINebula",
-    "websiteUrl": "https://apinebula.ai/",
-    "apiKeyUrl": "https://apinebula.ai/",
     "settingsConfig": {
       "env": {
         "GOOGLE_GEMINI_BASE_URL": "https://apinebula.ai",
@@ -35,8 +29,6 @@
   },
   {
     "name": "AICodeMirror",
-    "websiteUrl": "https://www.aicodemirror.ai/",
-    "apiKeyUrl": "https://www.aicodemirror.ai/register",
     "settingsConfig": {
       "env": {
         "GOOGLE_GEMINI_BASE_URL": "https://api.aicodemirror.ai/api/gemini",
@@ -47,8 +39,6 @@
   },
   {
     "name": "Shengsuanyun",
-    "websiteUrl": "https://www.shengsuanyun.com/",
-    "apiKeyUrl": "https://www.shengsuanyun.com/",
     "settingsConfig": {
       "env": {
         "GOOGLE_GEMINI_BASE_URL": "https://router.shengsuanyun.com/api",
@@ -59,8 +49,6 @@
   },
   {
     "name": "AIGoCode",
-    "websiteUrl": "https://aigocode.app/",
-    "apiKeyUrl": "https://aigocode.app/",
     "settingsConfig": {
       "env": {
         "GOOGLE_GEMINI_BASE_URL": "https://api.aigocode.app",
@@ -71,8 +59,6 @@
   },
   {
     "name": "Qiniu",
-    "websiteUrl": "https://www.qiniu.com/",
-    "apiKeyUrl": "https://www.qiniu.com/",
     "settingsConfig": {
       "env": {
         "GOOGLE_GEMINI_BASE_URL": "https://api.qnaigc.com/bypass/vertex",
@@ -83,8 +69,6 @@
   },
   {
     "name": "AICoding",
-    "websiteUrl": "https://aicoding.inc/",
-    "apiKeyUrl": "https://aicoding.inc/",
     "settingsConfig": {
       "env": {
         "GOOGLE_GEMINI_BASE_URL": "https://api.aicoding.inc",
@@ -95,8 +79,6 @@
   },
   {
     "name": "SubRouter",
-    "websiteUrl": "https://subrouter.ai/",
-    "apiKeyUrl": "https://subrouter.ai/register",
     "settingsConfig": {
       "env": {
         "GOOGLE_GEMINI_BASE_URL": "https://subrouter.ai/v1beta",
@@ -107,8 +89,6 @@
   },
   {
     "name": "88API",
-    "websiteUrl": "https://88api.ai/",
-    "apiKeyUrl": "https://88api.ai/sign-up",
     "settingsConfig": {
       "env": {
         "GOOGLE_GEMINI_BASE_URL": "https://api.88api.ai",
@@ -120,8 +100,6 @@
   },
   {
     "name": "APIKEY.FUN",
-    "websiteUrl": "https://apikey.fan/",
-    "apiKeyUrl": "https://apikey.fan/register",
     "settingsConfig": {
       "env": {
         "GOOGLE_GEMINI_BASE_URL": "https://api.apikey.fan",
@@ -133,8 +111,6 @@
   },
   {
     "name": "9527CODE",
-    "websiteUrl": "https://9527.codes/",
-    "apiKeyUrl": "https://9527.codes/register",
     "settingsConfig": {
       "env": {
         "GOOGLE_GEMINI_BASE_URL": "https://9527.codes",
@@ -146,8 +122,6 @@
   },
   {
     "name": "Code0",
-    "websiteUrl": "https://code0.ai/",
-    "apiKeyUrl": "https://code0.ai/",
     "settingsConfig": {
       "env": {
         "GOOGLE_GEMINI_BASE_URL": "https://code0.ai",
@@ -158,8 +132,6 @@
   },
   {
     "name": "A6API",
-    "websiteUrl": "https://www.a6api.com/",
-    "apiKeyUrl": "https://a6api.com/register",
     "settingsConfig": {
       "env": {
         "GOOGLE_GEMINI_BASE_URL": "https://api.a6api.com",
@@ -170,8 +142,6 @@
   },
   {
     "name": "SSSAiCode",
-    "websiteUrl": "https://sssaicodeapi.com/",
-    "apiKeyUrl": "https://sssaicodeapi.com/register",
     "settingsConfig": {
       "env": {
         "GOOGLE_GEMINI_BASE_URL": "https://node-hk.sssaicodeapi.com/api",
@@ -182,8 +152,6 @@
   },
   {
     "name": "SoleAPI",
-    "websiteUrl": "https://soleapi.com/",
-    "apiKeyUrl": "https://soleapi.com/",
     "settingsConfig": {
       "env": {
         "GOOGLE_GEMINI_BASE_URL": "https://soleapi.com",
@@ -195,8 +163,6 @@
   },
   {
     "name": "Cubence",
-    "websiteUrl": "https://cubence.com/",
-    "apiKeyUrl": "https://cubence.com/signup",
     "settingsConfig": {
       "env": {
         "GOOGLE_GEMINI_BASE_URL": "https://api.cubence.com",
@@ -207,8 +173,6 @@
   },
   {
     "name": "CrazyRouter",
-    "websiteUrl": "https://www.crazyrouter.com/",
-    "apiKeyUrl": "https://www.crazyrouter.com/register",
     "settingsConfig": {
       "env": {
         "GOOGLE_GEMINI_BASE_URL": "https://cn.crazyrouter.com",
@@ -219,8 +183,6 @@
   },
   {
     "name": "SudoCode.us",
-    "websiteUrl": "https://sudocode.us/",
-    "apiKeyUrl": "https://sudocode.us/",
     "settingsConfig": {
       "env": {
         "GOOGLE_GEMINI_BASE_URL": "https://sudocode.us",
@@ -232,8 +194,6 @@
   },
   {
     "name": "XycAi",
-    "websiteUrl": "https://xycai.us/",
-    "apiKeyUrl": "https://xycai.us/register",
     "settingsConfig": {
       "env": {
         "GOOGLE_GEMINI_BASE_URL": "https://apicdn.xycai.us",
@@ -245,7 +205,7 @@
   },
   {
     "name": "Tu-zi",
-    "websiteUrl": "https://api.tu-zi.com/",
+    "websiteUrl": "https://api.tu-zi.com",
     "apiKeyUrl": "https://api.tu-zi.com/token",
     "settingsConfig": {
       "env": {
@@ -258,8 +218,8 @@
   },
   {
     "name": "E-FlowCode",
-    "websiteUrl": "https://e-flowcode.cc/",
-    "apiKeyUrl": "https://e-flowcode.cc/",
+    "websiteUrl": "https://e-flowcode.cc",
+    "apiKeyUrl": "https://e-flowcode.cc",
     "settingsConfig": {
       "env": {
         "GOOGLE_GEMINI_BASE_URL": "https://e-flowcode.cc",
@@ -287,7 +247,7 @@
   },
   {
     "name": "CherryIN",
-    "websiteUrl": "https://open.cherryin.ai/",
+    "websiteUrl": "https://open.cherryin.ai",
     "apiKeyUrl": "https://open.cherryin.ai/console/token",
     "settingsConfig": {
       "env": {
@@ -300,7 +260,7 @@
   },
   {
     "name": "OpenRouter",
-    "websiteUrl": "https://openrouter.ai/",
+    "websiteUrl": "https://openrouter.ai",
     "apiKeyUrl": "https://openrouter.ai/keys",
     "settingsConfig": {
       "env": {
@@ -312,8 +272,8 @@
   },
   {
     "name": "TheRouter",
-    "websiteUrl": "https://therouter.ai/",
-    "apiKeyUrl": "https://dashboard.therouter.ai/",
+    "websiteUrl": "https://therouter.ai",
+    "apiKeyUrl": "https://dashboard.therouter.ai",
     "settingsConfig": {
       "env": {
         "GOOGLE_GEMINI_BASE_URL": "https://api.therouter.ai",
@@ -324,7 +284,7 @@
   },
   {
     "name": "AICodeWith",
-    "websiteUrl": "https://aicodewith.ai/",
+    "websiteUrl": "https://aicodewith.ai",
     "apiKeyUrl": "https://aicodewith.ai/login?tab=register",
     "settingsConfig": {
       "env": {

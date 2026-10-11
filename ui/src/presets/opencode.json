@@ -1,8 +1,6 @@
 [
   {
     "name": "Kimi",
-    "websiteUrl": "https://platform.kimi.com/",
-    "apiKeyUrl": "https://platform.kimi.com/console/api-keys",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "Kimi",
@@ -60,8 +58,6 @@
   },
   {
     "name": "Kimi Global",
-    "websiteUrl": "https://platform.kimi.ai/",
-    "apiKeyUrl": "https://platform.kimi.ai/console/api-keys",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "Kimi",
@@ -119,8 +115,6 @@
   },
   {
     "name": "Kimi For Coding",
-    "websiteUrl": "https://www.kimi.com/code/",
-    "apiKeyUrl": "https://platform.kimi.com/console/api-keys",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
       "name": "Kimi For Coding",
@@ -140,8 +134,6 @@
   },
   {
     "name": "Kimi For Coding Global",
-    "websiteUrl": "https://www.kimi.ai/code",
-    "apiKeyUrl": "https://www.kimi.ai/code",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
       "name": "Kimi For Coding",
@@ -161,8 +153,6 @@
   },
   {
     "name": "PackyCode",
-    "websiteUrl": "https://www.packyapi.ai/",
-    "apiKeyUrl": "https://www.packyapi.ai/register",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
       "name": "PackyCode",
@@ -220,8 +210,6 @@
   },
   {
     "name": "ZetaAPI",
-    "websiteUrl": "https://zetaapi.ai/",
-    "apiKeyUrl": "https://zetaapi.ai/",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "ZetaAPI",
@@ -241,8 +229,6 @@
   },
   {
     "name": "APINebula",
-    "websiteUrl": "https://apinebula.ai/",
-    "apiKeyUrl": "https://apinebula.ai/",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "APINebula",
@@ -279,8 +265,6 @@
   },
   {
     "name": "AICodeMirror",
-    "websiteUrl": "https://www.aicodemirror.ai/",
-    "apiKeyUrl": "https://www.aicodemirror.ai/register",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
       "name": "AICodeMirror",
@@ -304,8 +288,6 @@
   },
   {
     "name": "FennoAI",
-    "websiteUrl": "https://api.fenno.ai/",
-    "apiKeyUrl": "https://api.fenno.ai/register?redirect=%2Fpurchase%3Ftab%3Dsubscription%26group%3D16",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "FennoAI",
@@ -325,8 +307,6 @@
   },
   {
     "name": "RunAPI",
-    "websiteUrl": "https://runapi.host/",
-    "apiKeyUrl": "https://runapi.host/register",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
       "name": "RunAPI",
@@ -388,8 +368,6 @@
   },
   {
     "name": "Shengsuanyun",
-    "websiteUrl": "https://www.shengsuanyun.com/",
-    "apiKeyUrl": "https://www.shengsuanyun.com/",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
       "name": "Shengsuanyun",
@@ -447,8 +425,6 @@
   },
   {
     "name": "AIGoCode",
-    "websiteUrl": "https://aigocode.app/",
-    "apiKeyUrl": "https://aigocode.app/",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
       "name": "AIGoCode",
@@ -472,8 +448,6 @@
   },
   {
     "name": "Qiniu",
-    "websiteUrl": "https://www.qiniu.com/",
-    "apiKeyUrl": "https://www.qiniu.com/",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "Qiniu",
@@ -556,8 +530,6 @@
   },
   {
     "name": "AICoding",
-    "websiteUrl": "https://aicoding.inc/",
-    "apiKeyUrl": "https://aicoding.inc/",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
       "name": "AICoding",
@@ -581,8 +553,6 @@
   },
   {
     "name": "SubRouter",
-    "websiteUrl": "https://subrouter.ai/",
-    "apiKeyUrl": "https://subrouter.ai/register",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "SubRouter",
@@ -619,8 +589,6 @@
   },
   {
     "name": "FluxA Token Plan",
-    "websiteUrl": "https://agentmarket.fluxapay.xyz/",
-    "apiKeyUrl": "https://agentmarket.fluxapay.xyz/marketplace/tokenplans",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "FluxA Token Plan",
@@ -666,8 +634,6 @@
   },
   {
     "name": "88API",
-    "websiteUrl": "https://88api.ai/",
-    "apiKeyUrl": "https://88api.ai/sign-up",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
       "name": "88API",
@@ -738,8 +704,6 @@
   },
   {
     "name": "APIKEY.FUN",
-    "websiteUrl": "https://apikey.fan/",
-    "apiKeyUrl": "https://apikey.fan/register",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
       "name": "APIKEY.FUN",
@@ -767,8 +731,6 @@
   },
   {
     "name": "9527CODE",
-    "websiteUrl": "https://9527.codes/",
-    "apiKeyUrl": "https://9527.codes/register",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
       "name": "9527CODE",
@@ -830,8 +792,6 @@
   },
   {
     "name": "Code0",
-    "websiteUrl": "https://code0.ai/",
-    "apiKeyUrl": "https://code0.ai/",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "Code0",
@@ -868,8 +828,6 @@
   },
   {
     "name": "TeamoRouter",
-    "websiteUrl": "https://teamorouter.cn/",
-    "apiKeyUrl": "https://teamorouter.cn/",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "TeamoRouter",
@@ -889,8 +847,6 @@
   },
   {
     "name": "PPIO",
-    "websiteUrl": "https://ppio.com/",
-    "apiKeyUrl": "https://ppio.com/",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "PPIO",
@@ -910,8 +866,6 @@
   },
   {
     "name": "ClaudeCN",
-    "websiteUrl": "https://claudecn.top/",
-    "apiKeyUrl": "https://claudecn.ai/register",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
       "name": "ClaudeCN",
@@ -973,8 +927,6 @@
   },
   {
     "name": "火山 Agent Plan",
-    "websiteUrl": "https://www.volcengine.com/activity/agentplan",
-    "apiKeyUrl": "https://www.volcengine.com/activity/agentplan",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "火山 Agent Plan",
@@ -993,8 +945,6 @@
   },
   {
     "name": "火山 Coding Plan",
-    "websiteUrl": "https://www.volcengine.com/activity/codingplan",
-    "apiKeyUrl": "https://www.volcengine.com/activity/codingplan",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "火山 Coding Plan",
@@ -1013,8 +963,6 @@
   },
   {
     "name": "BytePlus",
-    "websiteUrl": "https://www.byteplus.com/en/product/modelark",
-    "apiKeyUrl": "https://www.byteplus.com/en/product/modelark",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "BytePlus",
@@ -1033,8 +981,6 @@
   },
   {
     "name": "Volcengine Doubao",
-    "websiteUrl": "https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey?apikey=%7B%7D",
-    "apiKeyUrl": "https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey?apikey=%7B%7D",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "Volcengine Doubao",
@@ -1054,8 +1000,6 @@
   },
   {
     "name": "A6API",
-    "websiteUrl": "https://www.a6api.com/",
-    "apiKeyUrl": "https://a6api.com/register",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "A6API",
@@ -1092,8 +1036,6 @@
   },
   {
     "name": "CCSub",
-    "websiteUrl": "https://www.ccsub.net/",
-    "apiKeyUrl": "https://www.ccsub.net/register",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "CCSub",
@@ -1117,8 +1059,6 @@
   },
   {
     "name": "SSSAiCode",
-    "websiteUrl": "https://sssaicodeapi.com/",
-    "apiKeyUrl": "https://sssaicodeapi.com/register",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
       "name": "SSSAiCode",
@@ -1142,8 +1082,6 @@
   },
   {
     "name": "SoleAPI",
-    "websiteUrl": "https://soleapi.com/",
-    "apiKeyUrl": "https://soleapi.com/",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
       "name": "SoleAPI",
@@ -1171,8 +1109,6 @@
   },
   {
     "name": "Micu",
-    "websiteUrl": "https://www.micuapi.ai/",
-    "apiKeyUrl": "https://www.micuapi.ai/register",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
       "name": "Micu",
@@ -1196,8 +1132,6 @@
   },
   {
     "name": "RightCode",
-    "websiteUrl": "https://www.rightapi.ai/",
-    "apiKeyUrl": "https://www.rightapi.ai/register",
     "settingsConfig": {
       "npm": "@ai-sdk/openai",
       "name": "RightCode",
@@ -1217,8 +1151,6 @@
   },
   {
     "name": "Cubence",
-    "websiteUrl": "https://cubence.com/",
-    "apiKeyUrl": "https://cubence.com/signup",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
       "name": "Cubence",
@@ -1242,8 +1174,6 @@
   },
   {
     "name": "CrazyRouter",
-    "websiteUrl": "https://www.crazyrouter.com/",
-    "apiKeyUrl": "https://www.crazyrouter.com/register",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
       "name": "CrazyRouter",
@@ -1284,8 +1214,6 @@
   },
   {
     "name": "DMXAPI",
-    "websiteUrl": "https://www.dmxapi.cn/",
-    "apiKeyUrl": "https://www.dmxapi.cn/",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
       "name": "DMXAPI",
@@ -1309,8 +1237,6 @@
   },
   {
     "name": "SudoCode.chat",
-    "websiteUrl": "https://sudocode.chat/",
-    "apiKeyUrl": "https://sudocode.chat/sign-up",
     "settingsConfig": {
       "npm": "@ai-sdk/openai",
       "name": "SudoCode.chat",
@@ -1381,8 +1307,6 @@
   },
   {
     "name": "SudoCode.us",
-    "websiteUrl": "https://sudocode.us/",
-    "apiKeyUrl": "https://sudocode.us/",
     "settingsConfig": {
       "npm": "@ai-sdk/openai",
       "name": "SudoCode.us",
@@ -1436,8 +1360,6 @@
   },
   {
     "name": "XycAi",
-    "websiteUrl": "https://xycai.us/",
-    "apiKeyUrl": "https://xycai.us/register",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "XycAi",
@@ -1474,7 +1396,7 @@
   },
   {
     "name": "Tu-zi",
-    "websiteUrl": "https://api.tu-zi.com/",
+    "websiteUrl": "https://api.tu-zi.com",
     "apiKeyUrl": "https://api.tu-zi.com/token",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
@@ -1503,8 +1425,8 @@
   },
   {
     "name": "Amux",
-    "websiteUrl": "https://amux.ai/",
-    "apiKeyUrl": "https://amux.ai/",
+    "websiteUrl": "https://amux.ai",
+    "apiKeyUrl": "https://amux.ai",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "Amux",
@@ -1562,7 +1484,7 @@
   },
   {
     "name": "Soshow",
-    "websiteUrl": "https://aimarket.so-show.com/",
+    "websiteUrl": "https://aimarket.so-show.com",
     "apiKeyUrl": "https://aimarket.so-show.com/workbench/access-key",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
@@ -1587,7 +1509,7 @@
   },
   {
     "name": "DeepSeek",
-    "websiteUrl": "https://platform.deepseek.com/",
+    "websiteUrl": "https://platform.deepseek.com",
     "apiKeyUrl": "https://platform.deepseek.com/api_keys",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
@@ -1636,8 +1558,7 @@
   },
   {
     "name": "Zhipu GLM",
-    "websiteUrl": "https://open.bigmodel.cn/",
-    "apiKeyUrl": "https://www.bigmodel.cn/claude-code",
+    "websiteUrl": "https://open.bigmodel.cn",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "Zhipu GLM",
@@ -1674,8 +1595,7 @@
   },
   {
     "name": "Zhipu GLM en",
-    "websiteUrl": "https://z.ai/",
-    "apiKeyUrl": "https://z.ai/subscribe",
+    "websiteUrl": "https://z.ai",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "Zhipu GLM en",
@@ -2026,8 +1946,6 @@
   },
   {
     "name": "千问AI平台",
-    "websiteUrl": "https://platform.qianwenai.com/",
-    "apiKeyUrl": "https://platform.qianwenai.com/home/api-keys",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "千问AI平台",
@@ -2079,8 +1997,6 @@
   },
   {
     "name": "千问AI平台 Token Plan",
-    "websiteUrl": "https://platform.qianwenai.com/pricing/token-plan",
-    "apiKeyUrl": "https://platform.qianwenai.com/home/api-keys",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
       "name": "千问AI平台 Token Plan",
@@ -2132,8 +2048,6 @@
   },
   {
     "name": "QwenCloud",
-    "websiteUrl": "https://home.qwencloud.com/",
-    "apiKeyUrl": "https://home.qwencloud.com/api-keys",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "QwenCloud",
@@ -2189,7 +2103,7 @@
   },
   {
     "name": "QwenCloud For Coding",
-    "websiteUrl": "https://www.qwencloud.com/",
+    "websiteUrl": "https://www.qwencloud.com",
     "apiKeyUrl": "https://home.qwencloud.com/api-keys",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
@@ -2217,8 +2131,6 @@
   },
   {
     "name": "QwenCloud Token Plan",
-    "websiteUrl": "https://www.qwencloud.com/pricing/token-plan",
-    "apiKeyUrl": "https://home.qwencloud.com/api-keys",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
       "name": "QwenCloud Token Plan",
@@ -2446,7 +2358,7 @@
   },
   {
     "name": "ModelScope",
-    "websiteUrl": "https://modelscope.cn/",
+    "websiteUrl": "https://modelscope.cn",
     "apiKeyUrl": "https://modelscope.cn/my/myaccesstoken",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
@@ -2467,7 +2379,7 @@
   },
   {
     "name": "KAT-Coder",
-    "websiteUrl": "https://console.streamlake.ai/",
+    "websiteUrl": "https://console.streamlake.ai",
     "apiKeyUrl": "https://console.streamlake.ai/console/api-key",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
@@ -2512,7 +2424,7 @@
   },
   {
     "name": "MiniMax",
-    "websiteUrl": "https://platform.minimax.cn/",
+    "websiteUrl": "https://platform.minimax.cn",
     "apiKeyUrl": "https://platform.minimax.cn/subscribe/token-plan",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
@@ -2546,7 +2458,7 @@
   },
   {
     "name": "MiniMax en",
-    "websiteUrl": "https://platform.minimax.io/",
+    "websiteUrl": "https://platform.minimax.io",
     "apiKeyUrl": "https://platform.minimax.io/subscribe/coding-plan",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
@@ -2600,7 +2512,7 @@
   },
   {
     "name": "Xiaomi MiMo",
-    "websiteUrl": "https://platform.xiaomimimo.com/",
+    "websiteUrl": "https://platform.xiaomimimo.com",
     "apiKeyUrl": "https://platform.xiaomimimo.com/#/console/api-keys",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
@@ -2785,8 +2697,6 @@
   },
   {
     "name": "OpenCode Go",
-    "websiteUrl": "https://opencode.ai/go",
-    "apiKeyUrl": "https://opencode.ai/go",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "OpenCode Go",
@@ -2822,8 +2732,8 @@
   },
   {
     "name": "AiHubMix",
-    "websiteUrl": "https://aihubmix.com/",
-    "apiKeyUrl": "https://aihubmix.com/",
+    "websiteUrl": "https://aihubmix.com",
+    "apiKeyUrl": "https://aihubmix.com",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
       "name": "AiHubMix",
@@ -2881,7 +2791,7 @@
   },
   {
     "name": "CherryIN",
-    "websiteUrl": "https://open.cherryin.ai/",
+    "websiteUrl": "https://open.cherryin.ai",
     "apiKeyUrl": "https://open.cherryin.ai/console/token",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
@@ -2923,7 +2833,7 @@
   },
   {
     "name": "OpenRouter",
-    "websiteUrl": "https://openrouter.ai/",
+    "websiteUrl": "https://openrouter.ai",
     "apiKeyUrl": "https://openrouter.ai/keys",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
@@ -2982,8 +2892,8 @@
   },
   {
     "name": "TheRouter",
-    "websiteUrl": "https://therouter.ai/",
-    "apiKeyUrl": "https://dashboard.therouter.ai/",
+    "websiteUrl": "https://therouter.ai",
+    "apiKeyUrl": "https://dashboard.therouter.ai",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "TheRouter",
@@ -3018,8 +2928,8 @@
   },
   {
     "name": "Novita AI",
-    "websiteUrl": "https://novita.ai/",
-    "apiKeyUrl": "https://novita.ai/",
+    "websiteUrl": "https://novita.ai",
+    "apiKeyUrl": "https://novita.ai",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "Novita AI",
@@ -3089,7 +2999,7 @@
   },
   {
     "name": "Nvidia",
-    "websiteUrl": "https://build.nvidia.com/",
+    "websiteUrl": "https://build.nvidia.com",
     "apiKeyUrl": "https://build.nvidia.com/settings/api-keys",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
@@ -3156,8 +3066,7 @@
   },
   {
     "name": "PIPELLM",
-    "websiteUrl": "https://code.pipellm.ai/",
-    "apiKeyUrl": "https://code.pipellm.ai/login",
+    "websiteUrl": "https://code.pipellm.ai",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
       "name": "PIPELLM",
@@ -3185,8 +3094,8 @@
   },
   {
     "name": "E-FlowCode",
-    "websiteUrl": "https://e-flowcode.cc/",
-    "apiKeyUrl": "https://e-flowcode.cc/",
+    "websiteUrl": "https://e-flowcode.cc",
+    "apiKeyUrl": "https://e-flowcode.cc",
     "settingsConfig": {
       "npm": "@ai-sdk/openai",
       "options": {
@@ -3369,7 +3278,7 @@
   },
   {
     "name": "AICodeWith",
-    "websiteUrl": "https://aicodewith.ai/",
+    "websiteUrl": "https://aicodewith.ai",
     "apiKeyUrl": "https://aicodewith.ai/login?tab=register",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
@@ -3428,7 +3337,7 @@
   },
   {
     "name": "模力方舟",
-    "websiteUrl": "https://moark.com/",
+    "websiteUrl": "https://moark.com",
     "apiKeyUrl": "https://moark.com/dashboard/tokens",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
