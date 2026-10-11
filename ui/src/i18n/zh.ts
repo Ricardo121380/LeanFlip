@@ -5,7 +5,7 @@ const zh = {
     dismiss: "关闭恢复提示",
     loadError: "无法读取恢复结果，请稍后重试。",
   },
-  nav: { tools: "工具", codexAccounts: "Codex 账号", import: "从 cc-switch 导入", settings: "设置" },
+  nav: { tools: "工具", switch: "单一配置 · 切换使用", coexist: "多供应商 · 可同时启用", manage: "管理", overviewError: "工具状态暂不可用", codexAccounts: "Codex 账号", import: "从 cc-switch 导入", settings: "设置" },
   kind: { switch: "切换", coexist: "并存" },
   tool: {
     notDetected: "未检测到配置文件",

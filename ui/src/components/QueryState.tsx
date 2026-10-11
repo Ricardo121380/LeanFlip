@@ -28,7 +28,7 @@ export function QueryState({ state, title, description, onRetry }: {
         <div className="min-w-0 space-y-3">
           <h2 className="font-semibold">{title}</h2>
           {description && <p className="break-words text-sm text-muted-foreground">{description}</p>}
-          {onRetry && <Button size="sm" variant="outline" onClick={onRetry}><RotateCcw aria-hidden="true" />{t("common.retry")}</Button>}
+          {onRetry && <Button type="button" size="sm" variant="outline" onClick={onRetry}><RotateCcw aria-hidden="true" />{t("common.retry")}</Button>}
         </div>
       </div>
     </div>
