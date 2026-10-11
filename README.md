@@ -53,6 +53,7 @@ pnpm install
 pnpm typecheck && pnpm test     # 前端
 pnpm tauri dev                  # 开发运行（会读写当前用户的真实配置！）
 pnpm tauri build --bundles deb  # 本地打包，不发布
+pnpm tauri build               # macOS：生成 .app 和 .dmg（平台配置自动合并）
 pnpm presets ../ccswitch        # 从 cc-switch 源码重新生成裁剪后的预设（链接只留模型厂商官方平台，
                                 # 白名单 ui/src/lib/official-vendor-domains.json；中转站链接整条删除，
                                 # 删了哪些字段记在 ui/src/lib/removed-preset-links.json）
@@ -67,6 +68,11 @@ HOME=$DEMO/home CCSL_HOME=$DEMO/home XDG_CONFIG_HOME=$DEMO/xdg target/release/cc
 ```
 
 桌面应用自己的设置在 `~/.cc-switch-lite/app-settings.json`（语言、目录覆盖、开机自启、后台刷新）。
+
+`.github/workflows/ci.yml` 在 push / PR 时检查前端类型和测试、Rust 测试与 Clippy，
+并在 Linux / macOS 分别验证 debug `.deb` / `.app` 打包；不会发布 Release。
+macOS 配置在 `crates/app/tauri.macos.conf.json`；Linux 仍使用 `.deb` / `.AppImage`
+默认配置。公开分发所需的 Apple 签名和公证需另行配置。
 
 ## 许可证
 

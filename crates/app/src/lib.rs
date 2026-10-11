@@ -99,6 +99,7 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            commands::get_recovery_notices,
             commands::get_overview,
             commands::list_providers,
             commands::switch_provider,
