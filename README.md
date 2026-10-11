@@ -8,7 +8,7 @@ LeanFlip（简切，原 CC Switch Lite / SwitchLeaf）将供应商保存为本�
 
 [下载 v0.1.0](https://github.com/Ricardo121380/ccswitch-lite/releases/tag/v0.1.0) · [查看最新发布](https://github.com/Ricardo121380/ccswitch-lite/releases/latest) · [CLI 完整说明](crates/cli/README.md) · [反馈问题](https://github.com/Ricardo121380/ccswitch-lite/issues)
 
-> **版本说明：** 本分支源码已更名为 LeanFlip，包含独立重写的配置核心、TUI、三端本机检测及加密完整备份。公开的 v0.1.0 仍是旧名称与旧功能；下面的 Homebrew 和 v0.1.0 下载入口安装的是该旧版本，npm 尚未发布。体验本轮功能请[从源码构建](#从源码构建与开发)。新版本只提供 `leanflip` 命令；`~/.cc-switch-lite/` 数据目录和原应用标识沿用，GitHub 仓库地址暂不变。本文的新命令示例使用 `leanflip`；使用 v0.1.0 时，已有命令请改用 `ccsl`，新迁移和备份命令需源码版本。
+> **版本说明：** 本分支源码版本为 `0.2.0-dev`，已更名为 LeanFlip，包含独立重写的配置核心、TUI、三端本机检测及加密完整备份。公开的 v0.1.0 仍是旧名称与旧功能；下面的 Homebrew 和 v0.1.0 下载入口安装的是该旧版本，npm 尚未发布。体验本轮功能请[从源码构建](#从源码构建与开发)。新版本只提供 `leanflip` 命令；`~/.cc-switch-lite/` 数据目录和原应用标识沿用，GitHub 仓库地址暂不变。本文的新命令示例使用 `leanflip`；使用 v0.1.0 时，已有命令请改用 `ccsl`，新迁移和备份命令需源码版本。
 
 ## 目录
 
@@ -156,7 +156,7 @@ ccsl --version
 
 上面的 `export` 对当前终端生效。要让新终端也能找到命令，将 `export PATH="$HOME/.local/bin:$PATH"` 加入所用 Shell 的启动文件，例如 zsh 的 `~/.zshrc` 或交互式 bash 的 `~/.bashrc`，然后重新打开终端。
 
-下文的 `ccsl` 假定已加入 PATH；如果只解压使用，请改为实际二进制路径，例如 `./ccsl-0.1.0/ccsl`。
+以上安装步骤针对历史 v0.1.0，命令为 `ccsl`。以下功能示例针对源码 `0.2.0-dev`，命令为 `leanflip`；历史版本只支持其已提供的命令。标识与兼容原因见[兼容标识说明](docs/engineering/compatibility.md)。
 
 ### 4. 核对下载文件
 
@@ -575,6 +575,10 @@ leanflip paths codex
 
 普通运行会遵循 `CODEX_HOME`、`HERMES_HOME`、`PI_CODING_AGENT_DIR`、`MINIMAX_DATA_DIR` / `MAVIS_DATA_DIR` 等已支持的路径环境变量，再应用 App 保存的目录覆盖。自定义配置目录时，建议在 App 中设置后运行 `leanflip paths` 核对。
 
+写入含凭据的客户端文件时，Unix 权限统一收紧到 `0600`；新建文件同样使用 `0600`。Gemini 的无凭据 `settings.json` 保留已有权限。原子写入会跟随文件及目录符号链接，在真实目标目录中暂存并替换目标，保留链接本身。
+
+Claude 卡片仅管理连接、鉴权、模型及已支持的供应商参数；`permissions`、`hooks`、`env.API_TIMEOUT_MS`、`env.DISABLE_TELEMETRY` 等字段保留客户端原值。保存、切换和导入预览会提示被忽略的键，不显示字段值。
+
 ### 本应用保存哪些数据
 
 默认在 `~/.cc-switch-lite/`：
@@ -606,7 +610,9 @@ leanflip paths codex
 
 如需恢复“当前客户端正在使用的完整配置”，还应另外备份 `leanflip paths` 显示的客户端文件。首次写入备份只保存每个路径第一次写入前的状态，不是每次切换的历史版本。
 
-备份目录中的 `.source` 文件记录原始路径；原文件当时不存在时，可能只有来源记录而没有原始文件备份。手工恢复前，请先退出相关客户端并保存当前文件，再核对路径和备份内容。首版没有一键还原任意历史版本的命令。
+备份目录中的 `.source` 文件记录原始路径；路径经符号链接解析后不同时，另有 `.resolved` 文件记录首写时的真实目标。恢复前应同时核对当前链接指向；原文件当时不存在时，可能只有来源记录而没有原始文件备份。手工恢复前，请先退出相关客户端并保存当前文件，再核对路径和备份内容。首版没有一键还原任意历史版本的命令。
+
+解密的完整备份预览在 10 分钟后自动清除，恢复前还会再次检查有效期；离开备份页或关闭 App 窗口也会丢弃预览。Rust 侧密码、明文缓冲和缓存中的凭据在释放时擦除。这不构成对系统交换区、崩溃转储或浏览器字符串副本的保证。
 
 ### 中断恢复
 
@@ -657,6 +663,8 @@ leanflip recover         # 处理所有工具
 
 先运行 `leanflip paths TOOL` 找到实际文件，检查其 JSON / TOML / YAML 格式、写入权限，以及是否有其他程序同时修改。修复后重试读取。App 和 CLI 的跨进程锁用于协调本应用的操作，不能阻止其他编辑器或客户端改写文件。
 
+单次锁获取（包括对应的线程门闩等待）最多 10 秒，超时返回 `lock.busy`。App 会显示锁路径及可用的最近记录 PID；CLI 继续使用固定错误码和文案，避免回显源内容。先等待另一个操作结束，或检查对应进程是否被暂停，再重试。锁文件中的第二个数字是取得锁时的 Unix 时间；PID 记录可能是已退出的上次持有者，不能据此自动终止进程。设备码网络轮询不持有全局 service 锁，仅在保存登录结果前取锁。
+
 ### 显示已切换，但客户端仍使用原供应商
 
 重新加载客户端配置或开启新会话，并检查是否使用了其他配置目录、进程环境变量或启动参数。“当前选择”是本应用保存的状态；本应用不会向供应商发送测试请求来验证密钥、余额或模型可用性。
@@ -687,7 +695,7 @@ leanflip recover         # 处理所有工具
 - npm：使用 `npm uninstall -g ccswitch-lite` 移除两个命令入口；它不会移除已经安装的桌面 App。
 - 手动安装的 macOS App：从对应的“应用程序”目录移除 CC Switch Lite。
 - Linux DEB：使用 `sudo apt remove cc-switch-lite`。
-- CLI：移除自己安装的 `ccsl` 二进制。
+- CLI：移除自己安装的 `leanflip` 二进制；历史 v0.1.0 对应 `ccsl`。
 
 `~/.cc-switch-lite/` 中的卡片、账号和备份由用户自行保留或清理。删除前请确认不再需要其中的登录暂存和备份。
 

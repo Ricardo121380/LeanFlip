@@ -63,6 +63,9 @@ pub struct Pending {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PendingFile {
     pub path: PathBuf,
+    /// Actual publication path; `path` retains the user's configured link.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolved: Option<PathBuf>,
     pub pre: Option<String>,
     #[serde(default)]
     pub planned: Option<String>,

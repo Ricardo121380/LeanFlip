@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, FileUp, Loader2 } from "lucide-react";
@@ -56,7 +56,7 @@ export function readBytes(file: Blob): Promise<Uint8Array> {
 
 type Operation = "load" | "preview" | "apply" | "discard";
 
-export function ExportImport({ onBusyChange }: { onBusyChange?: (busy: boolean) => void } = {}) {
+export function ExportImport({ onBusyChange, active = true }: { onBusyChange?: (busy: boolean) => void; active?: boolean } = {}) {
   const { t, i18n } = useTranslation();
   const client = useQueryClient();
   const input = useRef<HTMLInputElement>(null);
@@ -64,6 +64,11 @@ export function ExportImport({ onBusyChange }: { onBusyChange?: (busy: boolean) 
   const pending = useRef(false);
   const [fileName, setFileName] = useState<string | null>(null);
   const [backupBytes, setBackupBytes] = useState<Uint8Array | null>(null);
+  useEffect(() => {
+    if (!active && backupBytes) {
+      setBackupBytes(null); setFileName(null); file.current = null;
+    }
+  }, [active, backupBytes]);
   const [policy, setPolicy] = useState<DuplicatePolicy>("skip");
   const [loaded, setLoaded] = useState(false);
   const [preview, setPreview] = useState<ExportPreview | null>(null);

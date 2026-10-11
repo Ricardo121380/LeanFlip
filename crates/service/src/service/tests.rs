@@ -47,6 +47,105 @@ fn claude_card(id: &str, url: &str) -> Provider {
 }
 
 #[test]
+fn claude_save_switch_and_import_notices_name_ignored_fields_without_values() {
+    let sb = Sandbox::new();
+    let env = sb.env();
+    sb.write(
+        &env.claude_settings_path(),
+        r#"{"permissions":{"allow":["Read"]},"hooks":{"Stop":[]},"env":{"API_TIMEOUT_MS":"9000"}}"#,
+    );
+    let service = sb.service();
+    let mut card = claude_card("relay", "https://relay.example");
+    card.settings_config["hooks"] = json!({"private":"fixture-secret-hook"});
+    card.settings_config["permissions"] = json!({"allow":["fixture-secret-permission"]});
+    card.settings_config["env"]["API_TIMEOUT_MS"] = json!("fixture-secret-timeout");
+    let saved = service
+        .add_provider(Tool::Claude, card.clone(), false)
+        .unwrap();
+    let updated = service.update_provider(Tool::Claude, card).unwrap();
+    let switched = service.switch_provider(Tool::Claude, "relay").unwrap();
+    for result in [saved, updated, switched] {
+        assert_eq!(result.warnings.len(), 1);
+        for key in ["hooks", "permissions", "env.API_TIMEOUT_MS"] {
+            assert!(result.warnings[0].contains(key));
+        }
+        assert!(!result.warnings[0].contains("fixture-secret"));
+    }
+    let live: Value =
+        serde_json::from_slice(&std::fs::read(env.claude_settings_path()).unwrap()).unwrap();
+    assert_eq!(live["env"]["API_TIMEOUT_MS"], "9000");
+    assert_eq!(live["permissions"]["allow"], json!(["Read"]));
+    assert_eq!(live["hooks"], json!({"Stop":[]}));
+
+    let source = sb.home.join("cc-switch");
+    sb.write(&source.join("config.json"), r#"{"claude":{"providers":{"imported":{"id":"imported","name":"Imported","settingsConfig":{"env":{"API_TIMEOUT_MS":"fixture-secret"}}}}}}"#);
+    let scan = ccswitch_import::scan(&env, &source).unwrap();
+    assert_eq!(scan.candidates[0].notes[0].code, "claude.ignored_fields");
+    assert!(!scan.candidates[0].notes[0].zh.contains("fixture-secret"));
+}
+
+#[test]
+fn a_pending_device_network_poll_does_not_block_other_service_writes() {
+    use ccsl_core::codex::oauth::transport::{
+        DeviceCode, DevicePoll, TokenResponse, TransportError,
+    };
+    use std::sync::mpsc;
+    use std::time::{Duration, Instant};
+    struct WaitingPoll {
+        fake: FakeTransport,
+        entered: mpsc::Sender<()>,
+        resume: Mutex<mpsc::Receiver<()>>,
+    }
+    impl OAuthTransport for WaitingPoll {
+        fn request_device_code(&self) -> Result<DeviceCode, TransportError> {
+            self.fake.request_device_code()
+        }
+        fn poll_device_code(&self, code: &str, user: &str) -> Result<DevicePoll, TransportError> {
+            self.entered.send(()).unwrap();
+            self.resume
+                .lock()
+                .unwrap()
+                .recv_timeout(Duration::from_secs(15))
+                .unwrap();
+            self.fake.poll_device_code(code, user)
+        }
+        fn exchange_code(
+            &self,
+            code: &str,
+            verifier: &str,
+        ) -> Result<TokenResponse, TransportError> {
+            self.fake.exchange_code(code, verifier)
+        }
+        fn refresh(&self, token: &str) -> Result<TokenResponse, TransportError> {
+            self.fake.refresh(token)
+        }
+    }
+    let sb = Sandbox::new();
+    let (entered, ready) = mpsc::channel();
+    let (resume, waiting) = mpsc::channel();
+    let transport = Arc::new(WaitingPoll {
+        fake: FakeTransport::new(),
+        entered,
+        resume: Mutex::new(waiting),
+    });
+    let service = Arc::new(Service::open(sb.env(), Some(transport)).unwrap());
+    let code = service.codex_start_login(None).unwrap().device_code;
+    let worker_service = service.clone();
+    let worker = std::thread::spawn(move || worker_service.codex_poll_login(&code));
+    ready.recv_timeout(Duration::from_secs(2)).unwrap();
+    let started = Instant::now();
+    let result = service.add_provider(
+        Tool::Claude,
+        claude_card("new", "https://example.com"),
+        false,
+    );
+    resume.send(()).unwrap();
+    assert!(matches!(worker.join().unwrap(), Ok(PollResult::Pending)));
+    assert!(result.is_ok());
+    assert!(started.elapsed() < Duration::from_secs(2));
+}
+
+#[test]
 fn switch_tool_flow_through_the_service() {
     let sb = Sandbox::new();
     let env = sb.env();
@@ -446,6 +545,7 @@ fn pending_recovery(sb: &Sandbox, path: &Path) {
             target: PendingTarget::default(),
             files: vec![PendingFile {
                 path: path.to_path_buf(),
+                resolved: None,
                 pre: digest(Some(b"before")),
                 planned: digest(Some(b"planned")),
                 staged: None,

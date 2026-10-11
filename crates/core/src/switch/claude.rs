@@ -22,6 +22,14 @@ pub fn write(
 ) -> Result<OperationReport, AppError> {
     let commit = |target: &PendingTarget| super::commit_target(env, Tool::Claude, target);
     let transaction = AppWrite::begin(env.device_store(), Tool::Claude.as_str(), &commit)?;
+    // A direct core caller may have waited behind another switch. Read the
+    // outgoing owner only after taking the tool lock; reapply retains its old row.
+    let data = crate::store::load(env)?;
+    let prev = if op == crate::state::op::SWITCH {
+        data.current(Tool::Claude)
+    } else {
+        prev
+    };
     let outgoing = prev.map(|p| ClaudeProjection::of(&p.settings_config));
     let next = ClaudeProjection::of(&target.settings_config);
     let patch = direct_patch(outgoing.as_ref(), &next);

@@ -11,6 +11,7 @@
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use serde_json::{Map, Value};
@@ -97,6 +98,7 @@ pub struct Candidate {
     pub provider: Provider,
     /// 有值表示不会导入（中英双语原因）。
     pub skip_reason: Option<Reason>,
+    pub notes: Vec<Reason>,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -133,10 +135,12 @@ pub fn scan(env: &Env, dir: &Path) -> Result<Scan, AppError> {
         .into_iter()
         .map(|(tool, provider)| {
             let skip_reason = skip_reason(&data, tool, &provider);
+            let notes = crate::switch::provider_warnings(tool, &provider);
             Candidate {
                 tool,
                 provider,
                 skip_reason,
+                notes,
             }
         })
         .collect();
@@ -239,9 +243,10 @@ fn read_db(path: &Path) -> Result<Vec<(Tool, Provider)>, AppError> {
         path,
         OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
     )
-    .map_err(|e| AppError::Config(format!("读取 {} 失败: {e}", path.display())))?;
-    let rows = read_provider_rows(&conn)
-        .map_err(|e| AppError::Config(format!("读取 {} 失败: {e}", path.display())))?;
+    .map_err(sqlite_error)?;
+    protect_sqlite(&conn, Duration::from_secs(30))?;
+    authorize_sqlite_reader(&conn);
+    let rows = read_provider_rows(&conn).map_err(sqlite_error)?;
     Ok(rows
         .into_iter()
         .filter_map(|row| {
@@ -249,6 +254,65 @@ fn read_db(path: &Path) -> Result<Vec<(Tool, Provider)>, AppError> {
             Some((tool, to_provider(tool, row.value)?))
         })
         .collect())
+}
+
+pub(crate) fn sqlite_error(error: rusqlite::Error) -> AppError {
+    if error.sqlite_error_code() == Some(rusqlite::ErrorCode::OperationInterrupted) {
+        AppError::localized(
+            "ccswitch_import.timeout",
+            "读取数据库超时，已中断导入。请使用完整的 CC Switch 导出文件。",
+            "Database import timed out and was interrupted. Use a complete CC Switch export.",
+        )
+    } else {
+        AppError::localized(
+            "ccswitch_import.sqlite",
+            "无法读取 SQLite 数据，请检查文件格式、完整性和访问权限。",
+            "Cannot read SQLite data; check the file format, integrity and access permissions.",
+        )
+    }
+}
+
+pub(crate) fn protect_sqlite(
+    conn: &rusqlite::Connection,
+    time_limit: Duration,
+) -> Result<(), AppError> {
+    conn.execute_batch("PRAGMA trusted_schema=OFF;")
+        .map_err(sqlite_error)?;
+    conn.set_db_config(rusqlite::config::DbConfig::SQLITE_DBCONFIG_DEFENSIVE, true)
+        .map_err(sqlite_error)?;
+    conn.busy_timeout(time_limit).map_err(sqlite_error)?;
+    let deadline = Instant::now() + time_limit;
+    conn.progress_handler(10_000, Some(move || Instant::now() >= deadline));
+    Ok(())
+}
+
+pub(crate) fn authorize_sqlite_reader(conn: &rusqlite::Connection) {
+    use rusqlite::hooks::{AuthAction, AuthContext, Authorization};
+    conn.authorizer(Some(|ctx: AuthContext<'_>| match ctx.action {
+        AuthAction::Select | AuthAction::Read { .. } | AuthAction::Recursive => {
+            Authorization::Allow
+        }
+        AuthAction::Function { function_name }
+            if !function_name.eq_ignore_ascii_case("load_extension") =>
+        {
+            Authorization::Allow
+        }
+        AuthAction::Pragma {
+            pragma_name,
+            pragma_value: None,
+        } if ["table_info", "user_version"]
+            .iter()
+            .any(|name| pragma_name.eq_ignore_ascii_case(name)) =>
+        {
+            Authorization::Allow
+        }
+        AuthAction::Pragma { pragma_name, .. }
+            if pragma_name.eq_ignore_ascii_case("table_info") =>
+        {
+            Authorization::Allow
+        }
+        _ => Authorization::Deny,
+    }));
 }
 
 /// cc-switch 数据库 / 导出里的一行：`app_type` 原样保留，卡是 cc-switch 的 JSON 形状。
@@ -268,6 +332,15 @@ pub(crate) fn parse_app(app: &str) -> Option<Tool> {
 
 /// 读 `providers` 表。老版本的表可能少几列（icon、meta…），按实际有的列读。
 pub(crate) fn read_provider_rows(conn: &rusqlite::Connection) -> rusqlite::Result<Vec<RawRow>> {
+    // A provider view can execute arbitrary schema code instead of reading rows.
+    let table: bool = conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='providers')",
+        [],
+        |row| row.get(0),
+    )?;
+    if !table {
+        return Err(rusqlite::Error::InvalidQuery);
+    }
     let mut columns = Vec::new();
     {
         let mut stmt = conn.prepare("SELECT name FROM pragma_table_info('providers')")?;

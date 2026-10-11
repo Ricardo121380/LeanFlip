@@ -89,7 +89,7 @@ pub fn run() {
                 .ok();
             let service = Arc::new(Service::start(ccsl_core::Env::from_system(), transport)?);
             app.manage(AppState(service.clone()));
-            // 只放占位菜单，读 11 个工具配置在托盘后台线程里做，不挡窗口显示。
+            // 只放占位菜单，读取 Tool::ALL 的配置在托盘后台线程里做，不挡窗口显示。
             tray::create(app.handle())?;
             watcher::start(app.handle(), &service.env());
             start_background_refresh(app.handle().clone(), service);
@@ -97,6 +97,9 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
+                if let Some(state) = window.app_handle().try_state::<AppState>() {
+                    state.0.backup_discard();
+                }
                 let close_to_tray = window
                     .app_handle()
                     .try_state::<AppState>()

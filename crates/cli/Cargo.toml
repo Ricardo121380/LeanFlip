@@ -18,6 +18,7 @@ dialoguer = { version = "0.12", default-features = false, features = ["fuzzy-sel
 ctrlc = "3.5"
 ratatui = { version = "0.30.2", default-features = false, features = ["crossterm", "unstable-rendered-line-info"] }
 serde_json.workspace = true
+zeroize.workspace = true
 unicode-width = "0.2"
 
 [dev-dependencies]

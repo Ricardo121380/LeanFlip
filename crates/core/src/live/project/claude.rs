@@ -10,6 +10,31 @@ use serde_json::{Map, Value};
 use std::path::Path;
 
 pub const PROXY_TOKEN_PLACEHOLDER: &str = "PROXY_MANAGED";
+
+pub fn ignored_keys(settings: &Value) -> Vec<String> {
+    let mut ignored = Vec::new();
+    if let Some(fields) = settings.as_object() {
+        for (key, value) in fields {
+            if key == "env" {
+                if let Some(env) = value.as_object() {
+                    ignored.extend(
+                        env.keys()
+                            .filter(|key| {
+                                !floor::claude_floor_env(key) && !floor::claude_exclusive_env(key)
+                            })
+                            .map(|key| format!("env.{key}")),
+                    );
+                } else {
+                    ignored.push(key.clone());
+                }
+            } else if !floor::claude_floor_top(key) {
+                ignored.push(key.clone());
+            }
+        }
+    }
+    ignored.sort();
+    ignored
+}
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ClaudeProjection {
     pub top: Map<String, Value>,

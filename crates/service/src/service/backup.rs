@@ -4,12 +4,13 @@
 use std::collections::HashSet;
 use std::io::{Read, Write};
 use std::path::Path;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use age::secrecy::SecretString;
 use ccsl_core::codex::oauth::AccountData;
 use ccsl_core::env::DirOverrides;
 use ccsl_core::store::StoreData;
+use zeroize::{Zeroize, Zeroizing};
 
 use super::*;
 
@@ -18,6 +19,32 @@ pub const MAX_BACKUP_BYTES: usize = 32 * 1024 * 1024;
 const FORMAT: &str = "switchleaf-backup";
 const VERSION: u32 = 1;
 const WORK_FACTOR: u8 = 18;
+const PREVIEW_LIFETIME: Duration = Duration::from_secs(10 * 60);
+
+pub(super) struct StagedBackup {
+    payload: Payload,
+    expires_at: Instant,
+}
+#[derive(Default)]
+pub(super) struct BackupCache {
+    generation: u64,
+    preview: Option<StagedBackup>,
+}
+impl BackupCache {
+    fn discard(&mut self) -> u64 {
+        self.preview = None;
+        self.generation = self.generation.wrapping_add(1);
+        self.generation
+    }
+}
+fn expire_preview(staged: &mut Option<StagedBackup>, now: Instant) {
+    if staged
+        .as_ref()
+        .is_some_and(|backup| backup.expires_at <= now)
+    {
+        staged.take();
+    }
+}
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -29,6 +56,39 @@ pub(super) struct Payload {
     accounts: Vec<AccountData>,
     default_account_id: Option<String>,
     app: AppSettings,
+}
+
+fn wipe_value(value: &mut serde_json::Value) {
+    match value {
+        serde_json::Value::String(text) => text.zeroize(),
+        serde_json::Value::Array(values) => values.iter_mut().for_each(wipe_value),
+        serde_json::Value::Object(fields) => wipe_fields(fields),
+        _ => {}
+    }
+}
+fn wipe_fields(fields: &mut serde_json::Map<String, serde_json::Value>) {
+    for (mut key, mut value) in std::mem::take(fields) {
+        key.zeroize();
+        wipe_value(&mut value);
+    }
+}
+impl Drop for Payload {
+    fn drop(&mut self) {
+        for app in self.providers.apps.values_mut() {
+            for provider in &mut app.providers {
+                wipe_value(&mut provider.settings_config);
+                wipe_fields(&mut provider.meta.extra);
+                wipe_fields(&mut provider.extra);
+            }
+            wipe_fields(&mut app.extra);
+        }
+        wipe_fields(&mut self.providers.extra);
+        wipe_fields(&mut self.providers.settings.extra);
+        for account in &mut self.accounts {
+            account.refresh_token.zeroize();
+            account.id_token.zeroize();
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -151,7 +211,7 @@ fn encrypt(payload: &Payload, password: &str) -> Result<Vec<u8>, AppError> {
     if !(10..=4096).contains(&password.chars().count()) {
         return Err(password_error());
     }
-    let bytes = serde_json::to_vec(payload).map_err(|_| invalid())?;
+    let bytes = Zeroizing::new(serde_json::to_vec(payload).map_err(|_| invalid())?);
     if bytes.len() > MAX_BACKUP_BYTES - 4096 {
         return Err(invalid());
     }
@@ -184,7 +244,7 @@ fn decrypt(bytes: &[u8], password: &str) -> Result<Payload, AppError> {
     let reader = decryptor
         .decrypt(std::iter::once(&identity as &dyn age::Identity))
         .map_err(|_| decrypt_error())?;
-    let mut plaintext = Vec::new();
+    let mut plaintext = Zeroizing::new(Vec::new());
     reader
         .take((MAX_BACKUP_BYTES + 1) as u64)
         .read_to_end(&mut plaintext)
@@ -252,7 +312,11 @@ impl Service {
     }
 
     pub fn backup_load(&self, bytes: &[u8], password: &str) -> ApiResult<BackupPreview> {
-        self.backup_discard();
+        let generation = self
+            .staged_backup
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .discard();
         let payload = decrypt(bytes, password).map_err(|e| self.err(e))?;
         let existing = store::load_readonly(&self.env()).map_err(|e| self.err(e))?;
         let accounts = self.codex_accounts_checked()?;
@@ -288,12 +352,46 @@ impl Service {
             has_settings: true,
             has_paths: payload.app.dir_overrides != DirOverrides::default(),
         };
-        *self.staged_backup.lock().unwrap_or_else(|e| e.into_inner()) = Some(payload);
+        {
+            let mut cache = self.staged_backup.lock().unwrap_or_else(|e| e.into_inner());
+            if cache.generation != generation {
+                return Err(self.err(AppError::localized(
+                    "backup.cancelled",
+                    "备份预览已取消，请重新选择文件并解密。",
+                    "Backup preview was cancelled. Select and unlock the file again.",
+                )));
+            }
+            cache.preview = Some(StagedBackup {
+                payload,
+                expires_at: Instant::now() + PREVIEW_LIFETIME,
+            });
+        }
+        // Do not retain Service or plaintext in the expiry worker. A newer
+        // preview has its own deadline and cannot be cleared by an older worker.
+        let cache = Arc::downgrade(&self.staged_backup);
+        if let Err(error) = std::thread::Builder::new()
+            .name("leanflip-backup-expiry".into())
+            .spawn(move || {
+                std::thread::sleep(PREVIEW_LIFETIME);
+                if let Some(cache) = cache.upgrade() {
+                    expire_preview(
+                        &mut cache.lock().unwrap_or_else(|e| e.into_inner()).preview,
+                        Instant::now(),
+                    );
+                }
+            })
+        {
+            self.backup_discard();
+            return Err(self.err(AppError::io("backup expiry worker", error)));
+        }
         Ok(preview)
     }
 
     pub fn backup_discard(&self) {
-        *self.staged_backup.lock().unwrap_or_else(|e| e.into_inner()) = None;
+        self.staged_backup
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .discard();
     }
 
     pub fn backup_apply(&self, options: RestoreOptions) -> ApiResult<RestoreReport> {
@@ -307,18 +405,18 @@ impl Service {
                 "Directory overrides require restoring application settings".into(),
             )));
         }
-        let payload = self
-            .staged_backup
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .clone()
-            .ok_or_else(|| {
-                self.err(AppError::localized(
-                    "backup.none",
-                    "请先解密并预览备份。",
-                    "Unlock and preview a backup first.",
-                ))
-            })?;
+        let payload = {
+            let mut staged = self.staged_backup.lock().unwrap_or_else(|e| e.into_inner());
+            expire_preview(&mut staged.preview, Instant::now());
+            staged.preview.as_ref().map(|backup| backup.payload.clone())
+        }
+        .ok_or_else(|| {
+            self.err(AppError::localized(
+                "backup.none",
+                "请先解密并预览备份；预览在 10 分钟后自动清除。",
+                "Unlock and preview a backup first; previews are cleared after 10 minutes.",
+            ))
+        })?;
         let _guard = self.write_guard()?;
         let rt = self.runtime();
         // Validate every destination before the first write. Later I/O failures

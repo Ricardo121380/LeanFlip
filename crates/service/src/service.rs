@@ -236,7 +236,7 @@ pub struct Service {
     recovery: Mutex<Vec<String>>,
     /// 读进来、等用户确认的 cc-switch 导出文件。
     staged_export: Mutex<Option<ccswitch_export::ParsedExport>>,
-    staged_backup: Mutex<Option<backup::Payload>>,
+    staged_backup: Arc<Mutex<backup::BackupCache>>,
 }
 
 fn services(rt: &Runtime) -> Services<'_> {
@@ -308,7 +308,7 @@ impl Service {
             settings: Mutex::new(app_settings),
             recovery: Mutex::new(Vec::new()),
             staged_export: Mutex::new(None),
-            staged_backup: Mutex::new(None),
+            staged_backup: Arc::new(Mutex::new(backup::BackupCache::default())),
         })
     }
 
@@ -417,6 +417,13 @@ impl Service {
         }
     }
 
+    fn provider_notices(&self, tool: Tool, provider: &Provider) -> Vec<String> {
+        switch::provider_warnings(tool, provider)
+            .into_iter()
+            .map(|reason| if self.english() { reason.en } else { reason.zh })
+            .collect()
+    }
+
     pub fn app_settings(&self) -> AppSettings {
         self.settings
             .lock()
@@ -497,8 +504,17 @@ impl Service {
         let _guard = self.write_guard()?;
         let rt = self.runtime();
         self.settle(&rt, tool)?;
+        let data = store::load(&rt.env).map_err(|e| self.err(e))?;
+        let warnings = data
+            .provider(tool, id)
+            .map(|p| self.provider_notices(tool, p))
+            .unwrap_or_default();
         switch::switch_with(&rt.env, services(&rt), tool, id)
-            .map(|report| self.op_result(report))
+            .map(|report| {
+                let mut result = self.op_result(report);
+                result.warnings.extend(warnings);
+                result
+            })
             .map_err(|e| self.err(e))
     }
 
@@ -530,6 +546,7 @@ impl Service {
         let rt = self.runtime();
         self.check_incoming(&provider)?;
         self.settle(&rt, tool)?;
+        let warnings = self.provider_notices(tool, &provider);
         if tool.is_coexist() {
             return coexist::add_provider(&rt.env, tool, provider, add_to_live)
                 .map(|report| self.op_result(report))
@@ -541,10 +558,16 @@ impl Service {
             let id = provider.id.clone();
             store::add_provider(&rt.env, tool, provider)?;
             if add_to_live {
-                return switch::switch_with(&rt.env, services(&rt), tool, &id)
-                    .map(|report| self.op_result(report));
+                return switch::switch_with(&rt.env, services(&rt), tool, &id).map(|report| {
+                    let mut result = self.op_result(report);
+                    result.warnings.extend(warnings);
+                    result
+                });
             }
-            Ok(OpResult::default())
+            Ok(OpResult {
+                warnings,
+                ..OpResult::default()
+            })
         };
         run().map_err(|e| self.err(e))
     }
@@ -557,8 +580,13 @@ impl Service {
         let stored = data.provider(tool, &provider.id).cloned();
         redact::restore(tool, &mut provider, stored.as_ref());
         self.check_incoming(&provider)?;
+        let warnings = self.provider_notices(tool, &provider);
         switch::update_provider_with(&rt.env, services(&rt), tool, provider)
-            .map(|report| self.op_result(report))
+            .map(|report| {
+                let mut result = self.op_result(report);
+                result.warnings.extend(warnings);
+                result
+            })
             .map_err(|e| self.err(e))
     }
 
@@ -621,9 +649,11 @@ impl Service {
     }
 
     pub fn codex_poll_login(&self, device_code: &str) -> ApiResult<PollResult> {
-        let _guard = self.write_guard()?;
         let rt = self.runtime();
-        match rt.oauth.poll_device_flow(device_code) {
+        match rt
+            .oauth
+            .poll_device_flow_with_guard(device_code, || rt.env.device_store().lock_app("service"))
+        {
             Ok(DeviceFlowPoll::Pending) => Ok(PollResult::Pending),
             Ok(DeviceFlowPoll::Added(account)) => Ok(PollResult::Added { account }),
             Err(e) => Err(self.err(e)),

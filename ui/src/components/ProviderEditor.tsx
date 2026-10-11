@@ -320,6 +320,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, existingIds
             ) : (
               <>
                 <Label>{t("editor.settings")}</Label>
+                {tool === "claude" && <p className="text-xs leading-5 text-muted-foreground">{t("editor.claudeFieldsHint")}</p>}
                 <CodeEditor readOnly={saving} language="json" minHeight={220} value={text.json} onChange={(json) => setText({ json })} ariaLabel={t("editor.settings")} />
               </>
             )}

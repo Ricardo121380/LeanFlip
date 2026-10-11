@@ -41,15 +41,20 @@ fn fingerprint(path: &Path) -> Result<Option<String>, AppError> {
     Ok(engine::digest(engine::read_current(path)?.as_deref()))
 }
 fn prepare(plan: &Planned) -> Result<PendingFile, AppError> {
+    let staged = if plan.is_noop() {
+        None
+    } else {
+        engine::stage(plan)?
+    };
     Ok(PendingFile {
         path: plan.file.path.clone(),
+        resolved: Some(match &staged {
+            Some(file) => file.destination().into(),
+            None => fsutil::resolve_write_path(&plan.file.path)?,
+        }),
         pre: plan.pre.clone(),
         planned: plan.planned.clone(),
-        staged: if plan.is_noop() {
-            None
-        } else {
-            engine::stage(plan)?.map(|file| file.tmp_path().into())
-        },
+        staged: staged.map(|file| file.tmp_path().into()),
     })
 }
 fn dispose(files: &[PendingFile]) {
@@ -58,13 +63,20 @@ fn dispose(files: &[PendingFile]) {
     }
 }
 fn publish(file: &PendingFile) -> Result<(), AppError> {
+    let destination = file.resolved.as_deref().unwrap_or(&file.path);
     match (&file.planned, &file.staged) {
-        (None, _) => fsutil::delete_file(&file.path),
-        (Some(_), Some(source)) => fsutil::commit_staged(source, &file.path),
+        (None, _) => fsutil::delete_file(destination),
+        (Some(_), Some(source)) => fsutil::commit_staged(source, destination),
         (Some(_), None) => Err(AppError::Config(
             "A prepared file is missing from the write journal".into(),
         )),
     }
+}
+fn destination_matches(file: &PendingFile) -> Result<bool, AppError> {
+    Ok(match &file.resolved {
+        Some(destination) => fsutil::resolve_write_path(&file.path)? == *destination,
+        None => true, // Journals written before resolved destinations were recorded.
+    })
 }
 
 struct Journal<'a> {
@@ -84,7 +96,9 @@ impl Journal<'_> {
         Ok(())
     }
     fn fail(&self, error: AppError) -> AppError {
-        if self.changed.is_empty() {
+        // Publication can have renamed a file before a directory fsync fails.
+        // Once marked, retain the journal even if publish did not return success.
+        if self.changed.is_empty() && !self.intent.published {
             if let Err(cleanup) = self.cancel() {
                 return cleanup;
             }
@@ -110,6 +124,14 @@ impl Journal<'_> {
     ) -> Result<(), AppError> {
         for attempt in 0..4 {
             failpoint::before_publish(index, &plan.file.path);
+            if !destination_matches(&self.intent.files[index])? {
+                return Err(self.fail(
+                    LiveWriteError::Conflict {
+                        path: plan.file.path,
+                    }
+                    .into(),
+                ));
+            }
             let current = engine::read_current(&plan.file.path)?;
             if engine::digest(current.as_deref()) != plan.pre {
                 if attempt == 3 {
@@ -245,6 +267,10 @@ pub fn recover(
     for file in &intent.files {
         // Read again here: a client can have edited a later file while an earlier
         // one was being recovered. The earlier classification is not a write permit.
+        if !destination_matches(file)? {
+            skipped.push(file.path.clone());
+            continue;
+        }
         let bytes = engine::read_current(&file.path)?;
         let hash = engine::digest(bytes.as_deref());
         if hash == file.planned {
@@ -261,7 +287,7 @@ pub fn recover(
         }
         engine::ensure_first_write_backup(store, &file.path, bytes.as_deref())?;
         // Backing up can involve IO; guard against a change during that work too.
-        if fingerprint(&file.path)? != hash {
+        if fingerprint(&file.path)? != hash || !destination_matches(file)? {
             skipped.push(file.path.clone());
             continue;
         }
@@ -417,6 +443,105 @@ mod tests {
     use super::*;
     use crate::live::patch::WholeFile;
     use std::cell::Cell;
+    #[cfg(unix)]
+    #[test]
+    fn a_directory_sync_failure_after_rename_retains_the_recovery_journal() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = tempfile::tempdir().unwrap();
+        let store = DeviceStore::at(root.path().join("state"));
+        let directory = root.path().join("client");
+        fs::create_dir(&directory).unwrap();
+        let path = directory.join("settings");
+        fs::write(&path, b"before").unwrap();
+        fs::set_permissions(&directory, fs::Permissions::from_mode(0o300)).unwrap();
+        // Root can bypass these permissions; this OS failure requires an
+        // ordinary user with rename access but no directory-read permission.
+        if fs::File::open(&directory).is_ok() {
+            fs::set_permissions(&directory, fs::Permissions::from_mode(0o700)).unwrap();
+            return;
+        }
+        let guard = store.lock_app("fixture").unwrap();
+        let patch = WholeFile::Write(b"after".to_vec());
+        let committed = Cell::new(false);
+        let result = run(&store, &guard, "switch", &[FileChange {
+            file: LiveFile::private(&path), patch: &patch,
+        }], PendingTarget::default(), &|_| { committed.set(true); Ok(()) });
+        fs::set_permissions(&directory, fs::Permissions::from_mode(0o700)).unwrap();
+        assert!(result.is_err());
+        assert!(!committed.get());
+        assert_eq!(fs::read(&path).unwrap(), b"after");
+        assert!(state::pending(&store, "fixture").unwrap().unwrap().published);
+        assert_eq!(recover(&store, &guard, &|_| { committed.set(true); Ok(()) }).unwrap(), Some(RecoveryOutcome::RolledForward));
+        assert!(committed.get());
+        assert!(state::pending(&store, "fixture").unwrap().is_none());
+    }
+    #[cfg(unix)]
+    #[test]
+    fn symlink_journals_recover_the_pinned_target_and_preserve_retargeted_links() {
+        use std::os::unix::fs::symlink;
+        for retarget in [false, true] {
+            let root = tempfile::tempdir().unwrap();
+            let store = DeviceStore::at(root.path().join("state"));
+            let target = root.path().join("dotfiles/settings.json");
+            fs::create_dir_all(target.parent().unwrap()).unwrap();
+            fs::write(&target, b"before").unwrap();
+            let link = root.path().join("settings.json");
+            symlink(&target, &link).unwrap();
+            let guard = store.lock_app("fixture").unwrap();
+            let patch = WholeFile::Write(b"after".to_vec());
+            failpoint::crash_at(Some("marked"));
+            let result = run(
+                &store,
+                &guard,
+                "switch",
+                &[FileChange {
+                    file: LiveFile::private(&link),
+                    patch: &patch,
+                }],
+                PendingTarget::default(),
+                &|_| Ok(()),
+            );
+            failpoint::crash_at(None);
+            assert!(result.is_err());
+            let pending = state::pending(&store, "fixture").unwrap().unwrap();
+            assert_eq!(pending.files[0].path, link);
+            assert_eq!(
+                pending.files[0].resolved,
+                Some(fs::canonicalize(&target).unwrap())
+            );
+            let other = root.path().join("other");
+            if retarget {
+                fs::write(&other, b"before").unwrap();
+                fs::remove_file(&link).unwrap();
+                symlink(&other, &link).unwrap();
+            }
+            let outcome = recover(&store, &guard, &|_| Ok(())).unwrap().unwrap();
+            assert!(fs::symlink_metadata(&link)
+                .unwrap()
+                .file_type()
+                .is_symlink());
+            if retarget {
+                assert_eq!(
+                    outcome,
+                    RecoveryOutcome::RolledForwardExcept { paths: vec![link] }
+                );
+                assert_eq!(fs::read(&target).unwrap(), b"before");
+                assert_eq!(fs::read(&other).unwrap(), b"before");
+            } else {
+                assert_eq!(outcome, RecoveryOutcome::RolledForward);
+                assert_eq!(fs::read(&target).unwrap(), b"after");
+                let marker = fs::read_dir(store.first_write_backup_dir())
+                    .unwrap()
+                    .map(|entry| entry.unwrap().path())
+                    .find(|path| path.extension().is_some_and(|ext| ext == "resolved"))
+                    .unwrap();
+                assert_eq!(
+                    fs::read_to_string(marker).unwrap(),
+                    fs::canonicalize(target).unwrap().to_string_lossy()
+                );
+            }
+        }
+    }
     #[test]
     fn interruptions_before_and_after_publication_have_distinct_recovery() {
         for stop in ["pending", "marked", "published:0", "published:1", "target"] {

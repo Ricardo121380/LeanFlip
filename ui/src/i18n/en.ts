@@ -117,6 +117,7 @@ const en: Messages = {
     website: "Website",
     getKey: "Get API key",
     settings: "Settings (JSON)",
+    claudeFieldsHint: "Only connection, authentication, model and supported provider options are written. Fields such as permissions, hooks, API_TIMEOUT_MS and DISABLE_TELEMETRY keep their client values; ignored card fields are reported on save.",
     auth: "auth.json",
     config: "config.toml (saved verbatim)",
     addToLive: "Write into the client config after saving",

@@ -32,7 +32,7 @@ export function BackupExport({ onBusyChange }: { onBusyChange?: (busy: boolean) 
       const path = await api.backupSave(password);
       if (path) { setSaved(path); setPassword(""); setConfirmation(""); }
     } catch (problem) { setError(errorMessage(problem)); }
-    finally { pending.current = false; setBusy(false); onBusyChange?.(false); }
+    finally { setPassword(""); setConfirmation(""); pending.current = false; setBusy(false); onBusyChange?.(false); }
   }
 
   return <section className="grid gap-6 lg:grid-cols-[1fr_1.1fr]">
@@ -56,6 +56,7 @@ export function BackupExport({ onBusyChange }: { onBusyChange?: (busy: boolean) 
 }
 
 export function BackupRestore({ bytes, fileName, onBack, onBusyChange }: { bytes: Uint8Array; fileName: string; onBack: () => void; onBusyChange?: (busy: boolean) => void }) {
+  const mounted = useRef(true);
   const { t, i18n } = useTranslation();
   const client = useQueryClient();
   const [password, setPassword] = useState("");
@@ -76,13 +77,17 @@ export function BackupRestore({ bytes, fileName, onBack, onBusyChange }: { bytes
   async function unlock() {
     await perform(async () => {
       const next = await api.backupLoad(bytes, password);
+      if (!mounted.current) { await api.backupDiscard(); return; }
       setPreview(next); setReport(null);
       setOptions({ tools: [...new Set(next.items.map((item) => item.tool))], accounts: next.accounts > 0, settings: next.hasSettings, paths: false, duplicate: "skip" });
     });
     setPassword("");
   }
 
-  useEffect(() => () => { void api.backupDiscard().catch(() => {}); }, []);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; void api.backupDiscard().catch(() => {}); };
+  }, []);
 
   const canRestore = options.tools.length > 0 || options.accounts || options.settings;
   return <section className="space-y-5">
