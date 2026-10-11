@@ -1,4 +1,5 @@
 mod args;
+mod menu;
 mod presentation;
 
 use std::fs::File;
@@ -292,6 +293,18 @@ fn login(
     result
 }
 
+fn open_service(home: Option<&Path>) -> Result<Service, CliError> {
+    let base = home.map(Env::with_home).unwrap_or_else(Env::from_system);
+    // Creating the transport does not send requests. Switching a managed Codex
+    // provider can need a token refresh, so every mutating command can use it.
+    let transport = HttpTransport::new(Endpoints::default()).map_err(|_| CliError {
+        code: "transport_init".into(),
+        message: "Cannot initialize the OAuth network transport.",
+        exit: 1,
+    })?;
+    Ok(Service::open(base, Some(Arc::new(transport)))?)
+}
+
 fn run(cli: Cli) -> Result<Output, CliError> {
     let lang = cli.lang;
     let custom_home = cli.home.is_some();
@@ -312,19 +325,9 @@ fn run(cli: Cli) -> Result<Output, CliError> {
         }
         _ => {}
     }
-    let base = cli
-        .home
-        .map(Env::with_home)
-        .unwrap_or_else(Env::from_system);
-    // Creating the transport does not send requests. Switching a managed Codex
-    // provider can need a token refresh, so every mutating command can use it.
-    let transport = HttpTransport::new(Endpoints::default()).map_err(|_| CliError {
-        code: "transport_init".into(),
-        message: "Cannot initialize the OAuth network transport.",
-        exit: 1,
-    })?;
-    let service = Service::open(base, Some(Arc::new(transport)))?;
+    let service = open_service(cli.home.as_deref())?;
     let result: Result<Output, CliError> = match cli.command {
+        Command::Menu { .. } => unreachable!("menus are dispatched before commands"),
         Command::Status => {
             let tools = service.overview()?;
             let rows = tools
@@ -742,6 +745,9 @@ fn run(cli: Cli) -> Result<Output, CliError> {
 }
 
 fn error_output(error: CliError, as_json: bool, lang: Language) -> ExitCode {
+    if error.code == "interrupted" && !as_json {
+        return ExitCode::from(130);
+    }
     let line = if as_json {
         json!({"ok": false, "error": {"code": error.code, "message": error.message}}).to_string()
     } else {
@@ -796,6 +802,17 @@ fn main() -> ExitCode {
                 clap::error::ErrorKind::MissingSubcommand
                     | clap::error::ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand
             ) {
+                if help.get_name() == "ccsl" && menu::can_interact() {
+                    let mut interactive = raw.clone();
+                    interactive.push("menu".into());
+                    if let Ok(cli) = command
+                        .clone()
+                        .try_get_matches_from(interactive)
+                        .and_then(|matches| Cli::from_arg_matches(&matches))
+                    {
+                        return execute(cli);
+                    }
+                }
                 let title = if help.get_name() == "ccsl" {
                     lang.text("CC Switch Lite · 快速入门", "CC Switch Lite · Quick start")
                 } else {
@@ -812,6 +829,26 @@ fn main() -> ExitCode {
             return exit;
         }
     };
+    execute(cli)
+}
+
+fn execute(cli: Cli) -> ExitCode {
+    if let Command::Menu { tool } = &cli.command {
+        if cli.json {
+            return error_output(
+                CliError::input(
+                    "invalid_arguments",
+                    "Invalid arguments. Run ccsl --help or ccsl <command> --help for usage.",
+                ),
+                true,
+                cli.lang,
+            );
+        }
+        return match menu::start(cli.home.as_deref(), cli.lang, tool.map(Tool::from)) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(error) => error_output(error, false, cli.lang),
+        };
+    }
     let as_json = cli.json;
     let lang = cli.lang;
     match run(cli) {

@@ -14,6 +14,8 @@ path = "src/main.rs"
 ccsl-core = { path = "../core" }
 ccsl-service = { path = "../service" }
 clap = { version = "4.5", features = ["derive"] }
+dialoguer = { version = "0.12", default-features = false, features = ["fuzzy-select"] }
+ctrlc = "3.5"
 serde_json.workspace = true
 unicode-width = "0.2"
 

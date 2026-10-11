@@ -25,6 +25,9 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Command {
+    /// Open a searchable menu; optionally start with a specific tool.
+    #[command(alias = "ui")]
+    Menu { tool: Option<ToolArg> },
     /// Show stored selection and detected configuration paths for all tools.
     Status,
     /// List providers without exposing their configuration or credentials.
@@ -184,6 +187,23 @@ impl From<ToolArg> for Tool {
             ToolArg::Hermes => Self::Hermes,
             ToolArg::Pi => Self::Pi,
             ToolArg::Mcode => Self::Mcode,
+        }
+    }
+}
+
+impl From<Tool> for ToolArg {
+    fn from(value: Tool) -> Self {
+        match value {
+            Tool::Claude => Self::Claude,
+            Tool::Codex => Self::Codex,
+            Tool::Gemini => Self::Gemini,
+            Tool::GrokBuild => Self::GrokBuild,
+            Tool::ClaudeDesktop => Self::ClaudeDesktop,
+            Tool::OpenCode => Self::OpenCode,
+            Tool::OpenClaw => Self::OpenClaw,
+            Tool::Hermes => Self::Hermes,
+            Tool::Pi => Self::Pi,
+            Tool::Mcode => Self::Mcode,
         }
     }
 }

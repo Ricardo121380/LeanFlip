@@ -4,6 +4,8 @@
 
 ```sh
 cargo build -p ccsl-cli --release
+./target/release/ccsl
+./target/release/ccsl menu codex
 ./target/release/ccsl status
 ./target/release/ccsl list codex
 ./target/release/ccsl paths codex
@@ -15,9 +17,15 @@ cargo build -p ccsl-cli --release
 
 终端界面默认中文，`--lang en` 切换英文，帮助与错误提示也随之切换。`ccsl --help` 和各子命令的 `--help` 包含可参照的示例。列表按工具模式显示「当前使用」或「已启用」，并给出下一步命令；空列表和无法读取的配置有单独提示。表格按 Unicode 显示宽度对齐，超出 `COLUMNS`（默认 100 列）时显示为字段列表，供应商与账号 ID 始终完整保留。
 
-直接运行 `ccsl` 会显示快速入门；`ccsl provider` 等未选择动作的命令组会显示对应帮助，均不读取客户端配置。参数填写错误时，终端显示已识别命令的用法、示例和合法工具名，不回显输入原文。人读输出可配合 `head` 等管道工具使用：接收端提前关闭时安静退出，不把截断阅读视为操作失败。
+在交互终端中直接运行 `ccsl` 会打开菜单，也可以显式使用 `ccsl menu`（别名 `ccsl ui`）。先选择工具，再选择供应商；输入文字可筛选，方向键移动，回车确认，Esc 返回或退出，Ctrl+C 退出。执行前会展示完整目标及配置路径，取消不会修改配置。菜单提供供应商切换、并存工具启用/停用、导入当前客户端配置和查看路径；状态无法读取时会阻止启用/停用。
+
+`ccsl menu codex` 可直接进入指定工具，菜单同样支持 `--lang en` 和 `--home`。菜单会刷新当前选择与启用状态，不显示密钥或登录令牌。普通命令继续适用于脚本；输入/输出被重定向时，无命令的 `ccsl` 保持显示快速入门，显式 `menu` 则提示需要交互终端。`--json` 不进入菜单。
+
+`ccsl provider` 等未选择动作的命令组会显示对应帮助，不读取客户端配置。参数填写错误时，终端显示已识别命令的用法、示例和合法工具名，不回显输入原文。人读输出可配合 `head` 等管道工具使用：接收端提前关闭时安静退出，不把截断阅读视为操作失败。
 
 工具名：`claude`、`codex`、`gemini`、`grokbuild`、`claude-desktop`、`opencode`、`openclaw`、`hermes`、`pi`、`mcode`。后五种使用 `enable` / `disable`，其余使用 `use`。
+
+开发时运行 `cargo test -p ccsl-cli --locked`。macOS/Linux 还可使用 `python3 scripts/check-cli-menu.py --binary target/release/ccsl` 在真实伪终端中验证方向键、筛选、取消、写入及 Ctrl+C；该检查仅使用临时 HOME，不访问实际账号。
 
 `status` 显示保存在卡片库里的当前选择；它不证明客户端文件未经外部修改。`list` 的 `liveReadable` 为 `false` 时，`enabled` 状态不可用。查询及导入预览不写配置、不执行启动恢复；需要手动恢复中断写入时执行 `ccsl recover [tool]`。修改命令会先处理相应工具的中断写入。
 

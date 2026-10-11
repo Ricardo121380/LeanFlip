@@ -32,6 +32,8 @@
 
 ```sh
 cargo build -p ccsl-cli --release --locked
+./target/release/ccsl                  # 交互终端：方向键菜单
+./target/release/ccsl menu codex       # 直接选择 Codex 供应商
 ./target/release/ccsl status
 ./target/release/ccsl list codex
 ./target/release/ccsl use codex provider-id
@@ -47,7 +49,9 @@ CLI 与 App 共用 `~/.cc-switch-lite/` 及目录覆盖设置。查询和导入�
 [CLI 使用说明](crates/cli/README.md)。
 终端界面默认中文，`--lang en` 切换英文；列表按中英文显示宽度对齐，较窄的 `COLUMNS`
 会启用字段列表。`--json` 的字段、英文错误消息和退出码保持稳定。
-直接运行 `ccsl` 显示快速入门，命令参数错误显示对应帮助；人读输出支持管道提前关闭。
+交互终端中直接运行 `ccsl` 即可用方向键、文字筛选和回车完成操作；`ccsl menu <tool>`
+可直接进入指定工具，Esc 返回，Ctrl+C 退出。重定向或管道中的无命令调用仍显示快速入门；
+命令参数错误显示对应帮助，人读输出支持管道提前关闭。
 
 ## 结构
 

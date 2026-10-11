@@ -603,3 +603,36 @@ fn closing_a_human_output_pipe_is_quiet_success_while_json_retains_exit_one() {
         );
     }
 }
+
+#[test]
+fn interactive_menu_requires_a_terminal_and_never_consumes_piped_input() {
+    let sb = Sandbox::new();
+    for args in [
+        vec!["menu"],
+        vec!["menu", "codex"],
+        vec!["ui", "--lang", "en"],
+    ] {
+        let output = sb.run(&args);
+        assert_eq!(output.status.code(), Some(2));
+        assert!(output.stdout.is_empty());
+        assert!(String::from_utf8(output.stderr)
+            .unwrap()
+            .contains("interactive_terminal"));
+        assert!(snapshot(&sb.env.home).is_empty());
+    }
+    let output = sb.run(&["menu", "--json"]);
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
+    let error: Value = serde_json::from_slice(&output.stderr).unwrap();
+    assert_eq!(error["error"]["code"], "invalid_arguments");
+    assert!(snapshot(&sb.env.home).is_empty());
+}
+
+#[test]
+fn interactive_help_is_bilingual_and_plain_no_argument_help_stays_noninteractive() {
+    let sb = Sandbox::new();
+    assert!(human(sb.run(&["menu", "--help"])).contains("交互菜单"));
+    assert!(human(sb.run(&["menu", "--help", "--lang", "en"])).contains("searchable menu"));
+    assert!(human(sb.run(&[])).contains("快速入门"));
+    assert!(snapshot(&sb.env.home).is_empty());
+}
