@@ -226,6 +226,9 @@ struct Inner {
     pending: HashMap<String, PendingDevice>,
 }
 
+/// 批量保活结果：每个账号是否实际刷新，或该账号自己的失败原因。
+pub type RefreshResults = Vec<(String, Result<bool, AppError>)>;
+
 /// 托管 ChatGPT 账号管理器。
 pub struct CodexOAuthManager {
     env: Env,
@@ -1006,15 +1009,18 @@ impl CodexOAuthManager {
             &stored_refresh,
             &live::format_last_refresh(obtained),
         );
-        // live 仍是这个账号的旧一代时同步过去；失败不回滚管理器（下次写入会再同步）。
-        if let Err(err) =
-            live::sync_live_after_refresh(&self.env, account_id, &refresh_token, &refreshed)
-        {
-            log::warn!("刷新后同步 Codex live auth 失败（{account_id}）: {err}");
-        }
+        // 新一代已持久化，先保留 access 缓存；同步失败也不能回滚已消费的 refresh token。
         lock(&self.inner)
             .tokens
             .insert(account_id.to_string(), cached.clone());
+        live::sync_live_after_refresh(&self.env, account_id, &refresh_token, &refreshed)
+            .map_err(|err| {
+                AppError::localized(
+                    "codex.oauth.live_sync_failed",
+                    format!("账号 {account_id} 的凭据已刷新并保存，但同步 Codex 客户端失败；新凭据已保留，没有回滚。请修复后重新切换该账号。{err}"),
+                    format!("Credentials for account {account_id} were refreshed and saved, but syncing the Codex client failed. The new credentials were retained, not rolled back. Fix the issue and switch to this account again. {err}"),
+                )
+            })?;
         Ok(cached)
     }
 
@@ -1125,10 +1131,7 @@ impl CodexOAuthManager {
     /// 后台保活：上次取得 token 超过 `max_age_ms` 的账号各刷新一次（换一代 refresh
     /// token，live 是这个账号的旧一代时一并同步）。需要重新登录的账号跳过。返回
     /// `(账号, 是否刷新了)`；单个账号失败不影响其他账号。
-    pub fn refresh_stale(
-        &self,
-        max_age_ms: i64,
-    ) -> Result<Vec<(String, Result<bool, AppError>)>, AppError> {
+    pub fn refresh_stale(&self, max_age_ms: i64) -> Result<RefreshResults, AppError> {
         let due: Vec<String> = {
             let _generation = lock(&self.generation);
             self.reload()?;

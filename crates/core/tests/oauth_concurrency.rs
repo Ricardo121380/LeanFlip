@@ -354,3 +354,63 @@ fn separate_processes_refresh_a_single_token_chain() {
         "test-refresh-2"
     );
 }
+
+#[test]
+fn failed_live_sync_reports_partial_refresh_and_keeps_the_new_tokens() {
+    use ccsl_core::codex::oauth::live;
+    let home = tempfile::tempdir().unwrap();
+    let env = Env::with_home(home.path());
+    let transport = Arc::new(FakeTransport::new());
+    let clock = Arc::new(ManualClock::new(NOW));
+    let manager = CodexOAuthManager::new(&env, Some(transport.clone()))
+        .unwrap()
+        .with_clock(clock.clone());
+    let id = manager
+        .add_account_from_tokens(
+            &transport.issue(&Identity::new("user", "workspace", "plus")),
+            None,
+        )
+        .unwrap()
+        .id;
+    let before = manager.token_bundle(&id).unwrap();
+    let auth = before.auth_value();
+    std::fs::create_dir_all(&env.codex_dir).unwrap();
+    let original_live = serde_json::to_vec(&auth).unwrap();
+    std::fs::write(env.codex_auth_path(), &original_live).unwrap();
+    let original_marker = live::marker_bytes(&auth, &id).unwrap().unwrap();
+    std::fs::write(live::marker_path(&env), &original_marker).unwrap();
+    let broken_lock = env.data_dir.join("locks/codex.lock");
+    std::fs::create_dir_all(&broken_lock).unwrap();
+    clock.advance(1000);
+
+    let error = manager.refresh_account(&id).unwrap_err();
+    assert!(matches!(
+        error,
+        ccsl_core::AppError::Localized {
+            key: "codex.oauth.live_sync_failed",
+            ..
+        }
+    ));
+    let memory_account = manager.account(&id).unwrap();
+    let disk_account = CodexOAuthManager::new(&env, None)
+        .unwrap()
+        .try_account(&id)
+        .unwrap()
+        .unwrap();
+    assert_eq!(memory_account, disk_account);
+    assert_ne!(disk_account.refresh_token, before.refresh_token);
+    assert!(transport.is_valid(&disk_account.refresh_token));
+    assert_eq!(std::fs::read(env.codex_auth_path()).unwrap(), original_live);
+    assert_eq!(
+        std::fs::read(live::marker_path(&env)).unwrap(),
+        original_marker
+    );
+
+    // Repair only the injected lock failure. Preparing a new switch must use the
+    // already saved/cached generation without consuming another refresh token.
+    std::fs::remove_dir(&broken_lock).unwrap();
+    let recovered = manager.token_bundle(&id).unwrap();
+    assert_eq!(recovered.refresh_token, disk_account.refresh_token);
+    assert_ne!(recovered.access_token, before.access_token);
+    assert_eq!(transport.refresh_calls().len(), 1);
+}
