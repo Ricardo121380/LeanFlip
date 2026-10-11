@@ -1,13 +1,25 @@
 #!/usr/bin/env node
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { ensureCli } from '../lib/distribution.js';
 
 try {
   const binary = await ensureCli();
-  const result = spawnSync(binary, process.argv.slice(2), { stdio: 'inherit' });
-  if (result.error) throw new Error(`Cannot start the native CLI: ${result.error.code ?? result.error.message}`);
+  const child = spawn(binary, process.argv.slice(2), { stdio: 'inherit' });
+  // Stay alive until the native menu restores the terminal and reports its exit.
+  // Forward signals sent directly to the wrapper as well as terminal interrupts.
+  const handlers = new Map(['SIGINT', 'SIGTERM', 'SIGHUP'].map(signal => [signal, () => child.kill(signal)]));
+  for (const [signal, handler] of handlers) process.on(signal, handler);
+  let result;
+  try {
+    result = await new Promise((resolve, reject) => {
+      child.once('error', error => reject(new Error(`Cannot start the native CLI: ${error.code ?? error.message}`)));
+      child.once('close', (code, signal) => resolve({ code, signal }));
+    });
+  } finally {
+    for (const [signal, handler] of handlers) process.off(signal, handler);
+  }
   if (result.signal) process.kill(process.pid, result.signal);
-  else process.exitCode = result.status ?? 1;
+  else process.exitCode = result.code ?? 1;
 } catch (error) {
   const message = `Cannot prepare ccsl: ${error.message}`;
   console.error(process.argv.includes('--json')
