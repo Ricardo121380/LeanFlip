@@ -52,6 +52,8 @@ export default function App() {
   const pending = useRef<NavigationRequest | null>(null);
   const restoring = useRef(false);
   const settingsLeave = useRef<SettingsLeaveState>({ dirty: false, saving: false });
+  const importBusy = useRef(false);
+  const onImportBusyChange = useCallback((busy: boolean) => { importBusy.current = busy; }, []);
   const onSettingsLeaveState = useCallback((state: SettingsLeaveState) => { settingsLeave.current = state; }, []);
 
   useEffect(() => {
@@ -89,8 +91,8 @@ export default function App() {
     if (alreadyPending) return;
 
     let allowed = true;
-    if (settingsLeave.current.saving) {
-      toast.info(t("settings.waitForSave"), { id: "settings-save-navigation" });
+    if (settingsLeave.current.saving || importBusy.current) {
+      toast.info(t("nav.waitForOperation"), { id: "pending-operation-navigation" });
       allowed = false;
     } else if (settingsLeave.current.dirty) {
       allowed = await confirm({
@@ -103,7 +105,7 @@ export default function App() {
 
     const next = pending.current;
     pending.current = null;
-    if (!allowed || settingsLeave.current.saving) {
+    if (!allowed || settingsLeave.current.saving || importBusy.current) {
       restoreAccepted();
       return;
     }
@@ -228,7 +230,7 @@ export default function App() {
         <Suspense fallback={<div className="p-6"><QueryState state="loading" title={t("common.loading")} /></div>}>
           {view.type === "tool" && <ToolPage key={view.tool} tool={view.tool} />}
           {view.type === "codex" && <CodexAccountsPage />}
-          {view.type === "import" && <ImportWizard />}
+          {view.type === "import" && <ImportWizard onBusyChange={onImportBusyChange} />}
           {view.type === "settings" && <SettingsPage onLeaveStateChange={onSettingsLeaveState} />}
         </Suspense>
       </main>

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import * as Tabs from "@radix-ui/react-tabs";
@@ -15,7 +15,7 @@ import { TOOLS, toolMeta } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 import { ExportImport } from "./ExportImport";
 
-export function ImportWizard() {
+export function ImportWizard({ onBusyChange }: { onBusyChange?: (busy: boolean) => void }) {
   const { t, i18n } = useTranslation();
   const client = useQueryClient();
   const settings = useSettings().data;
@@ -30,6 +30,11 @@ export function ImportWizard() {
   const [fileBusy, setFileBusy] = useState(false);
   const pending = useRef(false);
   const busy = operation !== null;
+
+  useEffect(() => {
+    onBusyChange?.(busy || fileBusy);
+    return () => onBusyChange?.(false);
+  }, [busy, fileBusy, onBusyChange]);
 
   const byTool = useMemo(() => {
     const map = new Map<ToolId, ImportScan["candidates"]>();

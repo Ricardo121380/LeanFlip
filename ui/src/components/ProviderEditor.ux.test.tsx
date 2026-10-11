@@ -29,6 +29,7 @@ beforeEach(() => {
 describe("Provider editor workflow", () => {
   it("preserves edits on Escape and only discards after explicit confirmation", async () => {
     mount();
+    expect(screen.getByRole("dialog")).toHaveAccessibleDescription("修改当前卡片。保存生效中的供应商会同步更新客户端配置。");
     expect(screen.getByRole("button", { name: "保存" })).toBeDisabled();
     await userEvent.type(screen.getByLabelText("名称"), " draft");
     await userEvent.keyboard("{Escape}");

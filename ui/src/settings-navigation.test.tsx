@@ -142,7 +142,7 @@ describe("Settings navigation protection", () => {
     await userEvent.click(screen.getByRole("link", { name: "Gemini CLI" }));
     expect(window.location.hash).toBe("#settings");
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
-    expect(toast.info).toHaveBeenCalledWith("设置正在保存，请完成后再离开。", expect.anything());
+    expect(toast.info).toHaveBeenCalledWith("操作正在进行，请完成后再切换页面。", expect.anything());
     act(() => window.history.back());
     await waitFor(() => expect(toast.info).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(window.location.hash).toBe("#settings"));
@@ -191,5 +191,26 @@ describe("Settings navigation protection", () => {
     await waitFor(() => expect(window.location.hash).toBe("#settings"));
     expect(screen.getByLabelText("Codex (~/.codex)")).toHaveValue("/my/draft");
     expect(screen.getByRole("link", { name: "设置" })).toHaveAttribute("aria-current", "page");
+  });
+});
+
+
+describe("Import navigation protection", () => {
+  it("keeps an in-flight file preview mounted until its backend staging is complete", async () => {
+    let finish!: () => void;
+    const pending = new Promise<void>((resolve) => { finish = resolve; });
+    start({ ccswitch_export_load: async () => { await pending; return { format: "json", items: [] }; } });
+    await userEvent.click(screen.getByRole("link", { name: "从 cc-switch 导入" }));
+    await userEvent.click(await screen.findByRole("tab", { name: "导出文件" }));
+    await userEvent.upload(screen.getByTestId("export-file"), new File(["{}"], "providers.json", { type: "application/json" }));
+    await waitFor(() => expect(screen.getByRole("tab", { name: "本机数据目录" })).toBeDisabled());
+    await userEvent.click(screen.getByRole("link", { name: "Gemini CLI" }));
+    expect(window.location.hash).toBe("#import");
+    expect(screen.getByTestId("export-file")).toBeInTheDocument();
+    expect(toast.info).toHaveBeenCalledWith("操作正在进行，请完成后再切换页面。", expect.anything());
+    await act(async () => finish());
+    await waitFor(() => expect(screen.getByRole("tab", { name: "本机数据目录" })).toBeEnabled());
+    await userEvent.click(screen.getByRole("link", { name: "Gemini CLI" }));
+    expect(await screen.findByRole("heading", { name: "gemini" })).toBeInTheDocument();
   });
 });

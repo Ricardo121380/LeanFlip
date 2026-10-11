@@ -7,7 +7,7 @@ const en: Messages = {
     dismiss: "Dismiss recovery notices",
     loadError: "Could not read recovery results. Please try again later.",
   },
-  nav: { tools: "Tools", switch: "One active configuration", coexist: "Multiple active providers", manage: "Manage", overviewError: "Tool status unavailable", codexAccounts: "Codex accounts", import: "Import from cc-switch", settings: "Settings" },
+  nav: { waitForOperation: "An operation is in progress. Please wait before leaving this page.", tools: "Tools", switch: "One active configuration", coexist: "Multiple active providers", manage: "Manage", overviewError: "Tool status unavailable", codexAccounts: "Codex accounts", import: "Import from cc-switch", settings: "Settings" },
   kind: { switch: "Switch", coexist: "Coexist" },
   tool: {
     notDetected: "No config file detected",

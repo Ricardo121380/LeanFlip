@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Check, ExternalLink, Loader2, RotateCcw, Search } from "lucide-react";
 import { toast } from "sonner";
@@ -95,6 +95,7 @@ interface Props {
 export function ProviderEditor({ tool, open, onOpenChange, provider, existingIds, accounts = [], logins = [] }: Props) {
   const { t } = useTranslation();
   const client = useQueryClient();
+  const descriptionId = useId();
   const meta = toolMeta(tool);
   const editing = Boolean(provider);
   const [query, setQuery] = useState("");
@@ -196,15 +197,16 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, existingIds
   return (
     <>
     <Dialog open={open} onOpenChange={(next) => { if (!next) void requestClose(); }}>
-      <DialogContent closeDisabled={saving} className="flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-4xl flex-col gap-0 overflow-hidden p-0">
+      <DialogContent aria-describedby={descriptionId} closeDisabled={saving} className="flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-4xl flex-col gap-0 overflow-hidden p-0">
         <DialogHeader className="shrink-0 border-b px-5 py-4 pr-12">
           <DialogTitle>
             {editing ? t("editor.titleEdit") : t("editor.titleAdd")} · {meta.label}
           </DialogTitle>
-          <DialogDescription>{t(editing ? "editor.editHint" : "editor.addHint")}</DialogDescription>
+          <DialogDescription id={descriptionId}>{t(editing ? "editor.editHint" : "editor.addHint")}</DialogDescription>
         </DialogHeader>
 
-        <fieldset disabled={saving} className={cn("grid min-h-0 flex-1 gap-5 overflow-y-auto p-5 md:overflow-hidden", !editing && "md:grid-cols-[200px_minmax(0,1fr)]")}>
+        <div className="min-h-0 flex-1 overflow-y-auto p-5">
+        <fieldset disabled={saving} className={cn("grid min-w-0 gap-5", !editing && "md:grid-cols-[200px_minmax(0,1fr)]")}>
           {!editing && (
             <div className="flex min-h-0 flex-col gap-2">
               <Label htmlFor="pe-preset-search">{t("editor.preset")}</Label>
@@ -212,7 +214,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, existingIds
                 <Search className="pointer-events-none absolute left-2.5 top-2.5 size-4 text-muted-foreground" aria-hidden="true" />
                 <Input id="pe-preset-search" type="search" className="pl-8" placeholder={t("editor.searchPreset")} value={query} onChange={(e) => setQuery(e.target.value)} />
               </div>
-              <div className="flex max-h-52 min-h-0 flex-col gap-0.5 overflow-y-auto rounded-md border p-1 md:max-h-none md:flex-1" role="group" aria-label={t("editor.preset")}>
+              <div className="flex max-h-52 min-h-0 flex-col gap-0.5 overflow-y-auto rounded-md border p-1 md:max-h-96" role="group" aria-label={t("editor.preset")}>
                 <button
                   type="button"
                   aria-pressed={preset === null}
@@ -244,7 +246,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, existingIds
             </div>
           )}
 
-          <div className="flex min-h-0 min-w-0 flex-col gap-3 md:overflow-y-auto md:pr-1">
+          <div className="flex min-w-0 flex-col gap-3">
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="pe-name">{t("editor.name")}</Label>
@@ -336,8 +338,9 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, existingIds
             )}
           </div>
         </fieldset>
+        </div>
 
-        <DialogFooter className="shrink-0 flex-wrap items-center border-t bg-muted/30 px-5 py-4">
+        <DialogFooter className="shrink-0 flex-wrap items-center border-t bg-background px-5 py-4">
           <div className="mr-auto min-w-0 flex-1 basis-40 text-xs text-muted-foreground">
             {saveError ? <p role="alert" className="break-words text-destructive">{t("editor.saveError")} {saveError}</p> : <p role="status">{t(saving ? "editor.saving" : editing && !dirty ? "editor.unchanged" : "editor.saveHint")}</p>}
           </div>
