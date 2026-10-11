@@ -49,6 +49,7 @@ function Row({ id, label, hint, children }: { id: string; label: string; hint?: 
 
 type SettingsDraft = { app: AppSettings; keep: boolean; refresh: string };
 type SettingsForm = { draft: SettingsDraft; baseline: SettingsDraft };
+export type SettingsLeaveState = { dirty: boolean; saving: boolean };
 
 function toDraft(data: SettingsView): SettingsDraft {
   return { app: data.app, keep: data.keepCodexLogin, refresh: String(data.app.backgroundRefreshHours) };
@@ -58,7 +59,7 @@ function sameDraft(a: SettingsDraft, b: SettingsDraft) {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
-export function SettingsPage() {
+export function SettingsPage({ onLeaveStateChange }: { onLeaveStateChange?: (state: SettingsLeaveState) => void } = {}) {
   const { t } = useTranslation();
   const { data, isError, error, refetch } = useSettings();
   const [form, setForm] = useState<SettingsForm | null>(null);
@@ -72,6 +73,13 @@ export function SettingsPage() {
       if (result.dirsChanged) toast.info(t("settings.dirsApplied"));
     },
   );
+  const dirty = form !== null && !sameDraft(form.draft, form.baseline);
+
+  useEffect(() => {
+    onLeaveStateChange?.({ dirty, saving: save.isPending });
+  }, [dirty, save.isPending, onLeaveStateChange]);
+
+  useEffect(() => () => onLeaveStateChange?.({ dirty: false, saving: false }), [onLeaveStateChange]);
 
   useEffect(() => {
     if (!data) return;
@@ -93,9 +101,8 @@ export function SettingsPage() {
       />
     </div>
   );
-  const { draft, baseline } = form;
+  const { draft } = form;
   const { app, keep } = draft;
-  const dirty = !sameDraft(draft, baseline);
   const refreshHours = Number(draft.refresh);
   const refreshValid = draft.refresh.trim() !== "" && Number.isInteger(refreshHours) && refreshHours >= 0 && refreshHours <= 4294967295;
   const setDraft = (next: SettingsDraft) => setForm({ ...form, draft: next });
