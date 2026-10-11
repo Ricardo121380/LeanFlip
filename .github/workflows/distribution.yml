@@ -61,17 +61,28 @@ jobs:
           if-no-files-found: error
 
   homebrew:
-    name: Homebrew (macOS ARM64)
-    runs-on: macos-14
+    name: Homebrew (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - name: Use the runner's preinstalled Linux Homebrew
+        if: runner.os == 'Linux'
+        run: |
+          test -x /home/linuxbrew/.linuxbrew/bin/brew
+          echo /home/linuxbrew/.linuxbrew/bin >> "$GITHUB_PATH"
       - name: Tap the checked-out revision and inspect definitions
         env:
           HOMEBREW_NO_AUTO_UPDATE: '1'
         run: |
           brew tap ricardo121380/ccswitch-lite "$GITHUB_WORKSPACE"
           brew info --json=v2 --cask ricardo121380/ccswitch-lite/ccsl
-          brew info --json=v2 --cask ricardo121380/ccswitch-lite/ccswitch-lite
+          if [ "$RUNNER_OS" = macOS ]; then
+            brew info --json=v2 --cask ricardo121380/ccswitch-lite/ccswitch-lite
+          fi
       - name: Install and test CLI
         env:
           HOMEBREW_NO_AUTO_UPDATE: '1'
@@ -81,6 +92,7 @@ jobs:
           ccsl --home "$RUNNER_TEMP/brew-cli-smoke" status --json
           test ! -e "$RUNNER_TEMP/brew-cli-smoke"
       - name: Install desktop Cask in an isolated app directory
+        if: runner.os == 'macOS'
         env:
           HOMEBREW_NO_AUTO_UPDATE: '1'
         run: |
