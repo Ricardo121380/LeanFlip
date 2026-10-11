@@ -27,7 +27,7 @@ pub fn notify_changed(app: &tauri::AppHandle) {
     refresh_views(app);
 }
 
-/// 重建托盘菜单、通知前端。
+/// 请求重建托盘菜单（后台线程，合并，不阻塞调用方）、通知前端。
 fn refresh_views(app: &tauri::AppHandle) {
     tray::rebuild(app);
     let _ = app.emit(EVENT_PROVIDERS_CHANGED, ());
@@ -81,6 +81,7 @@ pub fn run() {
                 .ok();
             let service = Arc::new(Service::start(ccsl_core::Env::from_system(), transport)?);
             app.manage(AppState(service.clone()));
+            // 只放占位菜单，读 11 个工具配置在托盘后台线程里做，不挡窗口显示。
             tray::create(app.handle())?;
             watcher::start(app.handle(), &service.env());
             start_background_refresh(app.handle().clone(), service);
