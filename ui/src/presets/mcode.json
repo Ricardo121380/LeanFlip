@@ -4700,6 +4700,8 @@
   },
   {
     "name": "Nvidia",
+    "websiteUrl": "https://build.nvidia.com/",
+    "apiKeyUrl": "https://build.nvidia.com/settings/api-keys",
     "settingsConfig": {
       "name": "Nvidia",
       "kind": "custom",

@@ -454,6 +454,7 @@
   },
   {
     "name": "Azure OpenAI",
+    "websiteUrl": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/how-to/codex",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -681,6 +682,8 @@
   },
   {
     "name": "OpenCode Zen",
+    "websiteUrl": "https://opencode.ai/zen",
+    "apiKeyUrl": "https://opencode.ai/auth",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""

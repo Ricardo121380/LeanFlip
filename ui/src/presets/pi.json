@@ -3442,6 +3442,8 @@
   },
   {
     "name": "Nvidia",
+    "websiteUrl": "https://build.nvidia.com/",
+    "apiKeyUrl": "https://build.nvidia.com/settings/api-keys",
     "settingsConfig": {
       "name": "Nvidia",
       "baseUrl": "https://integrate.api.nvidia.com/v1",
@@ -3705,6 +3707,7 @@
   },
   {
     "name": "AWS Bedrock",
+    "websiteUrl": "https://aws.amazon.com/bedrock/",
     "settingsConfig": {
       "name": "AWS Bedrock",
       "baseUrl": "https://bedrock-runtime.us-east-1.amazonaws.com",

@@ -69,8 +69,15 @@ describe("preset links", () => {
   const SHORT_CODE = /^\/(?=[A-Za-z0-9]*\d)(?=[A-Za-z0-9]*[A-Z])[A-Za-z0-9]{5,10}\/?$/;
   const RELAYS = ["packyapi.ai", "aigocode.app", "zetaapi.ai", "siliconflow.cn", "ppio.com", "s.qiniu.com", "openrouter.ai", "aihubmix.com", "apinebula.ai"];
   const officialDomains = (officialVendors as { vendors: Record<string, string[]> }).vendors;
-  const vendorOf = (host: string) =>
-    Object.entries(officialDomains).find(([, domains]) => domains.some((d) => host === d || host.endsWith(`.${d}`)))?.[0];
+  const vendorOf = (url: URL) =>
+    Object.entries(officialDomains).find(([, entries]) =>
+      entries.some((entry) => {
+        const [d, ...rest] = entry.split("/");
+        const prefix = rest.length ? `/${rest.join("/")}` : "";
+        const hostOk = url.host === d || url.host.endsWith(`.${d}`);
+        return hostOk && (!prefix || url.pathname === prefix || url.pathname.startsWith(`${prefix}/`));
+      }),
+    )?.[0];
 
   it("only point at allowlisted official model-vendor domains, without referral or tracking parts", () => {
     const tracking = /[?&](aff|track_id|ref|invite\w*|ic|code|source|from|ch|ytag|ac|rc|utm_\w+)=/i;
@@ -83,7 +90,7 @@ describe("preset links", () => {
           const label = `${tool.id}/${p.name}: ${url}`;
           const parsed = new URL(url);
           expect(parsed.protocol, label).toBe("https:");
-          expect(vendorOf(parsed.host), label).toBeDefined();
+          expect(vendorOf(parsed), label).toBeDefined();
           expect(RELAYS.some((r) => parsed.host === r || parsed.host.endsWith(`.${r}`)), label).toBe(false);
           expect(url, label).not.toMatch(tracking);
           expect(parsed.pathname, label).not.toMatch(/^\/(i|invite|r|ref|go|aff|s)\/|cc-?switch|\/register\/[A-Za-z0-9_-]{6,}/i);
@@ -97,8 +104,16 @@ describe("preset links", () => {
   it("keep official vendor links (Kimi, DeepSeek, GLM, Qwen, Volcengine, MiniMax …)", () => {
     const has = (tool: string, name: string) => Boolean(presetsFor(tool).find((p) => p.name === name)?.websiteUrl);
     for (const name of ["Kimi", "DeepSeek", "Zhipu GLM", "MiniMax", "Volcengine Doubao"]) expect(has("claude", name), name).toBe(true);
-    for (const name of ["OpenRouter", "PackyCode", "AIGoCode", "SiliconFlow", "PPIO", "Qiniu"]) {
+    // 按用户决定保留的平台。
+    for (const [tool, name] of [["claude", "AWS Bedrock (AKSK)"], ["codex", "Azure OpenAI"], ["opencode", "Nvidia"], ["claude", "OpenCode Zen"], ["codex", "OpenCode Zen"]]) {
+      expect(has(tool, name), `${tool}/${name}`).toBe(true);
+    }
+    for (const name of ["OpenRouter", "PackyCode", "AIGoCode", "SiliconFlow", "PPIO", "Qiniu", "OpenCode Go"]) {
       const p = presetsFor("claude").find((x) => x.name === name);
+      if (p) expect([p.websiteUrl, p.apiKeyUrl], name).toEqual([undefined, undefined]);
+    }
+    for (const name of ["ModelScope", "OpenRouter", "OpenCode Go"]) {
+      const p = presetsFor("opencode").find((x) => x.name === name);
       if (p) expect([p.websiteUrl, p.apiKeyUrl], name).toEqual([undefined, undefined]);
     }
   });

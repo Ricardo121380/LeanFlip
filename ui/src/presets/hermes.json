@@ -2034,6 +2034,8 @@
   },
   {
     "name": "Nvidia",
+    "websiteUrl": "https://build.nvidia.com/",
+    "apiKeyUrl": "https://build.nvidia.com/settings/api-keys",
     "settingsConfig": {
       "name": "nvidia",
       "base_url": "https://integrate.api.nvidia.com",

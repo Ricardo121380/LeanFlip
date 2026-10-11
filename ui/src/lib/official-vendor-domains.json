@@ -1,27 +1,100 @@
 {
-  "_comment": "预设链接白名单：只有模型厂商自己的官方平台 / 官方云（训练该模型的公司）。中转站、聚合平台、第三方推理云一律不在此列。按域名后缀匹配（host 等于该域名或以 .域名 结尾）。",
+  "_comment": "预设链接白名单：只有模型厂商自己的官方平台 / 官方云（训练该模型的公司）。中转站、聚合平台、第三方推理云一律不在此列。按域名后缀匹配（host 等于该域名或以 .域名 结尾）。 带路径的条目（如 opencode.ai/zen）还要求路径以该前缀开头：同域名下的其他产品（OpenCode Go）不算。按用户决定，AWS Bedrock、Azure OpenAI、Nvidia、OpenCode Zen 也保留。",
   "vendors": {
-    "Anthropic": ["anthropic.com", "claude.ai"],
-    "OpenAI": ["openai.com", "chatgpt.com"],
-    "Google": ["ai.google.dev", "aistudio.google.com"],
-    "DeepSeek": ["deepseek.com"],
-    "Moonshot (Kimi)": ["kimi.com", "kimi.ai", "moonshot.cn", "moonshot.ai"],
-    "Zhipu (GLM / Z.ai)": ["bigmodel.cn", "z.ai"],
-    "MiniMax": ["minimax.cn", "minimax.io", "minimaxi.com"],
-    "Alibaba (Qwen / Bailian / DashScope)": ["aliyun.com", "qwencloud.com", "qianwenai.com", "alibabacloud.com"],
-    "ByteDance (Volcengine Ark / BytePlus)": ["volcengine.com", "byteplus.com"],
-    "xAI": ["x.ai"],
-    "Mistral": ["mistral.ai"],
-    "StepFun": ["stepfun.com", "stepfun.ai"],
-    "Baidu (Qianfan / ERNIE)": ["baidu.com"],
-    "Tencent (Hunyuan)": ["cloud.tencent.com", "tencentcloud.com"],
-    "iFlytek (Spark / Astron)": ["xfyun.cn"],
-    "Xiaomi (MiMo)": ["xiaomimimo.com"],
-    "Meituan (LongCat)": ["longcat.chat"],
-    "Ant Group (Ling / BaiLing)": ["ant-ling.com"],
-    "Kuaishou (KAT-Coder / StreamLake)": ["streamlake.ai"],
-    "Nous Research (Hermes)": ["nousresearch.com"],
-    "Baichuan": ["baichuan-ai.com"],
-    "01.AI": ["lingyiwanwu.com", "01.ai"]
+    "Anthropic": [
+      "anthropic.com",
+      "claude.ai"
+    ],
+    "OpenAI": [
+      "openai.com",
+      "chatgpt.com"
+    ],
+    "Google": [
+      "ai.google.dev",
+      "aistudio.google.com"
+    ],
+    "DeepSeek": [
+      "deepseek.com"
+    ],
+    "Moonshot (Kimi)": [
+      "kimi.com",
+      "kimi.ai",
+      "moonshot.cn",
+      "moonshot.ai"
+    ],
+    "Zhipu (GLM / Z.ai)": [
+      "bigmodel.cn",
+      "z.ai"
+    ],
+    "MiniMax": [
+      "minimax.cn",
+      "minimax.io",
+      "minimaxi.com"
+    ],
+    "Alibaba (Qwen / Bailian / DashScope)": [
+      "aliyun.com",
+      "qwencloud.com",
+      "qianwenai.com",
+      "alibabacloud.com"
+    ],
+    "ByteDance (Volcengine Ark / BytePlus)": [
+      "volcengine.com",
+      "byteplus.com"
+    ],
+    "xAI": [
+      "x.ai"
+    ],
+    "Mistral": [
+      "mistral.ai"
+    ],
+    "StepFun": [
+      "stepfun.com",
+      "stepfun.ai"
+    ],
+    "Baidu (Qianfan / ERNIE)": [
+      "baidu.com"
+    ],
+    "Tencent (Hunyuan)": [
+      "cloud.tencent.com",
+      "tencentcloud.com"
+    ],
+    "iFlytek (Spark / Astron)": [
+      "xfyun.cn"
+    ],
+    "Xiaomi (MiMo)": [
+      "xiaomimimo.com"
+    ],
+    "Meituan (LongCat)": [
+      "longcat.chat"
+    ],
+    "Ant Group (Ling / BaiLing)": [
+      "ant-ling.com"
+    ],
+    "Kuaishou (KAT-Coder / StreamLake)": [
+      "streamlake.ai"
+    ],
+    "Nous Research (Hermes)": [
+      "nousresearch.com"
+    ],
+    "Baichuan": [
+      "baichuan-ai.com"
+    ],
+    "01.AI": [
+      "lingyiwanwu.com",
+      "01.ai"
+    ],
+    "AWS (Bedrock)": [
+      "aws.amazon.com/bedrock"
+    ],
+    "Microsoft (Azure OpenAI)": [
+      "learn.microsoft.com/en-us/azure"
+    ],
+    "Nvidia (build.nvidia.com)": [
+      "build.nvidia.com"
+    ],
+    "OpenCode Zen": [
+      "opencode.ai/zen",
+      "opencode.ai/auth"
+    ]
   }
 }

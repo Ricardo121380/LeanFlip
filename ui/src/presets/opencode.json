@@ -3005,6 +3005,8 @@
   },
   {
     "name": "Nvidia",
+    "websiteUrl": "https://build.nvidia.com/",
+    "apiKeyUrl": "https://build.nvidia.com/settings/api-keys",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "Nvidia",
@@ -3152,6 +3154,7 @@
   },
   {
     "name": "AWS Bedrock",
+    "websiteUrl": "https://aws.amazon.com/bedrock/",
     "settingsConfig": {
       "npm": "@ai-sdk/amazon-bedrock",
       "name": "AWS Bedrock",

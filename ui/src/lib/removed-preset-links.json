@@ -505,18 +505,6 @@
  },
  {
   "tool": "claude",
-  "name": "OpenCode Zen",
-  "field": "websiteUrl",
-  "reason": "not-official-vendor"
- },
- {
-  "tool": "claude",
-  "name": "OpenCode Zen",
-  "field": "apiKeyUrl",
-  "reason": "not-official-vendor"
- },
- {
-  "tool": "claude",
   "name": "ModelScope",
   "field": "websiteUrl",
   "reason": "not-official-vendor"
@@ -615,18 +603,6 @@
   "tool": "claude",
   "name": "PIPELLM",
   "field": "apiKeyUrl",
-  "reason": "not-official-vendor"
- },
- {
-  "tool": "claude",
-  "name": "AWS Bedrock (AKSK)",
-  "field": "websiteUrl",
-  "reason": "not-official-vendor"
- },
- {
-  "tool": "claude",
-  "name": "AWS Bedrock (API Key)",
-  "field": "websiteUrl",
   "reason": "not-official-vendor"
  },
  {
@@ -1076,24 +1052,6 @@
  {
   "tool": "codex",
   "name": "Soshow",
-  "field": "apiKeyUrl",
-  "reason": "not-official-vendor"
- },
- {
-  "tool": "codex",
-  "name": "Azure OpenAI",
-  "field": "websiteUrl",
-  "reason": "not-official-vendor"
- },
- {
-  "tool": "codex",
-  "name": "OpenCode Zen",
-  "field": "websiteUrl",
-  "reason": "not-official-vendor"
- },
- {
-  "tool": "codex",
-  "name": "OpenCode Zen",
   "field": "apiKeyUrl",
   "reason": "not-official-vendor"
  },
@@ -2977,18 +2935,6 @@
  },
  {
   "tool": "opencode",
-  "name": "Nvidia",
-  "field": "websiteUrl",
-  "reason": "not-official-vendor"
- },
- {
-  "tool": "opencode",
-  "name": "Nvidia",
-  "field": "apiKeyUrl",
-  "reason": "not-official-vendor"
- },
- {
-  "tool": "opencode",
   "name": "PIPELLM",
   "field": "websiteUrl",
   "reason": "not-official-vendor"
@@ -3009,12 +2955,6 @@
   "tool": "opencode",
   "name": "E-FlowCode",
   "field": "apiKeyUrl",
-  "reason": "not-official-vendor"
- },
- {
-  "tool": "opencode",
-  "name": "AWS Bedrock",
-  "field": "websiteUrl",
   "reason": "not-official-vendor"
  },
  {
@@ -3607,18 +3547,6 @@
  },
  {
   "tool": "openclaw",
-  "name": "Nvidia",
-  "field": "websiteUrl",
-  "reason": "not-official-vendor"
- },
- {
-  "tool": "openclaw",
-  "name": "Nvidia",
-  "field": "apiKeyUrl",
-  "reason": "not-official-vendor"
- },
- {
-  "tool": "openclaw",
   "name": "PIPELLM",
   "field": "websiteUrl",
   "reason": "not-official-vendor"
@@ -3639,12 +3567,6 @@
   "tool": "openclaw",
   "name": "E-FlowCode",
   "field": "apiKeyUrl",
-  "reason": "not-official-vendor"
- },
- {
-  "tool": "openclaw",
-  "name": "AWS Bedrock",
-  "field": "websiteUrl",
   "reason": "not-official-vendor"
  },
  {
@@ -4243,18 +4165,6 @@
  },
  {
   "tool": "hermes",
-  "name": "Nvidia",
-  "field": "websiteUrl",
-  "reason": "not-official-vendor"
- },
- {
-  "tool": "hermes",
-  "name": "Nvidia",
-  "field": "apiKeyUrl",
-  "reason": "not-official-vendor"
- },
- {
-  "tool": "hermes",
   "name": "PIPELLM",
   "field": "websiteUrl",
   "reason": "not-official-vendor"
@@ -4771,18 +4681,6 @@
  },
  {
   "tool": "pi",
-  "name": "Nvidia",
-  "field": "websiteUrl",
-  "reason": "not-official-vendor"
- },
- {
-  "tool": "pi",
-  "name": "Nvidia",
-  "field": "apiKeyUrl",
-  "reason": "not-official-vendor"
- },
- {
-  "tool": "pi",
   "name": "PIPELLM",
   "field": "websiteUrl",
   "reason": "not-official-vendor"
@@ -4815,12 +4713,6 @@
   "tool": "pi",
   "name": "E-FlowCode",
   "field": "apiKeyUrl",
-  "reason": "not-official-vendor"
- },
- {
-  "tool": "pi",
-  "name": "AWS Bedrock",
-  "field": "websiteUrl",
   "reason": "not-official-vendor"
  },
  {
@@ -5324,18 +5216,6 @@
  {
   "tool": "mcode",
   "name": "Novita AI",
-  "field": "apiKeyUrl",
-  "reason": "not-official-vendor"
- },
- {
-  "tool": "mcode",
-  "name": "Nvidia",
-  "field": "websiteUrl",
-  "reason": "not-official-vendor"
- },
- {
-  "tool": "mcode",
-  "name": "Nvidia",
   "field": "apiKeyUrl",
   "reason": "not-official-vendor"
  },

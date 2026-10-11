@@ -106,10 +106,16 @@ const REFERRAL_PATH = [
 ];
 const SHORT_CODE = /^\/(?=[A-Za-z0-9]*\d)(?=[A-Za-z0-9]*[A-Z])[A-Za-z0-9]{5,10}\/?$/;
 
-/** 官方厂商名；不在白名单里返回 null。 */
-export function officialVendor(host) {
+/** 官方厂商名；不在白名单里返回 null。条目带路径时还要求路径前缀一致。 */
+export function officialVendor(host, pathname = "/") {
   const h = host.toLowerCase();
-  return OFFICIAL.find(([d]) => h === d || h.endsWith(`.${d}`))?.[1] ?? null;
+  return (
+    OFFICIAL.find(([entry]) => {
+      const [d, ...rest] = entry.split("/");
+      const prefix = rest.length ? `/${rest.join("/")}` : "";
+      return (h === d || h.endsWith(`.${d}`)) && (!prefix || pathname === prefix || pathname.startsWith(`${prefix}/`));
+    })?.[1] ?? null
+  );
 }
 
 /** 去掉返利 / 追踪参数和路径邀请码。 */
@@ -137,7 +143,7 @@ function trim(tool, preset) {
     } catch {
       url = null;
     }
-    const vendor = url && url.protocol === "https:" ? officialVendor(url.host) : null;
+    const vendor = url && url.protocol === "https:" ? officialVendor(url.host, url.pathname) : null;
     if (vendor) {
       const cleaned = cleanOfficialUrl(out[field]);
       keptLinks.push({ tool, name: preset.name, field, vendor, cleaned: cleaned !== out[field] });

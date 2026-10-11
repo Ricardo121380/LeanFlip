@@ -608,6 +608,8 @@
   },
   {
     "name": "OpenCode Zen",
+    "websiteUrl": "https://opencode.ai/zen",
+    "apiKeyUrl": "https://opencode.ai/auth",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://opencode.ai/zen",
@@ -1142,6 +1144,7 @@
   },
   {
     "name": "AWS Bedrock (AKSK)",
+    "websiteUrl": "https://aws.amazon.com/bedrock/",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://bedrock-runtime.${AWS_REGION}.amazonaws.com",
@@ -1159,6 +1162,7 @@
   },
   {
     "name": "AWS Bedrock (API Key)",
+    "websiteUrl": "https://aws.amazon.com/bedrock/",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://bedrock-runtime.${AWS_REGION}.amazonaws.com",
