@@ -140,6 +140,31 @@ describe("ProviderEditor via ToolPage", () => {
     expect(args.provider.settingsConfig.env.ANTHROPIC_BASE_URL).toMatch(/^https:\/\//);
     expect(args.addToLive).toBe(false);
   });
+
+  it("edits the Claude Desktop model menu visually and blocks invalid ids", async () => {
+    const fake = use({
+      list_providers: () => ({ tool: "claude-desktop", kind: "switch", current: null, inLive: [], liveError: null, paths: [], providers: [] }),
+      codex_accounts: () => [],
+      add_provider: () => ({ changed: [], warnings: [] }),
+    });
+    renderWithClient(<ToolPage tool="claude-desktop" />);
+    await userEvent.click(await screen.findByRole("button", { name: /添加供应商/ }));
+    await userEvent.click(await screen.findByRole("button", { name: /添加模型/ }));
+    const id = screen.getByLabelText("模型名");
+    await userEvent.clear(id);
+    await userEvent.type(id, "gpt-5");
+    expect(screen.getByRole("alert")).toHaveTextContent(/claude-sonnet/);
+    expect(screen.getByRole("button", { name: "保存" })).toBeDisabled();
+    await userEvent.clear(id);
+    await userEvent.type(id, "claude-sonnet-4-5");
+    await userEvent.type(screen.getByLabelText("显示名（可选）"), "Sonnet");
+    await userEvent.click(screen.getByRole("checkbox", { name: "支持 1M 上下文" }));
+    await userEvent.type(screen.getByLabelText("ID"), "x");
+    await userEvent.click(screen.getByRole("button", { name: "保存" }));
+    await waitFor(() => expect(fake.calls.some((c) => c.cmd === "add_provider")).toBe(true));
+    const args = fake.calls.find((c) => c.cmd === "add_provider")!.args as { provider: { meta?: Record<string, unknown> } };
+    expect(args.provider.meta?.claudeDesktopModelRoutes).toEqual({ "claude-sonnet-4-5": { labelOverride: "Sonnet", supports1m: true } });
+  });
 });
 
 describe("CodexAccountsPage", () => {

@@ -8,6 +8,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input, NativeSelect } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CodeEditor } from "@/components/CodeEditor";
+import { ModelRoutesEditor } from "@/components/ModelRoutesEditor";
+import { applyRoutes, routeErrors, routesOf } from "@/lib/routes";
 import { api, errorMessage, type AccountInfo, type LoginSummary, type Provider, type ToolId } from "@/lib/api";
 import {
   accountLabel,
@@ -101,6 +103,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, existingIds
     toEditorText(meta.editor, provider?.settingsConfig ?? customTemplate(tool)),
   );
   const [loginSource, setLoginSource] = useState(loginSourceOf(provider));
+  const [routes, setRoutes] = useState(() => routesOf(provider));
   const [apply, setApply] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -114,6 +117,8 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, existingIds
   const parsed = fromEditorText(meta.editor, text, provider?.settingsConfig);
   const official = isOfficial({ category });
   const showLogin = tool === "codex" && official;
+  const showRoutes = tool === "claude-desktop" && !official;
+  const routesOk = !showRoutes || routeErrors(routes).every((e) => e === null);
 
   function choosePreset(p: Preset | null) {
     setPreset(p);
@@ -140,6 +145,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, existingIds
           };
       if (website.trim()) next.websiteUrl = website.trim();
       else delete next.websiteUrl;
+      if (showRoutes) next = applyRoutes(next, routes);
       if (showLogin) next = applyLoginSource(next, loginSource.startsWith("ref:") ? "native" : loginSource);
 
       const result = editing
@@ -160,7 +166,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, existingIds
   }
 
   const idTaken = !editing && existingIds.includes(id.trim());
-  const canSave = parsed.ok && (editing || (id.trim() !== "" && !idTaken)) && !saving;
+  const canSave = parsed.ok && routesOk && (editing || (id.trim() !== "" && !idTaken)) && !saving;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -276,6 +282,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, existingIds
                 <CodeEditor language="json" minHeight={220} value={text.json} onChange={(json) => setText({ json })} ariaLabel="settings" />
               </>
             )}
+            {showRoutes && <ModelRoutesEditor rows={routes} onChange={setRoutes} />}
             {!parsed.ok && (
               <p role="alert" className="text-xs text-destructive">
                 {t("editor.invalid")}: {parsed.error}
