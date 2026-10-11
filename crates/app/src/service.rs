@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex, RwLock};
 
 use ccsl_core::codex::oauth::transport::OAuthTransport;
 use ccsl_core::codex::oauth::{AccountInfo, CodexOAuthManager, DeviceFlow, DeviceFlowPoll};
-use ccsl_core::operation::OperationReport;
+use ccsl_core::operation::{OperationReport, RecoveryOutcome};
 use ccsl_core::switch::{self, Services};
 use ccsl_core::{
     ccswitch_export, ccswitch_import, coexist, import, store, AppError, Env, Provider, Tool,
@@ -91,19 +91,37 @@ pub struct OpResult {
     pub warnings: Vec<String>,
 }
 
-impl From<OperationReport> for OpResult {
-    fn from(report: OperationReport) -> Self {
-        Self {
-            changed: report.changed,
-            warnings: report.warnings,
-        }
-    }
-}
-
-impl From<Option<OperationReport>> for OpResult {
-    fn from(report: Option<OperationReport>) -> Self {
-        report.map(Into::into).unwrap_or_default()
-    }
+fn recovery_message(outcome: &RecoveryOutcome, english: bool) -> String {
+    let (zh, en, paths) = match outcome {
+        RecoveryOutcome::Discarded => (
+            "已丢弃尚未开始写入的上次操作，客户端文件未被改动。",
+            "Discarded an unfinished operation that had not started writing. Client files were unchanged.",
+            &[][..],
+        ),
+        RecoveryOutcome::RolledForward => (
+            "已补完上次未完成的写入。",
+            "Completed the previous unfinished write.",
+            &[][..],
+        ),
+        RecoveryOutcome::RolledForwardExcept { paths } => (
+            "上次写入仅部分恢复。以下文件被外部修改或临时文件不可用，已保持原样，请检查当前配置：",
+            "The previous write was only partially recovered. These files were changed externally or their staged files were unavailable; they were left unchanged. Check the current config:",
+            paths.as_slice(),
+        ),
+        RecoveryOutcome::Abandoned { paths } => (
+            "上次操作在写入前遇到外部修改，已放弃。以下文件保持原样：",
+            "Abandoned the previous operation because files changed before writing began. These files were left unchanged:",
+            paths.as_slice(),
+        ),
+    };
+    std::iter::once(if english {
+        en.to_string()
+    } else {
+        zh.to_string()
+    })
+    .chain(paths.iter().map(|p| p.display().to_string()))
+    .collect::<Vec<_>>()
+    .join("\n")
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -178,7 +196,7 @@ pub struct Service {
     transport: Option<Arc<dyn OAuthTransport>>,
     runtime: RwLock<Arc<Runtime>>,
     settings: Mutex<AppSettings>,
-    recovery: Vec<String>,
+    recovery: Mutex<Vec<String>>,
     /// 读进来、等用户确认的 cc-switch 导出文件。
     staged_export: Mutex<Option<ccswitch_export::ParsedExport>>,
 }
@@ -189,18 +207,26 @@ fn services(rt: &Runtime) -> Services<'_> {
     }
 }
 
-fn recover(env: &Env) -> Vec<String> {
+fn recover(env: &Env, english: bool) -> Vec<String> {
     let lines = switch::recover_on_startup(env)
         .into_iter()
         .map(|(app, outcome)| match outcome {
-            Ok(outcome) => format!("{app}: {outcome:?}"),
-            Err(err) => format!("{app}: {err}"),
+            Ok(outcome) => format!("{app}: {}", recovery_message(&outcome, english)),
+            Err(err) => recovery_error(&app, ApiError::from_core(err, english), english),
         })
         .collect::<Vec<_>>();
     for line in &lines {
         log::info!("recovery {line}");
     }
     lines
+}
+
+fn recovery_error(app: &str, error: ApiError, english: bool) -> String {
+    if english {
+        format!("{app}: Recovery failed; check the client config before retrying. {error}")
+    } else {
+        format!("{app}: 恢复失败，请检查客户端配置后重试。{error}")
+    }
 }
 
 impl Service {
@@ -212,14 +238,14 @@ impl Service {
             AppSettings::default()
         });
         let env = base.clone().with_overrides(&app_settings.dir_overrides);
-        let recovery = recover(&env);
+        let recovery = recover(&env, app_settings.language.as_deref() == Some("en"));
         let oauth = Arc::new(CodexOAuthManager::new(&env, transport.clone())?);
         Ok(Self {
             base,
             transport,
             runtime: RwLock::new(Arc::new(Runtime { env, oauth })),
             settings: Mutex::new(app_settings),
-            recovery,
+            recovery: Mutex::new(recovery),
             staged_export: Mutex::new(None),
         })
     }
@@ -250,13 +276,57 @@ impl Service {
             Arc::new(CodexOAuthManager::new(&env, self.transport.clone())?)
         };
         // 新目录下如果有别的实例留下的未完成操作，先补完 / 放弃。
-        recover(&env);
+        let notices = recover(&env, self.english());
+        self.recovery
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .extend(notices);
         *self.runtime.write().unwrap_or_else(|e| e.into_inner()) = Arc::new(Runtime { env, oauth });
         Ok(true)
     }
 
-    pub fn recovery(&self) -> &[String] {
-        &self.recovery
+    /// 非破坏性读取：重试、窗口重新挂载和查询刷新不会丢失恢复提示。
+    pub fn recovery(&self) -> Vec<String> {
+        self.recovery
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+    }
+
+    /// 入口先落定再读取卡片；恢复提示独立保存，后续操作失败也不会丢失。
+    fn settle(&self, rt: &Runtime, tool: Tool) -> ApiResult<()> {
+        let line = match switch::settle(&rt.env, tool) {
+            Ok(None) => return Ok(()),
+            Ok(Some(outcome)) => format!("{tool}: {}", recovery_message(&outcome, self.english())),
+            Err(err) => {
+                let error = self.err(err);
+                let line = recovery_error(tool.as_str(), error.clone(), self.english());
+                let mut notices = self.recovery.lock().unwrap_or_else(|e| e.into_inner());
+                if notices.last() != Some(&line) {
+                    notices.push(line);
+                }
+                return Err(error);
+            }
+        };
+        self.recovery
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(line);
+        Ok(())
+    }
+
+    fn op_result(&self, report: impl Into<Option<OperationReport>>) -> OpResult {
+        let Some(report) = report.into() else {
+            return OpResult::default();
+        };
+        let mut warnings = report.warnings;
+        if let Some(outcome) = report.recovered {
+            warnings.push(recovery_message(&outcome, self.english()));
+        }
+        OpResult {
+            changed: report.changed,
+            warnings,
+        }
     }
 
     pub fn app_settings(&self) -> AppSettings {
@@ -335,8 +405,9 @@ impl Service {
 
     pub fn switch_provider(&self, tool: Tool, id: &str) -> ApiResult<OpResult> {
         let rt = self.runtime();
+        self.settle(&rt, tool)?;
         switch::switch_with(&rt.env, services(&rt), tool, id)
-            .map(Into::into)
+            .map(|report| self.op_result(report))
             .map_err(|e| self.err(e))
     }
 
@@ -366,19 +437,20 @@ impl Service {
     ) -> ApiResult<OpResult> {
         let rt = self.runtime();
         self.check_incoming(&provider)?;
+        self.settle(&rt, tool)?;
         if tool.is_coexist() {
             return coexist::add_provider(&rt.env, tool, provider, add_to_live)
-                .map(Into::into)
+                .map(|report| self.op_result(report))
                 .map_err(|e| self.err(e));
         }
         let run = || -> Result<OpResult, AppError> {
-            switch::settle(&rt.env, tool)?;
             let data = store::load(&rt.env)?;
             switch::preflight(&data, tool, &provider)?;
             let id = provider.id.clone();
             store::add_provider(&rt.env, tool, provider)?;
             if add_to_live {
-                return switch::switch_with(&rt.env, services(&rt), tool, &id).map(Into::into);
+                return switch::switch_with(&rt.env, services(&rt), tool, &id)
+                    .map(|report| self.op_result(report));
             }
             Ok(OpResult::default())
         };
@@ -387,18 +459,20 @@ impl Service {
 
     pub fn update_provider(&self, tool: Tool, mut provider: Provider) -> ApiResult<OpResult> {
         let rt = self.runtime();
+        self.settle(&rt, tool)?;
         let data = store::load(&rt.env).map_err(|e| self.err(e))?;
         let stored = data.provider(tool, &provider.id).cloned();
         redact::restore(tool, &mut provider, stored.as_ref());
         self.check_incoming(&provider)?;
         switch::update_provider_with(&rt.env, services(&rt), tool, provider)
-            .map(Into::into)
+            .map(|report| self.op_result(report))
             .map_err(|e| self.err(e))
     }
 
     pub fn delete_provider(&self, tool: Tool, id: &str) -> ApiResult<()> {
         let rt = self.runtime();
         let result = if tool.is_coexist() {
+            self.settle(&rt, tool)?;
             coexist::delete_provider(&rt.env, tool, id)
         } else {
             store::remove_provider(&rt.env, tool, id)
@@ -409,16 +483,18 @@ impl Service {
     /// 并存式工具：写进 / 移出客户端配置。
     pub fn set_in_live(&self, tool: Tool, id: &str, enabled: bool) -> ApiResult<OpResult> {
         let rt = self.runtime();
+        self.settle(&rt, tool)?;
         let result = if enabled {
-            coexist::write_to_live(&rt.env, tool, id).map(Into::into)
+            coexist::write_to_live(&rt.env, tool, id).map(|report| self.op_result(report))
         } else {
-            coexist::remove_from_live(&rt.env, tool, id).map(Into::into)
+            coexist::remove_from_live(&rt.env, tool, id).map(|report| self.op_result(report))
         };
         result.map_err(|e| self.err(e))
     }
 
     pub fn import_live(&self, tool: Tool) -> ApiResult<ImportLiveResult> {
         let rt = self.runtime();
+        self.settle(&rt, tool)?;
         import::import_live(&rt.env, tool)
             .map(|r| ImportLiveResult { created: r.created })
             .map_err(|e| self.err(e))
@@ -457,19 +533,22 @@ impl Service {
 
     pub fn codex_remove_account(&self, id: &str) -> ApiResult<()> {
         let rt = self.runtime();
+        self.settle(&rt, Tool::Codex)?;
         rt.oauth.remove_account(id).map_err(|e| self.err(e))
     }
 
     /// 本机 `auth.json` / 登录暂存里的 ChatGPT 登录：只有身份信息，没有 token。
     pub fn codex_logins(&self) -> ApiResult<Vec<ccsl_core::codex::login::LoginSummary>> {
         let rt = self.runtime();
+        self.settle(&rt, Tool::Codex)?;
         switch::codex::available_logins(&rt.env).map_err(|e| self.err(e))
     }
 
     pub fn codex_set_login_ref(&self, id: &str, identity: Option<&str>) -> ApiResult<OpResult> {
         let rt = self.runtime();
+        self.settle(&rt, Tool::Codex)?;
         switch::codex::set_login_ref(&rt.env, services(&rt), id, identity)
-            .map(Into::into)
+            .map(|report| self.op_result(report))
             .map_err(|e| self.err(e))
     }
 

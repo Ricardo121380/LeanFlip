@@ -36,6 +36,11 @@ async fn mutating<T: Send + 'static>(
 }
 
 #[tauri::command]
+pub async fn get_recovery_notices(state: State<'_, AppState>) -> ApiResult<Vec<String>> {
+    blocking(&state, |s| Ok(s.recovery())).await
+}
+
+#[tauri::command]
 pub async fn get_overview(state: State<'_, AppState>) -> ApiResult<Vec<ToolSummary>> {
     blocking(&state, |s| s.overview()).await
 }
@@ -162,8 +167,17 @@ pub async fn codex_remove_account(
 }
 
 #[tauri::command]
-pub async fn codex_logins(state: State<'_, AppState>) -> ApiResult<Vec<LoginSummary>> {
-    blocking(&state, |s| s.codex_logins()).await
+pub async fn codex_logins(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> ApiResult<Vec<LoginSummary>> {
+    let before = state.0.recovery().len();
+    let result = blocking(&state, |s| s.codex_logins()).await;
+    // 登录查询本身可能补完之前的写入；提示查询可能已先返回，需要再刷新一次。
+    if state.0.recovery().len() != before {
+        notify_changed(&app);
+    }
+    result
 }
 
 #[tauri::command]

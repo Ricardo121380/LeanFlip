@@ -2,6 +2,11 @@ import type { Messages } from "./zh";
 
 const en: Messages = {
   app: { title: "CC Switch Lite", subtitle: "Per-agent config switching" },
+  recovery: {
+    title: "Recovery of unfinished writes",
+    dismiss: "Dismiss recovery notices",
+    loadError: "Could not read recovery results. Please try again later.",
+  },
   nav: { tools: "Tools", codexAccounts: "Codex accounts", import: "Import from cc-switch", settings: "Settings" },
   kind: { switch: "Switch", coexist: "Coexist" },
   tool: {
