@@ -491,7 +491,7 @@ pub fn preview(
     parsed: &ParsedExport,
     policy: DuplicatePolicy,
 ) -> Result<Preview, AppError> {
-    let data = store::load(env)?;
+    let data = store::load_readonly(env)?;
     Ok(Preview {
         format: parsed.format,
         schema_version: parsed.schema_version,
