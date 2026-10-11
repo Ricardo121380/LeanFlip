@@ -593,6 +593,8 @@
   },
   {
     "name": "OpenCode Go",
+    "websiteUrl": "https://opencode.ai/go",
+    "apiKeyUrl": "https://opencode.ai/go",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://opencode.ai/zen/go",

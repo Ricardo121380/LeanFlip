@@ -4025,6 +4025,8 @@
   },
   {
     "name": "OpenCode Go",
+    "websiteUrl": "https://opencode.ai/go",
+    "apiKeyUrl": "https://opencode.ai/go",
     "settingsConfig": {
       "name": "OpenCode Go",
       "kind": "custom",

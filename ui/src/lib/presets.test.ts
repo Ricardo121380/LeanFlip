@@ -105,14 +105,14 @@ describe("preset links", () => {
     const has = (tool: string, name: string) => Boolean(presetsFor(tool).find((p) => p.name === name)?.websiteUrl);
     for (const name of ["Kimi", "DeepSeek", "Zhipu GLM", "MiniMax", "Volcengine Doubao"]) expect(has("claude", name), name).toBe(true);
     // 按用户决定保留的平台。
-    for (const [tool, name] of [["claude", "AWS Bedrock (AKSK)"], ["codex", "Azure OpenAI"], ["opencode", "Nvidia"], ["claude", "OpenCode Zen"], ["codex", "OpenCode Zen"]]) {
+    for (const [tool, name] of [["claude", "AWS Bedrock (AKSK)"], ["codex", "Azure OpenAI"], ["opencode", "Nvidia"], ["claude", "OpenCode Zen"], ["codex", "OpenCode Zen"], ["claude", "OpenCode Go"], ["opencode", "OpenCode Go"]]) {
       expect(has(tool, name), `${tool}/${name}`).toBe(true);
     }
-    for (const name of ["OpenRouter", "PackyCode", "AIGoCode", "SiliconFlow", "PPIO", "Qiniu", "OpenCode Go"]) {
+    for (const name of ["OpenRouter", "PackyCode", "AIGoCode", "SiliconFlow", "PPIO", "Qiniu"]) {
       const p = presetsFor("claude").find((x) => x.name === name);
       if (p) expect([p.websiteUrl, p.apiKeyUrl], name).toEqual([undefined, undefined]);
     }
-    for (const name of ["ModelScope", "OpenRouter", "OpenCode Go"]) {
+    for (const name of ["ModelScope", "OpenRouter"]) {
       const p = presetsFor("opencode").find((x) => x.name === name);
       if (p) expect([p.websiteUrl, p.apiKeyUrl], name).toEqual([undefined, undefined]);
     }

@@ -493,18 +493,6 @@
  },
  {
   "tool": "claude",
-  "name": "OpenCode Go",
-  "field": "websiteUrl",
-  "reason": "not-official-vendor"
- },
- {
-  "tool": "claude",
-  "name": "OpenCode Go",
-  "field": "apiKeyUrl",
-  "reason": "not-official-vendor"
- },
- {
-  "tool": "claude",
   "name": "ModelScope",
   "field": "websiteUrl",
   "reason": "not-official-vendor"
@@ -2858,18 +2846,6 @@
  {
   "tool": "opencode",
   "name": "ModelScope",
-  "field": "apiKeyUrl",
-  "reason": "not-official-vendor"
- },
- {
-  "tool": "opencode",
-  "name": "OpenCode Go",
-  "field": "websiteUrl",
-  "reason": "not-official-vendor"
- },
- {
-  "tool": "opencode",
-  "name": "OpenCode Go",
   "field": "apiKeyUrl",
   "reason": "not-official-vendor"
  },
@@ -4609,18 +4585,6 @@
  },
  {
   "tool": "pi",
-  "name": "OpenCode Go",
-  "field": "websiteUrl",
-  "reason": "not-official-vendor"
- },
- {
-  "tool": "pi",
-  "name": "OpenCode Go",
-  "field": "apiKeyUrl",
-  "reason": "not-official-vendor"
- },
- {
-  "tool": "pi",
   "name": "AiHubMix",
   "field": "websiteUrl",
   "reason": "not-official-vendor"
@@ -5144,18 +5108,6 @@
  {
   "tool": "mcode",
   "name": "ModelScope",
-  "field": "apiKeyUrl",
-  "reason": "not-official-vendor"
- },
- {
-  "tool": "mcode",
-  "name": "OpenCode Go",
-  "field": "websiteUrl",
-  "reason": "not-official-vendor"
- },
- {
-  "tool": "mcode",
-  "name": "OpenCode Go",
   "field": "apiKeyUrl",
   "reason": "not-official-vendor"
  },

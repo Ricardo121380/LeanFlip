@@ -2713,6 +2713,8 @@
   },
   {
     "name": "OpenCode Go",
+    "websiteUrl": "https://opencode.ai/go",
+    "apiKeyUrl": "https://opencode.ai/go",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "OpenCode Go",
