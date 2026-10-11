@@ -1,4 +1,4 @@
-//! CC Switch Lite 桌面应用：Tauri 2 外壳，业务都在 `ccsl-core` 和 [`service`] 里。
+//! SwitchLeaf 桌面应用：Tauri 2 外壳，业务都在 `ccsl-core` 和 [`service`] 里。
 
 pub mod commands;
 pub use ccsl_service::{oauth_http, redact, service, settings};
@@ -77,6 +77,7 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
@@ -132,10 +133,14 @@ pub fn run() {
             commands::ccswitch_export_preview,
             commands::ccswitch_export_apply,
             commands::ccswitch_export_discard,
+            commands::backup_save,
+            commands::backup_load,
+            commands::backup_apply,
+            commands::backup_discard,
             commands::open_url,
         ])
         .run(app_context())
-        .expect("error while running CC Switch Lite");
+        .expect("error while running SwitchLeaf");
 }
 
 /// 简单的 stderr 日志（`RUST_LOG` 不设时只打 warn 以上）。

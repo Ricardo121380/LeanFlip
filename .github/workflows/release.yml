@@ -84,9 +84,9 @@ jobs:
           PLATFORM: ${{ matrix.platform }}
         run: |
           mkdir -p release-assets "$RUNNER_TEMP/ccsl-package"
-          cp target/release/ccsl LICENSE NOTICE.md "$RUNNER_TEMP/ccsl-package/"
+          cp target/release/ccsl target/release/switchleaf LICENSE NOTICE.md "$RUNNER_TEMP/ccsl-package/"
           cp crates/cli/README.md "$RUNNER_TEMP/ccsl-package/README.md"
-          tar -C "$RUNNER_TEMP/ccsl-package" -czf "release-assets/ccsl_${RELEASE_VERSION}_${PLATFORM}.tar.gz" ccsl LICENSE NOTICE.md README.md
+          tar -C "$RUNNER_TEMP/ccsl-package" -czf "release-assets/ccsl_${RELEASE_VERSION}_${PLATFORM}.tar.gz" ccsl switchleaf LICENSE NOTICE.md README.md
           if [ "$RUNNER_OS" = macOS ]; then
             set -- target/release/bundle/dmg/*.dmg
             test "$#" -eq 1 && test -f "$1"
@@ -144,8 +144,8 @@ jobs:
         run: |
           if gh release view "$RELEASE_TAG" --json isDraft > "$RUNNER_TEMP/release.json" 2>/dev/null; then
             python3 -c 'import json,sys; assert json.load(open(sys.argv[1]))["isDraft"], "Refusing to change a published release"' "$RUNNER_TEMP/release.json"
-            gh release edit "$RELEASE_TAG" --title "CC Switch Lite $RELEASE_TAG" --notes-file "docs/releases/$RELEASE_TAG.md"
+            gh release edit "$RELEASE_TAG" --title "SwitchLeaf $RELEASE_TAG" --notes-file "docs/releases/$RELEASE_TAG.md"
             gh release upload "$RELEASE_TAG" release-assets/* --clobber
           else
-            gh release create "$RELEASE_TAG" release-assets/* --verify-tag --draft --title "CC Switch Lite $RELEASE_TAG" --notes-file "docs/releases/$RELEASE_TAG.md"
+            gh release create "$RELEASE_TAG" release-assets/* --verify-tag --draft --title "SwitchLeaf $RELEASE_TAG" --notes-file "docs/releases/$RELEASE_TAG.md"
           fi

@@ -1,4 +1,7 @@
-# CC Switch Lite — npm 安装入口
+# SwitchLeaf 安装器
+
+SwitchLeaf 是 CC Switch Lite 的新名称。当前锁定的 v0.1.0 安装器仍使用下文的旧包名和旧命令；后续生成的新版本使用 `switchleaf` npm 包，提供 `switchleaf` / `switchleaf-app`，并保留 `ccsl` / `ccsl-app` 别名。新功能以对应原生发布包为准，npm 不额外实现一套功能。
+
 
 一个 npm 包提供两个命令：
 

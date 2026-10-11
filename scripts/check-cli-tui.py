@@ -7,6 +7,10 @@ tests; these checks verify real input, persisted effects and terminal cleanup.
 """
 import argparse
 import fcntl
+import json
+import re
+import select
+import unicodedata
 import os
 from pathlib import Path
 import signal
@@ -23,6 +27,53 @@ import importlib.util
 spec = importlib.util.spec_from_file_location("menu_check", Path(__file__).with_name("check-cli-menu.py"))
 menu = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(menu)
+
+
+def screen_text(raw, width=120, height=24):
+    """Reconstruct the CSI cursor updates used by Ratatui, including spaces.
+
+    Matching raw bytes is insufficient: an unchanged space may be represented
+    by a cursor move, so a visible phrase is not necessarily contiguous bytes.
+    """
+    rows = [[" "] * width for _ in range(height)]
+    x = y = 0
+    for token in re.findall(r"\x1b\[[0-?]*[ -/]*[@-~]|[^\x1b]", raw.decode("utf-8", errors="replace")):
+        if token.startswith("\x1b["):
+            body, action = token[2:-1], token[-1]
+            if body.startswith("?"): continue
+            values = [int(value or 0) for value in body.split(";") if value.isdigit() or not value]
+            value = (values[0] if values else 0) or 1
+            if action in "Hf": y, x = value - 1, ((values[1] if len(values) > 1 else 1) or 1) - 1
+            elif action == "G": x = value - 1
+            elif action == "d": y = value - 1
+            elif action == "A": y -= value
+            elif action == "B": y += value
+            elif action == "C": x += value
+            elif action == "D": x -= value
+            elif action == "J" and values and values[0] in (2, 3): rows = [[" "] * width for _ in range(height)]
+            elif action == "K" and 0 <= y < height:
+                start, end = (0, width) if values and values[0] == 2 else (0, x + 1) if values and values[0] == 1 else (x, width)
+                for col in range(max(0, start), min(width, end)): rows[y][col] = " "
+            continue
+        if token == "\r": x = 0
+        elif token == "\n": y += 1
+        elif ord(token) >= 32:
+            cell_width = 0 if unicodedata.combining(token) else 2 if unicodedata.east_asian_width(token) in "WF" else 1
+            if 0 <= y < height and 0 <= x < width:
+                rows[y][x] = token
+                if cell_width == 2 and x + 1 < width: rows[y][x + 1] = ""
+            x += cell_width
+    return "\n".join("".join(row) for row in rows)
+
+
+def expect_screen(terminal, text, timeout=8):
+    deadline = time.monotonic() + timeout
+    while text not in screen_text(terminal.output):
+        if time.monotonic() > deadline: raise AssertionError(f"Timed out waiting for visible {text!r}")
+        if select.select([terminal.fd], [], [], 0.1)[0]:
+            chunk = os.read(terminal.fd, 65536)
+            if not chunk: raise AssertionError("Terminal closed before the expected screen")
+            terminal.output += chunk; terminal.pending += chunk
 
 
 def finish(terminal, keys="q", interrupt=None):
@@ -53,7 +104,7 @@ def start(binary, home, tool=None, width=120):
         args.append(tool)
     terminal = menu.Terminal(binary, args, width=width)
     terminal.expect("\x1b[?1049h")
-    terminal.expect("CC Switch Lite")
+    terminal.expect("SwitchLeaf")
     return terminal
 
 
@@ -115,6 +166,41 @@ def check(binary):
             assert finish(terminal) == 0
         assert not empty.exists()
         print("PASS: help, paths, refresh, empty search and terminal resize are read-only")
+
+        source = home / ".cc-switch"
+        source.mkdir()
+        (source / "config.json").write_text(json.dumps({"claude": {"providers": {"local": {"name": "Local migration", "settingsConfig": {"env": {"ANTHROPIC_AUTH_TOKEN": "fixture-tui-hidden-token"}}}}}}))
+        with start(binary, home) as terminal:
+            terminal.send("b\r")
+            expect_screen(terminal, "Local migration")
+            before = menu.snapshot(home)
+            terminal.send("\r\r")
+            assert menu.snapshot(home) == before
+            terminal.send("\ry")
+            expect_screen(terminal, "Cards saved 1")
+            assert finish(terminal, "\rqq") == 0
+        print("PASS: local CC Switch detection, preview, cancel and confirmed migration")
+
+        backup = Path(root) / "roundtrip.switchleaf"
+        password = "fixture-passphrase-only"
+        with start(binary, home) as terminal:
+            terminal.send("bjj\r\x15" + str(backup) + "\t" + password + "\t" + password + "\r")
+            expect_screen(terminal, "Encrypted backup saved", timeout=30)
+            assert finish(terminal, "\rqq") == 0
+            assert password.encode() not in terminal.output
+        assert backup.read_bytes().startswith(b"age-encryption.org/v1")
+        restored = Path(root) / "restored"
+        with start(binary, restored) as terminal:
+            terminal.send("bj\r" + str(backup) + "\t" + password + "\r")
+            expect_screen(terminal, "Provider cards", timeout=30)
+            assert not restored.exists(), "Decrypt/preview wrote the target home"
+            terminal.send("\ry")
+            expect_screen(terminal, "Restore complete")
+            assert finish(terminal, "\rqq") == 0
+            assert password.encode() not in terminal.output
+        assert menu.command(binary, restored, ["list", "claude", "--json"])["providers"]
+        assert not (restored / ".claude").exists(), "Backup restore switched the client"
+        print("PASS: encrypted export and restore through real TUI forms, masked passwords, and read-only preview")
 
         for interrupt in (None, "process", "group"):
             with start(binary, empty) as terminal:

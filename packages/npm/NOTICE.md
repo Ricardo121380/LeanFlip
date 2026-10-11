@@ -1,17 +1,17 @@
 # NOTICE
 
-ccswitch-lite 是 [farion1231/cc-switch](https://github.com/farion1231/cc-switch) 的派生作品，
+SwitchLeaf（原 ccswitch-lite）是 [farion1231/cc-switch](https://github.com/farion1231/cc-switch) 的派生作品，
 大量代码移植自该项目（基于 v4.0.8，commit `df40d53`）。
 
 cc-switch 以 MIT 许可证发布：
 
     Copyright (c) 2025 Jason Young
 
-完整许可证文本见本仓库的 [LICENSE](LICENSE)，ccswitch-lite 同样以 MIT 发布，保留原版权声明。
+完整许可证文本见本仓库的 [LICENSE](LICENSE)，SwitchLeaf 同样以 MIT 发布，保留原版权声明。
 
 ## 移植来源
 
-| ccswitch-lite | cc-switch 原文件 | 改动 |
+| SwitchLeaf | cc-switch 原文件 | 改动 |
 |---|---|---|
 | `crates/core/src/live/engine.rs` | `src-tauri/src/live/engine.rs` | 去掉 `DeviceStore::for_device`（全局 home），其余未改 |
 | `crates/core/src/live/floor.rs` | `src-tauri/src/live/floor.rs` | 测试 fixture 路径 |
@@ -46,7 +46,7 @@ cc-switch 以 MIT 许可证发布：
 
 ### Phase 3：桌面应用
 
-| ccswitch-lite | cc-switch 来源 | 说明 |
+| SwitchLeaf | cc-switch 来源 | 说明 |
 |---|---|---|
 | `crates/app/src/oauth_http.rs` | `src-tauri/src/proxy/providers/codex_oauth_auth.rs`（设备码 / 换 token / 刷新的 HTTP 请求形状、轮询间隔解析、刷新错误码判定） | 改为 reqwest blocking 实现 `OAuthTransport`；自有 User-Agent；错误信息不回显响应体 |
 | `crates/core/src/ccswitch_import.rs` | `src-tauri/src/database/*`（`providers` 表结构）、旧版 `config.json` 格式 | 只读打开；跳过需要本地路由 / 专用登录的卡 |

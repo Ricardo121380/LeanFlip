@@ -22,6 +22,8 @@ use crate::menu::{can_interact, name, terminal_error};
 use crate::presentation::{clean, error};
 use crate::{open_service, run, CliError};
 
+mod data;
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Focus {
     Tools,
@@ -79,6 +81,7 @@ struct App {
     notice: String,
     dialog: Option<Dialog>,
     quit: bool,
+    data: Option<data::DataPanel>,
 }
 
 impl App {
@@ -109,6 +112,7 @@ impl App {
                 .into(),
             dialog: None,
             quit: false,
+            data: None,
         };
         app.refresh();
         app
@@ -359,6 +363,13 @@ impl App {
     }
 
     fn key(&mut self, key: KeyEvent) -> Option<Pending> {
+        if let Some(data) = &mut self.data {
+            if data.key(key) {
+                self.data = None;
+                self.refresh();
+            }
+            return None;
+        }
         if let Some(dialog) = &mut self.dialog {
             match key.code {
                 KeyCode::Esc | KeyCode::Char('q' | 'n' | 'N') => self.dialog = None,
@@ -425,6 +436,7 @@ impl App {
             KeyCode::Enter => self.prepare(false),
             KeyCode::Char('/') => { self.focus = Focus::Providers; self.searching = true; }
             KeyCode::Char('i') => self.prepare(true),
+            KeyCode::Char('b') => match data::DataPanel::new(self.home.as_deref(), self.lang) { Ok(panel) => self.data = Some(panel), Err(problem) => self.problem(problem) },
             KeyCode::Char('r') => {
                 self.notice = if self.refresh() {
                     self.lang.text("已刷新当前状态。", "Current state refreshed.")
@@ -432,8 +444,8 @@ impl App {
             }
             KeyCode::Char('p' | 'd') => self.dialog = Some(Dialog::info(self.lang.text("详情与路径", "Details and paths"), self.details())),
             KeyCode::Char('?') | KeyCode::F(1) => self.dialog = Some(Dialog::info(self.lang.text("快捷键", "Keyboard shortcuts"), self.lang.text(
-                "Tab / ← →   切换工具与供应商区域\n↑ ↓ / j k   移动选择\nEnter       选择工具 / 预览操作\n/           搜索供应商名称或 ID\nEsc         清除搜索 / 返回 / 取消\ni           从当前客户端导入卡片\nr           重新读取最新状态\np / d       查看完整详情与路径\n? / F1      打开帮助\nq           关闭面板或退出\nCtrl+C      退出并恢复终端\n\n确认弹窗默认取消；Tab 选择确认后按 Enter，或按 y 执行。\n长内容使用 ↑↓ / PgUp / PgDn 滚动。\n\n浏览、搜索和刷新不会写配置。卡片编辑、文件导入和账号登录继续使用 ccsl --help 中的命令。",
-                "Tab / Left Right  Change focused pane\nUp Down / j k     Move selection\nEnter             Select tool / preview action\n/                 Search provider name or ID\nEsc               Clear filter / back / cancel\ni                 Import current client settings\nr                 Reload current state\np / d             Show full details and paths\n? / F1            Show help\nq                 Close a panel or quit\nCtrl+C            Exit and restore the terminal\n\nConfirmation defaults to Cancel. Tab then Enter, or y, applies it.\nScroll long panels with Up/Down or PgUp/PgDn.\n\nBrowsing, search and refresh never write configuration. Use ccsl --help for card editing, file import and account login."
+                "Tab / ← →   切换工具与供应商区域\n↑ ↓ / j k   移动选择\nEnter       选择工具 / 预览操作\n/           搜索供应商名称或 ID\nEsc         清除搜索 / 返回 / 取消\nb           数据中心：迁移、导入、加密备份\ni           从当前客户端导入卡片\nr           重新读取最新状态\np / d       查看完整详情与路径\n? / F1      打开帮助\nq           关闭面板或退出\nCtrl+C      退出并恢复终端\n\n确认弹窗默认取消；Tab 选择确认后按 Enter，或按 y 执行。\n长内容使用 ↑↓ / PgUp / PgDn 滚动。\n\n浏览、搜索和刷新不会写配置。卡片编辑和账号登录可使用 switchleaf --help 中的命令。",
+                "Tab / Left Right  Change focused pane\nUp Down / j k     Move selection\nEnter             Select tool / preview action\n/                 Search provider name or ID\nEsc               Clear filter / back / cancel\nb                 Data center: migrate, import, backup\ni                 Import current client settings\nr                 Reload current state\np / d             Show full details and paths\n? / F1            Show help\nq                 Close a panel or quit\nCtrl+C            Exit and restore the terminal\n\nConfirmation defaults to Cancel. Tab then Enter, or y, applies it.\nScroll long panels with Up/Down or PgUp/PgDn.\n\nBrowsing, search and refresh never write configuration. Use switchleaf --help for card editing and account login."
             ).into())),
             _ => {}
         }
@@ -442,6 +454,7 @@ impl App {
 
     fn render(&mut self, frame: &mut Frame) {
         let area = frame.area();
+        frame.render_widget(Block::default().style(surface()), area);
         if area.width < 44 || area.height < 12 {
             frame.render_widget(
                 Paragraph::new(self.lang.text(
@@ -453,8 +466,12 @@ impl App {
             );
             return;
         }
+        if let Some(data) = &mut self.data {
+            data.render(frame);
+            return;
+        }
         let [header, body, notice, footer] = Layout::vertical([
-            Constraint::Length(2),
+            Constraint::Length(3),
             Constraint::Min(4),
             Constraint::Length(2),
             Constraint::Length(2),
@@ -463,8 +480,8 @@ impl App {
         frame.render_widget(
             Paragraph::new(vec![
                 Line::from(vec![
-                    Span::styled(" CC Switch Lite", accent()),
-                    Span::raw("  /  TUI"),
+                    Span::styled("  SwitchLeaf", accent()),
+                    Span::styled("  /  WORKSPACE", muted()),
                     Span::raw(format!("  {}", env!("CARGO_PKG_VERSION"))),
                 ]),
                 Line::from(format!(
@@ -519,13 +536,17 @@ impl App {
                 "Searching · type to filter   Enter done   Esc clear",
             )
         } else if area.width < 76 {
-            self.lang.text("Tab 切换区域  ↑↓ 选择  Enter 打开\n/ 搜索  i 导入  r 刷新  ? 帮助  q 退出", "Tab pane  Up/Down select  Enter open\n/ search  i import  r reload  ? help  q quit")
+            self.lang.text(
+                "Tab 切换区域  ↑↓ 选择  Enter 打开\n/ 搜索  b 数据中心  r 刷新  ? 帮助  q 退出",
+                "Tab pane  Up/Down select  Enter open\n/ search  b data  r reload  ? help  q quit",
+            )
         } else {
-            self.lang.text("Tab/←→ 切换区域   ↑↓/jk 选择   Enter 预览操作   / 搜索\ni 导入   r 刷新   p 详情与路径   ? 帮助   q 退出", "Tab/Left/Right pane   Up/Down/jk select   Enter preview   / search\ni import   r reload   p details/paths   ? help   q quit")
+            self.lang.text("Tab/←→ 切换区域   ↑↓/jk 选择   Enter 预览操作   / 搜索\nb 数据中心   i 从客户端导入   r 刷新   p 详情与路径   ? 帮助   q 退出", "Tab/Left/Right pane   Up/Down/jk select   Enter preview   / search\nb data center   i from client   r reload   p details/paths   ? help   q quit")
         };
         frame.render_widget(Paragraph::new(hints).style(accent()), footer);
         if let Some(dialog) = &mut self.dialog {
-            render_dialog(frame, dialog, self.lang);
+            let confirmation = dialog.pending.is_some();
+            render_dialog(frame, dialog, self.lang, confirmation);
         }
     }
 
@@ -610,7 +631,7 @@ impl App {
         }
         if visible.is_empty() {
             let empty = if self.query.is_empty() {
-                self.lang.text("还没有供应商\n\n按 i 从当前客户端配置导入。\n也可使用 ccsl provider add 添加卡片。", "No providers yet\n\nPress i to import current client settings,\nor use ccsl provider add to create a card.")
+                self.lang.text("还没有供应商\n\n按 b 迁入本机 CC Switch 或备份。\n按 i 导入当前客户端配置。\n也可使用 switchleaf provider add 添加卡片。", "No providers yet\n\nPress b to migrate CC Switch or a backup.\nPress i to import current client settings,\nor use switchleaf provider add to create a card.")
             } else {
                 self.lang.text(
                     "没有匹配结果\n\n按 / 修改搜索，或 Esc 清除筛选。",
@@ -625,12 +646,24 @@ impl App {
             .iter()
             .map(|provider| {
                 ListItem::new(vec![
-                    Line::from(format!(
-                        "{}  [{}]",
-                        clean(&provider.name),
-                        state(list, provider, self.lang)
-                    )),
-                    Line::from(format!("  {}", clean(&provider.id))),
+                    Line::from(vec![
+                        Span::styled(
+                            clean(&provider.name),
+                            Style::default().add_modifier(Modifier::BOLD),
+                        ),
+                        Span::styled(
+                            format!("  [{}]", state(list, provider, self.lang)),
+                            if list.current.as_deref() == Some(&provider.id)
+                                || list.in_live.contains(&provider.id)
+                            {
+                                accent()
+                            } else {
+                                muted()
+                            },
+                        ),
+                    ]),
+                    Line::from(Span::styled(clean(&provider.id), muted())),
+                    Line::default(),
                 ])
             })
             .collect::<Vec<_>>();
@@ -665,13 +698,38 @@ fn accent() -> Style {
     if std::env::var_os("NO_COLOR").is_some() {
         style
     } else {
-        style.fg(Color::Cyan)
+        style.fg(Color::Rgb(134, 218, 171))
+    }
+}
+
+fn surface() -> Style {
+    if std::env::var_os("NO_COLOR").is_some() {
+        Style::default()
+    } else {
+        Style::default()
+            .bg(Color::Rgb(18, 27, 23))
+            .fg(Color::Rgb(222, 232, 224))
+    }
+}
+
+fn muted() -> Style {
+    if std::env::var_os("NO_COLOR").is_some() {
+        Style::default()
+    } else {
+        Style::default().fg(Color::Rgb(153, 176, 161))
     }
 }
 
 fn selected_style(focused: bool) -> Style {
     if focused {
-        Style::default().add_modifier(Modifier::REVERSED | Modifier::BOLD)
+        if std::env::var_os("NO_COLOR").is_some() {
+            Style::default().add_modifier(Modifier::REVERSED | Modifier::BOLD)
+        } else {
+            Style::default()
+                .bg(Color::Rgb(38, 75, 54))
+                .fg(Color::Rgb(235, 250, 237))
+                .add_modifier(Modifier::BOLD)
+        }
     } else {
         Style::default().add_modifier(Modifier::BOLD)
     }
@@ -681,10 +739,13 @@ fn panel(title: &str, focused: bool) -> Block<'static> {
     Block::default()
         .title(format!(" {title} "))
         .borders(Borders::ALL)
-        .border_style(if focused { accent() } else { Style::default() })
+        .padding(ratatui::widgets::Padding::horizontal(1))
+        .border_type(ratatui::widgets::BorderType::Rounded)
+        .style(surface())
+        .border_style(if focused { accent() } else { muted() })
 }
 
-fn render_dialog(frame: &mut Frame, dialog: &mut Dialog, lang: Language) {
+fn render_dialog(frame: &mut Frame, dialog: &mut Dialog, lang: Language, confirmation: bool) {
     let screen = frame.area();
     let width = screen.width.saturating_sub(4).min(90);
     let height = screen.height.saturating_sub(2).min(28);
@@ -717,7 +778,7 @@ fn render_dialog(frame: &mut Frame, dialog: &mut Dialog, lang: Language) {
             hints,
         );
     }
-    let buttons_text = if dialog.pending.is_some() {
+    let buttons_text = if confirmation {
         Line::from(vec![
             Span::styled(
                 lang.text(" [取消 Esc] ", " [Cancel Esc] "),
@@ -766,6 +827,10 @@ pub fn start(home: Option<&Path>, lang: Language, tool: Option<Tool>) -> Result<
         terminal
             .draw(|frame| app.render(frame))
             .map_err(|_| terminal_error())?;
+        let changed = app.data.as_mut().is_some_and(data::DataPanel::run_pending);
+        if changed {
+            app.refresh();
+        }
         if !event::poll(Duration::from_millis(100)).map_err(|_| terminal_error())? {
             continue;
         }

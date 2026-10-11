@@ -2,6 +2,14 @@
 
 Homebrew Cask 与 npm 安装器共用 GitHub Release 的原生二进制。它们不构建另一套 App 或 CLI，也不会修改用户的 `~/.cc-switch-lite/` 数据。
 
+## SwitchLeaf 更名过渡
+
+当前源码和后续发布使用 SwitchLeaf 名称，保持 `ccsl`、`dev.ccswitch.lite`、`~/.cc-switch-lite` 兼容。已发布 v0.1.0 的文件、校验值和 Homebrew 入口保持原样，不能把新功能标记成已在旧安装包中提供。
+
+下次构建会把 `switchleaf` 和 `ccsl` 同时打入 CLI 压缩包；桌面包内为 `SwitchLeaf.app`。`prepare-distribution.mjs` 对后续版本生成 `switchleaf` npm 包和命令（保留 `ccsl` / `ccsl-app` 别名），以及 `switchleaf` / `switchleaf-app` Cask；兼容旧名称的 Cask 同步生成。npm 安装器从该版本的元数据读取 App 名称，旧元数据仍安装 `CC Switch Lite.app`。同一程序的新旧 Cask 只安装一个；从旧 Cask 改用新名称时先卸载旧 Cask，用户数据保留。
+
+发布前需确定新版本号、生成对应发布说明和原生资产，再按下面步骤校验与发布。GitHub 仓库当前地址保持不变。
+
 ## 当前入口
 
 - Homebrew tap：本仓库本身，`brew tap ricardo121380/ccswitch-lite https://github.com/Ricardo121380/ccswitch-lite.git`。

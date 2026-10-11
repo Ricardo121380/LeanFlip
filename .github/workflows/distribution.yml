@@ -52,8 +52,9 @@ jobs:
         run: |
           ccsl-app install --app-dir "$RUNNER_TEMP/Applications"
           ccsl-app install --replace --app-dir "$RUNNER_TEMP/Applications"
-          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$RUNNER_TEMP/Applications/CC Switch Lite.app/Contents/Info.plist" | grep -Fx dev.ccswitch.lite
-          file "$RUNNER_TEMP/Applications/CC Switch Lite.app/Contents/MacOS/ccswitch-lite"
+          APP_BUNDLE=$(node --input-type=module -e "import { appName } from './packages/npm/lib/distribution.js'; console.log(appName)")
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$RUNNER_TEMP/Applications/$APP_BUNDLE/Contents/Info.plist" | grep -Fx dev.ccswitch.lite
+          file "$RUNNER_TEMP/Applications/$APP_BUNDLE/Contents/MacOS/ccswitch-lite"
       - uses: actions/upload-artifact@v4
         with:
           name: npm-package-${{ matrix.os }}
@@ -97,4 +98,5 @@ jobs:
           HOMEBREW_NO_AUTO_UPDATE: '1'
         run: |
           brew install --cask --appdir="$RUNNER_TEMP/Applications" ricardo121380/ccswitch-lite/ccswitch-lite
-          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$RUNNER_TEMP/Applications/CC Switch Lite.app/Contents/Info.plist" | grep -Fx dev.ccswitch.lite
+          APP_BUNDLE=$(node --input-type=module -e "import { appName } from './packages/npm/lib/distribution.js'; console.log(appName)")
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$RUNNER_TEMP/Applications/$APP_BUNDLE/Contents/Info.plist" | grep -Fx dev.ccswitch.lite

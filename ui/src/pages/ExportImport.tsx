@@ -22,6 +22,7 @@ import {
 } from "@/lib/api";
 import { TOOLS, toolMeta } from "@/lib/tools";
 import { cn } from "@/lib/utils";
+import { BackupRestore } from "./BackupPanel";
 
 /** 按工具分组；不支持的应用归到最后一组（tool = null）。 */
 export function groupItems(items: ExportItem[]) {
@@ -62,6 +63,7 @@ export function ExportImport({ onBusyChange }: { onBusyChange?: (busy: boolean) 
   const file = useRef<File | null>(null);
   const pending = useRef(false);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [backupBytes, setBackupBytes] = useState<Uint8Array | null>(null);
   const [policy, setPolicy] = useState<DuplicatePolicy>("skip");
   const [loaded, setLoaded] = useState(false);
   const [preview, setPreview] = useState<ExportPreview | null>(null);
@@ -101,8 +103,17 @@ export function ExportImport({ onBusyChange }: { onBusyChange?: (busy: boolean) 
     setPreview(null);
     setLoaded(false);
     setFileName(next.name);
+    setBackupBytes(null);
     try {
-      show(await api.exportLoad(await readBytes(next), policy));
+      const isBackupName = /\.(switchleaf|age)$/i.test(next.name);
+      if (isBackupName && next.size > 32 * 1024 * 1024) throw new Error(t("backup.tooLarge"));
+      const bytes = await readBytes(next);
+      if (isBackupName || new TextDecoder().decode(bytes.subarray(0, 22)).startsWith("age-encryption.org/")) {
+        if (bytes.length > 32 * 1024 * 1024) throw new Error(t("backup.tooLarge"));
+        setBackupBytes(bytes);
+        return;
+      }
+      show(await api.exportLoad(bytes, policy));
       setLoaded(true);
     } catch (e) {
       setError({ action: "load", message: errorMessage(e) });
@@ -174,6 +185,8 @@ export function ExportImport({ onBusyChange }: { onBusyChange?: (busy: boolean) 
   const toImport = preview?.items.filter((i) => i.targetId && i.tool && selected.has(i.tool)).length ?? 0;
   const step = report ? 3 : loaded ? 2 : 1;
 
+  if (backupBytes) return <BackupRestore bytes={backupBytes} fileName={fileName ?? ""} onBusyChange={onBusyChange} onBack={() => { setBackupBytes(null); setFileName(null); file.current = null; }} />;
+
   return (
     <section className="flex min-w-0 flex-col gap-5">
       <div>
@@ -183,7 +196,7 @@ export function ExportImport({ onBusyChange }: { onBusyChange?: (busy: boolean) 
       <ol aria-label={t("wizard.progress")} className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
         {[1, 2, 3].map((n) => <li key={n} aria-current={step === n ? "step" : undefined} className={cn("text-muted-foreground", step === n && "font-semibold text-foreground")}>{t(`exportImport.step${n}`)}</li>)}
       </ol>
-      <input ref={input} type="file" accept=".sql,.db,.json,application/sql,application/json" className="hidden" aria-label={t("exportImport.file")} data-testid="export-file" disabled={busy} onChange={(e) => void pick(e.target.files?.[0])} />
+      <input ref={input} type="file" accept=".switchleaf,.age,.sql,.db,.json,application/sql,application/json" className="hidden" aria-label={t("exportImport.file")} data-testid="export-file" disabled={busy} onChange={(e) => void pick(e.target.files?.[0])} />
       {!report && <div className="flex min-w-0 flex-wrap items-end gap-3">
         <Button variant="outline" onClick={() => input.current?.click()} disabled={busy}><FileUp />{t("exportImport.choose")}</Button>
         <div className="flex min-w-0 flex-col gap-1.5">

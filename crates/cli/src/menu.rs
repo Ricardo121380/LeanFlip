@@ -5,12 +5,22 @@ use std::path::Path;
 
 use ccsl_core::Tool;
 use ccsl_service::service::{ToolProviders, ToolSummary};
-use dialoguer::console::{style, truncate_str, Term};
+use dialoguer::console::{style, truncate_str, Style, Term};
 use dialoguer::{theme::ColorfulTheme, FuzzySelect};
 
 use crate::args::{Cli, Command, Import, Language};
 use crate::presentation::{clean, error};
 use crate::{open_service, run, CliError};
+
+pub(super) fn theme() -> ColorfulTheme {
+    ColorfulTheme {
+        active_item_style: Style::new().for_stderr().green().bold(),
+        defaults_style: Style::new().for_stderr().green(),
+        prompt_prefix: style("◇".to_owned()).for_stderr().green(),
+        fuzzy_match_highlight_style: Style::new().for_stderr().green().underlined(),
+        ..ColorfulTheme::default()
+    }
+}
 
 pub(super) fn terminal_error() -> CliError {
     CliError { code: "terminal_io".into(), message: "Cannot use the interactive terminal. Reopen your terminal or use the non-interactive commands.", exit: 1 }
@@ -342,11 +352,11 @@ pub fn start(home: Option<&Path>, lang: Language, tool: Option<Tool>) -> Result<
     .map_err(|_| terminal_error())?;
     let menu = Menu {
         term: Term::stderr(),
-        theme: ColorfulTheme::default(),
+        theme: theme(),
         home,
         lang,
     };
-    menu.line(&format!("\n{}", style("CC Switch Lite").bold().cyan()))?;
+    menu.line(&format!("\n{}", style("SwitchLeaf").bold().green()))?;
     menu.line(lang.text(
         "交互菜单 · 输入筛选，↑↓选择，回车确认，Esc 返回或退出",
         "Interactive menu · type to filter, ↑↓ move, Enter confirm, Esc back or exit",

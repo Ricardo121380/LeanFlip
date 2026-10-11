@@ -241,8 +241,72 @@ pub async fn ccswitch_apply(
     state: State<'_, AppState>,
     dir: Option<PathBuf>,
     tools: Vec<Tool>,
+    accounts: Option<bool>,
 ) -> ApiResult<ccswitch_import::Report> {
-    mutating(&app, &state, move |s| s.ccswitch_apply(dir, tools)).await
+    mutating(&app, &state, move |s| {
+        s.ccswitch_apply_options(dir, tools, accounts.unwrap_or(true))
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn backup_save(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    password: String,
+) -> ApiResult<Option<PathBuf>> {
+    use tauri_plugin_dialog::DialogExt;
+    blocking(&state, move |service| {
+        let filename = format!(
+            "switchleaf-backup-{}.switchleaf",
+            chrono::Local::now().format("%Y%m%d-%H%M%S")
+        );
+        let Some(file) = app
+            .dialog()
+            .file()
+            .add_filter("SwitchLeaf encrypted backup", &["switchleaf"])
+            .set_file_name(filename)
+            .blocking_save_file()
+        else {
+            return Ok(None);
+        };
+        let path = file
+            .into_path()
+            .map_err(|_| ApiError::message("Choose a local backup file".into()))?;
+        service.backup_export_file(&path, &password)?;
+        Ok(Some(path))
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn backup_load(
+    state: State<'_, AppState>,
+    bytes: Vec<u8>,
+    password: String,
+) -> ApiResult<crate::service::BackupPreview> {
+    blocking(&state, move |service| {
+        service.backup_load(&bytes, &password)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn backup_apply(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    options: crate::service::RestoreOptions,
+) -> ApiResult<crate::service::RestoreReport> {
+    let report = mutating(&app, &state, move |service| service.backup_apply(options)).await?;
+    if report.dirs_changed {
+        crate::watcher::reconfigure(&app, state.0.env());
+    }
+    Ok(report)
+}
+
+#[tauri::command]
+pub fn backup_discard(state: State<'_, AppState>) {
+    state.0.backup_discard();
 }
 
 /// 读 cc-switch 导出文件：请求体是文件的原始字节（前端 `<input type="file">` 读出来的），

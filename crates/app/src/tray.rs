@@ -38,13 +38,13 @@ struct Labels {
 fn labels(english: bool) -> Labels {
     if english {
         Labels {
-            open: "Open CC Switch Lite",
+            open: "Open SwitchLeaf",
             quit: "Quit",
             empty: "(no providers)",
         }
     } else {
         Labels {
-            open: "打开 CC Switch Lite",
+            open: "打开 SwitchLeaf",
             quit: "退出",
             empty: "（没有供应商）",
         }
@@ -263,7 +263,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
     };
     let menu = build_menu(app, &placeholder)?;
     let mut builder = TrayIconBuilder::with_id(TRAY_ID)
-        .tooltip("CC Switch Lite")
+        .tooltip("SwitchLeaf")
         .menu(&menu)
         .show_menu_on_left_click(true)
         .on_menu_event(|app, event| on_menu(app, event.id().as_ref()));

@@ -430,13 +430,13 @@ fn help_is_localized_and_includes_actionable_examples_without_loading_config() {
     let before = snapshot(&sb.env.home);
     let zh = human(sb.run(&["--help"]));
     assert!(zh.contains("用法：") && zh.contains("示例："));
-    assert!(zh.contains("ccsl list codex") && zh.contains("--lang"));
+    assert!(zh.contains("switchleaf list codex") && zh.contains("--lang"));
     assert!(!zh.contains("Options:") && !zh.contains("Print help"));
     let en = human(sb.run(&["--lang", "en", "import", "file", "--help"]));
     assert!(en.contains("Examples:"));
     assert!(en.contains("--apply --tool codex"));
     let zh_sub = human(sb.run(&["import", "file", "--lang=zh", "--help"]));
-    assert!(zh_sub.contains("仅预览，不保存") && zh_sub.contains("保存导入卡片"));
+    assert!(zh_sub.contains("仅预览，不保存") && zh_sub.contains("确认写入所选数据"));
     assert_eq!(snapshot(&sb.env.home), before);
 }
 
@@ -490,7 +490,7 @@ fn missing_commands_show_help_without_opening_configuration_and_json_stays_an_er
     );
     let before = snapshot(&sb.env.home);
     let quick_start = human(sb.run(&[]));
-    assert!(quick_start.contains("快速入门") && quick_start.contains("ccsl status"));
+    assert!(quick_start.contains("快速入门") && quick_start.contains("switchleaf status"));
     assert!(!quick_start.contains("错误 [") && !quick_start.contains("private-invalid"));
     let english = human(sb.run(&["--lang", "en"]));
     assert!(english.contains("Quick start") && english.contains("Examples:"));
@@ -645,4 +645,86 @@ fn interactive_help_is_bilingual_and_plain_no_argument_help_stays_noninteractive
     assert!(human(sb.run(&["tui", "--help", "--lang", "en"])).contains("full-screen terminal"));
     assert!(human(sb.run(&[])).contains("快速入门"));
     assert!(snapshot(&sb.env.home).is_empty());
+}
+
+#[test]
+fn local_ccswitch_migration_previews_without_writes_and_preserves_source() {
+    let sb = Sandbox::new();
+    let source = sb.env.home.join(".cc-switch/config.json");
+    sb.write(&source, json!({"claude":{"providers":{"imported":{"name":"Local fixture","settingsConfig":{"env":{"ANTHROPIC_AUTH_TOKEN":"private-migration-fixture"}}}}}}).to_string());
+    let before = snapshot(&sb.env.home);
+    let output = sb.run(&["import", "local", "--json"]);
+    assert!(!String::from_utf8_lossy(&output.stdout).contains("private-migration-fixture"));
+    let preview = success(output);
+    assert_eq!(preview["items"][0]["id"], "imported");
+    assert_eq!(snapshot(&sb.env.home), before);
+    let applied = sb.ok(&["import", "local", "--apply", "--tool", "claude", "--json"]);
+    assert_eq!(applied["created"].as_array().unwrap().len(), 1);
+    assert_eq!(fs::read(&source).unwrap(), before[&source].clone().unwrap());
+    assert!(!sb.env.claude_settings_path().exists());
+    assert_eq!(
+        sb.ok(&["import", "local", "--apply", "--json"])["created"],
+        json!([])
+    );
+}
+
+#[test]
+fn encrypted_cli_backup_roundtrip_and_scope_preview_are_secret_safe() {
+    let source = Sandbox::new();
+    let target = Sandbox::new();
+    let mut data = store::StoreData::default();
+    data.app_mut(Tool::Claude).providers.push(serde_json::from_value(json!({"id":"fixture", "name":"Work", "settingsConfig":{"env":{"ANTHROPIC_AUTH_TOKEN":"fixture-encrypted-key"}}})).unwrap());
+    store::update(&source.env, |target| {
+        *target = data;
+        Ok(())
+    })
+    .unwrap();
+    let pass = source.dir.path().join("passphrase");
+    source.write(&pass, "fixture-private-passphrase\n");
+    let backup = source.dir.path().join("backup.switchleaf");
+    source.ok(&[
+        "export",
+        backup.to_str().unwrap(),
+        "--password-file",
+        pass.to_str().unwrap(),
+        "--json",
+    ]);
+    let before = snapshot(&target.env.home);
+    let preview = target.ok(&[
+        "import",
+        "backup",
+        backup.to_str().unwrap(),
+        "--password-file",
+        pass.to_str().unwrap(),
+        "--no-accounts",
+        "--no-settings",
+        "--tool",
+        "claude",
+        "--json",
+    ]);
+    assert_eq!(preview["selection"]["tools"], json!(["claude"]));
+    assert_eq!(preview["selection"]["paths"], false);
+    assert!(!preview.to_string().contains("fixture-encrypted-key"));
+    assert_eq!(snapshot(&target.env.home), before);
+    let report = target.ok(&[
+        "import",
+        "backup",
+        backup.to_str().unwrap(),
+        "--password-file",
+        pass.to_str().unwrap(),
+        "--apply",
+        "--json",
+    ]);
+    assert_eq!(report["providersAdded"], 1);
+    assert!(!target.env.claude_settings_path().exists());
+    assert_eq!(
+        store::load_readonly(&target.env)
+            .unwrap()
+            .providers(Tool::Claude)[0]
+            .settings_config["env"]["ANTHROPIC_AUTH_TOKEN"],
+        "fixture-encrypted-key"
+    );
+    let missing_password = target.run(&["import", "backup", backup.to_str().unwrap(), "--json"]);
+    assert!(!missing_password.status.success());
+    assert!(String::from_utf8_lossy(&missing_password.stderr).contains("backup.password_required"));
 }

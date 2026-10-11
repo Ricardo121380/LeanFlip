@@ -208,7 +208,7 @@ fn responsive_views_and_scrollable_details_do_not_expose_configuration() {
             assert!(screen.contains(if width < 44 {
                 lang.text("窗口太小", "too small")
             } else {
-                "CC Switch Lite"
+                "SwitchLeaf"
             }));
             if width >= 110 {
                 assert!(screen.contains(lang.text("配置路径", "Configuration paths")));
@@ -234,4 +234,63 @@ fn responsive_views_and_scrollable_details_do_not_expose_configuration() {
     assert!(app.dialog.as_ref().unwrap().max_scroll > 0);
     app.key(key(KeyCode::End));
     assert!(render(&mut app, 52, 16).contains("LAST-LINE"));
+}
+
+#[test]
+fn data_center_detects_and_migrates_only_after_confirmation() {
+    let dir = TempDir::new().unwrap();
+    let source = dir.path().join(".cc-switch");
+    fs::create_dir(&source).unwrap();
+    let file = source.join("config.json");
+    fs::write(&file, json!({"claude":{"providers":{"relay":{"name":"Migration fixture","settingsConfig":{"env":{"ANTHROPIC_AUTH_TOKEN":"hidden-migration-secret"}}}}}}).to_string()).unwrap();
+    let mut app = App::new(Some(dir.path()), Language::En, None);
+    app.key(key(KeyCode::Char('b')));
+    assert!(render(&mut app, 100, 26).contains("Data center"));
+    let before = snapshot(dir.path());
+    app.key(key(KeyCode::Enter));
+    app.data.as_mut().unwrap().run_pending();
+    assert_eq!(snapshot(dir.path()), before);
+    assert!(render(&mut app, 100, 26).contains("Migration fixture"));
+    assert!(!render(&mut app, 100, 26).contains("hidden-migration-secret"));
+    app.key(key(KeyCode::Enter));
+    app.key(key(KeyCode::Enter)); // default cancel
+    app.data.as_mut().unwrap().run_pending();
+    assert_eq!(snapshot(dir.path()), before);
+    app.key(key(KeyCode::Enter));
+    app.key(key(KeyCode::Char('y')));
+    assert!(app.data.as_mut().unwrap().run_pending());
+    assert!(render(&mut app, 100, 26).contains("Cards saved 1"));
+    assert!(!service(dir.path()).env().claude_settings_path().exists());
+    assert_eq!(fs::read(file.clone()).unwrap(), before[&file]);
+}
+
+#[test]
+fn backup_form_masks_secrets_at_every_size_and_cancel_does_not_export() {
+    let dir = TempDir::new().unwrap();
+    let mut app = App::new(Some(dir.path()), Language::En, None);
+    app.key(key(KeyCode::Char('b')));
+    app.key(key(KeyCode::Down));
+    app.key(key(KeyCode::Down));
+    app.key(key(KeyCode::Enter));
+    app.key(key(KeyCode::Tab));
+    for ch in "private-passphrase-fixture".chars() {
+        app.key(key(KeyCode::Char(ch)));
+    }
+    for (width, height) in [(44, 12), (80, 24), (120, 30)] {
+        let screen = render(&mut app, width, height);
+        assert!(!screen.contains("private-passphrase-fixture"));
+        assert!(screen.contains('•'));
+        if std::env::var_os("CCSL_TUI_SNAPSHOTS").is_some() {
+            let destination =
+                Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/tui-preview");
+            fs::create_dir_all(&destination).unwrap();
+            fs::write(
+                destination.join(format!("data-export-{width}x{height}.txt")),
+                screen,
+            )
+            .unwrap();
+        }
+    }
+    app.key(key(KeyCode::Esc));
+    assert!(snapshot(dir.path()).is_empty());
 }

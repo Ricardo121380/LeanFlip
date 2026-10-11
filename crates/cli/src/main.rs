@@ -1,4 +1,5 @@
 mod args;
+mod data;
 mod menu;
 mod presentation;
 mod tui;
@@ -559,6 +560,63 @@ fn run(cli: Cli) -> Result<Output, CliError> {
             };
             Ok(Output::new(json!(result), text))
         }
+        Command::Export {
+            path,
+            password_file,
+        } => data::export(&service, &path, password_file.as_deref(), cli.json, lang),
+        Command::Import {
+            source:
+                Import::Local {
+                    dir,
+                    apply,
+                    accounts,
+                    tools,
+                },
+        } => data::local(
+            &service,
+            dir,
+            apply,
+            accounts,
+            tools.into_iter().map(Tool::from).collect(),
+            lang,
+        ),
+        Command::Import {
+            source:
+                Import::Backup {
+                    path,
+                    apply,
+                    password_file,
+                    no_accounts,
+                    no_providers,
+                    no_settings,
+                    restore_paths,
+                    duplicate,
+                    tools,
+                },
+        } => {
+            let options = ccsl_service::service::RestoreOptions {
+                tools: if no_providers {
+                    vec![]
+                } else if tools.is_empty() {
+                    Tool::ALL.to_vec()
+                } else {
+                    tools.into_iter().map(Tool::from).collect()
+                },
+                accounts: !no_accounts,
+                settings: !no_settings,
+                paths: restore_paths,
+                duplicate: duplicate.into(),
+            };
+            data::restore(
+                &service,
+                &path,
+                password_file.as_deref(),
+                apply,
+                options,
+                cli.json,
+                lang,
+            )
+        }
         Command::Import {
             source:
                 Import::File {
@@ -774,7 +832,16 @@ fn main() -> ExitCode {
     let raw = std::env::args_os().collect::<Vec<_>>();
     let as_json = raw.iter().any(|arg| arg == "--json");
     let lang = presentation::language_before_parse(&raw);
-    let command = presentation::help(Cli::command(), lang);
+    let binary = if raw
+        .first()
+        .and_then(|path| Path::new(path).file_stem())
+        .is_some_and(|stem| stem == "ccsl")
+    {
+        "ccsl"
+    } else {
+        "switchleaf"
+    };
+    let command = presentation::help(Cli::command().name(binary), lang);
     let parsed = command
         .clone()
         .try_get_matches_from(&raw)
@@ -864,7 +931,7 @@ fn execute(cli: Cli) -> ExitCode {
             let line = if as_json {
                 json!({"ok": true, "data": output.data}).to_string()
             } else {
-                output.text
+                presentation::human_output(&output.text)
             };
             write_stdout(io::stdout().lock(), &line, as_json)
         }

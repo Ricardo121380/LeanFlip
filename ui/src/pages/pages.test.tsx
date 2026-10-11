@@ -292,7 +292,7 @@ describe("ImportWizard", () => {
     expect(screen.getByRole("checkbox", { name: "导入 Gemini CLI" })).toBeDisabled();
     await userEvent.click(screen.getByRole("button", { name: /导入所选工具/ }));
     expect(await screen.findByText(/新增 1 张卡/)).toBeInTheDocument();
-    expect(fake.calls.find((c) => c.cmd === "ccswitch_apply")!.args).toEqual({ tools: ["claude"], dir: null });
+    expect(fake.calls.find((c) => c.cmd === "ccswitch_apply")!.args).toEqual({ tools: ["claude", "codex"], dir: null, accounts: true });
   });
 
   it("shows skip reasons and labels in English", async () => {

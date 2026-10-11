@@ -8,6 +8,7 @@
 //! 需要本地路由的卡（非 Anthropic 格式、Copilot / ChatGPT 反代等）跳过并说明原因；
 //! Codex 卡里从 `auth.json` 抄来的 ChatGPT 登录不导入（登录只认 live 和登录暂存）。
 
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
@@ -29,6 +30,65 @@ pub fn default_dir(env: &Env) -> PathBuf {
     env.home.join(".cc-switch")
 }
 
+/// Inspect CC Switch's own path preference, without starting it or changing it.
+/// Paths are rooted in the supplied home so --home remains isolated in tests.
+pub fn detected_dir(env: &Env) -> Result<PathBuf, AppError> {
+    let data_root = if cfg!(target_os = "macos") {
+        env.home.join("Library/Application Support")
+    } else if cfg!(windows) {
+        env.home.join("AppData/Roaming")
+    } else {
+        env.home.join(".local/share")
+    };
+    let path = data_root.join("com.ccswitch.desktop/app_paths.json");
+    let bytes = match std::fs::File::open(&path).and_then(|file| {
+        let mut bytes = Vec::new();
+        file.take(64 * 1024 + 1).read_to_end(&mut bytes)?;
+        Ok(bytes)
+    }) {
+        Ok(bytes) if bytes.len() <= 64 * 1024 => bytes,
+        Ok(_) => {
+            return Err(AppError::InvalidInput(
+                "CC Switch app_paths.json is too large; select its data directory manually".into(),
+            ))
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(default_dir(env)),
+        Err(error) => return Err(AppError::io(&path, error)),
+    };
+    let settings: Value = serde_json::from_slice(&bytes).map_err(|_| {
+        AppError::Config(
+            "Cannot read CC Switch's data-directory preference; select its data directory manually"
+                .into(),
+        )
+    })?;
+    let Some(raw) = settings
+        .get("app_config_dir_override")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return Ok(default_dir(env));
+    };
+    let selected = if raw == "~" {
+        env.home.clone()
+    } else if let Some(relative) = raw.strip_prefix("~/").or_else(|| raw.strip_prefix("~\\")) {
+        env.home.join(relative)
+    } else {
+        PathBuf::from(raw)
+    };
+    if !selected.is_absolute() {
+        return Err(AppError::InvalidInput(
+            "CC Switch uses a relative data directory; select an absolute directory manually"
+                .into(),
+        ));
+    }
+    Ok(if selected.is_dir() {
+        selected
+    } else {
+        default_dir(env)
+    })
+}
+
 /// 扫描出的一张卡。
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -42,6 +102,7 @@ pub struct Candidate {
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Scan {
+    pub directory: PathBuf,
     pub source: Option<PathBuf>,
     pub candidates: Vec<Candidate>,
     pub accounts: usize,
@@ -81,6 +142,7 @@ pub fn scan(env: &Env, dir: &Path) -> Result<Scan, AppError> {
         .collect();
     let (accounts, _) = CodexOAuthManager::read_store_file(&dir.join(ACCOUNTS_FILENAME))?;
     Ok(Scan {
+        directory: dir.to_path_buf(),
         source,
         candidates,
         accounts: accounts.len(),

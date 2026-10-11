@@ -8,7 +8,7 @@ import { pipeline } from 'node:stream/promises';
 import { Readable, Transform } from 'node:stream';
 
 export const manifest = JSON.parse(await readFile(new URL('../release.json', import.meta.url), 'utf8'));
-export const appName = 'CC Switch Lite.app';
+export const appName = manifest.appName ?? 'CC Switch Lite.app';
 const bundleId = 'dev.ccswitch.lite';
 const maxDownload = 128 * 1024 * 1024;
 
@@ -136,7 +136,7 @@ export async function installMacApp(archive, options) {
   const target = macAppPath(options.appDir);
   const hadExisting = await validateExistingApp(target, options.replace, inspectBundle);
   if (hadExisting && spawnSync('/usr/bin/pgrep', ['-x', 'ccswitch-lite']).status === 0) {
-    throw new Error('Quit CC Switch Lite before replacing the installed application.');
+    throw new Error('Quit SwitchLeaf before replacing the installed application.');
   }
   const work = await mkdtemp(join(tmpdir(), 'ccswitch-lite-mount-'));
   const mount = join(work, 'volume');
@@ -183,7 +183,7 @@ export function linuxInstallCommand(archive, uid = process.getuid?.()) {
 export async function desktop(options) {
   if (options.action === 'version') { console.log(`ccsl-app ${manifest.version}`); return; }
   if (options.action === 'help') {
-    console.log(`CC Switch Lite ${manifest.version} · 桌面安装器 / Desktop installer
+    console.log(`SwitchLeaf ${manifest.version} · 桌面安装器 / Desktop installer
 
 用法 / Usage:
   ccsl-app install                 安装桌面 App / Install the desktop app
