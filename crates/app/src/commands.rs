@@ -256,6 +256,7 @@ pub async fn backup_save(
     password: String,
 ) -> ApiResult<Option<PathBuf>> {
     use tauri_plugin_dialog::DialogExt;
+    let password = zeroize::Zeroizing::new(password);
     blocking(&state, move |service| {
         let filename = format!(
             "leanflip-backup-{}.leanflip",
@@ -285,6 +286,7 @@ pub async fn backup_load(
     bytes: Vec<u8>,
     password: String,
 ) -> ApiResult<crate::service::BackupPreview> {
+    let password = zeroize::Zeroizing::new(password);
     blocking(&state, move |service| {
         service.backup_load(&bytes, &password)
     })

@@ -4,6 +4,36 @@ use std::fs;
 use tempfile::TempDir;
 
 const PASSWORD: &str = "fixture-passphrase-only";
+#[test]
+fn preview_expiry_removes_plaintext_and_refuses_restore_without_writes() {
+    let (_source, _, bytes) = fixture();
+    let target = TempDir::new().unwrap();
+    let service = open(target.path());
+    service.backup_load(&bytes, PASSWORD).unwrap();
+    {
+        let mut cache = service.staged_backup.lock().unwrap();
+        expire_preview(&mut cache.preview, Instant::now());
+        assert!(cache.preview.is_some(), "a current preview remains valid");
+        cache.preview.as_mut().unwrap().expires_at = Instant::now() - Duration::from_secs(1);
+    }
+    assert_eq!(
+        service
+            .backup_apply(RestoreOptions::default())
+            .unwrap_err()
+            .code(),
+        "backup.none"
+    );
+    assert!(service.staged_backup.lock().unwrap().preview.is_none());
+    assert!(!service.env().data_dir.exists());
+}
+
+#[test]
+fn sensitive_json_scrubbing_clears_nested_buffers() {
+    let mut value =
+        json!({"env":{"ANTHROPIC_AUTH_TOKEN":"fixture-private"},"nested":["fixture-token"]});
+    wipe_value(&mut value);
+    assert_eq!(value, json!({}));
+}
 fn open(home: &Path) -> Service {
     Service::open(Env::with_home(home), None).unwrap()
 }

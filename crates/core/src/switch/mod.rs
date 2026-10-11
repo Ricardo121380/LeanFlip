@@ -3,6 +3,10 @@
 //! 每次写入都是 [`crate::operation`] 里的一次操作：先在内存里算好所有文件，记下
 //! pending，再逐个原子发布，最后落定当前指针（写进供应商库）。中途崩溃，下次操作或启动
 //! 时（[`recover_on_startup`]）按 pending 前滚或丢弃。
+//!
+//! 调用方必须在整个高层写操作期间持有 `env.device_store().lock_app("service")`，
+//! 包括卡片编辑、OAuth 准备和发布；App / CLI / TUI 由 Service 保证这一点。
+//! 工具事务还会在锁内刷新或验证上一供应商快照，拒绝使用并发切换前的旧所有者。
 
 pub mod claude;
 pub mod claude_desktop;
@@ -168,6 +172,24 @@ pub fn preflight(data: &store::StoreData, tool: Tool, provider: &Provider) -> Re
     }
 }
 
+/// Non-blocking notices for fields outside the client's connection projection.
+/// Report field names only; configuration values may contain credentials.
+pub fn provider_warnings(tool: Tool, provider: &Provider) -> Vec<crate::ccswitch_export::Reason> {
+    if tool != Tool::Claude {
+        return Vec::new();
+    }
+    let ignored = crate::live::project::claude::ignored_keys(&provider.settings_config);
+    if ignored.is_empty() {
+        return Vec::new();
+    }
+    let keys = ignored.join(", ");
+    vec![crate::ccswitch_export::Reason::new(
+        "claude.ignored_fields",
+        format!("卡片中的这些字段不会写入 Claude，客户端原值会保留：{keys}"),
+        format!("These card fields are not written to Claude; existing client values are preserved: {keys}"),
+    )]
+}
+
 #[allow(clippy::too_many_arguments)]
 fn write(
     env: &Env,
@@ -205,6 +227,41 @@ mod tests {
     use crate::operation::failpoint;
     use serde_json::{json, Value};
     use std::fs;
+    #[test]
+    fn claude_switch_reads_the_outgoing_owner_after_the_tool_lock() {
+        let root = tempfile::tempdir().unwrap();
+        let env = Env::with_home(root.path());
+        let a = Provider::new(
+            "a",
+            "A",
+            json!({"env":{"CLAUDE_CODE_MAX_CONTEXT_TOKENS":"100"}}),
+        );
+        let b = Provider::new(
+            "b",
+            "B",
+            json!({"env":{"CLAUDE_CODE_MAX_OUTPUT_TOKENS":"200"}}),
+        );
+        let c = Provider::new("c", "C", json!({"env":{"ANTHROPIC_AUTH_TOKEN":"fixture"}}));
+        for provider in [&a, &b, &c] {
+            store::add_provider(&env, Tool::Claude, provider.clone()).unwrap();
+        }
+        switch(&env, Tool::Claude, "a").unwrap();
+        switch(&env, Tool::Claude, "b").unwrap();
+        // Simulate a caller that read A before waiting for B to finish.
+        claude::write(
+            &env,
+            Some(&a),
+            &c,
+            op::SWITCH,
+            PendingTarget::pointer(Some("c".into())),
+        )
+        .unwrap();
+        let live: Value =
+            serde_json::from_slice(&fs::read(env.claude_settings_path()).unwrap()).unwrap();
+        assert!(live["env"].get("CLAUDE_CODE_MAX_OUTPUT_TOKENS").is_none());
+        assert!(live["env"].get("CLAUDE_CODE_MAX_CONTEXT_TOKENS").is_none());
+        assert_eq!(live["env"]["ANTHROPIC_AUTH_TOKEN"], "fixture");
+    }
 
     fn login(refresh: &str) -> Value {
         json!({
@@ -245,6 +302,34 @@ mod tests {
         fs::write(env.codex_config_path(), "model = \"gpt-5.5\"\n").unwrap();
         fs::write(env.codex_auth_path(), login("refresh-1").to_string()).unwrap();
         (dir, env)
+    }
+
+    #[test]
+    fn codex_rejects_a_stale_catalog_before_using_its_outgoing_projection() {
+        let (_dir, env) = codex_sandbox();
+        let data = store::load(&env).unwrap();
+        let target = data.provider(Tool::Codex, "relay").unwrap();
+        let planned = codex::plan(&data, data.current(Tool::Codex), target).unwrap();
+        let prepared = codex::prepare(None, data.current(Tool::Codex), target).unwrap();
+        let before = fs::read(env.codex_config_path()).unwrap();
+        store::set_current(&env, Tool::Codex, "relay").unwrap();
+        let error = codex::run(
+            &env,
+            &data,
+            op::SWITCH,
+            planned,
+            &prepared,
+            PendingTarget::pointer(Some("relay".into())),
+        )
+        .unwrap_err();
+        assert!(matches!(
+            error,
+            AppError::Localized {
+                key: "live.catalog_changed",
+                ..
+            }
+        ));
+        assert_eq!(fs::read(env.codex_config_path()).unwrap(), before);
     }
 
     fn current(env: &Env, tool: Tool) -> Option<String> {

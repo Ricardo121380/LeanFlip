@@ -89,12 +89,7 @@ fn live_path(env: &Env, tool: Tool) -> std::path::PathBuf {
 }
 
 fn live_file(env: &Env, tool: Tool) -> LiveFile {
-    let path = live_path(env, tool);
-    match tool {
-        // Credentials require private file permissions.
-        Tool::Pi | Tool::Mcode => LiveFile::private(path),
-        _ => LiveFile::shared(path),
-    }
+    LiveFile::private(live_path(env, tool))
 }
 
 /// 客户端配置里现在有哪些条目（id → 条目）。只读，不写客户端文件。

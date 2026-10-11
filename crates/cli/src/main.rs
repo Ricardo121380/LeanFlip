@@ -162,7 +162,8 @@ fn preview_output(preview: Preview, tools: &[Tool], lang: Language) -> Output {
                 "status": item.status,
                 "targetId": item.target_id,
                 "reasonCode": item.reason.map(|reason| reason.code),
-                "noteCodes": item.notes.into_iter().map(|reason| reason.code).collect::<Vec<_>>()
+                "noteCodes": item.notes.iter().map(|reason| reason.code).collect::<Vec<_>>(),
+                "notes": item.notes
             })
         })
         .collect::<Vec<_>>();
@@ -200,13 +201,14 @@ fn preview_output(preview: Preview, tools: &[Tool], lang: Language) -> Output {
                 if item["reasonCode"] == "renamed" {
                     reason.push_str(&format!(": {}", field(item, "targetId")));
                 }
-                for code in item["noteCodes"]
-                    .as_array()
-                    .into_iter()
-                    .flatten()
-                    .filter_map(Value::as_str)
-                {
-                    reason.push_str(&format!("; {}", presentation::reason(code, lang)));
+                for note in item["notes"].as_array().into_iter().flatten() {
+                    reason.push_str(&format!(
+                        "; {}",
+                        clean(lang.text(
+                            note["zh"].as_str().unwrap_or_default(),
+                            note["en"].as_str().unwrap_or_default()
+                        ))
+                    ));
                 }
                 vec![
                     field(item, "app"),

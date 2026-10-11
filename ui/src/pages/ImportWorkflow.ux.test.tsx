@@ -41,6 +41,20 @@ beforeEach(async () => {
   await i18n.changeLanguage("zh");
 });
 
+it("clears an unlocked backup when leaving the file import tab", async () => {
+  const fake = use({ backup_load: () => ({ createdAt: 100, items: [], accounts: 0, existingAccounts: 0, hasSettings: true, hasPaths: false }), backup_discard: () => null });
+  renderWithClient(<ImportWizard />);
+  await userEvent.click(screen.getByRole("tab", { name: "导入文件" }));
+  await userEvent.upload(screen.getByTestId("export-file"), new File(["encrypted fixture"], "backup.leanflip"));
+  await userEvent.type(await screen.findByLabelText("备份密码"), "fixture-passphrase");
+  await userEvent.click(screen.getByRole("button", { name: "解密并预览" }));
+  await screen.findByRole("button", { name: "确认恢复所选内容" });
+  await userEvent.click(screen.getByRole("tab", { name: "本机数据目录" }));
+  await waitFor(() => expect(fake.calls.some((call) => call.cmd === "backup_discard")).toBe(true));
+  await userEvent.click(screen.getByRole("tab", { name: "导入文件" }));
+  expect(screen.queryByRole("button", { name: "确认恢复所选内容" })).not.toBeInTheDocument();
+});
+
 describe("local import source consistency", () => {
   it("requires a new preview after the directory changes and applies the scanned directory", async () => {
     const user = userEvent.setup();

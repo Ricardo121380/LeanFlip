@@ -11,26 +11,31 @@ use ccsl_service::{
 };
 use serde_json::json;
 use std::path::{Path, PathBuf};
+use zeroize::Zeroizing;
 
 fn password(
     file: Option<&Path>,
     confirm: bool,
     json: bool,
     lang: Language,
-) -> Result<String, CliError> {
+) -> Result<Zeroizing<String>, CliError> {
     if let Some(file) = file {
         let bytes = read_limited(file, 16 * 1024, false)?;
-        let text = String::from_utf8(bytes).map_err(|_| {
-            CliError::input(
-                "backup.password",
-                "The password file must contain UTF-8 text.",
-            )
-        })?;
-        return Ok(text
-            .strip_suffix("\r\n")
-            .or_else(|| text.strip_suffix('\n'))
-            .unwrap_or(&text)
-            .to_owned());
+        let text = String::from_utf8(bytes)
+            .map(Zeroizing::new)
+            .map_err(|error| {
+                let _bytes = Zeroizing::new(error.into_bytes());
+                CliError::input(
+                    "backup.password",
+                    "The password file must contain UTF-8 text.",
+                )
+            })?;
+        return Ok(Zeroizing::new(
+            text.strip_suffix("\r\n")
+                .or_else(|| text.strip_suffix('\n'))
+                .unwrap_or(&text)
+                .to_owned(),
+        ));
     }
     if json || !menu::can_interact() {
         return Err(CliError::input("backup.password_required", "Use --password-file with a private file in scripts, or run this command in an interactive terminal."));
@@ -43,13 +48,17 @@ fn password(
             lang.text("两次密码不一致", "Passphrases do not match"),
         );
     }
-    prompt.interact().map_err(|_| menu::terminal_error())
+    prompt
+        .interact()
+        .map(Zeroizing::new)
+        .map_err(|_| menu::terminal_error())
 }
 
 pub(super) fn local_preview(scan: &Scan, tools: &[Tool], accounts: bool, lang: Language) -> Output {
     let items = scan.candidates.iter().filter(|candidate| tools.is_empty() || tools.contains(&candidate.tool)).map(|candidate| json!({
         "tool":candidate.tool,"id":candidate.provider.id,"name":candidate.provider.name,
         "canImport":candidate.skip_reason.is_none(),"reasonCode":candidate.skip_reason.as_ref().map(|reason| reason.code),
+        "notes":candidate.notes,
     })).collect::<Vec<_>>();
     let rows = items
         .iter()
@@ -63,6 +72,18 @@ pub(super) fn local_preview(scan: &Scan, tools: &[Tool], accounts: bool, lang: L
                 } else {
                     item["reasonCode"].as_str().unwrap_or("skipped").into()
                 },
+                item["notes"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .map(|note| {
+                        clean(lang.text(
+                            note["zh"].as_str().unwrap_or_default(),
+                            note["en"].as_str().unwrap_or_default(),
+                        ))
+                    })
+                    .collect::<Vec<_>>()
+                    .join("; "),
             ]
         })
         .collect::<Vec<_>>();
@@ -88,6 +109,7 @@ pub(super) fn local_preview(scan: &Scan, tools: &[Tool], accounts: bool, lang: L
                     lang.text("名称", "NAME"),
                     "ID",
                     lang.text("状态", "STATE"),
+                    lang.text("提示", "NOTES"),
                 ],
                 &rows,
             )

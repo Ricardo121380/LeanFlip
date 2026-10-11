@@ -235,6 +235,13 @@ pub fn run(
 ) -> Result<OperationReport, AppError> {
     let commit = |target: &PendingTarget| super::commit_target(env, Tool::Codex, target);
     let transaction = AppWrite::begin(env.device_store(), Tool::Codex.as_str(), &commit)?;
+    if &crate::store::load(env)? != data {
+        return Err(AppError::localized(
+            "live.catalog_changed",
+            "供应商库在准备期间发生变化，请基于最新配置重试。",
+            "The provider catalog changed during preparation. Retry using the current configuration.",
+        ));
+    }
     if let Some((id, auth, _)) = &prepared.target {
         let (accounts, _) = CodexOAuthManager::read_store_file(
             &env.data_file(crate::codex::oauth::STORE_FILENAME),

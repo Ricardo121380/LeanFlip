@@ -126,6 +126,7 @@ export interface ImportCandidate {
   tool: ToolId;
   provider: Provider;
   skipReason: Reason | null;
+  notes?: Reason[];
 }
 
 export interface ImportScan {

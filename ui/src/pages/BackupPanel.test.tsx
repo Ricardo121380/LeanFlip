@@ -13,6 +13,19 @@ beforeEach(async () => {
   const { default: i18n } = await import("@/i18n"); await i18n.changeLanguage("zh");
 });
 
+it("discards a late unlock result after the restore panel has closed", async () => {
+  let finish!: (value: typeof preview) => void;
+  const fake = fakeBackend({ backup_load: () => new Promise<typeof preview>((resolve) => { finish = resolve; }), backup_discard: () => null });
+  backend.invoke.mockImplementation(fake.invoke);
+  const view = renderWithClient(<BackupRestore bytes={new Uint8Array([1])} fileName="fixture.leanflip" onBack={() => {}} />);
+  await userEvent.type(screen.getByLabelText("备份密码"), "fixture-passphrase");
+  await userEvent.click(screen.getByRole("button", { name: "解密并预览" }));
+  view.unmount();
+  await waitFor(() => expect(fake.calls.filter((call) => call.cmd === "backup_discard")).toHaveLength(1));
+  await act(async () => finish(preview));
+  await waitFor(() => expect(fake.calls.filter((call) => call.cmd === "backup_discard")).toHaveLength(2));
+});
+
 it("exports with matching masked passwords, freezes input while saving, and clears secrets after success", async () => {
   const user = userEvent.setup(); let finish!: (value: string) => void;
   const fake = fakeBackend({ backup_save: () => new Promise<string>((resolve) => { finish = resolve; }) });

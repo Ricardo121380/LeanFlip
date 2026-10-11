@@ -44,6 +44,12 @@ pub fn write(
     let next = projection(target)?;
     let commit = |target: &PendingTarget| super::commit_target(env, Tool::GrokBuild, target);
     let transaction = AppWrite::begin(env.device_store(), Tool::GrokBuild.as_str(), &commit)?;
+    let data = crate::store::load(env)?;
+    let owner = if op == crate::state::op::SWITCH {
+        data.current(Tool::GrokBuild)
+    } else {
+        owner
+    };
     let patch = GrokConfigPatch::direct(
         &next,
         retired_tables(&transaction.store, owner)?,

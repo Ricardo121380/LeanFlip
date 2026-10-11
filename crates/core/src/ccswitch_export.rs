@@ -20,12 +20,15 @@
 
 use std::collections::HashSet;
 use std::io::Write as _;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::ccswitch_import::{legacy_rows, parse_app, read_provider_rows, to_provider, RawRow};
+use crate::ccswitch_import::{
+    authorize_sqlite_reader, legacy_rows, parse_app, protect_sqlite, read_provider_rows,
+    sqlite_error, to_provider, RawRow,
+};
 use crate::env::Env;
 use crate::error::AppError;
 use crate::provider::{Provider, Tool};
@@ -155,7 +158,7 @@ pub fn parse(bytes: &[u8]) -> Result<ParsedExport, AppError> {
         ));
     }
     if bytes.starts_with(SQLITE_MAGIC) {
-        return parse_sqlite_file(bytes);
+        return parse_sqlite_file(bytes, SQL_TIME_LIMIT);
     }
     let text = std::str::from_utf8(bytes).map_err(|_| not_an_export())?;
     let text = text.trim_start_matches('\u{feff}');
@@ -180,13 +183,8 @@ fn parse_sql(sql: &str, time_limit: Duration) -> Result<ParsedExport, AppError> 
     use rusqlite::hooks::{AuthAction, AuthContext, Authorization};
     use rusqlite::Connection;
 
-    let sql_err = |e: rusqlite::Error| {
-        invalid(
-            format!("SQL 导出无法读取: {e}"),
-            format!("Cannot read the SQL export: {e}"),
-        )
-    };
-    let conn = Connection::open_in_memory().map_err(sql_err)?;
+    let conn = Connection::open_in_memory().map_err(sqlite_error)?;
+    protect_sqlite(&conn, time_limit)?;
     conn.authorizer(Some(|ctx: AuthContext<'_>| {
         let escapes = match ctx.action {
             AuthAction::Attach { .. } | AuthAction::Detach { .. } => true,
@@ -206,12 +204,10 @@ fn parse_sql(sql: &str, time_limit: Duration) -> Result<ParsedExport, AppError> 
             Authorization::Allow
         }
     }));
-    let deadline = Instant::now() + time_limit;
-    conn.progress_handler(10_000, Some(move || Instant::now() > deadline));
     let result = conn.execute_batch(sql);
-    conn.progress_handler(0, None::<fn() -> bool>);
     conn.authorizer(None::<fn(AuthContext<'_>) -> Authorization>);
-    result.map_err(sql_err)?;
+    result.map_err(sqlite_error)?;
+    authorize_sqlite_reader(&conn);
     if !conn.is_autocommit() {
         return Err(invalid(
             "SQL 导出不完整（事务没有结束），文件可能被截断",
@@ -228,7 +224,7 @@ fn parse_sql(sql: &str, time_limit: Duration) -> Result<ParsedExport, AppError> 
     })
 }
 
-fn parse_sqlite_file(bytes: &[u8]) -> Result<ParsedExport, AppError> {
+fn parse_sqlite_file(bytes: &[u8], time_limit: Duration) -> Result<ParsedExport, AppError> {
     use rusqlite::{Connection, OpenFlags};
     let mut file = tempfile::NamedTempFile::new().map_err(|e| AppError::io("tempfile", e))?;
     file.write_all(bytes)
@@ -238,12 +234,9 @@ fn parse_sqlite_file(bytes: &[u8]) -> Result<ParsedExport, AppError> {
         file.path(),
         OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
     )
-    .map_err(|e| {
-        invalid(
-            format!("数据库无法打开: {e}"),
-            format!("Cannot open the database: {e}"),
-        )
-    })?;
+    .map_err(sqlite_error)?;
+    protect_sqlite(&conn, time_limit)?;
+    authorize_sqlite_reader(&conn);
     let schema_version = conn
         .query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))
         .ok();
@@ -261,26 +254,21 @@ fn providers_of(conn: &rusqlite::Connection) -> Result<Vec<RawRow>, AppError> {
             [],
             |row| row.get(0),
         )
-        .unwrap_or(false);
+        .map_err(sqlite_error)?;
     if !exists {
         return Err(invalid(
             "文件里没有 providers 表，不是完整的 cc-switch 导出",
             "No providers table: this is not a complete cc-switch export",
         ));
     }
-    read_provider_rows(conn).map_err(|e| {
-        invalid(
-            format!("providers 表无法读取: {e}"),
-            format!("Cannot read the providers table: {e}"),
-        )
-    })
+    read_provider_rows(conn).map_err(sqlite_error)
 }
 
 fn parse_legacy_json(text: &str) -> Result<ParsedExport, AppError> {
-    let root: Value = serde_json::from_str(text).map_err(|e| {
+    let root: Value = serde_json::from_str(text).map_err(|_| {
         invalid(
-            format!("JSON 无法解析: {e}"),
-            format!("Cannot parse the JSON: {e}"),
+            "JSON 无法解析，请检查导出文件是否完整。",
+            "Cannot parse JSON; check that the export file is complete.",
         )
     })?;
     let rows = legacy_rows(&root);
@@ -350,7 +338,7 @@ fn classify(data: &StoreData, row: &RawRow) -> Result<(Tool, Provider, Vec<Reaso
     if let Err(err) = crate::switch::preflight(data, tool, &provider) {
         return Err(Reason::from_error("unsupported_config", err));
     }
-    let mut notes = Vec::new();
+    let mut notes = crate::switch::provider_warnings(tool, &provider);
     if let Some(account) = provider
         .meta
         .auth_binding
@@ -537,6 +525,49 @@ pub fn apply(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Instant;
+    #[test]
+    fn sqlite_errors_never_echo_source_text() {
+        let sql = format!("{SQL_HEADER}\nfixture_private_api_key_invalid_sql;");
+        let error = parse(sql.as_bytes()).unwrap_err();
+        assert!(!error.to_string().contains("fixture_private_api_key"));
+        assert!(matches!(
+            error,
+            AppError::Localized {
+                key: "ccswitch_import.sqlite",
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn database_readers_reject_provider_views_and_interrupt_queries() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let conn = rusqlite::Connection::open(file.path()).unwrap();
+        conn.execute_batch("CREATE VIEW providers AS WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c) SELECT x AS id FROM c;").unwrap();
+        drop(conn);
+        let started = Instant::now();
+        let bytes = std::fs::read(file.path()).unwrap();
+        assert!(parse_sqlite_file(&bytes, Duration::from_millis(30)).is_err());
+        let conn = rusqlite::Connection::open_with_flags(
+            file.path(),
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+        )
+        .unwrap();
+        protect_sqlite(&conn, Duration::from_millis(30)).unwrap();
+        authorize_sqlite_reader(&conn);
+        assert!(read_provider_rows(&conn).is_err());
+        let result = conn.query_row(
+            "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c) SELECT sum(x) FROM c",
+            [],
+            |row| row.get::<_, i64>(0),
+        );
+        assert_eq!(
+            result.unwrap_err().sqlite_error_code(),
+            Some(rusqlite::ErrorCode::OperationInterrupted)
+        );
+        assert!(started.elapsed() < Duration::from_secs(2));
+    }
 
     #[test]
     fn runaway_sql_is_interrupted() {
@@ -548,7 +579,13 @@ mod tests {
         let started = Instant::now();
         let err = parse_sql(&sql, Duration::from_millis(200)).unwrap_err();
         assert!(started.elapsed() < Duration::from_secs(5));
-        assert!(err.to_string().contains("interrupt"), "{err}");
+        assert!(matches!(
+            err,
+            AppError::Localized {
+                key: "ccswitch_import.timeout",
+                ..
+            }
+        ));
     }
 
     #[test]

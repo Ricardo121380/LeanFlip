@@ -666,7 +666,7 @@ dependencies = [
 
 [[package]]
 name = "ccsl-app"
-version = "0.1.0"
+version = "0.2.0-dev"
 dependencies = [
  "ccsl-core",
  "ccsl-service",
@@ -684,11 +684,12 @@ dependencies = [
  "tauri-plugin-single-instance",
  "tempfile",
  "thiserror 2.0.21",
+ "zeroize",
 ]
 
 [[package]]
 name = "ccsl-cli"
-version = "0.1.0"
+version = "0.2.0-dev"
 dependencies = [
  "ccsl-core",
  "ccsl-service",
@@ -699,11 +700,12 @@ dependencies = [
  "serde_json",
  "tempfile",
  "unicode-width",
+ "zeroize",
 ]
 
 [[package]]
 name = "ccsl-core"
-version = "0.1.0"
+version = "0.2.0-dev"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -725,7 +727,7 @@ dependencies = [
 
 [[package]]
 name = "ccsl-service"
-version = "0.1.0"
+version = "0.2.0-dev"
 dependencies = [
  "age",
  "ccsl-core",
@@ -735,6 +737,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "toml_edit 0.22.27",
+ "zeroize",
 ]
 
 [[package]]

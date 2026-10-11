@@ -160,7 +160,7 @@ export function ImportWizard({ onBusyChange }: { onBusyChange?: (busy: boolean) 
                     {hasAccounts && <Badge variant="secondary">{t("wizard.accountCount", { count: scan.accounts })}</Badge>}
                   </label>
                   {items.length > 0 && <ul className="mt-3 grid gap-2 pl-6 text-sm">
-                    {items.map((c) => <li key={c.provider.id} className={cn("break-words [overflow-wrap:anywhere]", c.skipReason && "text-muted-foreground")}>{c.provider.name} <span className="font-mono text-xs text-muted-foreground">{c.provider.id}</span>{c.skipReason && <span className="ml-2 text-xs">· {t("wizard.skipped")}: {reasonText(c.skipReason, i18n.language)}</span>}</li>)}
+                    {items.map((c) => <li key={c.provider.id} className={cn("break-words [overflow-wrap:anywhere]", c.skipReason && "text-muted-foreground")}>{c.provider.name} <span className="font-mono text-xs text-muted-foreground">{c.provider.id}</span>{c.skipReason && <span className="ml-2 text-xs">· {t("wizard.skipped")}: {reasonText(c.skipReason, i18n.language)}</span>}{c.notes?.map((note) => <p key={note.code} className="mt-1 text-xs text-muted-foreground">{reasonText(note, i18n.language)}</p>)}</li>)}
                   </ul>}
                 </Card>;
               })}
@@ -180,8 +180,8 @@ export function ImportWizard({ onBusyChange }: { onBusyChange?: (busy: boolean) 
             </div>
           </Card>}
         </Tabs.Content>
-        <Tabs.Content value="file" forceMount hidden={source !== "file"} className="min-w-0 focus-visible:outline-none"><ExportImport onBusyChange={setFileBusy} /></Tabs.Content>
-        <Tabs.Content value="backup" forceMount hidden={source !== "backup"} className="min-w-0 focus-visible:outline-none"><BackupExport onBusyChange={setFileBusy} /></Tabs.Content>
+        <Tabs.Content value="file" forceMount hidden={source !== "file"} className="min-w-0 focus-visible:outline-none"><ExportImport active={source === "file"} onBusyChange={setFileBusy} /></Tabs.Content>
+        <Tabs.Content value="backup" className="min-w-0 focus-visible:outline-none"><BackupExport onBusyChange={setFileBusy} /></Tabs.Content>
       </Tabs.Root>
     </div>
   );

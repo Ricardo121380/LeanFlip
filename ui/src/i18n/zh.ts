@@ -145,6 +145,7 @@ const zh = {
     website: "网站",
     getKey: "获取 API Key",
     settings: "配置（JSON）",
+    claudeFieldsHint: "仅写入连接、鉴权、模型及支持的供应商参数。permissions、hooks、API_TIMEOUT_MS、DISABLE_TELEMETRY 等字段保留客户端原值，不会从卡片写入；保存时会提示被忽略的字段。",
     auth: "auth.json",
     config: "config.toml（按原文保存）",
     addToLive: "保存后立即写入客户端配置",

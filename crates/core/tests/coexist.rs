@@ -55,6 +55,8 @@ fn opencode_add_and_remove_keep_comments_and_other_entries() {
     .unwrap()
     .expect("written");
     let text = sb.read(&path);
+    #[cfg(unix)]
+    assert_eq!(common::mode(&path), 0o600);
     assert!(text.contains("// my OpenCode config"), "{text}");
     assert!(text.contains("/* keep */"), "{text}");
     assert_eq!(ids(&sb, Tool::OpenCode), ["mine", "relay"]);
@@ -191,6 +193,8 @@ fn openclaw_json5_edits_are_node_level() {
     )
     .unwrap();
     let text = sb.read(&path);
+    #[cfg(unix)]
+    assert_eq!(common::mode(&path), 0o600);
     assert!(
         text.starts_with("// OpenClaw\n{\n  agents: { defaults: { model: 'x/y' } },"),
         "{text}"
@@ -236,6 +240,8 @@ fn hermes_only_rewrites_its_sections_and_activate_points_model_at_the_provider()
     sb.write(&path, HERMES);
     sb.add(Tool::Hermes, hermes_card("relay"));
     switch::switch(&sb.env, Tool::Hermes, "relay").unwrap();
+    #[cfg(unix)]
+    assert_eq!(common::mode(&path), 0o600);
     let text = sb.read(&path);
     assert!(text.starts_with("# Hermes config\n"), "{text}");
     assert!(

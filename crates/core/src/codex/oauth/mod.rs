@@ -388,6 +388,15 @@ impl CodexOAuthManager {
         held(&self.runtime).devices.remove(code).is_some()
     }
     pub fn poll_device_flow(&self, code: &str) -> Result<DeviceFlowPoll, AppError> {
+        self.poll_device_flow_with_guard(code, || Ok(()))
+    }
+    /// Poll/exchange first; take the caller's guard only when tokens are ready
+    /// to persist, before the account-store lock.
+    pub fn poll_device_flow_with_guard<G>(
+        &self,
+        code: &str,
+        before_store: impl FnOnce() -> Result<G, AppError>,
+    ) -> Result<DeviceFlowPoll, AppError> {
         let attempt = {
             let mut runtime = held(&self.runtime);
             let current = runtime
@@ -417,6 +426,14 @@ impl CodexOAuthManager {
                     .map_err(network),
             }
         })();
+        let authorized = response.as_ref().is_ok_and(|tokens| tokens.is_some());
+        let (response, _guard) = match response {
+            Ok(Some(tokens)) => match before_store() {
+                Ok(guard) => (Ok(Some(tokens)), Some(guard)),
+                Err(error) => (Err(error), None),
+            },
+            other => (other, None),
+        };
         {
             let mut runtime = held(&self.runtime);
             let Some(current) = runtime
@@ -427,7 +444,7 @@ impl CodexOAuthManager {
                 return Err(network(TransportError::Expired));
             };
             current.polling = false;
-            if response.as_ref().is_ok_and(|v| v.is_some()) {
+            if authorized {
                 runtime.devices.remove(code);
             }
         }
