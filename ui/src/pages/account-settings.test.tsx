@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { StrictMode } from "react";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -45,6 +46,18 @@ beforeEach(async () => {
 });
 
 describe("Settings editing states", () => {
+  it("accepts pristine backend refreshes without inventing unsaved changes under StrictMode", async () => {
+    let stored = settings();
+    const { client } = mount(<StrictMode><SettingsPage /></StrictMode>, { get_settings: () => stored });
+    expect(await screen.findByRole("spinbutton")).toHaveValue(168);
+    stored = { ...stored, app: { ...stored.app, backgroundRefreshHours: 24, autostart: true } };
+    await act(async () => { await client.invalidateQueries({ queryKey: keys.settings }); });
+    await waitFor(() => expect(screen.getByRole("spinbutton")).toHaveValue(24));
+    expect(screen.getByRole("switch", { name: "开机自动启动" })).toBeChecked();
+    expect(screen.getByRole("status")).toHaveTextContent("没有未保存的修改");
+    expect(screen.getByRole("button", { name: "保存设置" })).toBeDisabled();
+  });
+
   it("shows a load failure with retry instead of loading forever", async () => {
     let failed = true;
     mount(<SettingsPage />, { get_settings: () => { if (failed) throw new Error("settings read failed"); return settings(); } });
@@ -57,7 +70,7 @@ describe("Settings editing states", () => {
 
   it("preserves an unsaved draft through backend refreshes and resets to the latest settings", async () => {
     let stored = settings();
-    const { client, calls } = mount(<SettingsPage />, { get_settings: () => stored });
+    const { client, calls } = mount(<StrictMode><SettingsPage /></StrictMode>, { get_settings: () => stored });
     expect(await screen.findByRole("button", { name: "保存设置" })).toBeDisabled();
     await userEvent.type(screen.getByLabelText("Codex (~/.codex)"), "/my/draft");
     expect(screen.getByRole("status")).toHaveTextContent("有未保存的修改");
@@ -117,7 +130,7 @@ describe("Settings editing states", () => {
   });
 
   it("retains changes after a failed save and never announces success", async () => {
-    mount(<SettingsPage />, {
+    mount(<StrictMode><SettingsPage /></StrictMode>, {
       get_settings: settings,
       save_settings: () => { throw new Error("write denied"); },
     });

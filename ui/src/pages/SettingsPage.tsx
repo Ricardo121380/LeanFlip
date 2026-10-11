@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2, RotateCcw, Save } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -48,6 +48,7 @@ function Row({ id, label, hint, children }: { id: string; label: string; hint?: 
 }
 
 type SettingsDraft = { app: AppSettings; keep: boolean; refresh: string };
+type SettingsForm = { draft: SettingsDraft; baseline: SettingsDraft };
 
 function toDraft(data: SettingsView): SettingsDraft {
   return { app: data.app, keep: data.keepCodexLogin, refresh: String(data.app.backgroundRefreshHours) };
@@ -60,14 +61,12 @@ function sameDraft(a: SettingsDraft, b: SettingsDraft) {
 export function SettingsPage() {
   const { t } = useTranslation();
   const { data, isError, error, refetch } = useSettings();
-  const [draft, setDraft] = useState<SettingsDraft | null>(null);
-  const baseline = useRef<SettingsDraft | null>(null);
+  const [form, setForm] = useState<SettingsForm | null>(null);
 
   const save = useAction(
     (submitted: SettingsDraft) => api.saveSettings(submitted.app, submitted.keep),
     (result, submitted) => {
-      baseline.current = submitted;
-      setDraft(submitted);
+      setForm({ draft: submitted, baseline: submitted });
       applyLanguage(submitted.app.language);
       toast.success(t("settings.saved"));
       if (result.dirsChanged) toast.info(t("settings.dirsApplied"));
@@ -76,16 +75,15 @@ export function SettingsPage() {
 
   useEffect(() => {
     if (!data) return;
-    setDraft((current) => {
+    setForm((current) => {
       // Backend events can refresh settings while the user is editing.
-      if (current && baseline.current && !sameDraft(current, baseline.current)) return current;
+      if (current && !sameDraft(current.draft, current.baseline)) return current;
       const next = toDraft(data);
-      baseline.current = next;
-      return next;
+      return { draft: next, baseline: next };
     });
   }, [data]);
 
-  if (!data || !draft) return (
+  if (!data || !form) return (
     <div className="p-6">
       <QueryState
         state={isError ? "error" : "loading"}
@@ -95,15 +93,16 @@ export function SettingsPage() {
       />
     </div>
   );
+  const { draft, baseline } = form;
   const { app, keep } = draft;
-  const dirty = !baseline.current || !sameDraft(draft, baseline.current);
+  const dirty = !sameDraft(draft, baseline);
   const refreshHours = Number(draft.refresh);
   const refreshValid = draft.refresh.trim() !== "" && Number.isInteger(refreshHours) && refreshHours >= 0 && refreshHours <= 4294967295;
+  const setDraft = (next: SettingsDraft) => setForm({ ...form, draft: next });
   const set = (patch: Partial<AppSettings>) => setDraft({ ...draft, app: { ...app, ...patch } });
   const reset = () => {
     const next = toDraft(data);
-    baseline.current = next;
-    setDraft(next);
+    setForm({ draft: next, baseline: next });
   };
   const submit = () => {
     if (!dirty || !refreshValid || save.isPending) return;
