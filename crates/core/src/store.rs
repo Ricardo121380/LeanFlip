@@ -6,9 +6,7 @@
 //! - 不引入 C 依赖（rusqlite 要编 SQLite），Tauri 跨平台打包更省事；
 //! - 写入走和客户端文件一样的原子写（临时文件 + rename，0600）。
 //!
-//! 代价：没有跨进程的事务。进程内用一把锁串行读改写；同一台机器上同时开两个
-//! ccswitch-lite 进程改库时，后写的会覆盖先写的（客户端文件本身有 hash 校验，不受影响）。
-//! 真需要时再换 SQLite，`Store` 的接口不变。
+//! 进程内与跨进程锁串行读改写；拿不到文件锁时停止，不覆盖其他进程的更新。
 //!
 //! 文件坏了（解析失败）不会被自动覆盖：这是用户数据，报错让用户处理。
 
@@ -124,7 +122,14 @@ pub fn load(env: &Env) -> Result<StoreData, AppError> {
     let _file = env
         .data_dir
         .is_dir()
-        .then(|| crate::live::engine::lock_file(&store_lock_path(env), false));
+        .then(|| crate::live::engine::lock_file(&store_lock_path(env), false))
+        .transpose()?;
+    load_unlocked(env)
+}
+
+/// 只读供应商库快照，不创建目录或锁文件，也不恢复未完成的操作。
+/// 写入以原子替换发布，因此读到的是一次完整的新旧快照；不保证和客户端文件同步。
+pub fn load_readonly(env: &Env) -> Result<StoreData, AppError> {
     load_unlocked(env)
 }
 
@@ -150,13 +155,13 @@ fn save_unlocked(env: &Env, data: &StoreData) -> Result<(), AppError> {
     atomic_write_private(&env.store_path(), &bytes)
 }
 
-/// 读改写供应商库（进程内串行）。`change` 返回错误时什么都不写。
+/// 读改写供应商库（进程内及跨进程串行）。`change` 返回错误时什么都不写。
 pub fn update<R>(
     env: &Env,
     change: impl FnOnce(&mut StoreData) -> Result<R, AppError>,
 ) -> Result<R, AppError> {
     let _guard = store_lock().lock().unwrap_or_else(|e| e.into_inner());
-    let _file = crate::live::engine::lock_file(&store_lock_path(env), true);
+    let _file = crate::live::engine::lock_file(&store_lock_path(env), true)?;
     let mut data = load_unlocked(env)?;
     let result = change(&mut data)?;
     save_unlocked(env, &data)?;
@@ -230,6 +235,41 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let env = Env::with_home(dir.path());
         (dir, env)
+    }
+
+    #[test]
+    fn readonly_snapshot_does_not_create_directories_or_locks() {
+        let (_dir, env) = env();
+        assert_eq!(load_readonly(&env).unwrap(), StoreData::default());
+        assert!(!env.data_dir.exists());
+
+        fs::create_dir_all(&env.data_dir).unwrap();
+        fs::write(env.store_path(), r#"{"version":1,"apps":{}}"#).unwrap();
+        assert_eq!(load_readonly(&env).unwrap(), StoreData::default());
+        assert!(!store_lock_path(&env).exists());
+    }
+
+    #[test]
+    fn unavailable_store_lock_stops_reads_and_writes_but_allows_readonly_snapshot() {
+        let (_dir, env) = env();
+        add_provider(&env, Tool::Claude, Provider::new("a", "A", json!({}))).unwrap();
+        let before = fs::read(env.store_path()).unwrap();
+        fs::remove_file(store_lock_path(&env)).unwrap();
+        fs::create_dir(store_lock_path(&env)).unwrap();
+
+        assert!(matches!(load(&env), Err(AppError::Io { .. })));
+        let mut called = false;
+        let result = update(&env, |_data| {
+            called = true;
+            Ok(())
+        });
+        assert!(matches!(result, Err(AppError::Io { .. })));
+        assert!(!called, "must stop before running the mutation");
+        assert_eq!(fs::read(env.store_path()).unwrap(), before);
+        assert_eq!(
+            load_readonly(&env).unwrap().providers(Tool::Claude).len(),
+            1
+        );
     }
 
     #[test]

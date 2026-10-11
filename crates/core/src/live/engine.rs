@@ -42,10 +42,13 @@ impl DeviceStore {
     /// 一个应用的写锁，进程内 + 跨进程：先拿进程内的（[`lock_app`]），再对
     /// `<数据目录>/locks/<app>.lock` 加排他的文件锁（同一台机器上开了两个 ccswitch-lite，
     /// 或者 CLI 和桌面应用同时在写，也互斥）。锁文件本身不删，进程退出时内核释放锁。
-    pub fn lock_app(&self, app: &str) -> AppWriteGuard {
+    pub fn lock_app(&self, app: &str) -> Result<AppWriteGuard, AppError> {
         let mut guard = lock_app(app);
-        guard._file = lock_file(&self.root.join("locks").join(format!("{app}.lock")), true);
-        guard
+        guard._file = Some(lock_file(
+            &self.root.join("locks").join(format!("{app}.lock")),
+            true,
+        )?);
+        Ok(guard)
     }
 
     /// 这台设备状态目录下的一个文件（比如 Codex 的登录暂存）。
@@ -220,8 +223,8 @@ pub fn lock_app(app: &str) -> AppWriteGuard {
     }
 }
 
-/// 打开（必要时创建）锁文件并加锁。打不开时返回 `None`（只剩进程内的锁，记一条警告）。
-pub(crate) fn lock_file(path: &Path, exclusive: bool) -> Option<std::fs::File> {
+/// 打开（必要时创建）锁文件并加锁。失败时停止操作，不能降级成只有进程内锁。
+pub(crate) fn lock_file(path: &Path, exclusive: bool) -> Result<std::fs::File, AppError> {
     let open = || -> std::io::Result<std::fs::File> {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
@@ -239,13 +242,7 @@ pub(crate) fn lock_file(path: &Path, exclusive: bool) -> Option<std::fs::File> {
         }
         Ok(file)
     };
-    match open() {
-        Ok(file) => Some(file),
-        Err(err) => {
-            log::warn!("无法锁定 {}（只用进程内的锁）: {err}", path.display());
-            None
-        }
-    }
+    open().map_err(|source| AppError::io(path, source))
 }
 
 impl Drop for AppWriteGuard {
