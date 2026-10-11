@@ -53,7 +53,9 @@ brew install --cask ricardo121380/ccswitch-lite/ccsl
 ccsl
 ```
 
-两个入口都使用二进制 Cask，直接安装发布包、校验 SHA256，并管理安装与升级；无需本机编译。Linux CLI Cask 需要支持 Linux Cask 的 Homebrew 7 或更新版本。桌面 Cask 当前支持 macOS ARM64；Linux 桌面端使用下面的 DEB 安装方式或 npm 桌面安装器。macOS App 的签名状态见下文。
+两个入口都使用二进制 Cask，直接安装发布包、校验 SHA256，并管理安装与升级；无需本机编译。Linux CLI Cask 需要支持 Linux Cask 的 Homebrew 7 或更新版本。桌面 Cask 当前支持 macOS ARM64；Linux 桌面端使用下面的 DEB 安装方式或 npm 桌面安装器。
+
+macOS 的 App 和 CLI 当前都未做 Apple Developer ID 签名及公证。Homebrew 安装成功后，首次运行仍可能被系统拦截，包括 `ccsl --version`；请按下文的[首次启动说明](#macos-提示无法验证开发者或文件已损坏)手动允许。
 
 ```sh
 brew update
@@ -529,7 +531,11 @@ ccsl recover         # 处理所有工具
 
 ### macOS 提示无法验证开发者或文件已损坏
 
-本版未做 Apple Developer ID 签名与公证，首次打开可能被拦截。按[安装说明](#2-安装桌面-app)和 Apple 官方指引处理。若提示文件已损坏或校验不一致，先重新下载并核对 SHA256；仍有问题时附上系统版本及完整提示反馈。
+本版 macOS App 和 CLI 均未做 Apple Developer ID 签名与公证。Homebrew 安装完成不代表已获得系统运行许可，首次打开 App 或执行 `ccsl` 都可能被拦截。
+
+先确认下载来源与 SHA256，再到“系统设置 → 隐私与安全性”找到刚刚被拦截的 **CC Switch Lite** 或 **ccsl**，按提示选择“仍要打开”，然后重新启动 App 或执行 CLI。详见 [Apple 官方说明](https://support.apple.com/zh-cn/102445)。安装器不会替用户关闭系统安全检查。
+
+若提示文件已损坏或校验不一致，先重新下载并核对 SHA256；仍有问题时附上系统版本及完整提示反馈。
 
 ### 工具显示“未检测到配置文件”
 

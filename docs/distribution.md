@@ -12,6 +12,8 @@ Homebrew Cask 与 npm 安装器共用 GitHub Release 的原生二进制。它们
 
 两个 Homebrew 入口都用 `brew install --cask` 安装，避免预编译 CLI 被作为源码配方触发编译工具检查。
 
+macOS 的 App 和 CLI 当前均未做 Developer ID 签名及公证。真实用户环境中的 Gatekeeper 可能拦截首次运行；CI 安装和执行通过不能证明用户电脑已授予运行许可。保留 Homebrew 的隔离属性和系统安全检查，按 README 引导用户手动处理首次启动提示。
+
 桌面 npm 命令使用 `ccsl-app`，避免与 Linux DEB 安装的原生 `/usr/bin/ccswitch-lite` 重名。
 
 ## 更新原生版本与校验值

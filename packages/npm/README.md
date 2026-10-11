@@ -39,7 +39,7 @@ ccsl-app open --app-dir /Applications
 
 Linux 使用 `apt install` 安装 DEB，普通用户通过 `sudo` 调用；需要终端确认和系统密码，图形桌面启动 App 时仍使用普通用户。请勿用 sudo 运行 `ccsl` 或桌面 App。该 Linux 包在 Ubuntu 24.04 构建和验证，不适用于所有发行版。
 
-macOS App 未做 Apple Developer ID 签名和公证。首次打开时可能需要在系统“隐私与安全性”中手动允许，详见[项目安装说明](https://github.com/Ricardo121380/ccswitch-lite#下载与安装)。安装完成后不会自动启动 App。
+macOS App 和 CLI 均未做 Apple Developer ID 签名和公证。首次运行时可能需要在系统“隐私与安全性”中手动允许，详见[项目安装说明](https://github.com/Ricardo121380/ccswitch-lite#下载与安装)。安装完成后不会自动启动 App。
 
 ## 下载、路径与升级
 
