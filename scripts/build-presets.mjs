@@ -4,10 +4,10 @@
 //
 // 裁剪规则：去掉 hidden、requiresOAuth、带 providerType（Copilot / 托管 OAuth 等需要
 // 代理或专用登录的）、Claude / Claude Desktop 里 apiFormat 不是 anthropic（需要本地
-// 格式转换代理）的预设；去掉合作伙伴推广、主题、图标等界面字段，以及链接里的返利 /
-// 追踪参数。
+// 格式转换代理）的预设；去掉合作伙伴推广、主题、图标等界面字段。链接只留模型厂商
+// 官方平台的（去掉返利 / 追踪参数），中转站 / 聚合平台的链接整条删除。
 import { build } from "esbuild";
-import { mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -89,13 +89,12 @@ function keep(tool, preset) {
   return true;
 }
 
-// 推广链接（返利 / 邀请 / 赞助 / 合作伙伴）整条删掉，不留域名：
-// - 查询参数里带返利 / 追踪码（?aff=、?ref=、?invite=、utm_* …）
-// - 路径形式的邀请码：/i/CODE、/invite/CODE、/r/CODE、/go/CODE、/register/CODE、
-//   /agent/register/CODE、路径里带 ccswitch 的活动页、单段随机短码（/VjM74M）
-// - 短链接服务（跳转目标未知）
-// - cc-switch 标成商业合作伙伴的预设（isPartner / partnerPromotionKey）的所有链接
+// 预设链接只留模型厂商自己的官方平台（白名单见 ui/src/lib/official-vendor-domains.json）：
+// - 中转站 / 聚合平台 / 第三方推理云的链接整条删掉，不留域名（包括 cc-switch 的合作伙伴）。
+// - 官方链接去掉返利 / 追踪参数（?aff=、?track_id=、utm_* …）；路径形式的邀请码只留域名。
 // 只动 websiteUrl / apiKeyUrl；settingsConfig 里的 API 地址是配置，不动。
+const officialList = JSON.parse(readFileSync(path.resolve("ui/src/lib/official-vendor-domains.json"), "utf8"));
+const OFFICIAL = Object.entries(officialList.vendors).flatMap(([vendor, domains]) => domains.map((d) => [d, vendor]));
 const TRACKING_PARAMS = new Set([
   "aff", "track_id", "ref", "invite", "invite_code", "invitecode", "ic", "code",
   "source", "from", "ch", "ytag", "ac", "rc",
@@ -106,35 +105,45 @@ const REFERRAL_PATH = [
   /cc-?switch/i,
 ];
 const SHORT_CODE = /^\/(?=[A-Za-z0-9]*\d)(?=[A-Za-z0-9]*[A-Z])[A-Za-z0-9]{5,10}\/?$/;
-const SHORTENER_HOSTS = new Set(["s.qiniu.com", "bit.ly", "t.cn", "dwz.cn", "tinyurl.com", "url.cn"]);
 
-/** 推广链接返回原因，普通链接返回 null。 */
-export function promoReason(value, preset = {}) {
-  if (preset.isPartner || preset.primePartner || preset.partnerPromotionKey) return "partner";
-  let url;
-  try {
-    url = new URL(value);
-  } catch {
-    return null;
+/** 官方厂商名；不在白名单里返回 null。 */
+export function officialVendor(host) {
+  const h = host.toLowerCase();
+  return OFFICIAL.find(([d]) => h === d || h.endsWith(`.${d}`))?.[1] ?? null;
+}
+
+/** 去掉返利 / 追踪参数和路径邀请码。 */
+export function cleanOfficialUrl(value) {
+  const url = new URL(value);
+  for (const key of [...url.searchParams.keys()]) {
+    const k = key.toLowerCase();
+    if (TRACKING_PARAMS.has(k) || k.startsWith("utm_")) url.searchParams.delete(key);
   }
-  if (SHORTENER_HOSTS.has(url.host)) return "short-link";
-  for (const key of url.searchParams.keys()) {
-    if (TRACKING_PARAMS.has(key.toLowerCase()) || key.toLowerCase().startsWith("utm_")) return `query:${key}`;
-  }
-  if (REFERRAL_PATH.some((re) => re.test(url.pathname)) || SHORT_CODE.test(url.pathname)) return "referral-path";
-  return null;
+  if (REFERRAL_PATH.some((re) => re.test(url.pathname)) || SHORT_CODE.test(url.pathname)) return `${url.origin}/`;
+  return url.toString().replace(/\?(?=#|$)/, "");
 }
 
 export const removedLinks = [];
+export const keptLinks = [];
 
 function trim(tool, preset) {
   const out = {};
   for (const key of KEEP) if (preset[key] !== undefined) out[key] = preset[key];
   for (const field of ["websiteUrl", "apiKeyUrl"]) {
     if (typeof out[field] !== "string" || !out[field]) continue;
-    const reason = promoReason(out[field], preset);
-    if (reason) {
-      removedLinks.push({ tool, name: preset.name, field, reason: reason.startsWith("query:") ? "tracking-query" : reason });
+    let url;
+    try {
+      url = new URL(out[field]);
+    } catch {
+      url = null;
+    }
+    const vendor = url && url.protocol === "https:" ? officialVendor(url.host) : null;
+    if (vendor) {
+      const cleaned = cleanOfficialUrl(out[field]);
+      keptLinks.push({ tool, name: preset.name, field, vendor, cleaned: cleaned !== out[field] });
+      out[field] = cleaned;
+    } else {
+      removedLinks.push({ tool, name: preset.name, field, reason: "not-official-vendor" });
       delete out[field];
     }
   }
@@ -180,6 +189,8 @@ const removed = removedLinks
     return !seenRemoved.has(key) && seenRemoved.add(key);
   });
 writeFileSync(path.join(outDir, "..", "lib", "removed-preset-links.json"), JSON.stringify(removed, null, 1) + "\n");
-const byReason = {};
-for (const r of removed) byReason[r.reason] = (byReason[r.reason] ?? 0) + 1;
-console.log(`promo link fields removed: ${removed.length}`, byReason);
+const kept2 = keptLinks.filter((r) => kept.has(r.tool));
+const vendors = {};
+for (const r of kept2) vendors[r.vendor] = (vendors[r.vendor] ?? 0) + 1;
+console.log(`link fields kept (official vendors): ${kept2.length}, cleaned of params: ${kept2.filter((r) => r.cleaned).length}`, vendors);
+console.log(`link fields removed (relay / aggregator / non-vendor): ${removed.length}`);

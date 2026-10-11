@@ -53,7 +53,8 @@ pnpm install
 pnpm typecheck && pnpm test     # 前端
 pnpm tauri dev                  # 开发运行（会读写当前用户的真实配置！）
 pnpm tauri build --bundles deb  # 本地打包，不发布
-pnpm presets ../ccswitch        # 从 cc-switch 源码重新生成裁剪后的预设（推广链接整条删除，
+pnpm presets ../ccswitch        # 从 cc-switch 源码重新生成裁剪后的预设（链接只留模型厂商官方平台，
+                                # 白名单 ui/src/lib/official-vendor-domains.json；中转站链接整条删除，
                                 # 删了哪些字段记在 ui/src/lib/removed-preset-links.json）
 ```
 

@@ -10,6 +10,7 @@
   },
   {
     "name": "Kimi",
+    "websiteUrl": "https://platform.kimi.com/",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://api.moonshot.cn/anthropic",
@@ -24,6 +25,7 @@
   },
   {
     "name": "Kimi Global",
+    "websiteUrl": "https://platform.kimi.ai/",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://api.moonshot.ai/anthropic",
@@ -38,6 +40,7 @@
   },
   {
     "name": "Kimi For Coding",
+    "websiteUrl": "https://www.kimi.com/code/",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://api.kimi.com/coding/",
@@ -54,6 +57,7 @@
   },
   {
     "name": "Kimi For Coding Global",
+    "websiteUrl": "https://www.kimi.ai/code",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://api.kimi.ai/coding/",
@@ -293,6 +297,8 @@
   },
   {
     "name": "火山 Agent Plan",
+    "websiteUrl": "https://www.volcengine.com/activity/agentplan",
+    "apiKeyUrl": "https://www.volcengine.com/activity/agentplan",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://ark.cn-beijing.volces.com/api/plan",
@@ -307,6 +313,8 @@
   },
   {
     "name": "火山 Coding Plan",
+    "websiteUrl": "https://www.volcengine.com/activity/codingplan",
+    "apiKeyUrl": "https://www.volcengine.com/activity/codingplan",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://ark.cn-beijing.volces.com/api/coding",
@@ -321,6 +329,8 @@
   },
   {
     "name": "BytePlus",
+    "websiteUrl": "https://www.byteplus.com/en/product/modelark",
+    "apiKeyUrl": "https://www.byteplus.com/en/product/modelark",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://ark.ap-southeast.bytepluses.com/api/coding",
@@ -335,6 +345,8 @@
   },
   {
     "name": "Volcengine Doubao",
+    "websiteUrl": "https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey?apikey=%7B%7D",
+    "apiKeyUrl": "https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey?apikey=%7B%7D",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://ark.cn-beijing.volces.com/api/compatible",
@@ -518,8 +530,6 @@
   },
   {
     "name": "Tu-zi",
-    "websiteUrl": "https://api.tu-zi.com",
-    "apiKeyUrl": "https://api.tu-zi.com/token",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://api.tu-zi.com",
@@ -531,8 +541,6 @@
   },
   {
     "name": "Amux",
-    "websiteUrl": "https://amux.ai",
-    "apiKeyUrl": "https://amux.ai",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://api.amux.ai",
@@ -543,8 +551,6 @@
   },
   {
     "name": "AtlasCloud",
-    "websiteUrl": "https://www.atlascloud.ai/console/coding-plan",
-    "apiKeyUrl": "https://www.atlascloud.ai/console/coding-plan",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://api.atlascloud.ai",
@@ -560,8 +566,6 @@
   },
   {
     "name": "Soshow",
-    "websiteUrl": "https://aimarket.so-show.com",
-    "apiKeyUrl": "https://aimarket.so-show.com/workbench/access-key",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://maas.so-show.com",
@@ -574,7 +578,7 @@
   },
   {
     "name": "DeepSeek",
-    "websiteUrl": "https://platform.deepseek.com",
+    "websiteUrl": "https://platform.deepseek.com/",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic",
@@ -604,8 +608,6 @@
   },
   {
     "name": "OpenCode Zen",
-    "websiteUrl": "https://opencode.ai/zen",
-    "apiKeyUrl": "https://opencode.ai/auth",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://opencode.ai/zen",
@@ -717,7 +719,8 @@
   },
   {
     "name": "Zhipu GLM",
-    "websiteUrl": "https://open.bigmodel.cn",
+    "websiteUrl": "https://open.bigmodel.cn/",
+    "apiKeyUrl": "https://www.bigmodel.cn/claude-code",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://open.bigmodel.cn/api/anthropic",
@@ -732,7 +735,8 @@
   },
   {
     "name": "Zhipu GLM en",
-    "websiteUrl": "https://z.ai",
+    "websiteUrl": "https://z.ai/",
+    "apiKeyUrl": "https://z.ai/subscribe",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://api.z.ai/api/anthropic",
@@ -779,6 +783,8 @@
   },
   {
     "name": "千问AI平台",
+    "websiteUrl": "https://platform.qianwenai.com/",
+    "apiKeyUrl": "https://platform.qianwenai.com/home/api-keys",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://dashscope.aliyuncs.com/apps/anthropic",
@@ -794,7 +800,7 @@
   },
   {
     "name": "千问AI平台 Coding Plan",
-    "websiteUrl": "https://bailian.console.aliyun.com",
+    "websiteUrl": "https://bailian.console.aliyun.com/",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
@@ -805,6 +811,8 @@
   },
   {
     "name": "千问AI平台 Token Plan",
+    "websiteUrl": "https://platform.qianwenai.com/pricing/token-plan",
+    "apiKeyUrl": "https://platform.qianwenai.com/home/api-keys",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
@@ -820,6 +828,8 @@
   },
   {
     "name": "QwenCloud",
+    "websiteUrl": "https://home.qwencloud.com/",
+    "apiKeyUrl": "https://home.qwencloud.com/api-keys",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://dashscope-intl.aliyuncs.com/apps/anthropic",
@@ -834,7 +844,7 @@
   },
   {
     "name": "QwenCloud For Coding",
-    "websiteUrl": "https://www.qwencloud.com",
+    "websiteUrl": "https://www.qwencloud.com/",
     "apiKeyUrl": "https://home.qwencloud.com/api-keys",
     "settingsConfig": {
       "env": {
@@ -850,6 +860,8 @@
   },
   {
     "name": "QwenCloud Token Plan",
+    "websiteUrl": "https://www.qwencloud.com/pricing/token-plan",
+    "apiKeyUrl": "https://home.qwencloud.com/api-keys",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://token-plan.ap-southeast-1.maas.aliyuncs.com/apps/anthropic",
@@ -897,7 +909,6 @@
   },
   {
     "name": "ModelScope",
-    "websiteUrl": "https://modelscope.cn",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://api-inference.modelscope.cn",
@@ -912,7 +923,7 @@
   },
   {
     "name": "KAT-Coder",
-    "websiteUrl": "https://console.streamlake.ai",
+    "websiteUrl": "https://console.streamlake.ai/",
     "apiKeyUrl": "https://console.streamlake.ai/console/api-key",
     "settingsConfig": {
       "env": {
@@ -946,7 +957,7 @@
   },
   {
     "name": "MiniMax",
-    "websiteUrl": "https://platform.minimax.cn",
+    "websiteUrl": "https://platform.minimax.cn/",
     "apiKeyUrl": "https://platform.minimax.cn/subscribe/token-plan",
     "settingsConfig": {
       "env": {
@@ -963,7 +974,7 @@
   },
   {
     "name": "MiniMax en",
-    "websiteUrl": "https://platform.minimax.io",
+    "websiteUrl": "https://platform.minimax.io/",
     "apiKeyUrl": "https://platform.minimax.io/subscribe/coding-plan",
     "settingsConfig": {
       "env": {
@@ -996,8 +1007,6 @@
   },
   {
     "name": "AiHubMix",
-    "websiteUrl": "https://aihubmix.com",
-    "apiKeyUrl": "https://aihubmix.com",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://aihubmix.com",
@@ -1009,8 +1018,6 @@
   },
   {
     "name": "CherryIN",
-    "websiteUrl": "https://open.cherryin.ai",
-    "apiKeyUrl": "https://open.cherryin.ai/console/token",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://open.cherryin.net",
@@ -1025,8 +1032,6 @@
   },
   {
     "name": "RelaxyCode",
-    "websiteUrl": "https://www.relaxycode.com",
-    "apiKeyUrl": "https://www.relaxycode.com/register",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://www.relaxycode.com",
@@ -1037,8 +1042,6 @@
   },
   {
     "name": "E-FlowCode",
-    "websiteUrl": "https://e-flowcode.cc",
-    "apiKeyUrl": "https://e-flowcode.cc",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_AUTH_TOKEN": "",
@@ -1050,8 +1053,6 @@
   },
   {
     "name": "OpenRouter",
-    "websiteUrl": "https://openrouter.ai",
-    "apiKeyUrl": "https://openrouter.ai/keys",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://openrouter.ai/api",
@@ -1066,8 +1067,6 @@
   },
   {
     "name": "TheRouter",
-    "websiteUrl": "https://therouter.ai",
-    "apiKeyUrl": "https://dashboard.therouter.ai",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://api.therouter.ai",
@@ -1083,8 +1082,6 @@
   },
   {
     "name": "Novita AI",
-    "websiteUrl": "https://novita.ai",
-    "apiKeyUrl": "https://novita.ai",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://api.novita.ai/anthropic",
@@ -1099,7 +1096,6 @@
   },
   {
     "name": "PIPELLM",
-    "websiteUrl": "https://code.pipellm.ai",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://cc-api.pipellm.ai",
@@ -1114,7 +1110,7 @@
   },
   {
     "name": "Xiaomi MiMo",
-    "websiteUrl": "https://platform.xiaomimimo.com",
+    "websiteUrl": "https://platform.xiaomimimo.com/",
     "apiKeyUrl": "https://platform.xiaomimimo.com/#/console/api-keys",
     "settingsConfig": {
       "env": {
@@ -1146,7 +1142,6 @@
   },
   {
     "name": "AWS Bedrock (AKSK)",
-    "websiteUrl": "https://aws.amazon.com/bedrock/",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://bedrock-runtime.${AWS_REGION}.amazonaws.com",
@@ -1164,7 +1159,6 @@
   },
   {
     "name": "AWS Bedrock (API Key)",
-    "websiteUrl": "https://aws.amazon.com/bedrock/",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://bedrock-runtime.${AWS_REGION}.amazonaws.com",
@@ -1181,8 +1175,6 @@
   },
   {
     "name": "JieKou AI",
-    "websiteUrl": "https://jiekou.ai/#model-library",
-    "apiKeyUrl": "https://jiekou.ai/settings/key-management",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://api.jiekou.ai/anthropic",
@@ -1197,8 +1189,6 @@
   },
   {
     "name": "AICodeWith",
-    "websiteUrl": "https://aicodewith.ai",
-    "apiKeyUrl": "https://aicodewith.ai/login?tab=register",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://api.aicodewith.ai",
@@ -1209,8 +1199,6 @@
   },
   {
     "name": "模力方舟",
-    "websiteUrl": "https://moark.com",
-    "apiKeyUrl": "https://moark.com/dashboard/tokens",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://moark.com/anthropic",

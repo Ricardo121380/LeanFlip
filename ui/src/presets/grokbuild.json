@@ -218,8 +218,6 @@
   },
   {
     "name": "Tu-zi",
-    "websiteUrl": "https://api.tu-zi.com",
-    "apiKeyUrl": "https://api.tu-zi.com/token",
     "settingsConfig": {
       "config": "[models]\ndefault = \"grok-4.5\"\n\n[model.\"grok-4.5\"]\nmodel = \"grok-4.5\"\nbase_url = \"https://api.tu-zi.com/v1\"\nname = \"Tu-zi\"\napi_key = \"\"\napi_backend = \"responses\"\ncontext_window = 500000\n"
     },
@@ -228,7 +226,7 @@
   {
     "name": "xAI (Grok)",
     "websiteUrl": "https://x.ai/api",
-    "apiKeyUrl": "https://console.x.ai",
+    "apiKeyUrl": "https://console.x.ai/",
     "settingsConfig": {
       "config": "[models]\ndefault = \"grok-4.5\"\n\n[model.\"grok-4.5\"]\nmodel = \"grok-4.5\"\nbase_url = \"https://api.x.ai/v1\"\nname = \"xAI (Grok)\"\napi_key = \"\"\napi_backend = \"responses\"\ncontext_window = 500000\n"
     },
@@ -236,8 +234,6 @@
   },
   {
     "name": "Amux",
-    "websiteUrl": "https://amux.ai",
-    "apiKeyUrl": "https://amux.ai",
     "settingsConfig": {
       "config": "[models]\ndefault = \"grok-4.5\"\n\n[model.\"grok-4.5\"]\nmodel = \"grok-4.5\"\nbase_url = \"https://api.amux.ai/v1\"\nname = \"Amux\"\napi_key = \"\"\napi_backend = \"responses\"\ncontext_window = 500000\n"
     },
@@ -245,7 +241,6 @@
   },
   {
     "name": "AiHubMix",
-    "websiteUrl": "https://aihubmix.com",
     "settingsConfig": {
       "config": "[models]\ndefault = \"grok-4.5\"\n\n[model.\"grok-4.5\"]\nmodel = \"grok-4.5\"\nbase_url = \"https://aihubmix.com/v1\"\nname = \"AiHubMix\"\napi_key = \"\"\napi_backend = \"responses\"\ncontext_window = 500000\n"
     },
@@ -253,8 +248,6 @@
   },
   {
     "name": "CherryIN",
-    "websiteUrl": "https://open.cherryin.ai",
-    "apiKeyUrl": "https://open.cherryin.ai/console/token",
     "settingsConfig": {
       "config": "[models]\ndefault = \"x-ai/grok-4.5\"\n\n[model.\"x-ai/grok-4.5\"]\nmodel = \"x-ai/grok-4.5\"\nbase_url = \"https://open.cherryin.net/v1\"\nname = \"CherryIN\"\napi_key = \"\"\napi_backend = \"responses\"\ncontext_window = 500000\n"
     },
@@ -262,8 +255,6 @@
   },
   {
     "name": "RelaxyCode",
-    "websiteUrl": "https://www.relaxycode.com",
-    "apiKeyUrl": "https://www.relaxycode.com/register",
     "settingsConfig": {
       "config": "[models]\ndefault = \"grok-4.5\"\n\n[model.\"grok-4.5\"]\nmodel = \"grok-4.5\"\nbase_url = \"https://www.relaxycode.com/v1\"\nname = \"RelaxyCode\"\napi_key = \"\"\napi_backend = \"responses\"\ncontext_window = 500000\n"
     },
@@ -271,8 +262,6 @@
   },
   {
     "name": "E-FlowCode",
-    "websiteUrl": "https://e-flowcode.cc",
-    "apiKeyUrl": "https://e-flowcode.cc",
     "settingsConfig": {
       "config": "[models]\ndefault = \"grok-4.5\"\n\n[model.\"grok-4.5\"]\nmodel = \"grok-4.5\"\nbase_url = \"https://e-flowcode.cc/v1\"\nname = \"E-FlowCode\"\napi_key = \"\"\napi_backend = \"responses\"\ncontext_window = 500000\n"
     },
@@ -280,7 +269,6 @@
   },
   {
     "name": "PIPELLM",
-    "websiteUrl": "https://code.pipellm.ai",
     "settingsConfig": {
       "config": "[models]\ndefault = \"grok-4.5\"\n\n[model.\"grok-4.5\"]\nmodel = \"grok-4.5\"\nbase_url = \"https://cc-api.pipellm.ai/v1\"\nname = \"PIPELLM\"\napi_key = \"\"\napi_backend = \"responses\"\ncontext_window = 500000\n"
     },
@@ -288,8 +276,6 @@
   },
   {
     "name": "OpenRouter",
-    "websiteUrl": "https://openrouter.ai",
-    "apiKeyUrl": "https://openrouter.ai/keys",
     "settingsConfig": {
       "config": "[models]\ndefault = \"x-ai/grok-4.5\"\n\n[model.\"x-ai/grok-4.5\"]\nmodel = \"x-ai/grok-4.5\"\nbase_url = \"https://openrouter.ai/api/v1\"\nname = \"OpenRouter\"\napi_key = \"\"\napi_backend = \"responses\"\ncontext_window = 500000\n"
     },
@@ -297,8 +283,6 @@
   },
   {
     "name": "TheRouter",
-    "websiteUrl": "https://therouter.ai",
-    "apiKeyUrl": "https://dashboard.therouter.ai",
     "settingsConfig": {
       "config": "[models]\ndefault = \"x-ai/grok-4.5\"\n\n[model.\"x-ai/grok-4.5\"]\nmodel = \"x-ai/grok-4.5\"\nbase_url = \"https://api.therouter.ai/v1\"\nname = \"TheRouter\"\napi_key = \"\"\napi_backend = \"responses\"\ncontext_window = 500000\n"
     },

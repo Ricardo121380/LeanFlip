@@ -1,6 +1,7 @@
 [
   {
     "name": "Kimi",
+    "websiteUrl": "https://platform.kimi.com/",
     "settingsConfig": {
       "name": "kimi",
       "base_url": "https://api.moonshot.cn/v1",
@@ -32,6 +33,7 @@
   },
   {
     "name": "Kimi Global",
+    "websiteUrl": "https://platform.kimi.ai/",
     "settingsConfig": {
       "name": "kimi",
       "base_url": "https://api.moonshot.ai/v1",
@@ -63,6 +65,7 @@
   },
   {
     "name": "Kimi For Coding",
+    "websiteUrl": "https://www.kimi.com/code/",
     "settingsConfig": {
       "name": "kimi_coding",
       "base_url": "https://api.kimi.com/coding/",
@@ -79,6 +82,7 @@
   },
   {
     "name": "Kimi For Coding Global",
+    "websiteUrl": "https://www.kimi.ai/code",
     "settingsConfig": {
       "name": "kimi_coding",
       "base_url": "https://api.kimi.ai/coding/",
@@ -591,6 +595,8 @@
   },
   {
     "name": "火山 Agent Plan",
+    "websiteUrl": "https://www.volcengine.com/activity/agentplan",
+    "apiKeyUrl": "https://www.volcengine.com/activity/agentplan",
     "settingsConfig": {
       "name": "ark_agentplan",
       "base_url": "https://ark.cn-beijing.volces.com/api/plan",
@@ -607,6 +613,8 @@
   },
   {
     "name": "火山 Coding Plan",
+    "websiteUrl": "https://www.volcengine.com/activity/codingplan",
+    "apiKeyUrl": "https://www.volcengine.com/activity/codingplan",
     "settingsConfig": {
       "name": "ark_codingplan",
       "base_url": "https://ark.cn-beijing.volces.com/api/coding",
@@ -623,6 +631,8 @@
   },
   {
     "name": "BytePlus",
+    "websiteUrl": "https://www.byteplus.com/en/product/modelark",
+    "apiKeyUrl": "https://www.byteplus.com/en/product/modelark",
     "settingsConfig": {
       "name": "byteplus",
       "base_url": "https://ark.ap-southeast.bytepluses.com/api/coding",
@@ -639,6 +649,8 @@
   },
   {
     "name": "Volcengine Doubao",
+    "websiteUrl": "https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey?apikey=%7B%7D",
+    "apiKeyUrl": "https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey?apikey=%7B%7D",
     "settingsConfig": {
       "name": "doubao_seed",
       "base_url": "https://ark.cn-beijing.volces.com/api/compatible",
@@ -1009,8 +1021,6 @@
   },
   {
     "name": "Tu-zi",
-    "websiteUrl": "https://api.tu-zi.com",
-    "apiKeyUrl": "https://api.tu-zi.com/token",
     "settingsConfig": {
       "name": "tuzi",
       "base_url": "https://api.tu-zi.com",
@@ -1038,8 +1048,6 @@
   },
   {
     "name": "Amux",
-    "websiteUrl": "https://amux.ai",
-    "apiKeyUrl": "https://amux.ai",
     "settingsConfig": {
       "name": "amux",
       "base_url": "https://api.amux.ai/v1",
@@ -1061,8 +1069,6 @@
   },
   {
     "name": "AtlasCloud",
-    "websiteUrl": "https://www.atlascloud.ai/console/coding-plan",
-    "apiKeyUrl": "https://www.atlascloud.ai/console/coding-plan",
     "settingsConfig": {
       "name": "atlascloud",
       "base_url": "https://api.atlascloud.ai/v1",
@@ -1079,8 +1085,6 @@
   },
   {
     "name": "Soshow",
-    "websiteUrl": "https://aimarket.so-show.com",
-    "apiKeyUrl": "https://aimarket.so-show.com/workbench/access-key",
     "settingsConfig": {
       "name": "soshow",
       "base_url": "https://maas.so-show.com",
@@ -1101,8 +1105,6 @@
   },
   {
     "name": "OpenRouter",
-    "websiteUrl": "https://openrouter.ai",
-    "apiKeyUrl": "https://openrouter.ai/keys",
     "settingsConfig": {
       "name": "openrouter",
       "base_url": "https://openrouter.ai/api/v1",
@@ -1160,7 +1162,7 @@
   },
   {
     "name": "DeepSeek",
-    "websiteUrl": "https://platform.deepseek.com",
+    "websiteUrl": "https://platform.deepseek.com/",
     "apiKeyUrl": "https://platform.deepseek.com/api_keys",
     "settingsConfig": {
       "name": "deepseek",
@@ -1184,8 +1186,6 @@
   },
   {
     "name": "Together AI",
-    "websiteUrl": "https://together.ai",
-    "apiKeyUrl": "https://api.together.ai/settings/api-keys",
     "settingsConfig": {
       "name": "together",
       "base_url": "https://api.together.xyz/v1",
@@ -1213,7 +1213,7 @@
   },
   {
     "name": "Nous Research",
-    "websiteUrl": "https://nousresearch.com",
+    "websiteUrl": "https://nousresearch.com/",
     "apiKeyUrl": "https://portal.nousresearch.com/",
     "settingsConfig": {
       "name": "nous",
@@ -1238,7 +1238,8 @@
   },
   {
     "name": "Zhipu GLM",
-    "websiteUrl": "https://open.bigmodel.cn",
+    "websiteUrl": "https://open.bigmodel.cn/",
+    "apiKeyUrl": "https://www.bigmodel.cn/claude-code",
     "settingsConfig": {
       "name": "zhipu_glm",
       "base_url": "https://open.bigmodel.cn/api/coding/paas/v4",
@@ -1260,7 +1261,8 @@
   },
   {
     "name": "Zhipu GLM en",
-    "websiteUrl": "https://z.ai",
+    "websiteUrl": "https://z.ai/",
+    "apiKeyUrl": "https://z.ai/subscribe",
     "settingsConfig": {
       "name": "zhipu_glm_en",
       "base_url": "https://api.z.ai/api/coding/paas/v4",
@@ -1588,6 +1590,8 @@
   },
   {
     "name": "千问AI平台",
+    "websiteUrl": "https://platform.qianwenai.com/",
+    "apiKeyUrl": "https://platform.qianwenai.com/home/api-keys",
     "settingsConfig": {
       "name": "qianwenai",
       "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
@@ -1610,7 +1614,7 @@
   },
   {
     "name": "千问AI平台 Coding Plan",
-    "websiteUrl": "https://bailian.console.aliyun.com",
+    "websiteUrl": "https://bailian.console.aliyun.com/",
     "settingsConfig": {
       "name": "qianwenai_coding_plan",
       "base_url": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
@@ -1631,6 +1635,8 @@
   },
   {
     "name": "千问AI平台 Token Plan",
+    "websiteUrl": "https://platform.qianwenai.com/pricing/token-plan",
+    "apiKeyUrl": "https://platform.qianwenai.com/home/api-keys",
     "settingsConfig": {
       "name": "qianwenai_token_plan",
       "base_url": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
@@ -1653,6 +1659,8 @@
   },
   {
     "name": "QwenCloud",
+    "websiteUrl": "https://home.qwencloud.com/",
+    "apiKeyUrl": "https://home.qwencloud.com/api-keys",
     "settingsConfig": {
       "name": "qwencloud",
       "base_url": "https://dashscope-intl.aliyuncs.com/apps/anthropic",
@@ -1680,7 +1688,7 @@
   },
   {
     "name": "QwenCloud For Coding",
-    "websiteUrl": "https://www.qwencloud.com",
+    "websiteUrl": "https://www.qwencloud.com/",
     "apiKeyUrl": "https://home.qwencloud.com/api-keys",
     "settingsConfig": {
       "name": "qwencloud_coding",
@@ -1709,6 +1717,8 @@
   },
   {
     "name": "QwenCloud Token Plan",
+    "websiteUrl": "https://www.qwencloud.com/pricing/token-plan",
+    "apiKeyUrl": "https://home.qwencloud.com/api-keys",
     "settingsConfig": {
       "name": "qwencloud_token_plan",
       "base_url": "https://token-plan.ap-southeast-1.maas.aliyuncs.com/apps/anthropic",
@@ -1751,7 +1761,7 @@
   },
   {
     "name": "StepFun",
-    "websiteUrl": "https://platform.stepfun.ai",
+    "websiteUrl": "https://platform.stepfun.ai/",
     "apiKeyUrl": "https://platform.stepfun.ai/interface-key",
     "settingsConfig": {
       "name": "stepfun",
@@ -1779,7 +1789,6 @@
   },
   {
     "name": "ModelScope",
-    "websiteUrl": "https://modelscope.cn",
     "settingsConfig": {
       "name": "modelscope",
       "base_url": "https://api-inference.modelscope.cn/v1",
@@ -1796,7 +1805,7 @@
   },
   {
     "name": "KAT-Coder",
-    "websiteUrl": "https://console.streamlake.ai",
+    "websiteUrl": "https://console.streamlake.ai/",
     "apiKeyUrl": "https://console.streamlake.ai/console/api-key",
     "settingsConfig": {
       "name": "kat_coder",
@@ -1836,7 +1845,7 @@
   },
   {
     "name": "MiniMax",
-    "websiteUrl": "https://platform.minimax.cn",
+    "websiteUrl": "https://platform.minimax.cn/",
     "apiKeyUrl": "https://platform.minimax.cn/subscribe/token-plan",
     "settingsConfig": {
       "name": "minimax",
@@ -1854,7 +1863,7 @@
   },
   {
     "name": "MiniMax en",
-    "websiteUrl": "https://platform.minimax.io",
+    "websiteUrl": "https://platform.minimax.io/",
     "apiKeyUrl": "https://platform.minimax.io/subscribe/coding-plan",
     "settingsConfig": {
       "name": "minimax_en",
@@ -1890,8 +1899,6 @@
   },
   {
     "name": "AiHubMix",
-    "websiteUrl": "https://aihubmix.com",
-    "apiKeyUrl": "https://aihubmix.com",
     "settingsConfig": {
       "name": "aihubmix",
       "base_url": "https://aihubmix.com/v1",
@@ -1913,8 +1920,6 @@
   },
   {
     "name": "CherryIN",
-    "websiteUrl": "https://open.cherryin.ai",
-    "apiKeyUrl": "https://open.cherryin.ai/console/token",
     "settingsConfig": {
       "name": "cherryin",
       "base_url": "https://open.cherryin.net",
@@ -1940,8 +1945,6 @@
   },
   {
     "name": "E-FlowCode",
-    "websiteUrl": "https://e-flowcode.cc",
-    "apiKeyUrl": "https://e-flowcode.cc",
     "settingsConfig": {
       "name": "eflowcode",
       "base_url": "https://e-flowcode.cc",
@@ -1976,8 +1979,6 @@
   },
   {
     "name": "TheRouter",
-    "websiteUrl": "https://therouter.ai",
-    "apiKeyUrl": "https://dashboard.therouter.ai",
     "settingsConfig": {
       "name": "therouter",
       "base_url": "https://api.therouter.ai/v1",
@@ -2002,8 +2003,6 @@
   },
   {
     "name": "Novita AI",
-    "websiteUrl": "https://novita.ai",
-    "apiKeyUrl": "https://novita.ai",
     "settingsConfig": {
       "name": "novita",
       "base_url": "https://api.novita.ai/v3/openai",
@@ -2035,8 +2034,6 @@
   },
   {
     "name": "Nvidia",
-    "websiteUrl": "https://build.nvidia.com",
-    "apiKeyUrl": "https://build.nvidia.com/settings/api-keys",
     "settingsConfig": {
       "name": "nvidia",
       "base_url": "https://integrate.api.nvidia.com",
@@ -2064,7 +2061,6 @@
   },
   {
     "name": "PIPELLM",
-    "websiteUrl": "https://code.pipellm.ai",
     "settingsConfig": {
       "name": "pipellm",
       "base_url": "https://cc-api.pipellm.ai",
@@ -2089,7 +2085,7 @@
   },
   {
     "name": "Xiaomi MiMo",
-    "websiteUrl": "https://platform.xiaomimimo.com",
+    "websiteUrl": "https://platform.xiaomimimo.com/",
     "apiKeyUrl": "https://platform.xiaomimimo.com/#/console/api-keys",
     "settingsConfig": {
       "name": "xiaomi_mimo",
@@ -2154,8 +2150,6 @@
   },
   {
     "name": "JieKou AI",
-    "websiteUrl": "https://jiekou.ai/#model-library",
-    "apiKeyUrl": "https://jiekou.ai/settings/key-management",
     "settingsConfig": {
       "name": "jiekou",
       "base_url": "https://api.jiekou.ai/openai/v1",
@@ -2183,8 +2177,6 @@
   },
   {
     "name": "AICodeWith",
-    "websiteUrl": "https://aicodewith.ai",
-    "apiKeyUrl": "https://aicodewith.ai/login?tab=register",
     "settingsConfig": {
       "name": "aicodewith",
       "base_url": "https://api.aicodewith.ai/v1",

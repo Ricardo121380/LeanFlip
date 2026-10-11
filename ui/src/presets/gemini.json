@@ -1,6 +1,8 @@
 [
   {
     "name": "Google Official",
+    "websiteUrl": "https://ai.google.dev/",
+    "apiKeyUrl": "https://aistudio.google.com/apikey",
     "settingsConfig": {
       "env": {}
     },
@@ -205,8 +207,6 @@
   },
   {
     "name": "Tu-zi",
-    "websiteUrl": "https://api.tu-zi.com",
-    "apiKeyUrl": "https://api.tu-zi.com/token",
     "settingsConfig": {
       "env": {
         "GOOGLE_GEMINI_BASE_URL": "https://api.tu-zi.com",
@@ -218,8 +218,6 @@
   },
   {
     "name": "E-FlowCode",
-    "websiteUrl": "https://e-flowcode.cc",
-    "apiKeyUrl": "https://e-flowcode.cc",
     "settingsConfig": {
       "env": {
         "GOOGLE_GEMINI_BASE_URL": "https://e-flowcode.cc",
@@ -247,8 +245,6 @@
   },
   {
     "name": "CherryIN",
-    "websiteUrl": "https://open.cherryin.ai",
-    "apiKeyUrl": "https://open.cherryin.ai/console/token",
     "settingsConfig": {
       "env": {
         "GOOGLE_GEMINI_BASE_URL": "https://open.cherryin.net",
@@ -260,8 +256,6 @@
   },
   {
     "name": "OpenRouter",
-    "websiteUrl": "https://openrouter.ai",
-    "apiKeyUrl": "https://openrouter.ai/keys",
     "settingsConfig": {
       "env": {
         "GOOGLE_GEMINI_BASE_URL": "https://openrouter.ai/api",
@@ -272,8 +266,6 @@
   },
   {
     "name": "TheRouter",
-    "websiteUrl": "https://therouter.ai",
-    "apiKeyUrl": "https://dashboard.therouter.ai",
     "settingsConfig": {
       "env": {
         "GOOGLE_GEMINI_BASE_URL": "https://api.therouter.ai",
@@ -284,8 +276,6 @@
   },
   {
     "name": "AICodeWith",
-    "websiteUrl": "https://aicodewith.ai",
-    "apiKeyUrl": "https://aicodewith.ai/login?tab=register",
     "settingsConfig": {
       "env": {
         "GOOGLE_GEMINI_BASE_URL": "https://api.aicodewith.ai/gemini_cli",

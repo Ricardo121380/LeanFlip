@@ -1,6 +1,8 @@
 [
   {
     "name": "Kimi",
+    "websiteUrl": "https://platform.kimi.com/",
+    "apiKeyUrl": "https://platform.kimi.com/console/api-keys",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "Kimi",
@@ -58,6 +60,8 @@
   },
   {
     "name": "Kimi Global",
+    "websiteUrl": "https://platform.kimi.ai/",
+    "apiKeyUrl": "https://platform.kimi.ai/console/api-keys",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "Kimi",
@@ -115,6 +119,8 @@
   },
   {
     "name": "Kimi For Coding",
+    "websiteUrl": "https://www.kimi.com/code/",
+    "apiKeyUrl": "https://platform.kimi.com/console/api-keys",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
       "name": "Kimi For Coding",
@@ -134,6 +140,8 @@
   },
   {
     "name": "Kimi For Coding Global",
+    "websiteUrl": "https://www.kimi.ai/code",
+    "apiKeyUrl": "https://www.kimi.ai/code",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
       "name": "Kimi For Coding",
@@ -927,6 +935,8 @@
   },
   {
     "name": "火山 Agent Plan",
+    "websiteUrl": "https://www.volcengine.com/activity/agentplan",
+    "apiKeyUrl": "https://www.volcengine.com/activity/agentplan",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "火山 Agent Plan",
@@ -945,6 +955,8 @@
   },
   {
     "name": "火山 Coding Plan",
+    "websiteUrl": "https://www.volcengine.com/activity/codingplan",
+    "apiKeyUrl": "https://www.volcengine.com/activity/codingplan",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "火山 Coding Plan",
@@ -963,6 +975,8 @@
   },
   {
     "name": "BytePlus",
+    "websiteUrl": "https://www.byteplus.com/en/product/modelark",
+    "apiKeyUrl": "https://www.byteplus.com/en/product/modelark",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "BytePlus",
@@ -981,6 +995,8 @@
   },
   {
     "name": "Volcengine Doubao",
+    "websiteUrl": "https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey?apikey=%7B%7D",
+    "apiKeyUrl": "https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey?apikey=%7B%7D",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "Volcengine Doubao",
@@ -1396,8 +1412,6 @@
   },
   {
     "name": "Tu-zi",
-    "websiteUrl": "https://api.tu-zi.com",
-    "apiKeyUrl": "https://api.tu-zi.com/token",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
       "name": "Tu-zi",
@@ -1425,8 +1439,6 @@
   },
   {
     "name": "Amux",
-    "websiteUrl": "https://amux.ai",
-    "apiKeyUrl": "https://amux.ai",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "Amux",
@@ -1463,8 +1475,6 @@
   },
   {
     "name": "AtlasCloud",
-    "websiteUrl": "https://www.atlascloud.ai/console/coding-plan",
-    "apiKeyUrl": "https://www.atlascloud.ai/console/coding-plan",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "AtlasCloud",
@@ -1484,8 +1494,6 @@
   },
   {
     "name": "Soshow",
-    "websiteUrl": "https://aimarket.so-show.com",
-    "apiKeyUrl": "https://aimarket.so-show.com/workbench/access-key",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
       "name": "Soshow",
@@ -1509,7 +1517,7 @@
   },
   {
     "name": "DeepSeek",
-    "websiteUrl": "https://platform.deepseek.com",
+    "websiteUrl": "https://platform.deepseek.com/",
     "apiKeyUrl": "https://platform.deepseek.com/api_keys",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
@@ -1558,7 +1566,8 @@
   },
   {
     "name": "Zhipu GLM",
-    "websiteUrl": "https://open.bigmodel.cn",
+    "websiteUrl": "https://open.bigmodel.cn/",
+    "apiKeyUrl": "https://www.bigmodel.cn/claude-code",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "Zhipu GLM",
@@ -1595,7 +1604,8 @@
   },
   {
     "name": "Zhipu GLM en",
-    "websiteUrl": "https://z.ai",
+    "websiteUrl": "https://z.ai/",
+    "apiKeyUrl": "https://z.ai/subscribe",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "Zhipu GLM en",
@@ -1946,6 +1956,8 @@
   },
   {
     "name": "千问AI平台",
+    "websiteUrl": "https://platform.qianwenai.com/",
+    "apiKeyUrl": "https://platform.qianwenai.com/home/api-keys",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "千问AI平台",
@@ -1997,6 +2009,8 @@
   },
   {
     "name": "千问AI平台 Token Plan",
+    "websiteUrl": "https://platform.qianwenai.com/pricing/token-plan",
+    "apiKeyUrl": "https://platform.qianwenai.com/home/api-keys",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
       "name": "千问AI平台 Token Plan",
@@ -2048,6 +2062,8 @@
   },
   {
     "name": "QwenCloud",
+    "websiteUrl": "https://home.qwencloud.com/",
+    "apiKeyUrl": "https://home.qwencloud.com/api-keys",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "QwenCloud",
@@ -2103,7 +2119,7 @@
   },
   {
     "name": "QwenCloud For Coding",
-    "websiteUrl": "https://www.qwencloud.com",
+    "websiteUrl": "https://www.qwencloud.com/",
     "apiKeyUrl": "https://home.qwencloud.com/api-keys",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
@@ -2131,6 +2147,8 @@
   },
   {
     "name": "QwenCloud Token Plan",
+    "websiteUrl": "https://www.qwencloud.com/pricing/token-plan",
+    "apiKeyUrl": "https://home.qwencloud.com/api-keys",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
       "name": "QwenCloud Token Plan",
@@ -2358,8 +2376,6 @@
   },
   {
     "name": "ModelScope",
-    "websiteUrl": "https://modelscope.cn",
-    "apiKeyUrl": "https://modelscope.cn/my/myaccesstoken",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "ModelScope",
@@ -2379,7 +2395,7 @@
   },
   {
     "name": "KAT-Coder",
-    "websiteUrl": "https://console.streamlake.ai",
+    "websiteUrl": "https://console.streamlake.ai/",
     "apiKeyUrl": "https://console.streamlake.ai/console/api-key",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
@@ -2424,7 +2440,7 @@
   },
   {
     "name": "MiniMax",
-    "websiteUrl": "https://platform.minimax.cn",
+    "websiteUrl": "https://platform.minimax.cn/",
     "apiKeyUrl": "https://platform.minimax.cn/subscribe/token-plan",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
@@ -2458,7 +2474,7 @@
   },
   {
     "name": "MiniMax en",
-    "websiteUrl": "https://platform.minimax.io",
+    "websiteUrl": "https://platform.minimax.io/",
     "apiKeyUrl": "https://platform.minimax.io/subscribe/coding-plan",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
@@ -2512,7 +2528,7 @@
   },
   {
     "name": "Xiaomi MiMo",
-    "websiteUrl": "https://platform.xiaomimimo.com",
+    "websiteUrl": "https://platform.xiaomimimo.com/",
     "apiKeyUrl": "https://platform.xiaomimimo.com/#/console/api-keys",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
@@ -2732,8 +2748,6 @@
   },
   {
     "name": "AiHubMix",
-    "websiteUrl": "https://aihubmix.com",
-    "apiKeyUrl": "https://aihubmix.com",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
       "name": "AiHubMix",
@@ -2791,8 +2805,6 @@
   },
   {
     "name": "CherryIN",
-    "websiteUrl": "https://open.cherryin.ai",
-    "apiKeyUrl": "https://open.cherryin.ai/console/token",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
       "name": "CherryIN",
@@ -2833,8 +2845,6 @@
   },
   {
     "name": "OpenRouter",
-    "websiteUrl": "https://openrouter.ai",
-    "apiKeyUrl": "https://openrouter.ai/keys",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
       "name": "OpenRouter",
@@ -2892,8 +2902,6 @@
   },
   {
     "name": "TheRouter",
-    "websiteUrl": "https://therouter.ai",
-    "apiKeyUrl": "https://dashboard.therouter.ai",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "TheRouter",
@@ -2928,8 +2936,6 @@
   },
   {
     "name": "Novita AI",
-    "websiteUrl": "https://novita.ai",
-    "apiKeyUrl": "https://novita.ai",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "Novita AI",
@@ -2999,8 +3005,6 @@
   },
   {
     "name": "Nvidia",
-    "websiteUrl": "https://build.nvidia.com",
-    "apiKeyUrl": "https://build.nvidia.com/settings/api-keys",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "Nvidia",
@@ -3066,7 +3070,6 @@
   },
   {
     "name": "PIPELLM",
-    "websiteUrl": "https://code.pipellm.ai",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
       "name": "PIPELLM",
@@ -3094,8 +3097,6 @@
   },
   {
     "name": "E-FlowCode",
-    "websiteUrl": "https://e-flowcode.cc",
-    "apiKeyUrl": "https://e-flowcode.cc",
     "settingsConfig": {
       "npm": "@ai-sdk/openai",
       "options": {
@@ -3151,7 +3152,6 @@
   },
   {
     "name": "AWS Bedrock",
-    "websiteUrl": "https://aws.amazon.com/bedrock/",
     "settingsConfig": {
       "npm": "@ai-sdk/amazon-bedrock",
       "name": "AWS Bedrock",
@@ -3190,7 +3190,6 @@
   },
   {
     "name": "Oh My OpenCode",
-    "websiteUrl": "https://github.com/code-yeongyu/oh-my-openagent",
     "settingsConfig": {
       "npm": "",
       "options": {},
@@ -3200,7 +3199,6 @@
   },
   {
     "name": "Oh My OpenCode Slim",
-    "websiteUrl": "https://github.com/alvinunreal/oh-my-opencode-slim",
     "settingsConfig": {
       "npm": "",
       "options": {},
@@ -3210,8 +3208,6 @@
   },
   {
     "name": "JieKou AI",
-    "websiteUrl": "https://jiekou.ai/#model-library",
-    "apiKeyUrl": "https://jiekou.ai/settings/key-management",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "JieKou AI",
@@ -3278,8 +3274,6 @@
   },
   {
     "name": "AICodeWith",
-    "websiteUrl": "https://aicodewith.ai",
-    "apiKeyUrl": "https://aicodewith.ai/login?tab=register",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
       "name": "AICodeWith",
@@ -3337,8 +3331,6 @@
   },
   {
     "name": "模力方舟",
-    "websiteUrl": "https://moark.com",
-    "apiKeyUrl": "https://moark.com/dashboard/tokens",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "模力方舟",

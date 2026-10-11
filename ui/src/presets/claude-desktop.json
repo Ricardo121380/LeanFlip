@@ -340,8 +340,6 @@
   },
   {
     "name": "Tu-zi",
-    "websiteUrl": "https://api.tu-zi.com",
-    "apiKeyUrl": "https://api.tu-zi.com/token",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://api.tu-zi.com",
@@ -352,8 +350,6 @@
   },
   {
     "name": "Amux",
-    "websiteUrl": "https://amux.ai",
-    "apiKeyUrl": "https://amux.ai",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://api.amux.ai",
@@ -364,8 +360,6 @@
   },
   {
     "name": "AtlasCloud",
-    "websiteUrl": "https://www.atlascloud.ai/console/coding-plan",
-    "apiKeyUrl": "https://www.atlascloud.ai/console/coding-plan",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://api.atlascloud.ai",
@@ -376,8 +370,6 @@
   },
   {
     "name": "Soshow",
-    "websiteUrl": "https://aimarket.so-show.com",
-    "apiKeyUrl": "https://aimarket.so-show.com/workbench/access-key",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://maas.so-show.com",
@@ -388,8 +380,6 @@
   },
   {
     "name": "AiHubMix",
-    "websiteUrl": "https://aihubmix.com",
-    "apiKeyUrl": "https://aihubmix.com",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://aihubmix.com",
@@ -401,8 +391,6 @@
   },
   {
     "name": "CherryIN",
-    "websiteUrl": "https://open.cherryin.ai",
-    "apiKeyUrl": "https://open.cherryin.ai/console/token",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://open.cherryin.net",
@@ -413,8 +401,6 @@
   },
   {
     "name": "RelaxyCode",
-    "websiteUrl": "https://www.relaxycode.com",
-    "apiKeyUrl": "https://www.relaxycode.com/register",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://www.relaxycode.com",
@@ -425,8 +411,6 @@
   },
   {
     "name": "E-FlowCode",
-    "websiteUrl": "https://e-flowcode.cc",
-    "apiKeyUrl": "https://e-flowcode.cc",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://e-flowcode.cc",
@@ -437,7 +421,6 @@
   },
   {
     "name": "PIPELLM",
-    "websiteUrl": "https://code.pipellm.ai",
     "settingsConfig": {
       "env": {
         "ANTHROPIC_BASE_URL": "https://cc-api.pipellm.ai",
