@@ -1,0 +1,86 @@
+name: Package managers
+
+on:
+  push:
+    branches: [main]
+    paths: ['packages/npm/**', 'Formula/**', 'Casks/**', 'scripts/prepare-distribution.mjs', '.github/workflows/distribution.yml', '.github/workflows/release.yml']
+  pull_request:
+    paths: ['packages/npm/**', 'Formula/**', 'Casks/**', 'scripts/prepare-distribution.mjs', '.github/workflows/distribution.yml', '.github/workflows/release.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: distribution-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  npm:
+    name: npm package (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Isolate the native download cache
+        run: echo "XDG_CACHE_HOME=$RUNNER_TEMP/ccsl-npm-cache" >> "$GITHUB_ENV"
+      - name: Test download and installation boundaries
+        run: node --test packages/npm/test/*.test.mjs
+      - name: Pack and install without lifecycle scripts
+        run: |
+          mkdir -p "$RUNNER_TEMP/npm-package"
+          npm pack ./packages/npm --ignore-scripts --pack-destination "$RUNNER_TEMP/npm-package"
+          npm install --global --prefix "$RUNNER_TEMP/npm-prefix" "$RUNNER_TEMP"/npm-package/*.tgz --ignore-scripts --no-audit --no-fund
+          echo "$RUNNER_TEMP/npm-prefix/bin" >> "$GITHUB_PATH"
+      - name: Verify the installed native CLI and terminal menu
+        run: |
+          ccsl --version
+          ccsl --home "$RUNNER_TEMP/ccsl-smoke" status --json
+          test ! -e "$RUNNER_TEMP/ccsl-smoke"
+          ccsl-app --help
+          python3 scripts/check-cli-menu.py --binary "$RUNNER_TEMP/npm-prefix/bin/ccsl"
+      - name: Verify desktop download
+        run: ccsl-app download --output "$RUNNER_TEMP/desktop-package"
+      - name: Verify macOS desktop installation and replacement
+        if: runner.os == 'macOS'
+        run: |
+          ccsl-app install --app-dir "$RUNNER_TEMP/Applications"
+          ccsl-app install --replace --app-dir "$RUNNER_TEMP/Applications"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$RUNNER_TEMP/Applications/CC Switch Lite.app/Contents/Info.plist" | grep -Fx dev.ccswitch.lite
+          file "$RUNNER_TEMP/Applications/CC Switch Lite.app/Contents/MacOS/ccswitch-lite"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: npm-package-${{ matrix.os }}
+          path: ${{ runner.temp }}/npm-package/*.tgz
+          if-no-files-found: error
+
+  homebrew:
+    name: Homebrew (macOS ARM64)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tap the checked-out revision and inspect definitions
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: '1'
+        run: |
+          brew tap ricardo121380/ccswitch-lite "$GITHUB_WORKSPACE"
+          brew info --json=v2 ricardo121380/ccswitch-lite/ccsl
+          brew info --json=v2 --cask ricardo121380/ccswitch-lite/ccswitch-lite
+      - name: Install and test CLI
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: '1'
+        run: |
+          brew install ricardo121380/ccswitch-lite/ccsl
+          brew test ricardo121380/ccswitch-lite/ccsl
+      - name: Install desktop Cask in an isolated app directory
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: '1'
+        run: |
+          brew install --cask --appdir="$RUNNER_TEMP/Applications" ricardo121380/ccswitch-lite/ccswitch-lite
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$RUNNER_TEMP/Applications/CC Switch Lite.app/Contents/Info.plist" | grep -Fx dev.ccswitch.lite

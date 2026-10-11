@@ -1,0 +1,36 @@
+{
+  "name": "ccswitch-lite",
+  "version": "0.1.0",
+  "description": "CC Switch Lite native CLI and desktop app installer",
+  "type": "module",
+  "license": "MIT",
+  "homepage": "https://github.com/Ricardo121380/ccswitch-lite#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ricardo121380/ccswitch-lite.git",
+    "directory": "packages/npm"
+  },
+  "bugs": "https://github.com/Ricardo121380/ccswitch-lite/issues",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "ccsl": "bin/ccsl.js",
+    "ccsl-app": "bin/ccsl-app.js"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "release.json",
+    "README.md",
+    "LICENSE",
+    "NOTICE.md"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}
