@@ -1,10 +1,7 @@
 //! CC Switch Lite 桌面应用：Tauri 2 外壳，业务都在 `ccsl-core` 和 [`service`] 里。
 
 pub mod commands;
-pub mod oauth_http;
-pub mod redact;
-pub mod service;
-pub mod settings;
+pub use ccsl_service::{oauth_http, redact, service, settings};
 mod tray;
 mod watcher;
 
