@@ -156,90 +156,130 @@ fn skip_reason(data: &store::StoreData, tool: Tool, provider: &Provider) -> Opti
 
 fn read_db(path: &Path) -> Result<Vec<(Tool, Provider)>, AppError> {
     use rusqlite::{Connection, OpenFlags};
-    let db_err =
-        |e: rusqlite::Error| AppError::Config(format!("读取 {} 失败: {e}", path.display()));
     let conn = Connection::open_with_flags(
         path,
         OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
     )
-    .map_err(db_err)?;
-    let mut stmt = conn
-        .prepare(
-            "SELECT app_type, id, name, settings_config, website_url, category, created_at, \
-             sort_index, notes, icon, icon_color, meta FROM providers \
-             ORDER BY app_type, COALESCE(sort_index, 999999), created_at, id",
-        )
-        .map_err(db_err)?;
-    let rows = stmt
-        .query_map([], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, String>(2)?,
-                row.get::<_, String>(3)?,
-                row.get::<_, Option<String>>(4)?,
-                row.get::<_, Option<String>>(5)?,
-                row.get::<_, Option<i64>>(6)?,
-                row.get::<_, Option<i64>>(7)?,
-                row.get::<_, Option<String>>(8)?,
-                row.get::<_, Option<String>>(9)?,
-                row.get::<_, Option<String>>(10)?,
-                row.get::<_, Option<String>>(11)?,
-            ))
+    .map_err(|e| AppError::Config(format!("读取 {} 失败: {e}", path.display())))?;
+    let rows = read_provider_rows(&conn)
+        .map_err(|e| AppError::Config(format!("读取 {} 失败: {e}", path.display())))?;
+    Ok(rows
+        .into_iter()
+        .filter_map(|row| {
+            let tool = parse_app(&row.app)?;
+            Some((tool, to_provider(tool, row.value)?))
         })
-        .map_err(db_err)?;
-    let mut out = Vec::new();
-    for row in rows {
-        let (app, id, name, settings, website, category, created, sort, notes, icon, color, meta) =
-            row.map_err(db_err)?;
-        let Ok(tool) = Tool::from_str(&app) else {
-            continue;
-        };
+        .collect())
+}
+
+/// cc-switch 数据库 / 导出里的一行：`app_type` 原样保留，卡是 cc-switch 的 JSON 形状。
+#[derive(Debug, Clone)]
+pub(crate) struct RawRow {
+    pub app: String,
+    pub value: Value,
+}
+
+/// cc-switch 的 `app_type`（含旧别名）→ 工具。
+pub(crate) fn parse_app(app: &str) -> Option<Tool> {
+    match app {
+        "claude_desktop" | "claudeDesktop" => Some(Tool::ClaudeDesktop),
+        other => Tool::from_str(other).ok(),
+    }
+}
+
+/// 读 `providers` 表。老版本的表可能少几列（icon、meta…），按实际有的列读。
+pub(crate) fn read_provider_rows(conn: &rusqlite::Connection) -> rusqlite::Result<Vec<RawRow>> {
+    let mut columns = Vec::new();
+    {
+        let mut stmt = conn.prepare("SELECT name FROM pragma_table_info('providers')")?;
+        let mut rows = stmt.query([])?;
+        while let Some(row) = rows.next()? {
+            columns.push(row.get::<_, String>(0)?);
+        }
+    }
+    let has = |c: &str| columns.iter().any(|x| x == c);
+    let col = |c: &str| {
+        if has(c) {
+            c.to_string()
+        } else {
+            format!("NULL AS {c}")
+        }
+    };
+    let order = if has("sort_index") {
+        "ORDER BY app_type, COALESCE(sort_index, 999999), id"
+    } else {
+        "ORDER BY app_type, id"
+    };
+    let sql = format!(
+        "SELECT app_type, id, name, settings_config, {}, {}, {}, {}, {}, {}, {}, {} FROM providers {order}",
+        col("website_url"),
+        col("category"),
+        col("created_at"),
+        col("sort_index"),
+        col("notes"),
+        col("icon"),
+        col("icon_color"),
+        col("meta"),
+    );
+    let mut stmt = conn.prepare(&sql)?;
+    let rows = stmt.query_map([], |row| {
+        let text = |i: usize| row.get::<_, Option<String>>(i);
+        let int = |i: usize| row.get::<_, Option<i64>>(i);
         let mut fields = Map::new();
-        fields.insert("id".into(), Value::String(id));
-        fields.insert("name".into(), Value::String(name));
+        fields.insert("id".into(), Value::String(text(1)?.unwrap_or_default()));
+        fields.insert("name".into(), Value::String(text(2)?.unwrap_or_default()));
         fields.insert(
             "settingsConfig".into(),
-            serde_json::from_str(&settings).unwrap_or(Value::Null),
+            text(3)?
+                .and_then(|s| serde_json::from_str(&s).ok())
+                .unwrap_or(Value::Null),
         );
         let mut put = |key: &str, value: Option<Value>| {
             if let Some(value) = value {
                 fields.insert(key.into(), value);
             }
         };
-        put("websiteUrl", website.map(Value::String));
-        put("category", category.map(Value::String));
-        put("createdAt", created.map(Value::from));
-        put("sortIndex", sort.map(Value::from));
-        put("notes", notes.map(Value::String));
-        put("icon", icon.map(Value::String));
-        put("iconColor", color.map(Value::String));
+        put("websiteUrl", text(4)?.map(Value::String));
+        put("category", text(5)?.map(Value::String));
+        put("createdAt", int(6)?.map(Value::from));
+        put("sortIndex", int(7)?.map(Value::from));
+        put("notes", text(8)?.map(Value::String));
+        put("icon", text(9)?.map(Value::String));
+        put("iconColor", text(10)?.map(Value::String));
         put(
             "meta",
-            meta.and_then(|m| serde_json::from_str::<Value>(&m).ok())
+            text(11)?
+                .and_then(|m| serde_json::from_str::<Value>(&m).ok())
                 .filter(Value::is_object),
         );
-        if let Some(provider) = to_provider(tool, Value::Object(fields)) {
-            out.push((tool, provider));
-        }
-    }
-    Ok(out)
+        Ok(RawRow {
+            app: row.get::<_, Option<String>>(0)?.unwrap_or_default(),
+            value: Value::Object(fields),
+        })
+    })?;
+    rows.collect()
 }
 
 fn read_legacy(path: &Path) -> Result<Vec<(Tool, Provider)>, AppError> {
     let bytes = std::fs::read(path).map_err(|e| AppError::io(path, e))?;
     let root: Value = serde_json::from_slice(&bytes).map_err(|e| AppError::json(path, e))?;
+    Ok(legacy_rows(&root)
+        .into_iter()
+        .filter_map(|row| {
+            let tool = parse_app(&row.app)?;
+            Some((tool, to_provider(tool, row.value)?))
+        })
+        .collect())
+}
+
+/// 旧版 `config.json`：v2 `{ "<app>": { "providers": { id: {...} } } }`；
+/// v1 只有 Claude：`{ "providers": {...}, "current": "..." }`。
+pub(crate) fn legacy_rows(root: &Value) -> Vec<RawRow> {
     let mut out = Vec::new();
     let Some(apps) = root.as_object() else {
-        return Ok(out);
+        return out;
     };
-    for (app, section) in apps {
-        let Ok(tool) = Tool::from_str(app) else {
-            continue;
-        };
-        let Some(providers) = section.get("providers").and_then(Value::as_object) else {
-            continue;
-        };
+    let mut push_section = |app: &str, providers: &Map<String, Value>| {
         for (id, value) in providers {
             let mut value = value.clone();
             if let Some(obj) = value.as_object_mut() {
@@ -247,26 +287,72 @@ fn read_legacy(path: &Path) -> Result<Vec<(Tool, Provider)>, AppError> {
                 obj.entry("name")
                     .or_insert_with(|| Value::String(id.clone()));
             }
-            if let Some(provider) = to_provider(tool, value) {
-                out.push((tool, provider));
-            }
+            out.push(RawRow {
+                app: app.to_string(),
+                value,
+            });
+        }
+    };
+    if let Some(providers) = apps.get("providers").and_then(Value::as_object) {
+        push_section("claude", providers);
+    }
+    for (app, section) in apps {
+        if let Some(providers) = section.get("providers").and_then(Value::as_object) {
+            push_section(app, providers);
         }
     }
-    Ok(out)
+    out
 }
 
-fn to_provider(tool: Tool, value: Value) -> Option<Provider> {
+/// cc-switch 专用、ccswitch-lite 用不上的 meta：用量脚本（里面可能有 token）、合作伙伴 /
+/// 促销标记、计费 / 限额、测速端点等。
+const DROPPED_META: &[&str] = &[
+    "usageScript",
+    "isPartner",
+    "primePartner",
+    "partnerPromotionKey",
+    "costMultiplier",
+    "pricingModelSource",
+    "limitDailyUsd",
+    "limitMonthlyUsd",
+    "endpointAutoSelect",
+    "customEndpoints",
+    "testConfig",
+    "proxyConfig",
+    "promptCacheKey",
+];
+
+pub(crate) fn to_provider(tool: Tool, value: Value) -> Option<Provider> {
     let mut provider: Provider = serde_json::from_value(value).ok()?;
-    if provider.id.trim().is_empty() {
+    if provider.id.trim().is_empty() || !provider.settings_config.is_object() {
         return None;
     }
     // 只在 cc-switch 里有意义的运行时字段不带过来。
     provider.extra.remove("inFailoverQueue");
     provider.extra.remove("isCurrent");
+    for key in DROPPED_META {
+        provider.meta.extra.remove(*key);
+    }
+    if provider
+        .extra
+        .get("websiteUrl")
+        .and_then(Value::as_str)
+        .is_some_and(crate::promo::is_promo_link)
+    {
+        provider.extra.remove("websiteUrl");
+    }
     if tool == Tool::Codex {
         strip_codex_login(&mut provider.settings_config);
     }
+    strip_oauth_env(&mut provider.settings_config);
     Some(provider)
+}
+
+/// `env` 里的 OAuth token（如 `CLAUDE_CODE_OAUTH_TOKEN`）不导入。
+fn strip_oauth_env(settings: &mut Value) {
+    if let Some(env) = settings.get_mut("env").and_then(Value::as_object_mut) {
+        env.retain(|key, _| !key.to_ascii_uppercase().contains("OAUTH"));
+    }
 }
 
 /// Codex 卡里抄进来的 ChatGPT 登录（tokens / auth_mode）不导入，只留 API Key。

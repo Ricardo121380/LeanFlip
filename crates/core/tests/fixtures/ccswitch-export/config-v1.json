@@ -1,0 +1,15 @@
+{
+  "providers": {
+    "v1": {
+      "id": "v1",
+      "name": "V1 relay",
+      "settingsConfig": {
+        "env": {
+          "ANTHROPIC_BASE_URL": "https://v1.example.com",
+          "ANTHROPIC_AUTH_TOKEN": "sk-test-v1"
+        }
+      }
+    }
+  },
+  "current": "v1"
+}

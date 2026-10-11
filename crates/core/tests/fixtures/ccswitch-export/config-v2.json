@@ -1,0 +1,38 @@
+{
+  "version": 2,
+  "claude": {
+    "providers": {
+      "json-relay": {
+        "id": "json-relay",
+        "name": "JSON relay",
+        "settingsConfig": {
+          "env": {
+            "ANTHROPIC_BASE_URL": "https://j.example.com",
+            "ANTHROPIC_AUTH_TOKEN": "sk-test-json"
+          }
+        },
+        "websiteUrl": "https://j.example.com"
+      }
+    },
+    "current": "json-relay"
+  },
+  "codex": {
+    "providers": {
+      "json-codex": {
+        "name": "JSON codex",
+        "settingsConfig": {
+          "auth": {
+            "OPENAI_API_KEY": "sk-test-json-codex"
+          },
+          "config": "model_provider = \"custom\"\nmodel = \"gpt-5.5\"\n\n[model_providers.custom]\nname = \"relay\"\nbase_url = \"https://relay.example.com/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = true\n"
+        }
+      }
+    },
+    "current": "json-codex"
+  },
+  "mcp": {
+    "claude": {
+      "servers": {}
+    }
+  }
+}
