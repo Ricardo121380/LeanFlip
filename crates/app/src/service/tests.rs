@@ -204,7 +204,7 @@ fn broken_coexist_config_is_reported_not_fatal() {
 }
 
 #[test]
-fn settings_round_trip_and_restart_flag() {
+fn settings_round_trip_and_dir_overrides_apply_immediately() {
     let sb = Sandbox::new();
     let env = sb.env();
     let service = sb.service();
@@ -227,7 +227,7 @@ fn settings_round_trip_and_restart_flag() {
             keep_codex_login: true,
         })
         .unwrap();
-    assert!(!result.restart_required);
+    assert!(!result.dirs_changed);
     assert!(
         store::load(&env)
             .unwrap()
@@ -248,9 +248,18 @@ fn settings_round_trip_and_restart_flag() {
             keep_codex_login: false,
         })
         .unwrap();
-    assert!(result.restart_required);
+    assert!(result.dirs_changed);
+    // 不用重启：立刻生效。
+    assert_eq!(
+        service.env().claude_settings_path(),
+        sb.home.join("alt-claude").join("settings.json")
+    );
+    assert_eq!(
+        service.settings().unwrap().dirs["claudeDir"],
+        sb.home.join("alt-claude")
+    );
 
-    // 重新启动后覆盖生效。
+    // 重新启动后也一样。
     let restarted = sb.service();
     assert_eq!(
         restarted.env().claude_settings_path(),
@@ -307,4 +316,57 @@ fn managed_accounts_and_background_refresh_go_through_the_manager() {
 
     service.codex_remove_account(&account.id).unwrap();
     assert!(service.codex_accounts().is_empty());
+}
+
+#[test]
+fn dir_overrides_apply_live_and_keep_the_account_manager_when_codex_dir_is_unchanged() {
+    let sb = Sandbox::new();
+    let env = sb.env();
+    let alt = sb.home.join("alt-claude");
+    sb.write(
+        &alt.join("settings.json"),
+        r#"{"env":{"ANTHROPIC_BASE_URL":"https://alt"}}"#,
+    );
+    let fake = Arc::new(FakeTransport::default());
+    let service = Service::start(env.clone(), Some(fake.clone())).unwrap();
+    service
+        .add_provider(Tool::Claude, claude_card("relay", "https://relay"), false)
+        .unwrap();
+
+    // 设备码登录进行中时只改 Claude 目录：登录照样能完成。
+    let flow = service.codex_start_login(None).unwrap();
+    let mut app = service.app_settings();
+    app.dir_overrides.claude_dir = Some(alt.clone());
+    assert!(
+        service
+            .save_settings(SettingsInput {
+                app: app.clone(),
+                keep_codex_login: false
+            })
+            .unwrap()
+            .dirs_changed
+    );
+    fake.approve(&flow.device_code, &Identity::new("u", "ws", "plus"));
+    assert!(matches!(
+        service.codex_poll_login(&flow.device_code).unwrap(),
+        PollResult::Added { .. }
+    ));
+
+    // 切换写到新目录，默认目录不动。
+    service.switch_provider(Tool::Claude, "relay").unwrap();
+    let live: Value =
+        serde_json::from_slice(&std::fs::read(alt.join("settings.json")).unwrap()).unwrap();
+    assert_eq!(live["env"]["ANTHROPIC_BASE_URL"], "https://relay");
+    assert!(!env.claude_settings_path().exists());
+
+    // 再存一次同样的设置：没有变化。
+    assert!(
+        !service
+            .save_settings(SettingsInput {
+                app,
+                keep_codex_login: false
+            })
+            .unwrap()
+            .dirs_changed
+    );
 }

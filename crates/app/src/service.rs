@@ -5,7 +5,7 @@
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 
 use ccsl_core::codex::oauth::transport::OAuthTransport;
 use ccsl_core::codex::oauth::{AccountInfo, CodexOAuthManager, DeviceFlow, DeviceFlowPoll};
@@ -141,8 +141,8 @@ pub struct SettingsInput {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SaveSettingsResult {
-    /// 目录覆盖改了：重启后生效。
-    pub restart_required: bool,
+    /// 目录覆盖改了（已经生效；调用方要重新配置文件监听）。
+    pub dirs_changed: bool,
 }
 
 fn effective_dirs(env: &Env) -> BTreeMap<String, PathBuf> {
@@ -163,13 +163,40 @@ fn effective_dirs(env: &Env) -> BTreeMap<String, PathBuf> {
     .collect()
 }
 
+/// 当前生效的环境（套过目录覆盖）和托管账号管理器。改目录覆盖时整体换掉，正在进行的
+/// 操作继续用它拿到的那一份。
+pub struct Runtime {
+    pub env: Env,
+    pub oauth: Arc<CodexOAuthManager>,
+}
+
 pub struct Service {
-    env: Env,
-    oauth: CodexOAuthManager,
+    /// 没套覆盖的环境。
+    base: Env,
+    transport: Option<Arc<dyn OAuthTransport>>,
+    runtime: RwLock<Arc<Runtime>>,
     settings: Mutex<AppSettings>,
-    /// 启动时目录覆盖的快照（判断要不要重启）。
-    startup_overrides: ccsl_core::env::DirOverrides,
     recovery: Vec<String>,
+}
+
+fn services(rt: &Runtime) -> Services<'_> {
+    Services {
+        codex_oauth: Some(&rt.oauth),
+    }
+}
+
+fn recover(env: &Env) -> Vec<String> {
+    let lines = switch::recover_on_startup(env)
+        .into_iter()
+        .map(|(app, outcome)| match outcome {
+            Ok(outcome) => format!("{app}: {outcome:?}"),
+            Err(err) => format!("{app}: {err}"),
+        })
+        .collect::<Vec<_>>();
+    for line in &lines {
+        log::info!("recovery {line}");
+    }
+    lines
 }
 
 impl Service {
@@ -180,33 +207,47 @@ impl Service {
             log::warn!("app settings unreadable, using defaults: {err}");
             AppSettings::default()
         });
-        let env = base.with_overrides(&app_settings.dir_overrides);
-        let recovery = switch::recover_on_startup(&env)
-            .into_iter()
-            .map(|(app, outcome)| match outcome {
-                Ok(outcome) => format!("{app}: {outcome:?}"),
-                Err(err) => format!("{app}: {err}"),
-            })
-            .collect::<Vec<_>>();
-        for line in &recovery {
-            log::info!("startup recovery {line}");
-        }
-        let oauth = CodexOAuthManager::new(&env, transport)?;
+        let env = base.clone().with_overrides(&app_settings.dir_overrides);
+        let recovery = recover(&env);
+        let oauth = Arc::new(CodexOAuthManager::new(&env, transport.clone())?);
         Ok(Self {
-            env,
-            oauth,
-            startup_overrides: app_settings.dir_overrides.clone(),
+            base,
+            transport,
+            runtime: RwLock::new(Arc::new(Runtime { env, oauth })),
             settings: Mutex::new(app_settings),
             recovery,
         })
     }
 
-    pub fn env(&self) -> &Env {
-        &self.env
+    /// 当前生效的运行环境（快照）。
+    pub fn runtime(&self) -> Arc<Runtime> {
+        self.runtime
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
 
-    pub fn oauth(&self) -> &CodexOAuthManager {
-        &self.oauth
+    pub fn env(&self) -> Env {
+        self.runtime().env.clone()
+    }
+
+    /// 套用新的目录覆盖，立即生效。Codex 目录没变时沿用同一个账号管理器（进行中的设备码
+    /// 登录不受影响）；变了就新建一个（进行中的登录要重新开始）。返回目录是否有变化。
+    fn apply_overrides(&self, overrides: &ccsl_core::env::DirOverrides) -> Result<bool, AppError> {
+        let current = self.runtime();
+        let env = self.base.clone().with_overrides(overrides);
+        if env == current.env {
+            return Ok(false);
+        }
+        let oauth = if env.codex_dir == current.env.codex_dir {
+            current.oauth.clone()
+        } else {
+            Arc::new(CodexOAuthManager::new(&env, self.transport.clone())?)
+        };
+        // 新目录下如果有别的实例留下的未完成操作，先补完 / 放弃。
+        recover(&env);
+        *self.runtime.write().unwrap_or_else(|e| e.into_inner()) = Arc::new(Runtime { env, oauth });
+        Ok(true)
     }
 
     pub fn recovery(&self) -> &[String] {
@@ -228,17 +269,12 @@ impl Service {
         ApiError::from_core(error, self.english())
     }
 
-    fn services(&self) -> Services<'_> {
-        Services {
-            codex_oauth: Some(&self.oauth),
-        }
-    }
-
     fn live_ids(&self, tool: Tool) -> Result<Vec<String>, AppError> {
+        let rt = self.runtime();
         if !tool.is_coexist() {
             return Ok(Vec::new());
         }
-        Ok(coexist::live_entries(&self.env, tool)?
+        Ok(coexist::live_entries(&rt.env, tool)?
             .keys()
             .cloned()
             .collect())
@@ -247,11 +283,12 @@ impl Service {
     // ---- 查询 ----
 
     pub fn overview(&self) -> ApiResult<Vec<ToolSummary>> {
-        let data = store::load(&self.env).map_err(|e| self.err(e))?;
+        let rt = self.runtime();
+        let data = store::load(&rt.env).map_err(|e| self.err(e))?;
         Ok(Tool::ALL
             .iter()
             .map(|&tool| {
-                let paths = self.env.live_paths(tool);
+                let paths = rt.env.live_paths(tool);
                 let current = data.current(tool);
                 ToolSummary {
                     tool,
@@ -268,7 +305,8 @@ impl Service {
     }
 
     pub fn list_providers(&self, tool: Tool) -> ApiResult<ToolProviders> {
-        let data = store::load(&self.env).map_err(|e| self.err(e))?;
+        let rt = self.runtime();
+        let data = store::load(&rt.env).map_err(|e| self.err(e))?;
         let (in_live, live_error) = match self.live_ids(tool) {
             Ok(ids) => (ids, None),
             Err(err) => (Vec::new(), Some(self.err(err).0)),
@@ -284,14 +322,15 @@ impl Service {
             current: data.current(tool).map(|p| p.id.clone()),
             in_live,
             live_error,
-            paths: self.env.live_paths(tool),
+            paths: rt.env.live_paths(tool),
         })
     }
 
     // ---- 切换 / 卡片 ----
 
     pub fn switch_provider(&self, tool: Tool, id: &str) -> ApiResult<OpResult> {
-        switch::switch_with(&self.env, self.services(), tool, id)
+        let rt = self.runtime();
+        switch::switch_with(&rt.env, services(&rt), tool, id)
             .map(Into::into)
             .map_err(|e| self.err(e))
     }
@@ -320,20 +359,21 @@ impl Service {
         provider: Provider,
         add_to_live: bool,
     ) -> ApiResult<OpResult> {
+        let rt = self.runtime();
         self.check_incoming(&provider)?;
         if tool.is_coexist() {
-            return coexist::add_provider(&self.env, tool, provider, add_to_live)
+            return coexist::add_provider(&rt.env, tool, provider, add_to_live)
                 .map(Into::into)
                 .map_err(|e| self.err(e));
         }
         let run = || -> Result<OpResult, AppError> {
-            switch::settle(&self.env, tool)?;
-            let data = store::load(&self.env)?;
+            switch::settle(&rt.env, tool)?;
+            let data = store::load(&rt.env)?;
             switch::preflight(&data, tool, &provider)?;
             let id = provider.id.clone();
-            store::add_provider(&self.env, tool, provider)?;
+            store::add_provider(&rt.env, tool, provider)?;
             if add_to_live {
-                return switch::switch_with(&self.env, self.services(), tool, &id).map(Into::into);
+                return switch::switch_with(&rt.env, services(&rt), tool, &id).map(Into::into);
             }
             Ok(OpResult::default())
         };
@@ -341,36 +381,40 @@ impl Service {
     }
 
     pub fn update_provider(&self, tool: Tool, mut provider: Provider) -> ApiResult<OpResult> {
-        let data = store::load(&self.env).map_err(|e| self.err(e))?;
+        let rt = self.runtime();
+        let data = store::load(&rt.env).map_err(|e| self.err(e))?;
         let stored = data.provider(tool, &provider.id).cloned();
         redact::restore(tool, &mut provider, stored.as_ref());
         self.check_incoming(&provider)?;
-        switch::update_provider_with(&self.env, self.services(), tool, provider)
+        switch::update_provider_with(&rt.env, services(&rt), tool, provider)
             .map(Into::into)
             .map_err(|e| self.err(e))
     }
 
     pub fn delete_provider(&self, tool: Tool, id: &str) -> ApiResult<()> {
+        let rt = self.runtime();
         let result = if tool.is_coexist() {
-            coexist::delete_provider(&self.env, tool, id)
+            coexist::delete_provider(&rt.env, tool, id)
         } else {
-            store::remove_provider(&self.env, tool, id)
+            store::remove_provider(&rt.env, tool, id)
         };
         result.map(|_| ()).map_err(|e| self.err(e))
     }
 
     /// 并存式工具：写进 / 移出客户端配置。
     pub fn set_in_live(&self, tool: Tool, id: &str, enabled: bool) -> ApiResult<OpResult> {
+        let rt = self.runtime();
         let result = if enabled {
-            coexist::write_to_live(&self.env, tool, id).map(Into::into)
+            coexist::write_to_live(&rt.env, tool, id).map(Into::into)
         } else {
-            coexist::remove_from_live(&self.env, tool, id).map(Into::into)
+            coexist::remove_from_live(&rt.env, tool, id).map(Into::into)
         };
         result.map_err(|e| self.err(e))
     }
 
     pub fn import_live(&self, tool: Tool) -> ApiResult<ImportLiveResult> {
-        import::import_live(&self.env, tool)
+        let rt = self.runtime();
+        import::import_live(&rt.env, tool)
             .map(|r| ImportLiveResult { created: r.created })
             .map_err(|e| self.err(e))
     }
@@ -378,17 +422,18 @@ impl Service {
     // ---- Codex 托管账号 / 本机登录 ----
 
     pub fn codex_accounts(&self) -> Vec<AccountInfo> {
-        self.oauth.list_accounts()
+        let rt = self.runtime();
+        rt.oauth.list_accounts()
     }
 
     pub fn codex_start_login(&self, target: Option<&str>) -> ApiResult<DeviceFlow> {
-        self.oauth
-            .start_device_flow(target)
-            .map_err(|e| self.err(e))
+        let rt = self.runtime();
+        rt.oauth.start_device_flow(target).map_err(|e| self.err(e))
     }
 
     pub fn codex_poll_login(&self, device_code: &str) -> ApiResult<PollResult> {
-        match self.oauth.poll_device_flow(device_code) {
+        let rt = self.runtime();
+        match rt.oauth.poll_device_flow(device_code) {
             Ok(DeviceFlowPoll::Pending) => Ok(PollResult::Pending),
             Ok(DeviceFlowPoll::Added(account)) => Ok(PollResult::Added { account }),
             Err(e) => Err(self.err(e)),
@@ -396,36 +441,42 @@ impl Service {
     }
 
     pub fn codex_cancel_login(&self, device_code: &str) -> bool {
-        self.oauth.cancel_device_flow(device_code)
+        let rt = self.runtime();
+        rt.oauth.cancel_device_flow(device_code)
     }
 
     pub fn codex_set_default(&self, id: &str) -> ApiResult<()> {
-        self.oauth.set_default_account(id).map_err(|e| self.err(e))
+        let rt = self.runtime();
+        rt.oauth.set_default_account(id).map_err(|e| self.err(e))
     }
 
     pub fn codex_remove_account(&self, id: &str) -> ApiResult<()> {
-        self.oauth.remove_account(id).map_err(|e| self.err(e))
+        let rt = self.runtime();
+        rt.oauth.remove_account(id).map_err(|e| self.err(e))
     }
 
     /// 本机 `auth.json` / 登录暂存里的 ChatGPT 登录：只有身份信息，没有 token。
     pub fn codex_logins(&self) -> ApiResult<Vec<ccsl_core::codex::login::LoginSummary>> {
-        switch::codex::available_logins(&self.env).map_err(|e| self.err(e))
+        let rt = self.runtime();
+        switch::codex::available_logins(&rt.env).map_err(|e| self.err(e))
     }
 
     pub fn codex_set_login_ref(&self, id: &str, identity: Option<&str>) -> ApiResult<OpResult> {
-        switch::codex::set_login_ref(&self.env, self.services(), id, identity)
+        let rt = self.runtime();
+        switch::codex::set_login_ref(&rt.env, services(&rt), id, identity)
             .map(Into::into)
             .map_err(|e| self.err(e))
     }
 
     /// 后台刷新：太久没换过 token 的托管账号各刷新一次。
     pub fn refresh_stale_accounts(&self) -> Vec<(String, Result<bool, String>)> {
+        let rt = self.runtime();
         let hours = self.app_settings().background_refresh_hours;
         if hours == 0 {
             return Vec::new();
         }
         let max_age_ms = i64::from(hours) * 3_600_000;
-        self.oauth
+        rt.oauth
             .refresh_stale(max_age_ms)
             .into_iter()
             .map(|(id, r)| (id, r.map_err(|e| e.to_string())))
@@ -435,49 +486,55 @@ impl Service {
     // ---- 设置 ----
 
     pub fn settings(&self) -> ApiResult<SettingsView> {
-        let data = store::load(&self.env).map_err(|e| self.err(e))?;
+        let rt = self.runtime();
+        let data = store::load(&rt.env).map_err(|e| self.err(e))?;
         Ok(SettingsView {
             app: self.app_settings(),
             keep_codex_login: data.settings.preserve_codex_official_auth_on_switch,
-            data_dir: self.env.data_dir.clone(),
-            home: self.env.home.clone(),
+            data_dir: rt.env.data_dir.clone(),
+            home: rt.env.home.clone(),
             live_paths: Tool::ALL
                 .iter()
-                .map(|&t| (t.as_str().to_string(), self.env.live_paths(t)))
+                .map(|&t| (t.as_str().to_string(), rt.env.live_paths(t)))
                 .collect(),
-            dirs: effective_dirs(&self.env),
-            ccswitch_dir: ccswitch_import::default_dir(&self.env),
+            dirs: effective_dirs(&rt.env),
+            ccswitch_dir: ccswitch_import::default_dir(&rt.env),
         })
     }
 
     pub fn save_settings(&self, input: SettingsInput) -> ApiResult<SaveSettingsResult> {
+        let rt = self.runtime();
         let mut app = input.app;
         if let Some(lang) = app.language.as_deref() {
             if lang != "zh" && lang != "en" {
                 app.language = None;
             }
         }
-        settings::save(&self.env.data_dir, &app).map_err(|e| self.err(e))?;
-        store::update(&self.env, |data| {
+        settings::save(&rt.env.data_dir, &app).map_err(|e| self.err(e))?;
+        store::update(&rt.env, |data| {
             data.settings.preserve_codex_official_auth_on_switch = input.keep_codex_login;
             Ok(())
         })
         .map_err(|e| self.err(e))?;
-        let restart_required = app.dir_overrides != self.startup_overrides;
+        let dirs_changed = self
+            .apply_overrides(&app.dir_overrides)
+            .map_err(|e| self.err(e))?;
         *self.settings.lock().unwrap_or_else(|e| e.into_inner()) = app;
-        Ok(SaveSettingsResult { restart_required })
+        Ok(SaveSettingsResult { dirs_changed })
     }
 
     // ---- 从 cc-switch 导入（只读） ----
 
     fn ccswitch_dir(&self, dir: Option<PathBuf>) -> PathBuf {
+        let rt = self.runtime();
         dir.filter(|d| d.is_absolute())
-            .unwrap_or_else(|| ccswitch_import::default_dir(&self.env))
+            .unwrap_or_else(|| ccswitch_import::default_dir(&rt.env))
     }
 
     pub fn ccswitch_scan(&self, dir: Option<PathBuf>) -> ApiResult<ccswitch_import::Scan> {
+        let rt = self.runtime();
         let mut scan =
-            ccswitch_import::scan(&self.env, &self.ccswitch_dir(dir)).map_err(|e| self.err(e))?;
+            ccswitch_import::scan(&rt.env, &self.ccswitch_dir(dir)).map_err(|e| self.err(e))?;
         for candidate in &mut scan.candidates {
             candidate.provider = redact::redact(candidate.tool, &candidate.provider);
         }
@@ -489,13 +546,9 @@ impl Service {
         dir: Option<PathBuf>,
         tools: Vec<Tool>,
     ) -> ApiResult<ccswitch_import::Report> {
-        ccswitch_import::apply(
-            &self.env,
-            &self.ccswitch_dir(dir),
-            &tools,
-            Some(&self.oauth),
-        )
-        .map_err(|e| self.err(e))
+        let rt = self.runtime();
+        ccswitch_import::apply(&rt.env, &self.ccswitch_dir(dir), &tools, Some(&rt.oauth))
+            .map_err(|e| self.err(e))
     }
 }
 

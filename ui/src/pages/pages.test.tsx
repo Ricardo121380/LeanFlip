@@ -218,7 +218,7 @@ describe("SettingsPage", () => {
         livePaths: { claude: ["/h/.claude/settings.json"] },
         ccswitchDir: "/h/.cc-switch",
       }),
-      save_settings: () => ({ restartRequired: true }),
+      save_settings: () => ({ dirsChanged: true }),
     });
     renderWithClient(<SettingsPage />);
     await userEvent.click(await screen.findByRole("switch", { name: /保留 Codex/ }));

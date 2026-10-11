@@ -161,7 +161,7 @@ export const api = {
     invoke<OpResult>("codex_set_login_ref", { id, identity }),
   getSettings: () => invoke<SettingsView>("get_settings"),
   saveSettings: (app: AppSettings, keepCodexLogin: boolean) =>
-    invoke<{ restartRequired: boolean }>("save_settings", { input: { app, keepCodexLogin } }),
+    invoke<{ dirsChanged: boolean }>("save_settings", { input: { app, keepCodexLogin } }),
   ccswitchScan: (dir?: string) => invoke<ImportScan>("ccswitch_scan", { dir: dir ?? null }),
   ccswitchApply: (tools: ToolId[], dir?: string) =>
     invoke<ImportReport>("ccswitch_apply", { tools, dir: dir ?? null }),

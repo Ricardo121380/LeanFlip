@@ -76,7 +76,7 @@ pub fn run() {
             let service = Arc::new(Service::start(ccsl_core::Env::from_system(), transport)?);
             app.manage(AppState(service.clone()));
             tray::create(app.handle())?;
-            watcher::start(app.handle(), service.env());
+            watcher::start(app.handle(), &service.env());
             start_background_refresh(app.handle().clone(), service);
             Ok(())
         })

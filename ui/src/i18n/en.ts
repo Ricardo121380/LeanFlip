@@ -111,11 +111,11 @@ const en: Messages = {
     keepCodexLogin: "Keep the Codex ChatGPT login when switching to a third party",
     keepCodexLoginHint: "When off (default) the login is stashed and removed from auth.json, then restored when switching back to the official card.",
     dirs: "Config directories",
-    dirsHint: "Leave empty for the default. Absolute paths only. Restart the app after changing.",
+    dirsHint: "Leave empty for the default. Absolute paths only. Changes apply immediately.",
     dataDir: "Data directory: {{path}}",
     save: "Save settings",
     saved: "Settings saved",
-    restart: "Directory changes take effect after a restart",
+    dirsApplied: "Config directories switched",
   },
   common: { loading: "Loading…", retry: "Retry", close: "Close", warnings: "Notes" },
 };

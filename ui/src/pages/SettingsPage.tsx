@@ -63,7 +63,7 @@ export function SettingsPage() {
     (result) => {
       applyLanguage(app!.language);
       toast.success(t("settings.saved"));
-      if (result.restartRequired) toast.info(t("settings.restart"));
+      if (result.dirsChanged) toast.info(t("settings.dirsApplied"));
     },
   );
 

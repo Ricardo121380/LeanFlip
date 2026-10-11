@@ -191,6 +191,9 @@ pub async fn save_settings(
 ) -> ApiResult<SaveSettingsResult> {
     let autostart = input.app.autostart;
     let result = mutating(&app, &state, move |s| s.save_settings(input)).await?;
+    if result.dirs_changed {
+        crate::watcher::reconfigure(&app, state.0.env());
+    }
     {
         use tauri_plugin_autostart::ManagerExt;
         let launcher = app.autolaunch();

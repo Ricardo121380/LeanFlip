@@ -109,11 +109,11 @@ const zh = {
     keepCodexLogin: "切到第三方时保留 Codex 的 ChatGPT 登录",
     keepCodexLoginHint: "关闭（默认）时，登录先存进登录暂存再从 auth.json 删除，切回官方卡时还原。",
     dirs: "配置目录",
-    dirsHint: "留空使用默认目录，只接受绝对路径。修改后需要重启应用。",
+    dirsHint: "留空使用默认目录，只接受绝对路径。保存后立即生效。",
     dataDir: "数据目录：{{path}}",
     save: "保存设置",
     saved: "设置已保存",
-    restart: "目录修改将在重启后生效",
+    dirsApplied: "配置目录已切换",
   },
   common: { loading: "加载中…", retry: "重试", close: "关闭", warnings: "提示" },
 };
