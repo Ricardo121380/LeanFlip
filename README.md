@@ -49,15 +49,15 @@ brew tap ricardo121380/ccswitch-lite https://github.com/Ricardo121380/ccswitch-l
 brew install --cask ricardo121380/ccswitch-lite/ccswitch-lite
 
 # CLI：macOS Apple Silicon / Linux x86_64
-brew install ricardo121380/ccswitch-lite/ccsl
+brew install --cask ricardo121380/ccswitch-lite/ccsl
 ccsl
 ```
 
-Homebrew 会校验发布包的 SHA256，并管理安装与升级。桌面 Cask 当前支持 macOS ARM64；Linux 桌面端使用下面的 DEB 安装方式或 npm 桌面安装器。macOS App 的签名状态见下文。
+两个入口都使用二进制 Cask，直接安装发布包、校验 SHA256，并管理安装与升级；无需本机编译。Linux CLI Cask 需要支持 Linux Cask 的 Homebrew 7 或更新版本。桌面 Cask 当前支持 macOS ARM64；Linux 桌面端使用下面的 DEB 安装方式或 npm 桌面安装器。macOS App 的签名状态见下文。
 
 ```sh
 brew update
-brew upgrade ricardo121380/ccswitch-lite/ccsl
+brew upgrade --cask ricardo121380/ccswitch-lite/ccsl
 brew upgrade --cask ricardo121380/ccswitch-lite/ccswitch-lite
 ```
 
@@ -577,7 +577,7 @@ ccsl recover         # 处理所有工具
 
 卸载 App 或 CLI 二进制不会自动还原已经写入客户端的供应商配置。若希望回到官方或其他供应商，请在卸载前先完成切换。
 
-- Homebrew：使用 `brew uninstall ricardo121380/ccswitch-lite/ccsl` 或 `brew uninstall --cask ricardo121380/ccswitch-lite/ccswitch-lite`。
+- Homebrew：使用 `brew uninstall --cask ricardo121380/ccswitch-lite/ccsl` 或 `brew uninstall --cask ricardo121380/ccswitch-lite/ccswitch-lite`。
 - npm：使用 `npm uninstall -g ccswitch-lite` 移除两个命令入口；它不会移除已经安装的桌面 App。
 - 手动安装的 macOS App：从对应的“应用程序”目录移除 CC Switch Lite。
 - Linux DEB：使用 `sudo apt remove cc-switch-lite`。
@@ -668,7 +668,7 @@ python3 scripts/check-cli-menu.py --binary target/release/ccsl
 - [检查工作流](.github/workflows/ci.yml)：主分支 push 和 PR 时运行类型检查、前端测试、Rust 测试、Clippy，以及 Linux / macOS 桌面打包验证；CLI 单独构建、检查并上传压缩包。
 - [发布工作流](.github/workflows/release.yml)：版本标签触发正式 App / CLI 构建，校验版本与架构，生成 SHA256 文件并创建草稿 Release，再确认发布。包含分发工作流的后续版本还会生成 npm 安装器附件；不自动发布 npm 官方仓库。
 - [v0.1.0 发布说明](docs/releases/v0.1.0.md)：首版功能与平台范围。
-- [分发维护说明](docs/distribution.md)：更新 Homebrew 配方、生成 npm 包和手动发布流程。
+- [分发维护说明](docs/distribution.md)：更新 Homebrew Cask、生成 npm 包和手动发布流程。
 
 重新生成内置预设时，使用本机的上游源码目录：
 
@@ -688,7 +688,7 @@ pnpm presets /absolute/path/to/cc-switch
 | [`crates/cli`](crates/cli) | 独立命令行 `ccsl` 及交互菜单 |
 | [`ui`](ui) | React、TypeScript、Vite、TanStack Query 前端及中英文界面 |
 | [`scripts`](scripts) | 预设生成、CLI 伪终端检查及分发元数据生成脚本 |
-| [`Formula`](Formula)、[`Casks`](Casks) | Homebrew CLI 配方与 macOS 桌面 Cask |
+| [`Casks`](Casks) | Homebrew 原生 CLI 与 macOS 桌面 App 的二进制 Cask |
 | [`packages/npm`](packages/npm) | 零运行时依赖的 npm CLI 启动器与桌面安装器 |
 
 本项目基于 [farion1231/cc-switch](https://github.com/farion1231/cc-switch) 的写入引擎重写，保留其 MIT 版权声明。许可证见 [LICENSE](LICENSE)，移植来源与改动说明见 [NOTICE.md](NOTICE.md)。原作版权 © 2025 Jason Young。

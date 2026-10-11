@@ -1,14 +1,16 @@
 # Homebrew 与 npm 分发维护
 
-Homebrew 配方与 npm 安装器共用 GitHub Release 的原生二进制。它们不构建另一套 App 或 CLI，也不会修改用户的 `~/.cc-switch-lite/` 数据。
+Homebrew Cask 与 npm 安装器共用 GitHub Release 的原生二进制。它们不构建另一套 App 或 CLI，也不会修改用户的 `~/.cc-switch-lite/` 数据。
 
 ## 当前入口
 
 - Homebrew tap：本仓库本身，`brew tap ricardo121380/ccswitch-lite https://github.com/Ricardo121380/ccswitch-lite.git`。
-- CLI Formula：`Formula/ccsl.rb`，macOS ARM64 / Linux x64。
+- CLI Cask：`Casks/ccsl.rb`，macOS ARM64 / Linux x64；Linux 需要 Homebrew 7+。
 - 桌面 Cask：`Casks/ccswitch-lite.rb`，macOS ARM64。
 - npm 包源：`packages/npm`，包名 `ccswitch-lite`，命令为 `ccsl` 和 `ccsl-app`。
 - npm 官方仓库尚未发布；不要在用户说明中将 `npm install -g ccswitch-lite` 写成当前可用命令。
+
+两个 Homebrew 入口都用 `brew install --cask` 安装，避免预编译 CLI 被作为源码配方触发编译工具检查。
 
 桌面 npm 命令使用 `ccsl-app`，避免与 Linux DEB 安装的原生 `/usr/bin/ccswitch-lite` 重名。
 
@@ -22,7 +24,7 @@ gh release download v0.1.0 --dir target/distribution-assets
 node scripts/prepare-distribution.mjs 0.1.0 target/distribution-assets
 ```
 
-版本号、目录按实际发布调整。生成脚本会核对附件本身的 SHA256，然后更新 Homebrew 配方、Cask、npm 包版本和 `release.json`，并复制 LICENSE / NOTICE 到 npm 包。不要手工猜测或关闭 SHA256 校验。
+版本号、目录按实际发布调整。生成脚本会核对附件本身的 SHA256，然后更新两个 Homebrew Cask、npm 包版本和 `release.json`，并复制 LICENSE / NOTICE 到 npm 包。不要手工猜测或关闭 SHA256 校验。
 
 ```sh
 node scripts/prepare-distribution.mjs 0.1.0 target/distribution-assets --check
