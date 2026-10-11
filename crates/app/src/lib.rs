@@ -36,7 +36,14 @@ fn start_background_refresh(app: tauri::AppHandle, service: Arc<Service>) {
             // 启动后先等一会儿，别和首屏抢。
             std::thread::sleep(Duration::from_secs(60));
             loop {
-                let results = service.refresh_stale_accounts();
+                let results = match service.refresh_stale_accounts() {
+                    Ok(results) => results,
+                    Err(err) => {
+                        log::warn!("background account refresh failed: {err}");
+                        std::thread::sleep(Duration::from_secs(60 * 60));
+                        continue;
+                    }
+                };
                 let mut changed = false;
                 for (id, result) in results {
                     match result {

@@ -306,16 +306,16 @@ fn managed_accounts_and_background_refresh_go_through_the_manager() {
         PollResult::Pending => panic!("fake authorizes immediately"),
     };
     assert_eq!(account.plan.as_deref(), Some("plus"));
-    let wire = serde_json::to_string(&service.codex_accounts()).unwrap();
+    let wire = serde_json::to_string(&service.codex_accounts().unwrap()).unwrap();
     assert!(!wire.to_lowercase().contains("refresh_token"), "{wire}");
 
     // 刚登录的不刷新。
     let before = fake.refresh_calls().len();
-    service.refresh_stale_accounts();
+    service.refresh_stale_accounts().unwrap();
     assert_eq!(fake.refresh_calls().len(), before);
 
     service.codex_remove_account(&account.id).unwrap();
-    assert!(service.codex_accounts().is_empty());
+    assert!(service.codex_accounts().unwrap().is_empty());
 }
 
 #[test]
@@ -523,4 +523,76 @@ fn operation_result_preserves_recovery_and_existing_warnings() {
     assert_eq!(result.warnings.len(), 2);
     assert_eq!(result.warnings[0], "existing warning");
     assert!(result.warnings[1].contains(path.to_str().unwrap()));
+}
+
+#[test]
+fn opening_and_querying_an_empty_home_creates_nothing() {
+    let sb = Sandbox::new();
+    let service = Service::open(sb.env(), None).unwrap();
+    assert_eq!(service.overview().unwrap().len(), Tool::ALL.len());
+    for tool in Tool::ALL {
+        assert!(service.list_providers(tool).unwrap().providers.is_empty());
+    }
+    service.settings().unwrap();
+    assert!(service.codex_accounts_checked().unwrap().is_empty());
+    assert_eq!(std::fs::read_dir(&sb.home).unwrap().count(), 0);
+}
+
+#[test]
+fn readonly_open_preserves_pending_recovery_until_explicitly_requested() {
+    let sb = Sandbox::new();
+    let path = sb.env().claude_settings_path();
+    sb.write(&path, "external edit");
+    pending_recovery(&sb, &path);
+    let state_path = sb.env().device_store().state_path();
+    let before = std::fs::read(&state_path).unwrap();
+    let service = Service::open(sb.env(), None).unwrap();
+    service.overview().unwrap();
+    service.list_providers(Tool::Claude).unwrap();
+    assert!(service.recovery().is_empty());
+    assert_eq!(std::fs::read(&state_path).unwrap(), before);
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), "external edit");
+    assert_eq!(service.recover_tool(Tool::Claude).unwrap().len(), 1);
+    assert_ne!(std::fs::read(state_path).unwrap(), before);
+}
+
+#[test]
+fn cli_open_honors_desktop_paths_and_rejects_broken_settings() {
+    let sb = Sandbox::new();
+    let mut app = AppSettings::default();
+    let alt = sb.home.join("custom-claude");
+    app.dir_overrides.claude_dir = Some(alt.clone());
+    settings::save(&sb.env().data_dir, &app).unwrap();
+    assert_eq!(Service::open(sb.env(), None).unwrap().env().claude_dir, alt);
+    sb.write(&settings::path(&sb.env().data_dir), "broken");
+    assert!(Service::open(sb.env(), None).is_err());
+}
+
+#[test]
+fn structured_error_codes_preserve_the_desktop_string_wire_format() {
+    let error = ApiError::from_core(AppError::Conflict("changed".into()), true);
+    assert_eq!(error.code(), "conflict");
+    assert_eq!(serde_json::to_value(&error).unwrap(), json!(error.0));
+    let localized = ApiError::from_core(AppError::localized("test.code", "中", "English"), true);
+    assert_eq!(localized.code(), "test.code");
+    assert_eq!(localized.0, "English");
+}
+
+#[test]
+fn a_failed_service_lock_prevents_all_live_writes() {
+    let sb = Sandbox::new();
+    let env = sb.env();
+    store::add_provider(&env, Tool::Claude, claude_card("a", "https://a.example")).unwrap();
+    std::fs::create_dir_all(env.data_dir.join("locks/service.lock")).unwrap();
+    let before = std::fs::read(env.store_path()).unwrap();
+    let service = Service::open(env.clone(), None).unwrap();
+    assert_eq!(
+        service
+            .switch_provider(Tool::Claude, "a")
+            .unwrap_err()
+            .code(),
+        "io"
+    );
+    assert!(!env.claude_settings_path().exists());
+    assert_eq!(std::fs::read(env.store_path()).unwrap(), before);
 }
