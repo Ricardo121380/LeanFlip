@@ -1,4 +1,4 @@
-//! 认出推广链接（返利 / 邀请 / 追踪 / 短链），规则和 `scripts/build-presets.mjs` 一致。
+//! Filters referral and campaign links when importing external cards.
 //! 导入 cc-switch 的卡时用：这类 `websiteUrl` 不带过来。
 
 const TRACKING_PARAMS: &[&str] = &[

@@ -1,73 +1,107 @@
-//! JSONC / JSON5 文件里一个条目的修改：以写前内容为底，用保留格式的编辑器改，
-//! 只有语义变了的节点会重写。
-
+//! Shared JSONC editing primitives for provider maps.
+use super::{key_conflict, rejected, Edit, EntryChange, WriteMode};
+use crate::{
+    error::AppError,
+    live::patch::{decode_utf8, jsonc::JsoncDocument, LivePatch, LiveWriteError},
+    provider::Tool,
+};
+use serde_json::{json, Map, Value};
 use std::path::Path;
-
-use serde_json::Value;
-
-use super::rejected;
-use crate::error::AppError;
-use crate::live::patch::jsonc::JsoncDocument;
-use crate::live::patch::{decode_utf8, LivePatch, LiveWriteError};
-
 pub(crate) struct JsoncEdit<F> {
-    /// 文件不存在（或是空的）时的起始内容。
     pub default_source: &'static str,
-    /// 文件大小上限（Pi 的 `models.json` 限 1 MiB）。
     pub max_bytes: Option<usize>,
     pub edit: F,
 }
-
-/// 把 JSONC / JSON5 文本解析成值；空文本按 `default_source`。
-pub(crate) fn parse_value(
-    path: &Path,
-    text: &str,
-    default_source: &str,
-) -> Result<Value, AppError> {
+pub(crate) fn parse_value(path: &Path, text: &str, default: &str) -> Result<Value, AppError> {
     let source = if text.trim().is_empty() {
-        default_source
+        default
     } else {
         text
     };
-    let value: Value = json5::from_str(source).map_err(|e| {
-        AppError::Config(format!("无法解析 {}（JSONC / JSON5）: {e}", path.display()))
-    })?;
-    if !value.is_object() {
-        return Err(AppError::Config(format!(
-            "{} 的根必须是对象",
-            path.display()
-        )));
+    let document = JsoncDocument::parse(source)
+        .map_err(|_| AppError::Config(format!("{}：JSONC 格式无效", path.display())))?;
+    if !document.value().is_object() {
+        return Err(AppError::Config(
+            "配置根节点必须是对象 / Configuration root must be an object".into(),
+        ));
     }
-    Ok(value)
+    Ok(document.value().clone())
 }
-
-impl<F> LivePatch for JsoncEdit<F>
-where
-    F: Fn(&mut Value) -> Result<(), AppError>,
-{
-    fn apply(&self, path: &Path, pre: Option<&[u8]>) -> Result<Vec<u8>, LiveWriteError> {
-        if let (Some(max), Some(pre)) = (self.max_bytes, pre) {
-            if pre.len() > max {
-                return Err(rejected(AppError::InvalidInput(format!(
-                    "{} 超过 {max} 字节上限",
-                    path.display()
-                ))));
-            }
+impl<F: Fn(&mut Value) -> Result<(), AppError>> LivePatch for JsoncEdit<F> {
+    fn apply(&self, path: &Path, before: Option<&[u8]>) -> Result<Vec<u8>, LiveWriteError> {
+        let text = decode_utf8(path, before.unwrap_or_default())?;
+        if self.max_bytes.is_some_and(|limit| text.len() > limit) {
+            return Err(rejected(AppError::InvalidInput(
+                "配置文件超过大小上限 / Configuration exceeds size limit".into(),
+            )));
         }
-        let text = match pre {
-            Some(bytes) => decode_utf8(path, bytes)?,
-            None => "",
-        };
         let source = if text.trim().is_empty() {
             self.default_source
         } else {
             text
         };
         let mut document = JsoncDocument::parse(source)
-            .map_err(|e| rejected(AppError::Config(format!("{}: {e}", path.display()))))?;
-        let mut desired = document.value().clone();
-        (self.edit)(&mut desired).map_err(rejected)?;
-        document.apply(&desired).map_err(rejected)?;
+            .map_err(|_| rejected(AppError::Config("JSONC 格式无效 / Invalid JSONC".into())))?;
+        let mut value = document.value().clone();
+        (self.edit)(&mut value).map_err(rejected)?;
+        document.apply(&value).map_err(rejected)?;
         Ok(document.validated_source().map_err(rejected)?.into_bytes())
     }
+}
+pub(crate) fn entries_at(value: &Value, path: &[&str]) -> Result<Map<String, Value>, AppError> {
+    let mut current = value;
+    for key in path {
+        if !current.is_object() {
+            return Err(AppError::Config(format!(
+                "{key} 的父节点不是对象 / Parent is not an object"
+            )));
+        }
+        match current.get(*key) {
+            Some(child) => current = child,
+            None => return Ok(Map::new()),
+        }
+    }
+    current.as_object().cloned().ok_or_else(|| {
+        AppError::Config(format!(
+            "{} 必须是对象 / Expected an object",
+            path.join(".")
+        ))
+    })
+}
+pub(crate) fn edit_map(
+    value: &mut Value,
+    path: &[&str],
+    change: &EntryChange<'_>,
+    tool: Tool,
+) -> Result<(), AppError> {
+    let mut current = value;
+    for key in path {
+        let map = current.as_object_mut().ok_or_else(|| {
+            AppError::Config(format!(
+                "{} 必须是对象 / Expected an object",
+                path.join(".")
+            ))
+        })?;
+        if !map.contains_key(*key) && matches!(change.edit, Edit::Remove) {
+            return Ok(());
+        }
+        current = map.entry(*key).or_insert_with(|| json!({}));
+    }
+    let map = current.as_object_mut().ok_or_else(|| {
+        AppError::Config("供应商容器必须是对象 / Provider container must be an object".into())
+    })?;
+    match &change.edit {
+        Edit::Remove => {
+            map.shift_remove(change.id);
+        }
+        Edit::Upsert(next) => {
+            if change.mode == WriteMode::CreateOnly
+                && map.get(change.id).is_some_and(|old| old != next)
+            {
+                return Err(key_conflict(tool, change.id));
+            }
+            map.insert(change.id.into(), next.clone());
+        }
+    }
+    Ok(())
 }

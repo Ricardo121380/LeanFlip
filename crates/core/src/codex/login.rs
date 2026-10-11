@@ -1,382 +1,245 @@
-//! 切换时 Codex 的 `auth.json` 怎么办。
-//!
-//! `auth.json` 只留给官方登录：第三方的 Key 写在 `config.toml` 的路由表里。切换时它有
-//! 四种去向（不动、整份写、删掉、换成托管账号的登录），由 [`plan`] 按目标供应商、live
-//! 里现在的登录和保留登录开关算出来，是个纯函数。
-//!
-//! **登录暂存。**保留登录开关关闭时，切到第三方要删掉 `auth.json`（兼容期维持 v3.20.1
-//! 的行为），切回官方卡时再还回去。以前靠切走时把 live 回填进官方卡的行，现在不回填：
-//! 回填会让 token 随云同步走，而且行里的快照不会跟着 Codex CLI 轮换，过几天就作废。
-//! 改为把 CC Switch 删掉或覆盖掉的那份原生登录存在这台设备上
-//! （ccswitch-lite 里是 `~/.cc-switch-lite/codex-login-stash.json`，0600，不同步），
-//! 切回官方卡时原样还回去。托管账号的登录在账号管理器里，不进暂存。
-//!
-//! 官方卡的行里存着的 OAuth 登录（旧版回填进去的）只在暂存文件第一次建立时读一次，
-//! 作为暂存的初始内容；之后以暂存为准，行里的快照不再使用。
-//!
-//! 移植自 cc-switch `services/provider/codex_login.rs`，纯函数部分原样保留；去掉了代理用的
-//! `ProxyThirdParty` 目标和代理契约用的 `official_login_requirement`。
-//!
-//! ccswitch-lite 新增（Phase 2）：
-//! - **官方卡按身份引用暂存里的登录**（`login_ref`，存在卡的 `meta.codexLoginRef`，只有
-//!   身份不含 token）：切到这张卡时换成那个人的登录；暂存里没有（被登出了）就不动并
-//!   报告 `missing_login`；
-//! - **官方卡写进去的 API Key 不当成原生登录**（`official_api_keys`）：从 API Key 官方卡
-//!   切到 OAuth 官方卡时，换回暂存里的登录（原版会保留 API Key，登录困在暂存里取不到）；
-//!   切到第三方时不把它存进暂存（它本来就在卡里）。
-
-use std::collections::{BTreeMap, BTreeSet};
-
+//! A local login vault and a pure transition planner for Codex authentication.
+use super::auth::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-
-use crate::codex::auth::{
-    codex_auth_has_credential_login_material, codex_auth_has_login_material,
-    codex_auth_has_openai_account_material, codex_live_auth_is_stale_third_party_residue,
-    extract_codex_auth_api_key, extract_codex_auth_user_identity,
-};
-
+use std::collections::{BTreeMap, BTreeSet};
 pub const STASH_FILENAME: &str = "codex-login-stash.json";
-
-/// 暂存文件的格式版本。1：按用户加 workspace 认人（4.0.7）；没有这个字段的是更早写的。
 pub const STASH_VERSION: u32 = 1;
-
-/// 这台设备上暂存的原生登录，按身份存。
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct LoginStash {
     #[serde(default)]
     pub logins: BTreeMap<String, Value>,
-    /// 最近一次暂存的是谁：切回没有自己登录的官方卡（行里 `auth` 为空）时还它。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last: Option<String>,
     #[serde(default)]
     pub version: u32,
-    /// 暂存文件已经存在。为 `false` 时内容是刚从官方行里的快照初始化出来的，要写一次。
     #[serde(skip)]
     pub initialized: bool,
 }
-
+pub fn identity(auth: &Value) -> String {
+    let mut parts = Vec::new();
+    if let Some(user) = extract_codex_auth_user_identity(auth) {
+        parts.push(user);
+    }
+    if let Some(workspace) = auth
+        .pointer("/tokens/account_id")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        parts.push(format!("account:{workspace}"));
+    }
+    if parts.is_empty() {
+        if extract_codex_auth_api_key(auth).is_some() {
+            "api-key".into()
+        } else {
+            "unknown".into()
+        }
+    } else {
+        parts.join("|")
+    }
+}
+fn login_id(auth: &Value) -> Option<String> {
+    codex_auth_has_credential_login_material(auth).then(|| identity(auth))
+}
+fn static_key(auth: &Value) -> bool {
+    codex_live_auth_is_stale_third_party_residue(auth)
+}
 impl LoginStash {
-    /// 暂存文件还不存在：用官方卡行里存着的 OAuth 登录初始化（旧版回填进去的）。
-    pub fn seeded_from_rows<'a>(row_auths: impl IntoIterator<Item = &'a Value>) -> Self {
-        let mut stash = Self {
+    pub fn seeded_from_rows<'a>(rows: impl IntoIterator<Item = &'a Value>) -> Self {
+        let mut vault = Self {
             version: STASH_VERSION,
-            ..Self::default()
+            ..Default::default()
         };
-        for auth in row_auths {
-            if let Some(id) = oauth_identity(auth) {
-                stash.logins.entry(id).or_insert_with(|| auth.clone());
+        for row in rows {
+            if let Some(id) = login_id(row) {
+                vault.logins.entry(id).or_insert_with(|| row.clone());
             }
         }
-        stash
+        vault
     }
-
-    /// 读到的暂存文件：更早的版本先升级（见 [`Self::upgraded`]），升级过的要写一次。
     pub fn loaded<'a>(
-        self,
-        row_auths: impl IntoIterator<Item = &'a Value>,
+        mut self,
+        rows: impl IntoIterator<Item = &'a Value>,
         live: Option<&Value>,
     ) -> Self {
         if self.version >= STASH_VERSION {
-            return Self {
-                initialized: true,
-                ..self
-            };
+            self.initialized = true;
+            return self;
         }
-        self.upgraded(row_auths, live)
-    }
-
-    /// 4.0.7 以前只按用户认人：key 没有 workspace，同一个人的几个 workspace 只留下一份，
-    /// 其余的只剩官方卡行里的快照。按现在的 [`identity`] 重算 key，再从行里补回这些
-    /// workspace——只补暂存里或 live 里还有这个人的（他别的 workspace 还在用）。两处都没有
-    /// 说明是在 Codex 里登出了，不补：登出不复活。
-    fn upgraded<'a>(
-        self,
-        row_auths: impl IntoIterator<Item = &'a Value>,
-        live: Option<&Value>,
-    ) -> Self {
         let last = self
             .last
             .as_ref()
             .and_then(|id| self.logins.get(id))
             .map(identity);
-        let mut logins: BTreeMap<String, Value> = self
+        self.logins = self
             .logins
             .into_values()
             .map(|auth| (identity(&auth), auth))
             .collect();
-        let live = live.filter(|auth| codex_auth_has_credential_login_material(auth));
-        let users: BTreeSet<String> = logins
+        let users: BTreeSet<_> = self
+            .logins
             .values()
-            .chain(live)
+            .chain(live.filter(|v| codex_auth_has_credential_login_material(v)))
             .filter_map(extract_codex_auth_user_identity)
             .collect();
-        let live_id = live.map(identity);
-        for auth in row_auths {
-            let Some(id) = oauth_identity(auth) else {
-                continue;
-            };
-            let same_user =
-                extract_codex_auth_user_identity(auth).is_some_and(|user| users.contains(&user));
-            if same_user && live_id.as_ref() != Some(&id) {
-                logins.entry(id).or_insert_with(|| auth.clone());
+        for row in rows {
+            if let Some(id) = login_id(row) {
+                let allowed =
+                    extract_codex_auth_user_identity(row).is_some_and(|u| users.contains(&u));
+                if allowed && live.map(identity).as_deref() != Some(&id) {
+                    self.logins.entry(id).or_insert_with(|| row.clone());
+                }
             }
         }
-        Self {
-            logins,
-            last,
-            version: STASH_VERSION,
-            initialized: false,
-        }
+        self.last = last;
+        self.version = STASH_VERSION;
+        self.initialized = false;
+        self
     }
-
     pub fn put(&mut self, auth: &Value) {
         let id = identity(auth);
         self.logins.insert(id.clone(), auth.clone());
         self.last = Some(id);
     }
-
-    fn take(&mut self, id: &str) -> Option<Value> {
-        let auth = self.logins.remove(id)?;
+    fn remove(&mut self, id: &str) -> Option<Value> {
         if self.last.as_deref() == Some(id) {
             self.last = None;
         }
-        Some(auth)
+        self.logins.remove(id)
     }
 }
-
-/// 登录的身份：id_token 里的用户加 ChatGPT workspace，缺一个就用另一个；API Key 登录共用
-/// 一个位置。同一个人的 Plus 和 Team 是两个登录（codex-rs `same_owner` 也按用户加 workspace 认）。
-pub fn identity(auth: &Value) -> String {
-    let user = extract_codex_auth_user_identity(auth);
-    let account = auth
-        .pointer("/tokens/account_id")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|id| !id.is_empty());
-    match (user, account) {
-        (Some(user), Some(account)) => format!("{user}|account:{account}"),
-        (Some(user), None) => user,
-        (None, Some(account)) => format!("account:{account}"),
-        (None, None) if extract_codex_auth_api_key(auth).is_some() => "api-key".to_string(),
-        (None, None) => "unknown".to_string(),
-    }
-}
-
-/// 行里存的是 OAuth 登录（不是 API Key）时，它的身份。
-fn oauth_identity(auth: &Value) -> Option<String> {
-    codex_auth_has_credential_login_material(auth).then(|| identity(auth))
-}
-
-/// 官方卡的行里存的是 API Key（直连 OpenAI API）：静态凭据，不会过期，照写。
-fn is_api_key_credential(auth: &Value) -> bool {
-    extract_codex_auth_api_key(auth).is_some() && !codex_auth_has_credential_login_material(auth)
-}
-
-/// 旧版切到第三方时写进 `auth.json` 的 Key（只有 `OPENAI_API_KEY`，而且就是某个第三方
-/// 供应商的 Key）。能证明是 CC Switch 写的才算残留；用户自己 `codex login --api-key`
-/// 登录的 Key 不算。
-fn is_residue(auth: &Value, third_party_keys: &[String]) -> bool {
-    codex_live_auth_is_stale_third_party_residue(auth)
-        && extract_codex_auth_api_key(auth).is_some_and(|key| third_party_keys.contains(&key))
-}
-
-/// 目标供应商对 `auth.json` 的要求。
 #[derive(Debug, Clone, Copy)]
 pub enum AuthTarget<'a> {
-    /// 第三方：保留登录开关关闭时删掉 `auth.json`。
-    ThirdParty { preserve: bool },
-    /// 没绑托管账号的官方卡。`login_ref` 是卡引用的登录身份（优先于行里的快照）。
+    ThirdParty {
+        preserve: bool,
+    },
     Official {
         row_auth: &'a Value,
         login_ref: Option<&'a str>,
     },
-    /// 托管账号：整份写它的登录（Phase 2）。
-    Managed { auth: &'a Value },
+    Managed {
+        auth: &'a Value,
+    },
 }
-
 pub struct AuthInput<'a> {
-    /// live 的 `auth.json`（文件不存在为 `None`，解析不了的按非对象处理）。
     pub live: Option<&'a Value>,
-    /// live 里是某个托管账号的登录（切走时要清掉，不进暂存）。
     pub live_is_managed: bool,
-    /// 第三方供应商行里的 Key，用来认出旧版留下的残留。
     pub third_party_keys: &'a [String],
-    /// 切走的是没绑托管账号的官方卡（它的行 `auth`）：live 里没有登录，说明用户在
-    /// Codex 里登出了，暂存里对应的登录也作废，免得切回来又登上。
     pub leaving_official: Option<&'a Value>,
-    /// 切走的官方卡引用的登录身份（登出时作废暂存里的这一份）。
     pub leaving_official_ref: Option<&'a str>,
-    /// 官方卡行里的 API Key：live 是其中之一时，是 CC Switch 从卡里写进去的，不算原生登录。
     pub official_api_keys: &'a [String],
     pub target: AuthTarget<'a>,
     pub stash: LoginStash,
 }
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct AuthPlan {
-    /// `None` 不动；`Some(None)` 删掉；`Some(Some(v))` 整份写 `v`。
     pub auth: Option<Option<Value>>,
-    /// 暂存有变化时的新内容。
     pub stash: Option<LoginStash>,
-    /// 写完之后 `auth.json` 里有没有登录（第三方路由表的 `requires_openai_auth` 跟着它；
-    /// 登录存在系统钥匙串里时另算，见 `switch::codex`）。
     pub login_on_disk: bool,
-    /// 目标官方卡引用的登录在暂存和 live 里都没有（被登出了）：`auth.json` 没动。
     pub missing_login: Option<String>,
 }
-
-/// live 是官方卡从行里写进去的 API Key（只有 Key，没有登录，且是某张官方卡的 Key）。
-fn is_official_row_key(auth: &Value, official_api_keys: &[String]) -> bool {
-    codex_live_auth_is_stale_third_party_residue(auth)
-        && extract_codex_auth_api_key(auth).is_some_and(|key| official_api_keys.contains(&key))
-}
-
 pub fn plan(input: AuthInput<'_>) -> AuthPlan {
-    let original = input.stash.clone();
-    let mut stash = input.stash;
-    let managed = input.live_is_managed;
-    let residue = input
+    let known_key = input
         .live
-        .is_some_and(|auth| !managed && is_residue(auth, input.third_party_keys));
-    let row_key = input.live.is_some_and(|auth| {
-        !managed && !residue && is_official_row_key(auth, input.official_api_keys)
-    });
+        .filter(|a| static_key(a))
+        .and_then(extract_codex_auth_api_key);
+    let foreign = known_key
+        .as_ref()
+        .is_some_and(|k| input.third_party_keys.contains(k));
+    let from_card = known_key
+        .as_ref()
+        .is_some_and(|k| input.official_api_keys.contains(k));
+    let owned = input.live_is_managed || foreign || from_card;
     let native = input
         .live
-        .filter(|auth| !managed && !residue && !row_key && codex_auth_has_login_material(auth));
-
-    if let Some(row_auth) = input.leaving_official {
-        // 切走 API Key 官方卡不是登出：live 里本来就是卡里的 Key。
-        let leaving_key_card = row_key || is_api_key_credential(row_auth);
-        if native.is_none() && !managed && !leaving_key_card {
-            let referenced = input
+        .filter(|auth| !owned && codex_auth_has_login_material(auth));
+    let mut vault = input.stash.clone();
+    if let Some(leaving) = input.leaving_official {
+        if native.is_none() && !input.live_is_managed && !from_card && !static_key(leaving) {
+            let id = input
                 .leaving_official_ref
                 .map(str::to_string)
-                .or_else(|| oauth_identity(row_auth));
-            match referenced {
-                Some(id) => {
-                    stash.take(&id);
-                }
-                None => {
-                    if let Some(last) = stash.last.take() {
-                        stash.logins.remove(&last);
-                    }
-                }
+                .or_else(|| login_id(leaving))
+                .or_else(|| vault.last.clone());
+            if let Some(id) = id {
+                vault.remove(&id);
             }
-            stash.last = None;
+            vault.last = None;
         }
     }
-
-    let mut missing_login = None;
-    let auth = match input.target {
+    let mut next = None;
+    let mut missing = None;
+    match input.target {
         AuthTarget::ThirdParty { preserve } => {
-            if let Some(live) = native.filter(|_| !preserve) {
-                stash.put(live);
+            if !preserve {
+                if let Some(auth) = native {
+                    vault.put(auth);
+                }
             }
-            // 保留登录关闭时第三方路由旁边不留任何 auth.json（写 `{}` 不等于登出）。
-            (managed || residue || (!preserve && input.live.is_some())).then_some(None)
+            if input.live_is_managed || foreign || (!preserve && input.live.is_some()) {
+                next = Some(None);
+            }
         }
         AuthTarget::Managed { auth } => {
-            if let Some(live) = native {
-                stash.put(live);
+            if let Some(auth) = native {
+                vault.put(auth);
             }
-            Some(Some(auth.clone()))
+            next = Some(Some(auth.clone()));
         }
         AuthTarget::Official {
             row_auth,
             login_ref,
         } => {
-            let outcome = official(
-                row_auth,
-                login_ref,
-                native,
-                managed || residue || row_key,
-                &mut stash,
-            );
-            missing_login = outcome.missing;
-            outcome.auth
+            if static_key(row_auth) {
+                if let Some(auth) = native.filter(|a| *a != row_auth) {
+                    vault.put(auth);
+                }
+                next = Some(Some(row_auth.clone()));
+            } else {
+                let requested = login_ref.map(str::to_string).or_else(|| login_id(row_auth));
+                let already = native
+                    .is_some_and(|auth| requested.as_ref().is_none_or(|id| *id == identity(auth)));
+                if !already {
+                    let selected = requested.clone().or_else(|| {
+                        if native.is_none() {
+                            vault.last.clone()
+                        } else {
+                            None
+                        }
+                    });
+                    let saved = selected.as_deref().and_then(|id| vault.remove(id));
+                    if let Some(saved) = saved {
+                        if let Some(auth) = native {
+                            vault.put(auth);
+                        }
+                        next = Some(Some(saved));
+                    } else {
+                        if native.is_none() && owned {
+                            next = Some(None);
+                        }
+                        if login_ref.is_some() {
+                            missing = requested;
+                        }
+                    }
+                }
+            }
         }
+    }
+    let resulting = match &next {
+        None => native,
+        Some(value) => value.as_ref(),
     };
-
-    // 只算 Codex 会拿来登录的东西（OAuth token、API Key 等），Bedrock 凭据和元数据不算。
-    let login_on_disk = match &auth {
-        None => native.is_some_and(codex_auth_has_openai_account_material),
-        Some(None) => false,
-        Some(Some(auth)) => codex_auth_has_openai_account_material(auth),
-    };
-    let changed = stash != original || !original.initialized;
+    let login_on_disk = resulting.is_some_and(codex_auth_has_openai_account_material);
+    let changed = !input.stash.initialized || input.stash != vault;
+    vault.initialized = true;
     AuthPlan {
-        auth,
-        stash: changed.then_some(LoginStash {
-            initialized: true,
-            ..stash
-        }),
+        auth: next,
+        stash: changed.then_some(vault),
         login_on_disk,
-        missing_login,
+        missing_login: missing,
     }
 }
-
-struct OfficialOutcome {
-    auth: Option<Option<Value>>,
-    missing: Option<String>,
-}
-
-/// 切到没绑托管账号的官方卡。`clearable` 表示 live 里是要清掉的东西（托管账号的登录、
-/// 旧版的第三方 Key 残留、官方卡写进去的 API Key）。
-fn official(
-    row_auth: &Value,
-    login_ref: Option<&str>,
-    native: Option<&Value>,
-    clearable: bool,
-    stash: &mut LoginStash,
-) -> OfficialOutcome {
-    let done = |auth| OfficialOutcome {
-        auth,
-        missing: None,
-    };
-    if is_api_key_credential(row_auth) {
-        if let Some(live) = native.filter(|live| *live != row_auth) {
-            stash.put(live);
-        }
-        return done(Some(Some(row_auth.clone())));
-    }
-
-    let wanted = login_ref
-        .map(str::to_string)
-        .or_else(|| oauth_identity(row_auth));
-    let missing = |id: &str| login_ref.is_some().then(|| id.to_string());
-    if let Some(live) = native {
-        // 卡没指定登录：跟随 Codex 当前的登录。指定的就是当前这个人：不动。
-        let Some(id) = wanted.filter(|id| identity(live) != *id) else {
-            return done(None);
-        };
-        // 指定的是另一个人：暂存里有他才换，否则不动（快照可能早已作废，也可能是在
-        // Codex 里登出了）。旧版漏掉的 workspace 在读暂存时补回（见 `LoginStash::upgraded`）。
-        let Some(saved) = stash.take(&id) else {
-            return OfficialOutcome {
-                auth: None,
-                missing: missing(&id),
-            };
-        };
-        stash.put(live);
-        return done(Some(Some(saved)));
-    }
-
-    let restored = match &wanted {
-        Some(id) => stash.take(id),
-        None => stash.last.clone().and_then(|id| stash.take(&id)),
-    };
-    match restored {
-        Some(saved) => done(Some(Some(saved))),
-        None => OfficialOutcome {
-            auth: clearable.then_some(None),
-            missing: wanted.as_deref().and_then(missing),
-        },
-    }
-}
-
-/// 暂存和 live 里能被官方卡引用的登录（OAuth 登录，不含 API Key）。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LoginSummary {
@@ -384,426 +247,25 @@ pub struct LoginSummary {
     pub email: Option<String>,
     pub workspace: Option<String>,
     pub plan: Option<String>,
-    /// 现在就在 `auth.json` 里。
     pub live: bool,
 }
-
 pub fn summarize(auth: &Value, live: bool) -> Option<LoginSummary> {
-    let identity = oauth_identity(auth)?;
     let claims = auth
         .pointer("/tokens/id_token")
         .and_then(Value::as_str)
-        .and_then(crate::codex::auth::jwt_claims)
+        .and_then(jwt_claims)
         .unwrap_or(Value::Null);
-    let text = |value: Option<&Value>| value.and_then(Value::as_str).map(str::to_string);
+    let string = |v: Option<&Value>| v.and_then(Value::as_str).map(str::to_string);
     Some(LoginSummary {
-        identity,
-        email: text(claims.get("email")),
-        workspace: text(auth.pointer("/tokens/account_id")),
-        plan: text(
+        identity: login_id(auth)?,
+        email: string(claims.get("email")),
+        workspace: string(auth.pointer("/tokens/account_id")),
+        plan: string(
             claims
-                .pointer("/https:~1~1api.openai.com~1auth/chatgpt_plan_type")
+                .get("https://api.openai.com/auth")
+                .and_then(|v| v.get("chatgpt_plan_type"))
                 .or_else(|| claims.get("chatgpt_plan_type")),
         ),
         live,
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-
-    /// 一个人一个 workspace 的登录（id_token 是真的 JWT，和 Codex 写出的一样能解出用户）。
-    fn login(account: &str) -> Value {
-        workspace_login(&format!("user-{account}"), account)
-    }
-
-    fn workspace_login(user: &str, account: &str) -> Value {
-        json!({
-            "auth_mode": "chatgpt",
-            "OPENAI_API_KEY": null,
-            "tokens": {
-                "id_token": crate::codex::auth::test_codex_id_token(user),
-                "access_token": format!("access-{account}"),
-                "refresh_token": format!("refresh-{account}"),
-                "account_id": account,
-            },
-        })
-    }
-
-    fn key(account: &str) -> String {
-        format!("sub:user-{account}|account:{account}")
-    }
-
-    fn input<'a>(
-        live: Option<&'a Value>,
-        target: AuthTarget<'a>,
-        stash: LoginStash,
-    ) -> AuthInput<'a> {
-        AuthInput {
-            live,
-            live_is_managed: false,
-            third_party_keys: &[],
-            leaving_official: None,
-            leaving_official_ref: None,
-            official_api_keys: &[],
-            target,
-            stash,
-        }
-    }
-
-    fn ready() -> LoginStash {
-        LoginStash {
-            version: STASH_VERSION,
-            initialized: true,
-            ..LoginStash::default()
-        }
-    }
-
-    #[test]
-    fn preservation_off_stashes_the_login_and_gives_it_back_on_the_way_to_official() {
-        let alice = login("alice");
-        let empty = json!({});
-
-        let away = plan(input(
-            Some(&alice),
-            AuthTarget::ThirdParty { preserve: false },
-            ready(),
-        ));
-        assert_eq!(away.auth, Some(None), "auth.json is deleted");
-        assert!(!away.login_on_disk);
-        let stash = away.stash.expect("login stashed");
-
-        let back = plan(input(
-            None,
-            AuthTarget::Official {
-                row_auth: &empty,
-                login_ref: None,
-            },
-            stash,
-        ));
-        assert_eq!(back.auth, Some(Some(alice)), "the same login comes back");
-        assert!(back.stash.expect("stash emptied").logins.is_empty());
-    }
-
-    #[test]
-    fn preservation_on_leaves_the_login_alone() {
-        let alice = login("alice");
-        let away = plan(input(
-            Some(&alice),
-            AuthTarget::ThirdParty { preserve: true },
-            ready(),
-        ));
-        assert_eq!(away.auth, None);
-        assert!(away.login_on_disk);
-        assert_eq!(away.stash, None);
-    }
-
-    #[test]
-    fn logging_out_on_the_official_card_sticks() {
-        let alice = login("alice");
-        let empty = json!({});
-        let mut stash = ready();
-        stash.put(&alice);
-
-        // 在官方卡上登出后切走：暂存里的登录作废。
-        let away = plan(AuthInput {
-            leaving_official: Some(&empty),
-            ..input(None, AuthTarget::ThirdParty { preserve: false }, stash)
-        });
-        let stash = away.stash.expect("stash updated");
-        assert!(stash.logins.is_empty());
-
-        let back = plan(input(
-            None,
-            AuthTarget::Official {
-                row_auth: &empty,
-                login_ref: None,
-            },
-            stash,
-        ));
-        assert_eq!(back.auth, None, "stays logged out");
-    }
-
-    #[test]
-    fn stale_row_snapshots_are_only_a_one_time_seed() {
-        let alice = login("alice");
-        let stash = LoginStash::seeded_from_rows([&alice]);
-        assert!(!stash.initialized);
-
-        // 升级前切到第三方时旧版删了 auth.json、把登录回填进了官方行：第一次切回官方时还回去。
-        let back = plan(input(
-            None,
-            AuthTarget::Official {
-                row_auth: &alice,
-                login_ref: None,
-            },
-            stash,
-        ));
-        assert_eq!(back.auth, Some(Some(alice.clone())));
-        let stash = back.stash.expect("stash file created");
-        assert!(stash.initialized && stash.logins.is_empty());
-
-        // 之后在 Codex 里登出，再切回这张卡：行里的旧快照不再使用。
-        let again = plan(input(
-            None,
-            AuthTarget::Official {
-                row_auth: &alice,
-                login_ref: None,
-            },
-            stash,
-        ));
-        assert_eq!(again.auth, None);
-    }
-
-    #[test]
-    fn switching_between_official_cards_of_different_accounts_swaps_logins() {
-        let alice = login("alice");
-        let bob = login("bob");
-        let stash = LoginStash::seeded_from_rows([&alice, &bob]);
-
-        let to_bob = plan(input(
-            Some(&alice),
-            AuthTarget::Official {
-                row_auth: &bob,
-                login_ref: None,
-            },
-            stash,
-        ));
-        assert_eq!(to_bob.auth, Some(Some(bob.clone())));
-        let stash = to_bob.stash.unwrap();
-        assert!(stash.logins.contains_key(&key("alice")), "alice stashed");
-
-        // bob 的登录在 live 里被 CLI 轮换过：切回 alice 时存下的是轮换后的那份。
-        let mut rotated_bob = bob.clone();
-        rotated_bob["tokens"]["refresh_token"] = json!("refresh-bob-2");
-        let to_alice = plan(input(
-            Some(&rotated_bob),
-            AuthTarget::Official {
-                row_auth: &alice,
-                login_ref: None,
-            },
-            stash,
-        ));
-        assert_eq!(to_alice.auth, Some(Some(alice)));
-        assert_eq!(
-            to_alice.stash.unwrap().logins[&key("bob")],
-            rotated_bob,
-            "the rotated login is what gets stashed"
-        );
-    }
-
-    /// #8054：同一个邮箱登录的 Plus 和 Team 用户相同、workspace 不同，是两个登录。
-    #[test]
-    fn workspaces_of_the_same_person_are_separate_logins() {
-        let plus = workspace_login("same-person", "ws-plus");
-        let team = workspace_login("same-person", "ws-team");
-        let stash = LoginStash::seeded_from_rows([&plus, &team]);
-        assert_eq!(stash.logins.len(), 2, "both workspaces are seeded");
-
-        let to_team = plan(input(
-            Some(&plus),
-            AuthTarget::Official {
-                row_auth: &team,
-                login_ref: None,
-            },
-            stash,
-        ));
-        assert_eq!(to_team.auth, Some(Some(team.clone())));
-        let stash = to_team.stash.unwrap();
-        assert_eq!(
-            stash.logins["sub:same-person|account:ws-plus"], plus,
-            "the Plus login is stashed, not taken for the Team one"
-        );
-
-        let back = plan(input(
-            Some(&team),
-            AuthTarget::Official {
-                row_auth: &plus,
-                login_ref: None,
-            },
-            stash,
-        ));
-        assert_eq!(back.auth, Some(Some(plus)));
-    }
-
-    /// 在官方卡上登出、切到别人再切回来：行里的旧快照不拿来用，登出不复活。
-    #[test]
-    fn a_logged_out_login_is_not_revived_from_the_row() {
-        let alice = login("alice");
-        let bob = login("bob");
-        let mut stash = ready();
-        stash.put(&bob);
-
-        let to_bob = plan(AuthInput {
-            leaving_official: Some(&alice),
-            ..input(
-                None,
-                AuthTarget::Official {
-                    row_auth: &bob,
-                    login_ref: None,
-                },
-                stash,
-            )
-        });
-        assert_eq!(to_bob.auth, Some(Some(bob.clone())));
-
-        let back = plan(input(
-            Some(&bob),
-            AuthTarget::Official {
-                row_auth: &alice,
-                login_ref: None,
-            },
-            to_bob.stash.unwrap(),
-        ));
-        assert_eq!(back.auth, None, "alice stays logged out");
-    }
-
-    /// 4.0.7 以前写的暂存：key 只有用户，同一个人的几个 workspace 只剩一份。
-    fn stash_file(logins: Value) -> LoginStash {
-        serde_json::from_value(json!({ "logins": logins })).unwrap()
-    }
-
-    #[test]
-    fn older_stash_files_get_the_merged_workspaces_back_from_the_rows() {
-        let plus = workspace_login("same-person", "ws-plus");
-        let team1 = workspace_login("same-person", "ws-team1");
-        let team2 = workspace_login("same-person", "ws-team2");
-        let mut team1_row = team1.clone();
-        team1_row["tokens"]["refresh_token"] = json!("refresh-old");
-
-        let stash = stash_file(json!({ "sub:same-person": team1 }))
-            .loaded([&plus, &team1_row, &team2], Some(&plus));
-        assert_eq!(stash.version, STASH_VERSION);
-        assert!(!stash.initialized, "the upgraded stash is written once");
-        assert_eq!(
-            stash.logins.keys().collect::<Vec<_>>(),
-            [
-                "sub:same-person|account:ws-team1",
-                "sub:same-person|account:ws-team2"
-            ],
-            "the live workspace is not stashed"
-        );
-        assert_eq!(
-            stash.logins["sub:same-person|account:ws-team1"], team1,
-            "the stash beats the row snapshot"
-        );
-
-        let to_team2 = plan(input(
-            Some(&plus),
-            AuthTarget::Official {
-                row_auth: &team2,
-                login_ref: None,
-            },
-            stash,
-        ));
-        assert_eq!(to_team2.auth, Some(Some(team2)));
-    }
-
-    #[test]
-    fn upgrading_an_older_stash_does_not_revive_logged_out_people() {
-        let alice = login("alice");
-        let bob = login("bob");
-        // alice 在 Codex 里登出后切到了 bob：暂存里没有她，live 里是 bob。
-        let stash = stash_file(json!({})).loaded([&alice, &bob], Some(&bob));
-        assert!(stash.logins.is_empty());
-    }
-
-    #[test]
-    fn upgraded_stash_files_are_left_as_they_are() {
-        let plus = workspace_login("same-person", "ws-plus");
-        let team = workspace_login("same-person", "ws-team");
-        let stash = ready().loaded([&plus, &team], Some(&plus));
-        assert!(stash.initialized);
-        assert!(
-            stash.logins.is_empty(),
-            "a later logout of the Team login sticks"
-        );
-    }
-
-    #[test]
-    fn a_card_without_its_own_login_follows_the_live_one() {
-        let alice = login("alice");
-        let empty = json!({});
-        let plan = plan(input(
-            Some(&alice),
-            AuthTarget::Official {
-                row_auth: &empty,
-                login_ref: None,
-            },
-            ready(),
-        ));
-        assert_eq!(plan.auth, None);
-    }
-
-    #[test]
-    fn an_api_key_official_card_always_writes_its_key_and_stashes_the_login() {
-        let alice = login("alice");
-        let api = json!({ "OPENAI_API_KEY": "sk-openai" });
-        let plan = plan(input(
-            Some(&alice),
-            AuthTarget::Official {
-                row_auth: &api,
-                login_ref: None,
-            },
-            ready(),
-        ));
-        assert_eq!(plan.auth, Some(Some(api)));
-        assert!(plan.stash.unwrap().logins.contains_key(&key("alice")));
-    }
-
-    #[test]
-    fn only_provable_residue_is_deleted() {
-        let empty = json!({});
-        let keys = vec!["sk-relay".to_string()];
-        let residue = json!({ "OPENAI_API_KEY": "sk-relay" });
-        let own = json!({ "OPENAI_API_KEY": "sk-my-own-openai-key" });
-
-        let cleared = plan(AuthInput {
-            third_party_keys: &keys,
-            ..input(
-                Some(&residue),
-                AuthTarget::Official {
-                    row_auth: &empty,
-                    login_ref: None,
-                },
-                ready(),
-            )
-        });
-        assert_eq!(cleared.auth, Some(None), "old third-party key is removed");
-
-        let kept = plan(AuthInput {
-            third_party_keys: &keys,
-            ..input(
-                Some(&own),
-                AuthTarget::Official {
-                    row_auth: &empty,
-                    login_ref: None,
-                },
-                ready(),
-            )
-        });
-        assert_eq!(kept.auth, None, "the user's own API key login stays");
-    }
-
-    #[test]
-    fn managed_logins_are_cleared_and_never_stashed() {
-        let managed = login("managed");
-        let empty = json!({});
-        for target in [
-            AuthTarget::ThirdParty { preserve: true },
-            AuthTarget::Official {
-                row_auth: &empty,
-                login_ref: None,
-            },
-        ] {
-            let plan = plan(AuthInput {
-                live_is_managed: true,
-                ..input(Some(&managed), target, ready())
-            });
-            assert_eq!(plan.auth, Some(None), "{target:?}");
-            assert_eq!(plan.stash, None, "{target:?}");
-        }
-    }
 }

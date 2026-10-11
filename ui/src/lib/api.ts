@@ -129,9 +129,36 @@ export interface ImportCandidate {
 }
 
 export interface ImportScan {
+  directory?: string;
   source: string | null;
   candidates: ImportCandidate[];
   accounts: number;
+}
+
+export interface BackupPreview {
+  createdAt: number;
+  items: { tool: ToolId; id: string; name: string; duplicate: boolean }[];
+  accounts: number;
+  existingAccounts: number;
+  hasSettings: boolean;
+  hasPaths: boolean;
+}
+
+export interface RestoreOptions {
+  tools: ToolId[];
+  accounts: boolean;
+  settings: boolean;
+  paths: boolean;
+  duplicate: DuplicatePolicy;
+}
+
+export interface RestoreReport {
+  providersAdded: number;
+  providersSkipped: number;
+  accountsAdded: number;
+  settingsRestored: boolean;
+  dirsChanged: boolean;
+  failures: string[];
 }
 
 export interface ImportReport {
@@ -178,6 +205,10 @@ export interface ExportReport {
 }
 
 export const api = {
+  backupSave: (password: string) => invoke<string | null>("backup_save", { password }),
+  backupLoad: (bytes: Uint8Array, password: string) => invoke<BackupPreview>("backup_load", { bytes: Array.from(bytes), password }),
+  backupApply: (options: RestoreOptions) => invoke<RestoreReport>("backup_apply", { options }),
+  backupDiscard: () => invoke<void>("backup_discard"),
   recoveryNotices: () => invoke<string[]>("get_recovery_notices"),
   overview: () => invoke<ToolSummary[]>("get_overview"),
   listProviders: (tool: ToolId) => invoke<ToolProviders>("list_providers", { tool }),
@@ -202,8 +233,8 @@ export const api = {
   saveSettings: (app: AppSettings, keepCodexLogin: boolean) =>
     invoke<{ dirsChanged: boolean }>("save_settings", { input: { app, keepCodexLogin } }),
   ccswitchScan: (dir?: string) => invoke<ImportScan>("ccswitch_scan", { dir: dir ?? null }),
-  ccswitchApply: (tools: ToolId[], dir?: string) =>
-    invoke<ImportReport>("ccswitch_apply", { tools, dir: dir ?? null }),
+  ccswitchApply: (tools: ToolId[], dir?: string, accounts = true) =>
+    invoke<ImportReport>("ccswitch_apply", { tools, dir: dir ?? null, accounts }),
   /** 文件原始字节作为请求体发给后端（不经 JSON），后端暂存等确认。 */
   exportLoad: (bytes: Uint8Array, policy: DuplicatePolicy) =>
     invoke<ExportPreview>("ccswitch_export_load", bytes, { headers: { "x-duplicate-policy": policy } }),

@@ -21,7 +21,7 @@ impl Sandbox {
     }
 
     fn command(&self, args: &[&str]) -> Command {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_ccsl"));
+        let mut command = Command::new(env!("CARGO_BIN_EXE_leanflip"));
         command.arg("--home").arg(&self.env.home).args(args);
         // --home must isolate this process even if its parent uses another tool home.
         command.env("CODEX_HOME", self.dir.path().join("unrelated-codex"));
@@ -77,6 +77,20 @@ fn human(output: Output) -> String {
         String::from_utf8_lossy(&output.stderr)
     );
     String::from_utf8(output.stdout).unwrap()
+}
+
+#[test]
+fn renamed_entrypoint_shows_its_version_and_read_only_quick_start() {
+    let sb = Sandbox::new();
+    let version = human(sb.run(&["--version"]));
+    assert_eq!(
+        version.trim(),
+        format!("leanflip {}", env!("CARGO_PKG_VERSION"))
+    );
+    let help = human(sb.run(&[]));
+    assert!(help.contains("LeanFlip · 快速入门") && help.contains("leanflip status"));
+    sb.ok(&["status", "--json"]);
+    assert!(snapshot(&sb.env.home).is_empty());
 }
 
 fn snapshot(root: &Path) -> BTreeMap<PathBuf, Option<Vec<u8>>> {
@@ -368,17 +382,17 @@ fn human_empty_states_provide_next_steps_in_both_languages_without_writes() {
     let sb = Sandbox::new();
     let zh = human(sb.run(&["list", "codex"]));
     assert!(zh.contains("暂无供应商"));
-    assert!(zh.contains("ccsl import live codex"));
+    assert!(zh.contains("leanflip import live codex"));
     assert!(
         zh.contains("--home"),
         "follow-up hints must retain the selected environment"
     );
     let en = human(sb.run(&["list", "codex", "--lang", "en"]));
     assert!(en.contains("No providers yet"));
-    assert!(en.contains("ccsl provider add codex --file provider.json"));
+    assert!(en.contains("leanflip provider add codex --file provider.json"));
     let accounts = human(sb.run(&["accounts", "list"]));
     assert!(accounts.contains("暂无托管账号"));
-    assert!(accounts.contains("ccsl accounts login"));
+    assert!(accounts.contains("leanflip accounts login"));
     let status = human(sb.run(&["status"]));
     assert!(status.contains("工具概览") && status.contains("尚未选择"));
     assert!(!status.contains("false") && !status.contains("null"));
@@ -405,7 +419,7 @@ fn human_list_uses_tool_specific_state_and_keeps_full_identifiers() {
     assert!(narrow.contains("中文供应商"));
     assert!(narrow.contains("未选中"));
     assert!(!narrow.contains("null") && !narrow.contains("false"));
-    assert!(narrow.contains("ccsl use claude"));
+    assert!(narrow.contains("leanflip use claude"));
     store::add_provider(
         &sb.env,
         Tool::OpenCode,
@@ -419,7 +433,7 @@ fn human_list_uses_tool_specific_state_and_keeps_full_identifiers() {
     sb.write(&sb.env.opencode_config_path(), b"{secret-config-parser");
     let unreadable = human(sb.run(&["list", "opencode"]));
     assert!(unreadable.contains("无法读取"));
-    assert!(unreadable.contains("ccsl paths opencode"));
+    assert!(unreadable.contains("leanflip paths opencode"));
     assert!(!unreadable.contains("secret-config-parser"));
 }
 
@@ -430,13 +444,13 @@ fn help_is_localized_and_includes_actionable_examples_without_loading_config() {
     let before = snapshot(&sb.env.home);
     let zh = human(sb.run(&["--help"]));
     assert!(zh.contains("用法：") && zh.contains("示例："));
-    assert!(zh.contains("ccsl list codex") && zh.contains("--lang"));
+    assert!(zh.contains("leanflip list codex") && zh.contains("--lang"));
     assert!(!zh.contains("Options:") && !zh.contains("Print help"));
     let en = human(sb.run(&["--lang", "en", "import", "file", "--help"]));
     assert!(en.contains("Examples:"));
     assert!(en.contains("--apply --tool codex"));
     let zh_sub = human(sb.run(&["import", "file", "--lang=zh", "--help"]));
-    assert!(zh_sub.contains("仅预览，不保存") && zh_sub.contains("保存导入卡片"));
+    assert!(zh_sub.contains("仅预览，不保存") && zh_sub.contains("确认写入所选数据"));
     assert_eq!(snapshot(&sb.env.home), before);
 }
 
@@ -490,12 +504,12 @@ fn missing_commands_show_help_without_opening_configuration_and_json_stays_an_er
     );
     let before = snapshot(&sb.env.home);
     let quick_start = human(sb.run(&[]));
-    assert!(quick_start.contains("快速入门") && quick_start.contains("ccsl status"));
+    assert!(quick_start.contains("快速入门") && quick_start.contains("leanflip status"));
     assert!(!quick_start.contains("错误 [") && !quick_start.contains("private-invalid"));
     let english = human(sb.run(&["--lang", "en"]));
     assert!(english.contains("Quick start") && english.contains("Examples:"));
     let group = human(sb.run(&["provider"]));
-    assert!(group.contains("ccsl provider") && group.contains("新增、更新或删除"));
+    assert!(group.contains("leanflip provider") && group.contains("新增、更新或删除"));
     for args in [
         vec!["--json"],
         vec!["provider", "--json"],
@@ -507,7 +521,7 @@ fn missing_commands_show_help_without_opening_configuration_and_json_stays_an_er
         let error: Value = serde_json::from_slice(&result.stderr).unwrap();
         assert_eq!(
             error,
-            json!({"ok":false,"error":{"code":"invalid_arguments","message":"Invalid arguments. Run ccsl --help or ccsl <command> --help for usage."}})
+            json!({"ok":false,"error":{"code":"invalid_arguments","message":"Invalid arguments. Run leanflip --help or leanflip <command> --help for usage."}})
         );
     }
     assert_eq!(snapshot(&sb.env.home), before);
@@ -519,11 +533,11 @@ fn argument_errors_show_only_recognized_command_help_and_never_raw_arguments() {
     for (args, usage) in [
         (
             vec!["list", "private-invalid-tool"],
-            "ccsl list [OPTIONS] <TOOL>",
+            "leanflip list [OPTIONS] <TOOL>",
         ),
         (
             vec!["provider", "add", "private-invalid-tool"],
-            "ccsl provider add [OPTIONS] <TOOL>",
+            "leanflip provider add [OPTIONS] <TOOL>",
         ),
         (
             vec![
@@ -534,11 +548,11 @@ fn argument_errors_show_only_recognized_command_help_and_never_raw_arguments() {
                 "private-provider-path",
                 "--private-unknown-flag",
             ],
-            "ccsl provider update [OPTIONS] <TOOL>",
+            "leanflip provider update [OPTIONS] <TOOL>",
         ),
         (
             vec!["accounts", "login", "--timeout", "private-invalid-timeout"],
-            "ccsl accounts login [OPTIONS]",
+            "leanflip accounts login [OPTIONS]",
         ),
         (
             vec![
@@ -548,9 +562,12 @@ fn argument_errors_show_only_recognized_command_help_and_never_raw_arguments() {
                 "--preview",
                 "--apply",
             ],
-            "ccsl import file [OPTIONS] <PATH>",
+            "leanflip import file [OPTIONS] <PATH>",
         ),
-        (vec!["provider", "private-invalid-action"], "ccsl provider"),
+        (
+            vec!["provider", "private-invalid-action"],
+            "leanflip provider",
+        ),
     ] {
         let result = sb.run(&args);
         assert_eq!(result.status.code(), Some(2));
@@ -568,7 +585,7 @@ fn argument_errors_show_only_recognized_command_help_and_never_raw_arguments() {
     }
     let en = sb.run(&["--lang", "en", "list"]);
     let text = String::from_utf8(en.stderr).unwrap();
-    assert!(text.contains("Usage: ccsl list") && text.contains("Examples:"));
+    assert!(text.contains("Usage: leanflip list") && text.contains("Examples:"));
     assert!(snapshot(&sb.env.home).is_empty());
 }
 
@@ -611,6 +628,8 @@ fn interactive_menu_requires_a_terminal_and_never_consumes_piped_input() {
         vec!["menu"],
         vec!["menu", "codex"],
         vec!["ui", "--lang", "en"],
+        vec!["tui"],
+        vec!["tui", "codex", "--lang", "en"],
     ] {
         let output = sb.run(&args);
         assert_eq!(output.status.code(), Some(2));
@@ -626,6 +645,12 @@ fn interactive_menu_requires_a_terminal_and_never_consumes_piped_input() {
     let error: Value = serde_json::from_slice(&output.stderr).unwrap();
     assert_eq!(error["error"]["code"], "invalid_arguments");
     assert!(snapshot(&sb.env.home).is_empty());
+    let output = sb.run(&["tui", "--json"]);
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
+    let error: Value = serde_json::from_slice(&output.stderr).unwrap();
+    assert_eq!(error["error"]["code"], "invalid_arguments");
+    assert!(snapshot(&sb.env.home).is_empty());
 }
 
 #[test]
@@ -633,6 +658,90 @@ fn interactive_help_is_bilingual_and_plain_no_argument_help_stays_noninteractive
     let sb = Sandbox::new();
     assert!(human(sb.run(&["menu", "--help"])).contains("交互菜单"));
     assert!(human(sb.run(&["menu", "--help", "--lang", "en"])).contains("searchable menu"));
+    assert!(human(sb.run(&["tui", "--help"])).contains("全屏终端工作台"));
+    assert!(human(sb.run(&["tui", "--help", "--lang", "en"])).contains("full-screen terminal"));
     assert!(human(sb.run(&[])).contains("快速入门"));
     assert!(snapshot(&sb.env.home).is_empty());
+}
+
+#[test]
+fn local_ccswitch_migration_previews_without_writes_and_preserves_source() {
+    let sb = Sandbox::new();
+    let source = sb.env.home.join(".cc-switch/config.json");
+    sb.write(&source, json!({"claude":{"providers":{"imported":{"name":"Local fixture","settingsConfig":{"env":{"ANTHROPIC_AUTH_TOKEN":"private-migration-fixture"}}}}}}).to_string());
+    let before = snapshot(&sb.env.home);
+    let output = sb.run(&["import", "local", "--json"]);
+    assert!(!String::from_utf8_lossy(&output.stdout).contains("private-migration-fixture"));
+    let preview = success(output);
+    assert_eq!(preview["items"][0]["id"], "imported");
+    assert_eq!(snapshot(&sb.env.home), before);
+    let applied = sb.ok(&["import", "local", "--apply", "--tool", "claude", "--json"]);
+    assert_eq!(applied["created"].as_array().unwrap().len(), 1);
+    assert_eq!(fs::read(&source).unwrap(), before[&source].clone().unwrap());
+    assert!(!sb.env.claude_settings_path().exists());
+    assert_eq!(
+        sb.ok(&["import", "local", "--apply", "--json"])["created"],
+        json!([])
+    );
+}
+
+#[test]
+fn encrypted_cli_backup_roundtrip_and_scope_preview_are_secret_safe() {
+    let source = Sandbox::new();
+    let target = Sandbox::new();
+    let mut data = store::StoreData::default();
+    data.app_mut(Tool::Claude).providers.push(serde_json::from_value(json!({"id":"fixture", "name":"Work", "settingsConfig":{"env":{"ANTHROPIC_AUTH_TOKEN":"fixture-encrypted-key"}}})).unwrap());
+    store::update(&source.env, |target| {
+        *target = data;
+        Ok(())
+    })
+    .unwrap();
+    let pass = source.dir.path().join("passphrase");
+    source.write(&pass, "fixture-private-passphrase\n");
+    let backup = source.dir.path().join("backup.leanflip");
+    source.ok(&[
+        "export",
+        backup.to_str().unwrap(),
+        "--password-file",
+        pass.to_str().unwrap(),
+        "--json",
+    ]);
+    let before = snapshot(&target.env.home);
+    let preview = target.ok(&[
+        "import",
+        "backup",
+        backup.to_str().unwrap(),
+        "--password-file",
+        pass.to_str().unwrap(),
+        "--no-accounts",
+        "--no-settings",
+        "--tool",
+        "claude",
+        "--json",
+    ]);
+    assert_eq!(preview["selection"]["tools"], json!(["claude"]));
+    assert_eq!(preview["selection"]["paths"], false);
+    assert!(!preview.to_string().contains("fixture-encrypted-key"));
+    assert_eq!(snapshot(&target.env.home), before);
+    let report = target.ok(&[
+        "import",
+        "backup",
+        backup.to_str().unwrap(),
+        "--password-file",
+        pass.to_str().unwrap(),
+        "--apply",
+        "--json",
+    ]);
+    assert_eq!(report["providersAdded"], 1);
+    assert!(!target.env.claude_settings_path().exists());
+    assert_eq!(
+        store::load_readonly(&target.env)
+            .unwrap()
+            .providers(Tool::Claude)[0]
+            .settings_config["env"]["ANTHROPIC_AUTH_TOKEN"],
+        "fixture-encrypted-key"
+    );
+    let missing_password = target.run(&["import", "backup", backup.to_str().unwrap(), "--json"]);
+    assert!(!missing_password.status.success());
+    assert!(String::from_utf8_lossy(&missing_password.stderr).contains("backup.password_required"));
 }

@@ -237,7 +237,13 @@ fn device_flow_adds_plus_and_team_as_two_accounts_and_rejects_duplicates() {
     let dup = w
         .mgr
         .add_account_from_tokens(&w.fake.issue(&bob_team()), None);
-    assert!(dup.unwrap_err().to_string().contains("已经添加过"));
+    assert!(matches!(
+        dup.unwrap_err(),
+        ccsl_core::AppError::Localized {
+            key: "codex.oauth.duplicate_account",
+            ..
+        }
+    ));
     w.add_account(&carol_team());
     assert_eq!(w.mgr.list_accounts().len(), 3);
 
@@ -273,7 +279,13 @@ fn reauth_updates_the_account_in_place_and_refuses_another_user() {
         .mgr
         .add_account_from_tokens(&w.fake.issue(&carol_team()), Some(&id))
         .unwrap_err();
-    assert!(err.to_string().contains("无法确认"), "{err}");
+    assert!(matches!(
+        err,
+        ccsl_core::AppError::Localized {
+            key: "codex.oauth.reauth_user_mismatch",
+            ..
+        }
+    ));
     let err = w
         .mgr
         .add_account_from_tokens(&w.fake.issue(&bob_plus()), Some(&id))
@@ -442,7 +454,13 @@ fn an_ambiguous_generation_refuses_to_switch_away() {
         let before_manager = w.manager_refresh(&bp);
 
         let err = w.try_go("official").unwrap_err();
-        assert!(err.to_string().contains("无法安全判断"), "{err}");
+        assert!(matches!(
+            err,
+            ccsl_core::AppError::Localized {
+                key: "codex.oauth.ambiguous_generation",
+                ..
+            }
+        ));
         assert_eq!(w.live(), Some(live), "nothing was deleted");
         assert!(w.marker().is_some());
         assert_eq!(w.manager_refresh(&bp), before_manager);
@@ -593,7 +611,13 @@ fn removing_an_account_clears_its_live_login_and_unbinds_safely() {
     assert_eq!(w.live(), Some(native(&alice_plus(), 1)));
     // 切回去：账号没了，拒绝，什么都不改。
     let err = w.try_go("bob-plus").unwrap_err();
-    assert!(err.to_string().contains("找不到托管"), "{err}");
+    assert!(matches!(
+        err,
+        ccsl_core::AppError::Localized {
+            key: "codex.oauth.account_not_found",
+            ..
+        }
+    ));
     assert_eq!(w.live(), Some(native(&alice_plus(), 1)));
     assert_eq!(w.sb.current(Tool::Codex).as_deref(), Some("official"));
 }

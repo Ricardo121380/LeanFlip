@@ -1,12 +1,7 @@
-//! OpenAI OAuth 的网络部分被抽成 [`OAuthTransport`]：核心库不联网、不带 HTTP 客户端，
-//! 桌面应用（Phase 3）用 reqwest 实现它；测试用假的实现，注入轮换、拒绝、并发刷新。
-//!
-//! 端点和参数和 cc-switch `proxy/providers/codex_oauth_auth.rs` 一致，写在 [`endpoints`]
-//! 里给实现方用。
-
+//! Network and clock interfaces; endpoint strings describe the Codex device protocol.
 use serde::{Deserialize, Serialize};
 
-/// OpenAI 设备码登录的端点和参数（实现 [`OAuthTransport`] 时用）。
+/// Public protocol endpoints used by the HTTP adapter.
 pub mod endpoints {
     pub const CLIENT_ID: &str = "app_EMoamEEZ73f0CkXaXp7hrann";
     pub const DEVICE_AUTH_USERCODE_URL: &str =

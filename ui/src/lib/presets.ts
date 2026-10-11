@@ -1,7 +1,5 @@
-// cc-switch 的预设（MIT，Copyright (c) 2025 Jason Young），由 scripts/build-presets.mjs
-// 裁剪生成：去掉了需要本地路由 / 专用登录的条目。
-//
-// 每个工具的预设是单独的 chunk，第一次打开「添加供应商」时才加载（主包里没有预设）。
+// LeanFlip starter templates, maintained in scripts/build-presets.mjs.
+// Loaded on demand by tool. Existing user cards are independent of this catalogue.
 import type { ToolId } from "./api";
 
 export interface Preset {

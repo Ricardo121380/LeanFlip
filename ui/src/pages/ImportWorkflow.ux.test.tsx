@@ -47,17 +47,18 @@ describe("local import source consistency", () => {
     const fake = use({ ccswitch_scan: () => scan, ccswitch_apply: () => ({ created: [["claude", "relay"]], skipped: [], accountsAdded: [] }) });
     renderWithClient(<ImportWizard />);
     expect(screen.queryByRole("button", { name: "选择导出文件…" })).not.toBeInTheDocument();
+    await user.click(screen.getByText("手动指定数据目录"));
     const dir = screen.getByLabelText("cc-switch 数据目录");
     await user.type(dir, "/first");
-    await user.click(screen.getByRole("button", { name: "扫描" }));
+    await user.click(screen.getByRole("button", { name: "检测本机 CC Switch" }));
     expect(await screen.findByRole("button", { name: "导入所选工具" })).toBeEnabled();
     await user.clear(dir);
     await user.type(dir, "/second");
     expect(screen.queryByRole("button", { name: "导入所选工具" })).not.toBeInTheDocument();
     expect(screen.queryByText("Relay")).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "扫描" }));
+    await user.click(screen.getByRole("button", { name: "检测本机 CC Switch" }));
     await user.click(await screen.findByRole("button", { name: "导入所选工具" }));
-    await waitFor(() => expect(fake.calls.find((call) => call.cmd === "ccswitch_apply")?.args).toEqual({ tools: ["claude"], dir: "/second" }));
+    await waitFor(() => expect(fake.calls.find((call) => call.cmd === "ccswitch_apply")?.args).toEqual({ tools: ["claude"], dir: "/second", accounts: true }));
   });
 
   it("clears a previous scan when rescanning fails and recovers with an explicit retry", async () => {
@@ -65,9 +66,9 @@ describe("local import source consistency", () => {
     let attempts = 0;
     use({ ccswitch_scan: () => { if (++attempts === 2) throw new Error("read denied"); return scan; } });
     renderWithClient(<ImportWizard />);
-    await user.click(screen.getByRole("button", { name: "扫描" }));
+    await user.click(screen.getByRole("button", { name: "检测本机 CC Switch" }));
     await screen.findByRole("button", { name: "导入所选工具" });
-    await user.click(screen.getByRole("button", { name: "扫描" }));
+    await user.click(screen.getByRole("button", { name: "检测本机 CC Switch" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("read denied");
     expect(screen.queryByRole("button", { name: "导入所选工具" })).not.toBeInTheDocument();
     expect(screen.queryByText("Relay")).not.toBeInTheDocument();
@@ -81,19 +82,19 @@ describe("local import source consistency", () => {
     let finish!: (value: unknown) => void;
     const fake = use({ ccswitch_scan: () => ({ source: null, candidates: [], accounts: 2 }), ccswitch_apply: () => new Promise((resolve) => { finish = resolve; }) });
     renderWithClient(<ImportWizard />);
+    await user.click(screen.getByText("手动指定数据目录"));
     const dir = screen.getByLabelText("cc-switch 数据目录");
     await user.type(dir, "/accounts-only");
-    await user.click(screen.getByRole("button", { name: "扫描" }));
+    await user.click(screen.getByRole("button", { name: "检测本机 CC Switch" }));
     const codex = await screen.findByRole("checkbox", { name: "导入 Codex" });
-    expect(codex).not.toBeChecked();
+    expect(codex).toBeChecked();
     expect(screen.queryByText("没有找到 cc-switch 数据。")).not.toBeInTheDocument();
-    await user.click(codex);
     expect(screen.getByText("已选择 0 张卡、2 个账号")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "导入所选工具" }));
     expect(dir).toBeDisabled();
     expect(codex).toBeDisabled();
-    expect(screen.getByRole("tab", { name: "导出文件" })).toBeDisabled();
-    expect(fake.calls.find((call) => call.cmd === "ccswitch_apply")?.args).toEqual({ tools: ["codex"], dir: "/accounts-only" });
+    expect(screen.getByRole("tab", { name: "导入文件" })).toBeDisabled();
+    expect(fake.calls.find((call) => call.cmd === "ccswitch_apply")?.args).toEqual({ tools: ["codex"], dir: "/accounts-only", accounts: true });
     await act(async () => finish({ created: [], skipped: [], accountsAdded: ["a", "b"] }));
     expect(await screen.findByText("导入完成：新增 0 张卡、2 个账号，跳过 0 张。")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "重新扫描此目录" })).toBeEnabled();
@@ -104,13 +105,23 @@ describe("local import source consistency", () => {
     const fake = use({ ccswitch_scan: () => scan });
     renderWithClient(<ImportWizard />);
     await user.type(screen.getByLabelText("cc-switch 数据目录"), "relative/path");
-    await user.click(screen.getByRole("button", { name: "扫描" }));
+    await user.click(screen.getByRole("button", { name: "检测本机 CC Switch" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("请输入绝对路径");
     expect(fake.calls.some((call) => call.cmd === "ccswitch_scan")).toBe(false);
   });
 });
 
 describe("export preview and action ordering", () => {
+  it.each(["leanflip", "switchleaf", "age"])("opens a .%s backup in the password flow without parsing it as a CC Switch export", async (extension) => {
+    const user = userEvent.setup();
+    const fake = use({ backup_discard: () => null });
+    renderWithClient(<ExportImport />);
+    await user.upload(screen.getByTestId("export-file"), new File(["encrypted fixture"], `backup.${extension}`));
+    expect(await screen.findByLabelText("备份密码")).toHaveAttribute("type", "password");
+    expect(fake.calls.some((call) => call.cmd === "ccswitch_export_load")).toBe(false);
+    expect(fake.calls.some((call) => call.cmd === "backup_load")).toBe(false);
+  });
+
   it("locks source, policy and selection until preview and apply each settle", async () => {
     const user = userEvent.setup();
     let finishPreview!: (value: ExportPreview) => void;
@@ -121,7 +132,7 @@ describe("export preview and action ordering", () => {
       ccswitch_export_apply: () => new Promise((resolve) => { finishApply = resolve; }),
     });
     renderWithClient(<ImportWizard />);
-    await user.click(screen.getByRole("tab", { name: "导出文件" }));
+    await user.click(screen.getByRole("tab", { name: "导入文件" }));
     expect(screen.queryByRole("button", { name: "扫描" })).not.toBeInTheDocument();
     await user.upload(screen.getByTestId("export-file"), file());
     await screen.findByRole("button", { name: "确认导入 1 张卡" });

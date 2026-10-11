@@ -1,764 +1,499 @@
-//! 保留格式的 JSONC / JSON5 编辑（注释、尾逗号、缩进、未改动的节点字节不变）。
-//! 移植自 cc-switch `src-tauri/src/jsonc_document.rs`，只把可见性改成 `pub`。
-//! 选文件、锁、快照和回滚由调用方（写入引擎）负责。
-use crate::error::AppError;
-use json_five::rt::parser::{
-    ArrayValueContext as RtArrayValueContext, JSONArrayContext as RtJSONArrayContext,
-    JSONArrayValue as RtJSONArrayValue, JSONKeyValuePair as RtJSONKeyValuePair,
-    JSONObjectContext as RtJSONObjectContext, JSONText as RtJSONText, JSONValue as RtJSONValue,
-    KeyValuePairContext as RtKeyValuePairContext,
-};
-use json_five::tokenize::{tokenize_rt_str, TokType};
+//! JSON5 edits using source ranges instead of reconstructing a syntax tree.
+//! `json5` validates semantics; a small scanner locates values and separators.
+//! Unchanged ranges are copied byte-for-byte, including comments and escapes.
+use crate::AppError;
 use serde_json::Value;
+use std::{collections::HashSet, ops::Range};
 
-pub struct JsoncDocument {
-    original_source: String,
-    original_value: Value,
-    semantic: Value,
-    text: RtJSONText,
+fn invalid() -> AppError {
+    AppError::Config("JSONC editing requires a valid, unambiguous object".into())
 }
-
-impl JsoncDocument {
-    pub fn parse(source: &str) -> Result<Self, AppError> {
-        let semantic: Value = json5::from_str(source)
-            .map_err(|e| AppError::Config(format!("Failed to parse JSONC config: {e}")))?;
-        if !semantic.is_object() {
-            return Err(AppError::Config(
-                "JSONC config root must be a JSON object".into(),
-            ));
+fn read_value(source: &str) -> Result<Value, AppError> {
+    json5::from_str(source).map_err(|_| invalid())
+}
+#[derive(Debug)]
+struct Node {
+    span: Range<usize>,
+    kind: Kind,
+}
+#[derive(Debug)]
+enum Kind {
+    Object(Vec<Member>),
+    Array(Vec<Node>),
+    Scalar,
+}
+#[derive(Debug)]
+struct Member {
+    name: String,
+    start: usize,
+    value: Node,
+    comma: Option<usize>,
+}
+struct Scanner<'a> {
+    text: &'a str,
+    offset: usize,
+}
+impl Scanner<'_> {
+    fn peek(&self) -> Option<char> {
+        self.text[self.offset..].chars().next()
+    }
+    fn advance(&mut self) {
+        if let Some(ch) = self.peek() {
+            self.offset += ch.len_utf8();
         }
-        let text = parse_round_trip(source)?;
-        Ok(Self {
-            original_source: source.to_string(),
-            original_value: semantic.clone(),
-            semantic,
-            text,
+    }
+    fn trivia(&mut self) -> Result<(), AppError> {
+        loop {
+            if self
+                .peek()
+                .is_some_and(|ch| ch.is_whitespace() || ch == '\u{feff}')
+            {
+                self.advance();
+                continue;
+            }
+            if self.text[self.offset..].starts_with("//") {
+                while self
+                    .peek()
+                    .is_some_and(|ch| !matches!(ch, '\r' | '\n' | '\u{2028}' | '\u{2029}'))
+                {
+                    self.advance();
+                }
+                continue;
+            }
+            if self.text[self.offset..].starts_with("/*") {
+                let length = self.text[self.offset + 2..]
+                    .find("*/")
+                    .ok_or_else(invalid)?;
+                self.offset += length + 4;
+                continue;
+            }
+            return Ok(());
+        }
+    }
+    fn quoted(&mut self) -> Result<(), AppError> {
+        let quote = self.peek().ok_or_else(invalid)?;
+        self.advance();
+        while let Some(ch) = self.peek() {
+            self.advance();
+            if ch == quote {
+                return Ok(());
+            }
+            if ch == '\\' {
+                self.advance();
+            }
+        }
+        Err(invalid())
+    }
+    fn atom(&mut self) {
+        while let Some(ch) = self.peek() {
+            if ch.is_whitespace() || matches!(ch, ':' | ',' | ']' | '}' | '/') {
+                break;
+            }
+            self.advance();
+        }
+    }
+    fn node(&mut self) -> Result<Node, AppError> {
+        self.trivia()?;
+        let start = self.offset;
+        let kind = match self.peek().ok_or_else(invalid)? {
+            '{' => {
+                self.advance();
+                self.trivia()?;
+                let mut members = Vec::new();
+                while self.peek() != Some('}') {
+                    let key_start = self.offset;
+                    if matches!(self.peek(), Some('"' | '\'')) {
+                        self.quoted()?;
+                    } else {
+                        self.atom();
+                    }
+                    let spelling = &self.text[key_start..self.offset];
+                    let name: String = if spelling.starts_with(['"', '\'']) {
+                        json5::from_str(spelling)
+                    } else {
+                        json5::from_str(&format!("\"{spelling}\""))
+                    }
+                    .map_err(|_| invalid())?;
+                    self.trivia()?;
+                    if self.peek() != Some(':') {
+                        return Err(invalid());
+                    }
+                    self.advance();
+                    let value = self.node()?;
+                    self.trivia()?;
+                    let comma = (self.peek() == Some(',')).then_some(self.offset);
+                    if comma.is_some() {
+                        self.advance();
+                        self.trivia()?;
+                    } else if self.peek() != Some('}') {
+                        return Err(invalid());
+                    }
+                    members.push(Member {
+                        name,
+                        start: key_start,
+                        value,
+                        comma,
+                    });
+                }
+                self.advance();
+                Kind::Object(members)
+            }
+            '[' => {
+                self.advance();
+                self.trivia()?;
+                let mut values = Vec::new();
+                while self.peek() != Some(']') {
+                    values.push(self.node()?);
+                    self.trivia()?;
+                    if self.peek() == Some(',') {
+                        self.advance();
+                        self.trivia()?;
+                    } else if self.peek() != Some(']') {
+                        return Err(invalid());
+                    }
+                }
+                self.advance();
+                Kind::Array(values)
+            }
+            '"' | '\'' => {
+                self.quoted()?;
+                Kind::Scalar
+            }
+            _ => {
+                self.atom();
+                if start == self.offset {
+                    return Err(invalid());
+                }
+                Kind::Scalar
+            }
+        };
+        Ok(Node {
+            span: start..self.offset,
+            kind,
         })
     }
+}
+fn syntax(source: &str) -> Result<Node, AppError> {
+    let mut scanner = Scanner {
+        text: source,
+        offset: 0,
+    };
+    let node = scanner.node()?;
+    scanner.trivia()?;
+    if scanner.offset != source.len() {
+        return Err(invalid());
+    }
+    Ok(node)
+}
+struct Edit {
+    range: Range<usize>,
+    replacement: String,
+}
+struct Layout<'a> {
+    source: &'a str,
+    newline: &'static str,
+    unit: &'a str,
+}
+impl<'a> Layout<'a> {
+    fn new(source: &'a str) -> Self {
+        let unit = source
+            .lines()
+            .find_map(|line| {
+                let length = line.len() - line.trim_start_matches([' ', '\t']).len();
+                (length > 0 && !line.trim().is_empty()).then_some(&line[..length])
+            })
+            .unwrap_or("  ");
+        Self {
+            source,
+            unit,
+            newline: if source.contains("\r\n") {
+                "\r\n"
+            } else {
+                "\n"
+            },
+        }
+    }
+    fn indent(&self, offset: usize) -> &str {
+        let start = self.source[..offset]
+            .rfind('\n')
+            .map_or(0, |index| index + 1);
+        let line = &self.source[start..offset];
+        &line[..line.len() - line.trim_start_matches([' ', '\t']).len()]
+    }
+    fn print(&self, value: &Value, indent: &str) -> Result<String, AppError> {
+        let text = serde_json::to_string_pretty(value)
+            .map_err(|source| AppError::JsonSerialize { source })?;
+        let mut lines = text.lines();
+        let mut result = lines.next().unwrap_or_default().to_string();
+        for line in lines {
+            let content = line.trim_start_matches(' ');
+            let depth = (line.len() - content.len()) / 2;
+            result.push_str(self.newline);
+            result.push_str(indent);
+            result.push_str(&self.unit.repeat(depth));
+            result.push_str(content);
+        }
+        Ok(result)
+    }
+    fn deletion(&self, member: &Member) -> Range<usize> {
+        let end = member
+            .comma
+            .map_or(member.value.span.end, |position| position + 1);
+        let start = self.source[..member.start]
+            .rfind('\n')
+            .map_or(0, |position| position + 1);
+        if self.source[start..member.start]
+            .trim_matches([' ', '\t'])
+            .is_empty()
+        {
+            if let Some(newline) = self.source[end..].find('\n') {
+                if self.source[end..end + newline]
+                    .trim_matches([' ', '\t', '\r'])
+                    .is_empty()
+                {
+                    return start..end + newline + 1;
+                }
+            }
+        }
+        member.start..end
+    }
+    fn diff(
+        &self,
+        node: &Node,
+        before: &Value,
+        after: &Value,
+        edits: &mut Vec<Edit>,
+    ) -> Result<(), AppError> {
+        if before == after {
+            return Ok(());
+        }
+        match (&node.kind, before, after) {
+            (Kind::Object(members), Value::Object(old), Value::Object(new)) => {
+                let mut unique = HashSet::new();
+                if members.iter().any(|member| !unique.insert(&member.name)) {
+                    return Err(invalid());
+                }
+                let additions = new
+                    .iter()
+                    .filter(|(key, _)| !old.contains_key(*key))
+                    .collect::<Vec<_>>();
+                for member in members {
+                    match new.get(&member.name) {
+                        Some(value) => self.diff(
+                            &member.value,
+                            old.get(&member.name).ok_or_else(invalid)?,
+                            value,
+                            edits,
+                        )?,
+                        None => edits.push(Edit {
+                            range: self.deletion(member),
+                            replacement: String::new(),
+                        }),
+                    }
+                }
+                let retained = members
+                    .iter()
+                    .rev()
+                    .find(|member| new.contains_key(&member.name));
+                let trailing_comma = members.last().is_some_and(|member| member.comma.is_some());
+                if additions.is_empty() {
+                    if !trailing_comma
+                        && members
+                            .last()
+                            .is_some_and(|member| !new.contains_key(&member.name))
+                    {
+                        if let Some(position) = retained.and_then(|member| member.comma) {
+                            edits.push(Edit {
+                                range: position..position + 1,
+                                replacement: String::new(),
+                            });
+                        }
+                    }
+                } else {
+                    if let Some(member) = retained.filter(|member| member.comma.is_none()) {
+                        edits.push(Edit {
+                            range: member.value.span.end..member.value.span.end,
+                            replacement: ",".into(),
+                        });
+                    }
+                    let parent = self.indent(node.span.start);
+                    let indent = format!("{parent}{}", self.unit);
+                    let mut extra = Vec::new();
+                    for (key, value) in additions {
+                        extra.push(format!(
+                            "{indent}{}: {}",
+                            serde_json::to_string(key)
+                                .map_err(|source| AppError::JsonSerialize { source })?,
+                            self.print(value, &indent)?
+                        ));
+                    }
+                    let close = node.span.end - 1;
+                    let line = self.source[..close]
+                        .rfind('\n')
+                        .map_or(0, |position| position + 1);
+                    let own_line = self.source[line..close]
+                        .trim_matches([' ', '\t'])
+                        .is_empty();
+                    let at = if own_line { line } else { close };
+                    let replacement = format!(
+                        "{}{}{}{}{}",
+                        if own_line { "" } else { self.newline },
+                        extra.join(&format!(",{}", self.newline)),
+                        if trailing_comma { "," } else { "" },
+                        self.newline,
+                        if own_line { "" } else { parent },
+                    );
+                    edits.push(Edit {
+                        range: at..at,
+                        replacement,
+                    });
+                }
+            }
+            (Kind::Array(nodes), Value::Array(old), Value::Array(new))
+                if old.len() == new.len() && nodes.len() == old.len() =>
+            {
+                for ((node, old), new) in nodes.iter().zip(old).zip(new) {
+                    self.diff(node, old, new, edits)?;
+                }
+            }
+            _ => edits.push(Edit {
+                range: node.span.clone(),
+                replacement: self.print(after, self.indent(node.span.start))?,
+            }),
+        }
+        Ok(())
+    }
+}
 
+pub struct JsoncDocument {
+    original: String,
+    initial: Value,
+    source: String,
+    semantic: Value,
+}
+impl JsoncDocument {
+    pub fn parse(source: &str) -> Result<Self, AppError> {
+        let value = read_value(source)?;
+        if !value.is_object() {
+            return Err(invalid());
+        }
+        syntax(source)?;
+        Ok(Self {
+            original: source.into(),
+            initial: value.clone(),
+            source: source.into(),
+            semantic: value,
+        })
+    }
     pub fn value(&self) -> &Value {
         &self.semantic
     }
-
     pub fn original_source(&self) -> &str {
-        &self.original_source
+        &self.original
     }
-
     pub fn root_key_count(&self, name: &str) -> Result<usize, AppError> {
-        let RtJSONValue::JSONObject {
-            key_value_pairs, ..
-        } = &self.text.value
-        else {
-            return Err(AppError::Config(
-                "JSONC config root must be a JSON object".into(),
-            ));
-        };
-        let mut count = 0;
-        for pair in key_value_pairs {
-            if json5_key_name(&pair.key)? == name {
-                count += 1;
+        match syntax(&self.source)?.kind {
+            Kind::Object(members) => {
+                Ok(members.iter().filter(|member| member.name == name).count())
             }
+            _ => Err(invalid()),
         }
-        Ok(count)
     }
-
     pub fn apply(&mut self, desired: &Value) -> Result<bool, AppError> {
         if !desired.is_object() {
-            return Err(AppError::Config(
-                "JSONC config root must be a JSON object".into(),
-            ));
+            return Err(invalid());
         }
-        let line_ending = if self.original_source.contains("\r\n") {
-            "\r\n"
+        if desired == &self.semantic {
+            return Ok(false);
+        }
+        let next = if desired == &self.initial {
+            self.original.clone()
         } else {
-            "\n"
+            let tree = syntax(&self.source)?;
+            let mut edits = Vec::new();
+            Layout::new(&self.source).diff(&tree, &self.semantic, desired, &mut edits)?;
+            edits.sort_by_key(|edit| edit.range.start);
+            let mut source = self.source.clone();
+            let mut limit = source.len();
+            for edit in edits.into_iter().rev() {
+                if edit.range.end > limit {
+                    return Err(invalid());
+                }
+                limit = edit.range.start;
+                source.replace_range(edit.range, &edit.replacement);
+            }
+            source
         };
-        let changed = merge_rt_value(
-            &mut self.text.value,
-            &self.semantic,
-            desired,
-            "",
-            line_ending,
-        )?;
+        if read_value(&next)? != *desired {
+            return Err(invalid());
+        }
+        self.source = next;
         self.semantic = desired.clone();
-        Ok(changed)
+        Ok(true)
     }
-
     pub fn validated_source(&self) -> Result<String, AppError> {
-        let source = self.text.to_string();
-        parse_round_trip(&source).map_err(|e| {
-            AppError::Config(format!(
-                "Refusing to write invalid JSONC config after round-trip serialization: {e}"
-            ))
-        })?;
-        let reparsed: Value = json5::from_str(&source).map_err(|e| {
-            AppError::Config(format!(
-                "Refusing to write invalid JSONC config after round-trip serialization: {e}"
-            ))
-        })?;
-        if reparsed != self.semantic {
-            return Err(AppError::Config(
-                "Refusing to write JSONC config: serialized output does not match the intended state".into()
-            ));
+        if read_value(&self.source)? != self.semantic {
+            return Err(invalid());
         }
-        if self.semantic == self.original_value {
-            Ok(self.original_source.clone())
-        } else {
-            Ok(source)
-        }
-    }
-
-    #[cfg(test)]
-    pub fn corrupt_output_for_test(&mut self, parseable: bool) {
-        self.text.value = if parseable {
-            RtJSONValue::Null
-        } else {
-            RtJSONValue::Identifier("{".into())
-        };
+        Ok(self.source.clone())
     }
 }
-
-fn parse_round_trip(source: &str) -> Result<RtJSONText, AppError> {
-    let mut tokens = tokenize_rt_str(source)
-        .map_err(|e| AppError::Config(format!("Failed to tokenize JSONC config: {e}")))?;
-    // json-five 0.3.1 consumes the closing slash of a block comment but leaves
-    // its exclusive end offset on that slash. Line comments ending at EOF or
-    // U+2028/U+2029 can also end inside the last UTF-8 character. Repair only
-    // these token boundaries; leave the source and already valid spans intact.
-    for (start, kind, end) in &mut tokens.tok_spans {
-        if *kind == TokType::BlockComment
-            && source.as_bytes().get(*end) == Some(&b'/')
-            && source
-                .get(*start..*end)
-                .is_some_and(|text| text.ends_with('*'))
-        {
-            *end += 1;
-        }
-        if *kind == TokType::LineComment {
-            while *end < source.len() && !source.is_char_boundary(*end) {
-                *end += 1;
-            }
-        }
-    }
-    json_five::rt::parser::from_tokens(&tokens).map_err(|e| {
-        AppError::Config(format!(
-            "Failed to parse round-trip JSONC config: {}",
-            e.message
-        ))
-    })
-}
-
-fn json5_key_name(key: &RtJSONValue) -> Result<String, AppError> {
-    // RT strings/identifiers contain source escapes, not decoded key names.
-    // Let json5 decode all three key spellings, including Unicode escapes.
-    let object: serde_json::Map<String, Value> = json5::from_str(&format!("{{{key}:null}}"))
-        .map_err(|e| AppError::Config(format!("Failed to decode JSONC key: {e}")))?;
-    object
-        .into_iter()
-        .next()
-        .map(|(key, _)| key)
-        .ok_or_else(|| AppError::Config("Missing JSONC key".into()))
-}
-
-fn extract_trailing_indent(separator_ws: &str) -> String {
-    separator_ws
-        .rsplit_once('\n')
-        .map(|(_, tail)| {
-            tail.chars()
-                .take_while(|c| *c == ' ' || *c == '\t')
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
-fn ensure_object_context(context: &mut Option<RtJSONObjectContext>) -> &mut RtJSONObjectContext {
-    context.get_or_insert_with(|| RtJSONObjectContext {
-        wsc: (String::new(),),
-    })
-}
-
-fn ensure_kvp_context(
-    pair: &mut json_five::rt::parser::JSONKeyValuePair,
-) -> &mut RtKeyValuePairContext {
-    pair.context.get_or_insert_with(|| RtKeyValuePairContext {
-        wsc: (String::new(), String::new(), String::new(), None),
-    })
-}
-
-fn ensure_array_context(context: &mut Option<RtJSONArrayContext>) -> &mut RtJSONArrayContext {
-    context.get_or_insert_with(|| RtJSONArrayContext {
-        wsc: (String::new(),),
-    })
-}
-
-fn ensure_array_value_context(value: &mut RtJSONArrayValue) -> &mut RtArrayValueContext {
-    value.context.get_or_insert_with(|| RtArrayValueContext {
-        wsc: (String::new(), None),
-    })
-}
-
-fn object_layout(
-    pairs: &[RtJSONKeyValuePair],
-    context: &Option<RtJSONObjectContext>,
-    parent_indent: &str,
-) -> (bool, String) {
-    let mut is_multiline = false;
-    let mut child_indent = None;
-
-    if let Some(context) = context {
-        if context.wsc.0.contains('\n') {
-            is_multiline = true;
-            child_indent = Some(extract_trailing_indent(&context.wsc.0));
-        }
-    }
-    for pair in pairs {
-        if let Some(context) = &pair.context {
-            is_multiline |= context.wsc.0.contains('\n')
-                || context.wsc.1.contains('\n')
-                || context.wsc.2.contains('\n')
-                || context
-                    .wsc
-                    .3
-                    .as_ref()
-                    .is_some_and(|whitespace| whitespace.contains('\n'));
-            if child_indent.is_none() {
-                child_indent = context
-                    .wsc
-                    .3
-                    .as_ref()
-                    .filter(|whitespace| whitespace.contains('\n'))
-                    .map(|whitespace| extract_trailing_indent(whitespace));
-            }
-        }
-    }
-
-    let child_indent = child_indent
-        .filter(|indent| !indent.is_empty())
-        .unwrap_or_else(|| format!("{parent_indent}  "));
-    (is_multiline, child_indent)
-}
-
-fn array_layout(
-    values: &[RtJSONArrayValue],
-    context: &Option<RtJSONArrayContext>,
-    parent_indent: &str,
-) -> (bool, String) {
-    let mut is_multiline = false;
-    let mut child_indent = None;
-
-    if let Some(context) = context {
-        if context.wsc.0.contains('\n') {
-            is_multiline = true;
-            child_indent = Some(extract_trailing_indent(&context.wsc.0));
-        }
-    }
-    for value in values {
-        if let Some(context) = &value.context {
-            is_multiline |= context.wsc.0.contains('\n')
-                || context
-                    .wsc
-                    .1
-                    .as_ref()
-                    .is_some_and(|whitespace| whitespace.contains('\n'));
-            if child_indent.is_none() {
-                child_indent = context
-                    .wsc
-                    .1
-                    .as_ref()
-                    .filter(|whitespace| whitespace.contains('\n'))
-                    .map(|whitespace| extract_trailing_indent(whitespace));
-            }
-        }
-    }
-
-    let child_indent = child_indent
-        .filter(|indent| !indent.is_empty())
-        .unwrap_or_else(|| format!("{parent_indent}  "));
-    (is_multiline, child_indent)
-}
-
-/// 删掉一个成员后把它前后的空白接起来。前面那段只有空白时只留后面那段：否则
-/// 「换行 + 缩进」会出现两次，留下一个只有缩进的空行（ccswitch-lite 的改动，cc-switch
-/// 原版直接拼接）。前面那段有注释时照旧拼接，注释不丢。
-fn join_separator(separator: &str, after_comma: &str) -> String {
-    if separator.trim().is_empty() {
-        after_comma.to_string()
-    } else {
-        format!("{separator}{after_comma}")
-    }
-}
-
-fn remove_object_pair_at(
-    pairs: &mut Vec<RtJSONKeyValuePair>,
-    context: &mut Option<RtJSONObjectContext>,
-    index: usize,
-) {
-    let removed = pairs.remove(index);
-    let Some(removed_context) = removed.context else {
-        return;
-    };
-
-    if index < pairs.len() {
-        let after_comma = removed_context.wsc.3.unwrap_or_default();
-        if index == 0 {
-            ensure_object_context(context).wsc.0.push_str(&after_comma);
-        } else {
-            let previous = ensure_kvp_context(&mut pairs[index - 1]);
-            let separator = previous.wsc.3.take().unwrap_or_default();
-            previous.wsc.3 = Some(join_separator(&separator, &after_comma));
-        }
-    } else if index == 0 {
-        let object_context = ensure_object_context(context);
-        object_context.wsc.0.push_str(&removed_context.wsc.2);
-        if let Some(after_comma) = removed_context.wsc.3 {
-            object_context.wsc.0.push_str(&after_comma);
-        }
-    } else {
-        let previous = ensure_kvp_context(&mut pairs[index - 1]);
-        let separator = previous.wsc.3.take().unwrap_or_default();
-        if let Some(after_comma) = removed_context.wsc.3 {
-            previous.wsc.3 = Some(join_separator(&separator, &after_comma));
-        } else {
-            previous.wsc.2.push_str(&separator);
-            previous.wsc.2.push_str(&removed_context.wsc.2);
-        }
-    }
-}
-
-fn remove_array_value_at(
-    values: &mut Vec<RtJSONArrayValue>,
-    context: &mut Option<RtJSONArrayContext>,
-    index: usize,
-) {
-    let removed = values.remove(index);
-    let Some(removed_context) = removed.context else {
-        return;
-    };
-
-    if index < values.len() {
-        let after_comma = removed_context.wsc.1.unwrap_or_default();
-        if index == 0 {
-            ensure_array_context(context).wsc.0.push_str(&after_comma);
-        } else {
-            let previous = ensure_array_value_context(&mut values[index - 1]);
-            let separator = previous.wsc.1.take().unwrap_or_default();
-            previous.wsc.1 = Some(join_separator(&separator, &after_comma));
-        }
-    } else if index == 0 {
-        let array_context = ensure_array_context(context);
-        array_context.wsc.0.push_str(&removed_context.wsc.0);
-        if let Some(after_comma) = removed_context.wsc.1 {
-            array_context.wsc.0.push_str(&after_comma);
-        }
-    } else {
-        let previous = ensure_array_value_context(&mut values[index - 1]);
-        let separator = previous.wsc.1.take().unwrap_or_default();
-        if let Some(after_comma) = removed_context.wsc.1 {
-            previous.wsc.1 = Some(join_separator(&separator, &after_comma));
-        } else {
-            previous.wsc.0.push_str(&separator);
-            previous.wsc.0.push_str(&removed_context.wsc.0);
-        }
-    }
-}
-
-fn append_object_pair(
-    pairs: &mut Vec<RtJSONKeyValuePair>,
-    context: &mut Option<RtJSONObjectContext>,
-    key: &str,
-    value: &Value,
-    parent_indent: &str,
-    line_ending: &str,
-) -> Result<(), AppError> {
-    let (is_multiline, child_indent) = object_layout(pairs, context, parent_indent);
-    let separator = if is_multiline {
-        format!("{line_ending}{child_indent}")
-    } else {
-        String::new()
-    };
-    let mut pair = RtJSONKeyValuePair {
-        key: value_to_rt_value(&Value::String(key.to_string()), "", line_ending)?,
-        value: value_to_rt_value(value, &child_indent, line_ending)?,
-        context: Some(RtKeyValuePairContext {
-            wsc: (String::new(), " ".to_string(), String::new(), None),
-        }),
-    };
-
-    if let Some(previous) = pairs.last_mut() {
-        let previous_context = ensure_kvp_context(previous);
-        let trailing_comma = previous_context.wsc.3.is_some();
-        let closing_ws = previous_context
-            .wsc
-            .3
-            .take()
-            .unwrap_or_else(|| std::mem::take(&mut previous_context.wsc.2));
-        previous_context.wsc.3 = Some(separator);
-        if trailing_comma {
-            ensure_kvp_context(&mut pair).wsc.3 = Some(closing_ws);
-        } else {
-            ensure_kvp_context(&mut pair).wsc.2 = closing_ws;
-        }
-    } else {
-        let object_context = ensure_object_context(context);
-        let closing_ws = std::mem::take(&mut object_context.wsc.0);
-        object_context.wsc.0 = separator;
-        ensure_kvp_context(&mut pair).wsc.2 = closing_ws;
-    }
-
-    pairs.push(pair);
-    Ok(())
-}
-
-fn append_array_value(
-    values: &mut Vec<RtJSONArrayValue>,
-    context: &mut Option<RtJSONArrayContext>,
-    value: &Value,
-    parent_indent: &str,
-    line_ending: &str,
-) -> Result<(), AppError> {
-    let (is_multiline, child_indent) = array_layout(values, context, parent_indent);
-    let separator = if is_multiline {
-        format!("{line_ending}{child_indent}")
-    } else {
-        String::new()
-    };
-    let mut array_value = RtJSONArrayValue {
-        value: value_to_rt_value(value, &child_indent, line_ending)?,
-        context: Some(RtArrayValueContext {
-            wsc: (String::new(), None),
-        }),
-    };
-
-    if let Some(previous) = values.last_mut() {
-        let previous_context = ensure_array_value_context(previous);
-        let trailing_comma = previous_context.wsc.1.is_some();
-        let closing_ws = previous_context
-            .wsc
-            .1
-            .take()
-            .unwrap_or_else(|| std::mem::take(&mut previous_context.wsc.0));
-        previous_context.wsc.1 = Some(separator);
-        if trailing_comma {
-            ensure_array_value_context(&mut array_value).wsc.1 = Some(closing_ws);
-        } else {
-            ensure_array_value_context(&mut array_value).wsc.0 = closing_ws;
-        }
-    } else {
-        let array_context = ensure_array_context(context);
-        let closing_ws = std::mem::take(&mut array_context.wsc.0);
-        array_context.wsc.0 = separator;
-        ensure_array_value_context(&mut array_value).wsc.0 = closing_ws;
-    }
-
-    values.push(array_value);
-    Ok(())
-}
-
-fn merge_rt_value(
-    round_trip: &mut RtJSONValue,
-    current: &Value,
-    desired: &Value,
-    parent_indent: &str,
-    line_ending: &str,
-) -> Result<bool, AppError> {
-    if current == desired {
-        return Ok(false);
-    }
-
-    match (round_trip, current, desired) {
-        (
-            RtJSONValue::JSONObject {
-                key_value_pairs,
-                context,
-            },
-            Value::Object(current),
-            Value::Object(desired),
-        ) => {
-            let (_, child_indent) = object_layout(key_value_pairs, context, parent_indent);
-            let mut changed = false;
-            let mut seen = std::collections::HashSet::new();
-            let mut index = 0;
-            while index < key_value_pairs.len() {
-                let key = json5_key_name(&key_value_pairs[index].key)?;
-                let Some(desired_value) = desired.get(&key) else {
-                    remove_object_pair_at(key_value_pairs, context, index);
-                    changed = true;
-                    continue;
-                };
-                if !seen.insert(key.clone()) {
-                    if current.get(&key) == Some(desired_value) {
-                        index += 1;
-                        continue;
-                    }
-                    return Err(AppError::Config(format!(
-                        "Cannot edit duplicate JSONC key: {key}"
-                    )));
-                }
-
-                let current_value = current.get(&key).unwrap_or(&Value::Null);
-                changed |= merge_rt_value(
-                    &mut key_value_pairs[index].value,
-                    current_value,
-                    desired_value,
-                    &child_indent,
-                    line_ending,
-                )?;
-                index += 1;
-            }
-
-            for (key, desired_value) in desired {
-                if seen.contains(key) {
-                    continue;
-                }
-                append_object_pair(
-                    key_value_pairs,
-                    context,
-                    key,
-                    desired_value,
-                    parent_indent,
-                    line_ending,
-                )?;
-                changed = true;
-            }
-            Ok(changed)
-        }
-        (
-            RtJSONValue::JSONArray { values, context },
-            Value::Array(current),
-            Value::Array(desired),
-        ) => {
-            let (_, child_indent) = array_layout(values, context, parent_indent);
-            let common_len = values.len().min(current.len()).min(desired.len());
-            let mut changed = false;
-            for index in 0..common_len {
-                changed |= merge_rt_value(
-                    &mut values[index].value,
-                    &current[index],
-                    &desired[index],
-                    &child_indent,
-                    line_ending,
-                )?;
-            }
-            while values.len() > desired.len() {
-                let index = values.len() - 1;
-                remove_array_value_at(values, context, index);
-                changed = true;
-            }
-            while values.len() < desired.len() {
-                let index = values.len();
-                append_array_value(values, context, &desired[index], parent_indent, line_ending)?;
-                changed = true;
-            }
-            Ok(changed)
-        }
-        (round_trip, _, desired) => {
-            *round_trip = value_to_rt_value(desired, parent_indent, line_ending)?;
-            Ok(true)
-        }
-    }
-}
-
-fn value_to_rt_value(
-    value: &Value,
-    parent_indent: &str,
-    line_ending: &str,
-) -> Result<RtJSONValue, AppError> {
-    let source = serde_json::to_string_pretty(value)
-        .map_err(|e| AppError::Config(format!("Failed to serialize JSONC value: {e}")))?;
-    let adjusted = reindent_json5_block(&source, parent_indent, line_ending);
-    let text = parse_round_trip(&adjusted)?;
-    Ok(text.value)
-}
-
-fn reindent_json5_block(source: &str, parent_indent: &str, line_ending: &str) -> String {
-    if !source.contains('\n') {
-        return source.to_string();
-    }
-
-    let mut lines = source.lines();
-    let Some(first_line) = lines.next() else {
-        return String::new();
-    };
-
-    let mut result = String::from(first_line);
-    for line in lines {
-        result.push_str(line_ending);
-        result.push_str(parent_indent);
-        result.push_str(line);
-    }
-    result
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
-
     #[test]
-    fn preserves_comments_and_unchanged_nodes_with_both_line_endings() {
-        let original = r#"/* 顶部 */{
-	// 模型说明
-	"model": "keep /* literal */ // text",
-	"provider": { /* 供应商 */ "demo": {"options": {"apiKey": "old", "keep": 1,},},},
-	"nested": [/* 数组 */ {"unchanged": true},],
-}/* 尾部 */
-"#;
-        for source in [original.to_string(), original.replace("\n", "\r\n")] {
-            let mut doc = JsoncDocument::parse(&source).unwrap();
-            assert!(!doc.apply(&doc.value().clone()).unwrap());
-            assert_eq!(doc.validated_source().unwrap(), source);
-            let mut desired = doc.value().clone();
-            desired["provider"]["demo"]["options"]["apiKey"] = json!("new");
-            assert!(doc.apply(&desired).unwrap());
-            assert_eq!(
-                doc.validated_source().unwrap(),
-                source.replace("old", "new")
-            );
-        }
-    }
-
-    #[test]
-    fn block_comment_boundaries_do_not_swallow_other_fields() {
-        for source in [
-            r#"{/*中文*/"keep":1,// tail */
-"edit":0}/*end*/"#,
-            r#"/**/{/*one*//*two*/"keep":1,"edit":0}/**/"#,
-        ] {
-            let mut doc = JsoncDocument::parse(source).unwrap();
-            doc.apply(&json!({"keep":1,"edit":2})).unwrap();
-            assert_eq!(doc.validated_source().unwrap(), source.replace(":0", ":2"));
-        }
-    }
-
-    #[test]
-    fn unicode_line_comments_preserve_bytes_before_and_after_editing() {
-        for suffix in [
-            "// 中文",
-            "// 😀",
-            "/* 中文 */ // 尾",
-            "// ab\u{2028}",
-            "// 中文\u{2028}",
-            "// ab\u{2029}",
-            "// 中文\u{2029}",
-            "// 😀\u{2028}",
-            "// 😀\u{2029}",
-            "// 中文\n",
-            "// 中文\r\n",
-            "// ASCII",
-        ] {
-            let source = format!(r#"{{"provider":{{"demo":{{"name":"old"}}}}}} {suffix}"#);
-            let mut doc = JsoncDocument::parse(&source).unwrap();
-            assert!(!doc.apply(&doc.value().clone()).unwrap());
-            assert_eq!(
-                doc.validated_source().unwrap().as_bytes(),
-                source.as_bytes()
-            );
-
-            let desired = json!({"provider": {"demo": {"name": "new"}}});
-            assert!(doc.apply(&desired).unwrap());
-            let output = doc.validated_source().unwrap();
-            assert_eq!(output.as_bytes(), source.replace("old", "new").as_bytes());
-            assert_eq!(json5::from_str::<Value>(&output).unwrap(), desired);
-        }
-    }
-
-    #[test]
-    fn unicode_line_separators_keep_the_following_field_outside_the_comment() {
-        for separator in ['\u{2028}', '\u{2029}'] {
-            for comment in ["ASCII", "中文", "😀"] {
-                let source = format!("{{\"keep\":true,// {comment}{separator}\"edit\":0}}");
-                let mut doc = JsoncDocument::parse(&source).unwrap();
-                assert_eq!(doc.validated_source().unwrap(), source);
-                let desired = json!({"keep":true,"edit":1});
-                doc.apply(&desired).unwrap();
-                let output = doc.validated_source().unwrap();
-                assert_eq!(output, source.replace(":0", ":1"));
-                assert_eq!(json5::from_str::<Value>(&output).unwrap(), desired);
-            }
-        }
-    }
-
-    #[test]
-    fn escaped_keys_are_decoded_and_new_keys_are_escaped() {
-        let source = r#"{"prov\u0069der":{"quote\"key":1,'single\'key':2,unquoted:3},"keep":true}"#;
+    fn comments_escaped_keys_and_untouched_values_survive_nested_updates() {
+        let source = "/*独立测试*/ {\r\n  'p': { '\\u0061': 'old', keep: [/*注释*/ 0x10, 2,], },\r\n  untouched: '\\u4e2d',\r\n}\r\n//尾部中文";
         let mut doc = JsoncDocument::parse(source).unwrap();
-        let mut desired = doc.value().clone();
-        desired["provider"]["quote\"key"] = json!(4);
-        desired["provider"]
-            .as_object_mut()
-            .unwrap()
-            .remove("single'key");
-        for key in ["new\"key", "back\\slash", "line\nkey", "中文键", "\u{0000}"] {
-            desired["provider"][key] = json!({"nested": true});
-        }
+        let initial = doc.value().clone();
+        let mut desired = initial.clone();
+        desired["p"]["a"] = json!("new");
+        desired["p"]["added"] = json!({"nested":true});
         doc.apply(&desired).unwrap();
         let output = doc.validated_source().unwrap();
-        assert!(output.contains(r#""prov\u0069der""#));
-        assert!(output.contains("unquoted:3"));
-        assert_eq!(json5::from_str::<Value>(&output).unwrap(), desired);
-    }
-
-    #[test]
-    fn edits_nested_arrays_and_adds_and_removes_object_members() {
-        for source in [
-            "{\n  /* keep */ \"items\": [1,2,3,], \"remove\": {},\n}",
-            "{\r\n\t/* keep */ \"items\": [1,2,3], \"remove\": {}\r\n}",
+        for kept in [
+            "/*独立测试*/",
+            "/*注释*/ 0x10, 2,",
+            "untouched: '\\u4e2d'",
+            "//尾部中文",
         ] {
-            let mut doc = JsoncDocument::parse(source).unwrap();
+            assert!(output.contains(kept), "{kept}");
+        }
+        assert_eq!(read_value(&output).unwrap(), desired);
+        doc.apply(&initial).unwrap();
+        assert_eq!(doc.validated_source().unwrap(), source);
+    }
+    #[test]
+    fn deleting_and_adding_members_keeps_a_valid_separator_layout() {
+        for source in [
+            "{a:1,b:2,c:3}",
+            "{a:1,b:2,c:3,}",
+            "{ /* hello */ }",
+            "{a:1,// note\nb:2,c:3}",
+        ] {
             for desired in [
-                json!({"items":[1,4],"added":{"x":[1,2]}}),
-                json!({"items":[]}),
                 json!({}),
-                json!({"after":1}),
+                json!({"a":1}),
+                json!({"a":1,"d":[4,5]}),
+                json!({"d":9}),
             ] {
-                doc.apply(&desired).unwrap();
-                let output = doc.validated_source().unwrap();
-                assert!(output.contains("/* keep */"));
-                assert_eq!(json5::from_str::<Value>(&output).unwrap(), desired);
+                let mut document = JsoncDocument::parse(source).unwrap();
+                document.apply(&desired).unwrap();
+                assert_eq!(
+                    read_value(&document.validated_source().unwrap()).unwrap(),
+                    desired
+                );
             }
         }
     }
-
     #[test]
-    fn appending_keeps_trailing_commas_and_does_not_copy_comments_as_indentation() {
-        let mut doc = JsoncDocument::parse("{\n\t/*keep*/ \"items\": [1,],\n}\n").unwrap();
-        doc.apply(&json!({"items":[1,2],"new":true})).unwrap();
-        assert_eq!(
-            doc.validated_source().unwrap(),
-            "{\n\t/*keep*/ \"items\": [1,2,],\n\t\"new\": true,\n}\n"
-        );
-    }
-
-    #[test]
-    fn rejects_invalid_roots_and_corrupted_output() {
-        for source in ["{broken", "[]", "null", "42", "\"text\""] {
-            assert!(JsoncDocument::parse(source).is_err());
-        }
-        for parseable in [false, true] {
-            let mut doc = JsoncDocument::parse("{}").unwrap();
-            doc.apply(&json!({"new":true})).unwrap();
-            doc.corrupt_output_for_test(parseable);
-            assert!(doc.validated_source().is_err());
-        }
-    }
-
-    #[test]
-    fn removing_members_does_not_leave_indent_only_lines() {
-        let source = "{\n  \"a\": 1,\n  \"b\": 2,\n  \"c\": 3,\n}\n";
-        let mut document = JsoncDocument::parse(source).unwrap();
-        document
-            .apply(&serde_json::json!({"a": 1, "c": 3}))
-            .unwrap();
-        assert_eq!(
-            document.validated_source().unwrap(),
-            "{\n  \"a\": 1,\n  \"c\": 3,\n}\n"
-        );
-        document.apply(&serde_json::json!({"a": 1})).unwrap();
-        assert_eq!(document.validated_source().unwrap(), "{\n  \"a\": 1,\n}\n");
-        // 被删成员前面的注释留着。
-        let source = "[\n  1,\n  // two\n  2,\n  3\n]";
-        let mut document = JsoncDocument::parse(&format!("{{\"x\": {source}}}")).unwrap();
-        document.apply(&serde_json::json!({"x": [1, 3]})).unwrap();
-        assert!(document.validated_source().unwrap().contains("// two"));
+    fn duplicate_keys_are_counted_but_ambiguous_edits_are_refused() {
+        let mut doc = JsoncDocument::parse("{a:1, 'a':2}").unwrap();
+        assert_eq!(doc.root_key_count("a").unwrap(), 2);
+        assert!(doc.apply(&json!({"a":3})).is_err());
+        assert_eq!(doc.validated_source().unwrap(), "{a:1, 'a':2}");
+        doc.source = "{different: true}".into();
+        assert!(doc.validated_source().is_err());
     }
 }

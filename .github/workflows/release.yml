@@ -72,10 +72,11 @@ jobs:
         run: cargo build -p ccsl-cli --release --locked
       - name: Verify standalone CLI
         run: |
-          test "$(target/release/ccsl --version)" = "ccsl $RELEASE_VERSION"
-          target/release/ccsl --home "$RUNNER_TEMP/ccsl-release-smoke" status --json
+          test "$(target/release/leanflip --version)" = "leanflip $RELEASE_VERSION"
+          target/release/leanflip --home "$RUNNER_TEMP/ccsl-release-smoke" status --json
           test ! -e "$RUNNER_TEMP/ccsl-release-smoke"
-          python3 scripts/check-cli-menu.py --binary target/release/ccsl
+          python3 scripts/check-cli-menu.py --binary target/release/leanflip
+          python3 scripts/check-cli-tui.py --binary target/release/leanflip
       - name: Build optimized desktop packages
         run: pnpm tauri build --ci --bundles ${{ matrix.bundle }} -- --locked
       - name: Assemble release assets
@@ -83,20 +84,20 @@ jobs:
           PLATFORM: ${{ matrix.platform }}
         run: |
           mkdir -p release-assets "$RUNNER_TEMP/ccsl-package"
-          cp target/release/ccsl LICENSE NOTICE.md "$RUNNER_TEMP/ccsl-package/"
+          cp target/release/leanflip LICENSE "$RUNNER_TEMP/ccsl-package/"
           cp crates/cli/README.md "$RUNNER_TEMP/ccsl-package/README.md"
-          tar -C "$RUNNER_TEMP/ccsl-package" -czf "release-assets/ccsl_${RELEASE_VERSION}_${PLATFORM}.tar.gz" ccsl LICENSE NOTICE.md README.md
+          tar -C "$RUNNER_TEMP/ccsl-package" -czf "release-assets/leanflip_${RELEASE_VERSION}_${PLATFORM}.tar.gz" leanflip LICENSE README.md
           if [ "$RUNNER_OS" = macOS ]; then
             set -- target/release/bundle/dmg/*.dmg
             test "$#" -eq 1 && test -f "$1"
             hdiutil verify "$1"
-            cp "$1" "release-assets/ccswitch-lite_${RELEASE_VERSION}_${PLATFORM}.dmg"
+            cp "$1" "release-assets/leanflip_${RELEASE_VERSION}_${PLATFORM}.dmg"
           else
             set -- target/release/bundle/deb/*.deb
             test "$#" -eq 1 && test -f "$1"
             test "$(dpkg-deb -f "$1" Version)" = "$RELEASE_VERSION"
             test "$(dpkg-deb -f "$1" Architecture)" = amd64
-            cp "$1" "release-assets/ccswitch-lite_${RELEASE_VERSION}_${PLATFORM}.deb"
+            cp "$1" "release-assets/leanflip_${RELEASE_VERSION}_${PLATFORM}.deb"
           fi
       - uses: actions/upload-artifact@v4
         with:
@@ -143,8 +144,8 @@ jobs:
         run: |
           if gh release view "$RELEASE_TAG" --json isDraft > "$RUNNER_TEMP/release.json" 2>/dev/null; then
             python3 -c 'import json,sys; assert json.load(open(sys.argv[1]))["isDraft"], "Refusing to change a published release"' "$RUNNER_TEMP/release.json"
-            gh release edit "$RELEASE_TAG" --title "CC Switch Lite $RELEASE_TAG" --notes-file "docs/releases/$RELEASE_TAG.md"
+            gh release edit "$RELEASE_TAG" --title "LeanFlip $RELEASE_TAG" --notes-file "docs/releases/$RELEASE_TAG.md"
             gh release upload "$RELEASE_TAG" release-assets/* --clobber
           else
-            gh release create "$RELEASE_TAG" release-assets/* --verify-tag --draft --title "CC Switch Lite $RELEASE_TAG" --notes-file "docs/releases/$RELEASE_TAG.md"
+            gh release create "$RELEASE_TAG" release-assets/* --verify-tag --draft --title "LeanFlip $RELEASE_TAG" --notes-file "docs/releases/$RELEASE_TAG.md"
           fi

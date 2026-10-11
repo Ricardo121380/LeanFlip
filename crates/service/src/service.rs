@@ -19,6 +19,11 @@ use serde::{Deserialize, Serialize};
 use crate::redact;
 use crate::settings::{self, AppSettings};
 
+mod backup;
+mod connection;
+pub use backup::{BackupItem, BackupPreview, RestoreOptions, RestoreReport, MAX_BACKUP_BYTES};
+pub use connection::{connection_info, ApiKeyChange, ConnectionInfo, ConnectionUpdate};
+
 /// 给前端的错误：一句话（按界面语言选中文 / 英文）。
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(transparent)]
@@ -231,6 +236,7 @@ pub struct Service {
     recovery: Mutex<Vec<String>>,
     /// 读进来、等用户确认的 cc-switch 导出文件。
     staged_export: Mutex<Option<ccswitch_export::ParsedExport>>,
+    staged_backup: Mutex<Option<backup::Payload>>,
 }
 
 fn services(rt: &Runtime) -> Services<'_> {
@@ -302,6 +308,7 @@ impl Service {
             settings: Mutex::new(app_settings),
             recovery: Mutex::new(Vec::new()),
             staged_export: Mutex::new(None),
+            staged_backup: Mutex::new(None),
         })
     }
 
@@ -719,16 +726,21 @@ impl Service {
 
     // ---- 从 cc-switch 导入（只读） ----
 
-    fn ccswitch_dir(&self, dir: Option<PathBuf>) -> PathBuf {
+    fn ccswitch_dir(&self, dir: Option<PathBuf>) -> ApiResult<PathBuf> {
         let rt = self.runtime();
-        dir.filter(|d| d.is_absolute())
-            .unwrap_or_else(|| ccswitch_import::default_dir(&rt.env))
+        match dir {
+            Some(dir) if dir.is_absolute() => Ok(dir),
+            Some(_) => Err(self.err(AppError::InvalidInput(
+                "Choose an absolute CC Switch data directory".into(),
+            ))),
+            None => ccswitch_import::detected_dir(&rt.env).map_err(|e| self.err(e)),
+        }
     }
 
     pub fn ccswitch_scan(&self, dir: Option<PathBuf>) -> ApiResult<ccswitch_import::Scan> {
         let rt = self.runtime();
         let mut scan =
-            ccswitch_import::scan(&rt.env, &self.ccswitch_dir(dir)).map_err(|e| self.err(e))?;
+            ccswitch_import::scan(&rt.env, &self.ccswitch_dir(dir)?).map_err(|e| self.err(e))?;
         for candidate in &mut scan.candidates {
             candidate.provider = redact::redact(candidate.tool, &candidate.provider);
         }
@@ -740,10 +752,25 @@ impl Service {
         dir: Option<PathBuf>,
         tools: Vec<Tool>,
     ) -> ApiResult<ccswitch_import::Report> {
+        self.ccswitch_apply_options(dir, tools, true)
+    }
+
+    pub fn ccswitch_apply_options(
+        &self,
+        dir: Option<PathBuf>,
+        tools: Vec<Tool>,
+        accounts: bool,
+    ) -> ApiResult<ccswitch_import::Report> {
+        let directory = self.ccswitch_dir(dir)?;
         let _guard = self.write_guard()?;
         let rt = self.runtime();
-        ccswitch_import::apply(&rt.env, &self.ccswitch_dir(dir), &tools, Some(&rt.oauth))
-            .map_err(|e| self.err(e))
+        ccswitch_import::apply(
+            &rt.env,
+            &directory,
+            &tools,
+            accounts.then_some(rt.oauth.as_ref()),
+        )
+        .map_err(|e| self.err(e))
     }
 
     // ---- 导入 cc-switch 的导出文件（只进卡片库） ----

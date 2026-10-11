@@ -2,6 +2,14 @@
 
 Homebrew Cask 与 npm 安装器共用 GitHub Release 的原生二进制。它们不构建另一套 App 或 CLI，也不会修改用户的 `~/.cc-switch-lite/` 数据。
 
+## LeanFlip 更名过渡
+
+当前源码和后续发布使用 LeanFlip 名称，命令直接切换为 `leanflip`；沿用 `dev.ccswitch.lite` 和 `~/.cc-switch-lite` 以读取已有数据。已发布 v0.1.0 的文件、校验值和 Homebrew 入口保持原样，不能把新功能标记成已在旧安装包中提供。
+
+下次构建的 CLI 压缩包只提供 `leanflip`，桌面包内为 `LeanFlip.app`；附件使用 `leanflip_VERSION_PLATFORM` 文件名。`prepare-distribution.mjs` 为后续版本生成 `leanflip` npm 包及 `leanflip` / `leanflip-app` 两个命令，以及同名 Homebrew Cask。新版本不再生成 `ccsl` 或 `switchleaf` 别名。仓库中的旧 Cask 与 v0.1.0 npm 元数据仅对应已发布旧包，仍可重现和校验该版本。npm 安装器从元数据选择原生程序和 App 名称，不能把旧附件声明成 LeanFlip 新版。
+
+发布前需确定新版本号、生成对应发布说明和原生资产，再按下面步骤校验与发布。GitHub 仓库当前地址保持不变。
+
 ## 当前入口
 
 - Homebrew tap：本仓库本身，`brew tap ricardo121380/ccswitch-lite https://github.com/Ricardo121380/ccswitch-lite.git`。
@@ -26,7 +34,7 @@ gh release download v0.1.0 --dir target/distribution-assets
 node scripts/prepare-distribution.mjs 0.1.0 target/distribution-assets
 ```
 
-版本号、目录按实际发布调整。生成脚本会核对附件本身的 SHA256，然后更新两个 Homebrew Cask、npm 包版本和 `release.json`，并复制 LICENSE / NOTICE 到 npm 包。不要手工猜测或关闭 SHA256 校验。
+版本号、目录按实际发布调整。生成脚本会核对附件本身的 SHA256，然后生成对应版本的 Homebrew Cask、npm 包版本和 `release.json`，并为新版本复制当前 LICENSE 到 npm 包。生成 v0.1.0 历史安装器时，使用 docs/releases/ 内归档的原 LICENSE / NOTICE；新版不再附带 CC Switch NOTICE。不要手工猜测或关闭 SHA256 校验。
 
 ```sh
 node scripts/prepare-distribution.mjs 0.1.0 target/distribution-assets --check
@@ -59,12 +67,12 @@ npm pack ./packages/npm --ignore-scripts --pack-destination target/npm
 ```sh
 npm login --registry=https://registry.npmjs.org/
 npm whoami --registry=https://registry.npmjs.org/
-npm publish ./target/npm/ccswitch-lite-0.1.0.tgz --access public --registry=https://registry.npmjs.org/
+npm publish ./target/npm/leanflip-VERSION.tgz --access public --registry=https://registry.npmjs.org/
 ```
 
-发布时使用经过验证的 `.tgz`，不要在仓库根目录直接执行 `npm publish`（根 `package.json` 是私有的前端开发项目）。npm 可能要求维护者在浏览器中完成二次验证。
+将 `VERSION` 替换为实际发布版本；发布时使用经过验证的 `.tgz`，不要在仓库根目录直接执行 `npm publish`（根 `package.json` 是私有的前端开发项目）。npm 可能要求维护者在浏览器中完成二次验证。
 
-成功后，用 `npm view ccswitch-lite version` 检查，再更新 README 中的发布状态，才能将 `npm install -g ccswitch-lite` 作为用户入口。后续如需 GitHub Actions 自动发布，可在 npm 包设置中配置对应仓库与工作流的 Trusted Publisher；当前未配置这一权限，也未保存发布令牌。
+成功后，用 `npm view leanflip version` 检查，再更新 README 中的发布状态，才能将 `npm install -g leanflip` 作为新版用户入口。后续如需 GitHub Actions 自动发布，可在 npm 包设置中配置对应仓库与工作流的 Trusted Publisher；当前未配置这一权限，也未保存发布令牌。
 
 ## 卸载与替换边界
 

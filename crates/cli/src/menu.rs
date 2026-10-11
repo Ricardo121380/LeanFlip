@@ -5,14 +5,24 @@ use std::path::Path;
 
 use ccsl_core::Tool;
 use ccsl_service::service::{ToolProviders, ToolSummary};
-use dialoguer::console::{style, truncate_str, Term};
+use dialoguer::console::{style, truncate_str, Style, Term};
 use dialoguer::{theme::ColorfulTheme, FuzzySelect};
 
 use crate::args::{Cli, Command, Import, Language};
 use crate::presentation::{clean, error};
 use crate::{open_service, run, CliError};
 
-fn terminal_error() -> CliError {
+pub(super) fn theme() -> ColorfulTheme {
+    ColorfulTheme {
+        active_item_style: Style::new().for_stderr().color256(173).bold(),
+        defaults_style: Style::new().for_stderr().color256(173),
+        prompt_prefix: style("◇".to_owned()).for_stderr().color256(173),
+        fuzzy_match_highlight_style: Style::new().for_stderr().color256(173).underlined(),
+        ..ColorfulTheme::default()
+    }
+}
+
+pub(super) fn terminal_error() -> CliError {
     CliError { code: "terminal_io".into(), message: "Cannot use the interactive terminal. Reopen your terminal or use the non-interactive commands.", exit: 1 }
 }
 
@@ -23,7 +33,7 @@ pub fn can_interact() -> bool {
         && std::env::var("TERM").as_deref() != Ok("dumb")
 }
 
-fn name(tool: Tool) -> &'static str {
+pub(super) fn name(tool: Tool) -> &'static str {
     match tool {
         Tool::Claude => "Claude Code",
         Tool::Codex => "Codex",
@@ -71,6 +81,7 @@ enum ProviderAction {
     Current,
     Unknown,
     Import,
+    Edit,
     Paths,
     Back,
 }
@@ -117,6 +128,17 @@ fn provider_items(list: &ToolProviders, lang: Language) -> Vec<Item> {
             }
         })
         .collect::<Vec<_>>();
+    if !list.providers.is_empty() {
+        items.push(Item {
+            label: lang
+                .text(
+                    "编辑供应商 · Base URL / API Key",
+                    "Edit provider · Base URL / API Key",
+                )
+                .into(),
+            action: ProviderAction::Edit,
+        });
+    }
     items.extend([
         Item {
             label: lang
@@ -255,7 +277,7 @@ impl Menu<'_> {
                     "No providers yet. Import your current client configuration to get started.",
                 ))?;
                 self.line(&format!(
-                    "{} ccsl provider add {} --file provider.json",
+                    "{} leanflip provider add {} --file provider.json",
                     self.lang.text("也可从文件新增：", "Or add a JSON card:"),
                     tool
                 ))?;
@@ -292,6 +314,12 @@ impl Menu<'_> {
                 ProviderAction::Current => self.line(self.lang.text("此供应商已是当前选择，无需切换。", "This provider is already selected."))?,
                 ProviderAction::Unknown => self.line(self.lang.text("状态未知，未修改任何配置。请先修复客户端配置。", "State is unknown; no configuration was changed. Repair the client configuration first."))?,
                 ProviderAction::Import => self.execute(Command::Import { source: Import::Live { tool: tool.into() } })?,
+                ProviderAction::Edit => {
+                    let labels = list.providers.iter().map(|provider| format!("{} · {}",clean(&provider.name),clean(&provider.id))).collect();
+                    if let Some(index) = self.choose(self.lang.text("选择要编辑的供应商", "Choose a provider to edit"),labels,0)? {
+                        self.execute(Command::Provider { action: crate::args::ProviderCommand::Edit { tool: tool.into(), provider_id:list.providers[index].id.clone() } })?;
+                    }
+                },
                 ProviderAction::Paths => self.execute(Command::Paths { tool: Some(tool.into()) })?,
                 ProviderAction::Back => return Ok(()),
             }
@@ -327,10 +355,7 @@ impl Menu<'_> {
     }
 }
 
-pub fn start(home: Option<&Path>, lang: Language, tool: Option<Tool>) -> Result<(), CliError> {
-    if !can_interact() {
-        return Err(CliError::input("interactive_terminal", "The menu requires an interactive terminal. Run ccsl --help for non-interactive commands."));
-    }
+pub(super) fn install_interrupt_handler() -> Result<(), CliError> {
     // console restores input mode before raising SIGINT, but dialoguer has
     // hidden the cursor. Restore it even when Ctrl+C exits outside Rust drops.
     ctrlc::set_handler(|| {
@@ -339,14 +364,21 @@ pub fn start(home: Option<&Path>, lang: Language, tool: Option<Tool>) -> Result<
         let _ = term.write_line("");
         std::process::exit(130);
     })
-    .map_err(|_| terminal_error())?;
+    .map_err(|_| terminal_error())
+}
+
+pub fn start(home: Option<&Path>, lang: Language, tool: Option<Tool>) -> Result<(), CliError> {
+    if !can_interact() {
+        return Err(CliError::input("interactive_terminal", "The menu requires an interactive terminal. Run leanflip --help for non-interactive commands."));
+    }
+    install_interrupt_handler()?;
     let menu = Menu {
         term: Term::stderr(),
-        theme: ColorfulTheme::default(),
+        theme: theme(),
         home,
         lang,
     };
-    menu.line(&format!("\n{}", style("CC Switch Lite").bold().cyan()))?;
+    menu.line(&format!("\n{}", style("LeanFlip").bold().color256(173)))?;
     menu.line(lang.text(
         "交互菜单 · 输入筛选，↑↓选择，回车确认，Esc 返回或退出",
         "Interactive menu · type to filter, ↑↓ move, Enter confirm, Esc back or exit",

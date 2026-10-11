@@ -5,9 +5,9 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 
 #[derive(Parser)]
 #[command(
-    name = "ccsl",
+    name = "leanflip",
     version,
-    about = "Manage coding-tool providers with CC Switch Lite"
+    about = "Manage coding-tool providers with LeanFlip"
 )]
 pub struct Cli {
     /// Emit a JSON result; errors go to stderr with a stable error code.
@@ -28,6 +28,8 @@ pub enum Command {
     /// Open a searchable menu; optionally start with a specific tool.
     #[command(alias = "ui")]
     Menu { tool: Option<ToolArg> },
+    /// Open the full-screen terminal workspace; optionally select a tool.
+    Tui { tool: Option<ToolArg> },
     /// Show stored selection and detected configuration paths for all tools.
     Status,
     /// List providers without exposing their configuration or credentials.
@@ -40,6 +42,13 @@ pub enum Command {
     Disable { tool: ToolArg, provider_id: String },
     /// Show effective paths, including App directory overrides.
     Paths { tool: Option<ToolArg> },
+    /// Export an encrypted backup of providers, managed accounts and settings.
+    Export {
+        path: PathBuf,
+        /// Read a passphrase from a private file; otherwise prompt without echo.
+        #[arg(long, value_name = "FILE")]
+        password_file: Option<PathBuf>,
+    },
     /// Import existing client settings or a cc-switch export.
     Import {
         #[command(subcommand)]
@@ -62,6 +71,39 @@ pub enum Command {
 
 #[derive(Subcommand)]
 pub enum Import {
+    /// Detect local CC Switch data; preview first, then add --apply to migrate.
+    Local {
+        #[arg(long)]
+        dir: Option<PathBuf>,
+        #[arg(long)]
+        apply: bool,
+        /// Include managed Codex account credentials in the local migration.
+        #[arg(long)]
+        accounts: bool,
+        #[arg(long = "tool", value_delimiter = ',')]
+        tools: Vec<ToolArg>,
+    },
+    /// Unlock a LeanFlip backup and preview it; --apply restores selected data.
+    Backup {
+        path: PathBuf,
+        #[arg(long)]
+        apply: bool,
+        #[arg(long, value_name = "FILE")]
+        password_file: Option<PathBuf>,
+        #[arg(long)]
+        no_accounts: bool,
+        /// Restore accounts/settings without any provider cards.
+        #[arg(long, conflicts_with = "tools")]
+        no_providers: bool,
+        #[arg(long)]
+        no_settings: bool,
+        #[arg(long, conflicts_with = "no_settings")]
+        restore_paths: bool,
+        #[arg(long, value_enum, default_value = "skip")]
+        duplicate: Duplicate,
+        #[arg(long = "tool", value_delimiter = ',')]
+        tools: Vec<ToolArg>,
+    },
     /// Capture a tool's live configuration as saved provider cards.
     Live { tool: ToolArg },
     /// Preview a SQL, SQLite, or legacy JSON export; use --apply to save cards.
@@ -81,6 +123,8 @@ pub enum Import {
 
 #[derive(Subcommand)]
 pub enum ProviderCommand {
+    /// Edit a card name, Base URL and API Key in an interactive terminal.
+    Edit { tool: ToolArg, provider_id: String },
     /// Save a new card; does not activate it unless --activate is supplied.
     Add {
         tool: ToolArg,

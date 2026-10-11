@@ -1,30 +1,11 @@
-//! 并存式工具：OpenCode、OpenClaw、Hermes、Pi、MiniMax Code（MCode）。
-//!
-//! 这些工具的配置里本来就能同时放多家供应商，所以没有「当前供应商」，卡片对应客户端
-//! 配置里以 id 为键的一个条目，操作只有：
-//! - [`write_to_live`]：把卡写进客户端配置（已有同名条目就原位替换）；
-//! - [`activate`]：同上，Hermes 额外把顶层 `model:` 指向这家（`provider` 和第一个模型）；
-//! - [`remove_from_live`]：从客户端配置里移出，卡留着；
-//! - [`add_provider`] / [`update_provider`] / [`delete_provider`]：卡的增改删，和客户端
-//!   配置保持一致（在 live 里的才同步）。
-//!
-//! 每次修改都是写入引擎里的一个操作（首写备份、暂存、pending 意图、崩溃恢复），
-//! 和切换式工具一样；只是不改指针。条目以外的内容一律原样保留：
-//! - OpenCode / OpenClaw / Pi：JSONC / JSON5，用移植来的保留格式编辑器（注释、尾逗号、
-//!   缩进都在）；
-//! - Hermes：YAML，只替换 `custom_providers:`（和激活时的 `model:`）这两个顶层段，
-//!   其余段的文本和注释原样保留；
-//! - MCode：YAML，整份重写（和 cc-switch 一致，会丢注释），写时拿 MCode 自己的目录锁。
-//!
-//! 新加卡时如果客户端配置里已经有同名但内容不同的条目，拒绝（不覆盖用户在客户端里
-//! 配的那家）；要接管它，先导入。
-
+//! Provider-map transactions shared by OpenCode, OpenClaw, Hermes, Pi and MCode.
 pub mod hermes;
 mod jsonc_entry;
 pub mod mcode;
 pub mod openclaw;
 pub mod opencode;
 pub mod pi;
+mod yaml_sections;
 
 use serde_json::{Map, Value};
 
@@ -110,7 +91,7 @@ fn live_path(env: &Env, tool: Tool) -> std::path::PathBuf {
 fn live_file(env: &Env, tool: Tool) -> LiveFile {
     let path = live_path(env, tool);
     match tool {
-        // 和 cc-switch 一样按私有文件写（里面是 Key）。
+        // Credentials require private file permissions.
         Tool::Pi | Tool::Mcode => LiveFile::private(path),
         _ => LiveFile::shared(path),
     }

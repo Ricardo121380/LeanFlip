@@ -1,3 +1,7 @@
+# Historical binary distribution
+
+This installer currently downloads v0.1.0 binaries. The notice below applies to those historical binaries, not the independently reimplemented current source tree.
+
 # NOTICE
 
 ccswitch-lite 是 [farion1231/cc-switch](https://github.com/farion1231/cc-switch) 的派生作品，

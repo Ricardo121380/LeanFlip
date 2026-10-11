@@ -1,6 +1,6 @@
 [package]
 name = "ccsl-app"
-description = "CC Switch Lite desktop app (Tauri 2): thin command layer over ccsl-core"
+description = "LeanFlip desktop app (Tauri 2): thin command layer over ccsl-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -23,6 +23,8 @@ ccsl-service = { path = "../service" }
 tauri = { version = "2", features = ["tray-icon", "image-png"] }
 tauri-plugin-autostart = "2"
 tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
+chrono.workspace = true
 tauri-plugin-single-instance = "2"
 serde.workspace = true
 serde_json.workspace = true

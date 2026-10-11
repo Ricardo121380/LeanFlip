@@ -130,14 +130,14 @@ describe("ProviderEditor via ToolPage", () => {
     });
     renderWithClient(<ToolPage tool="claude" />);
     await userEvent.click(await screen.findByRole("button", { name: /添加供应商/ }));
-    await userEvent.type(await screen.findByPlaceholderText("搜索预设…"), "Kimi");
-    const option = await screen.findByRole("button", { name: "Kimi" });
+    await userEvent.type(await screen.findByPlaceholderText("搜索预设…"), "Anthropic Gateway");
+    const option = await screen.findByRole("button", { name: "Anthropic Gateway" });
     await userEvent.click(option);
-    expect((screen.getByLabelText("ID") as HTMLInputElement).value).toMatch(/^kimi/);
+    expect((screen.getByLabelText("ID") as HTMLInputElement).value).toMatch(/^anthropic-gateway/);
     await userEvent.click(screen.getByRole("button", { name: "保存" }));
     await waitFor(() => expect(fake.calls.some((c) => c.cmd === "add_provider")).toBe(true));
     const args = fake.calls.find((c) => c.cmd === "add_provider")!.args as { provider: { id: string; settingsConfig: { env: Record<string, string> } }; addToLive: boolean };
-    expect(args.provider.id).toMatch(/^kimi/);
+    expect(args.provider.id).toMatch(/^anthropic-gateway/);
     expect(args.provider.settingsConfig.env.ANTHROPIC_BASE_URL).toMatch(/^https:\/\//);
     expect(args.addToLive).toBe(false);
   });
@@ -274,7 +274,7 @@ describe("ImportWizard", () => {
         source: "/h/.cc-switch/cc-switch.db",
         accounts: 1,
         candidates: [
-          { tool: "claude", provider: { id: "k", name: "Kimi", settingsConfig: {} }, skipReason: null },
+          { tool: "claude", provider: { id: "k", name: "Anthropic Gateway", settingsConfig: {} }, skipReason: null },
           { tool: "claude", provider: { id: "c", name: "Copilot", settingsConfig: {} }, skipReason: routing },
           { tool: "gemini", provider: { id: "g", name: "G", settingsConfig: {} }, skipReason: duplicate },
         ],
@@ -292,7 +292,7 @@ describe("ImportWizard", () => {
     expect(screen.getByRole("checkbox", { name: "导入 Gemini CLI" })).toBeDisabled();
     await userEvent.click(screen.getByRole("button", { name: /导入所选工具/ }));
     expect(await screen.findByText(/新增 1 张卡/)).toBeInTheDocument();
-    expect(fake.calls.find((c) => c.cmd === "ccswitch_apply")!.args).toEqual({ tools: ["claude"], dir: null });
+    expect(fake.calls.find((c) => c.cmd === "ccswitch_apply")!.args).toEqual({ tools: ["claude", "codex"], dir: null, accounts: true });
   });
 
   it("shows skip reasons and labels in English", async () => {

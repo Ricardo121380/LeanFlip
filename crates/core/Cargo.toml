@@ -23,7 +23,6 @@ toml.workspace = true
 chrono.workspace = true
 getrandom.workspace = true
 json5.workspace = true
-json-five.workspace = true
 serde_yaml.workspace = true
 indexmap.workspace = true
 rusqlite.workspace = true

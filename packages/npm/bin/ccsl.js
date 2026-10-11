@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
-import { ensureCli } from '../lib/distribution.js';
+import { cliName, ensureCli } from '../lib/distribution.js';
 
 try {
   const binary = await ensureCli();
@@ -21,7 +21,7 @@ try {
   if (result.signal) process.kill(process.pid, result.signal);
   else process.exitCode = result.code ?? 1;
 } catch (error) {
-  const message = `Cannot prepare ccsl: ${error.message}`;
+  const message = `Cannot prepare ${cliName}: ${error.message}`;
   console.error(process.argv.includes('--json')
     ? JSON.stringify({ ok: false, error: { code: 'binary_install_failed', message } })
     : message);

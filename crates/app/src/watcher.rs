@@ -83,9 +83,7 @@ pub(crate) fn is_relevant(env: &Env, path: &Path) -> bool {
         .iter()
         .map(|target| resolve_alias(target))
         .any(|target| {
-            target == path
-                || target.starts_with(&path)
-                || target.parent() == Some(path.as_path())
+            target == path || target.starts_with(&path) || target.parent() == Some(path.as_path())
         })
 }
 
@@ -353,6 +351,9 @@ mod tests {
 
         // 紧接上一次刷新，模拟客户端再次写同一配置；不能当成应用自己的回声丢掉。
         std::fs::write(&path, r#"{"writer":"external-client"}"#).unwrap();
-        assert!(wait_for(|| observed.lock().unwrap().contains("external-client")));
+        assert!(wait_for(|| observed
+            .lock()
+            .unwrap()
+            .contains("external-client")));
     }
 }

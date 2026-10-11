@@ -30,17 +30,19 @@ jobs:
         run: cargo build -p ccsl-cli --release --locked
       - name: Smoke test in an isolated home
         run: |
-          target/release/ccsl --version
-          target/release/ccsl --home "$RUNNER_TEMP/ccsl-smoke" status --json
+          target/release/leanflip --version
+          target/release/leanflip --home "$RUNNER_TEMP/ccsl-smoke" status --json
           test ! -e "$RUNNER_TEMP/ccsl-smoke"
       - name: Check interactive menu in a pseudo-terminal
-        run: python3 scripts/check-cli-menu.py --binary target/release/ccsl
+        run: python3 scripts/check-cli-menu.py --binary target/release/leanflip
+      - name: Check full-screen TUI in a pseudo-terminal
+        run: python3 scripts/check-cli-tui.py --binary target/release/leanflip
       - name: Archive binary with executable permissions
-        run: tar -C target/release -czf ccsl-${{ matrix.os }}-${{ runner.arch }}.tar.gz ccsl
+        run: tar -C target/release -czf leanflip-${{ matrix.os }}-${{ runner.arch }}.tar.gz leanflip
       - uses: actions/upload-artifact@v4
         with:
-          name: ccsl-${{ matrix.os }}-${{ runner.arch }}
-          path: ccsl-${{ matrix.os }}-${{ runner.arch }}.tar.gz
+          name: leanflip-${{ matrix.os }}-${{ runner.arch }}
+          path: leanflip-${{ matrix.os }}-${{ runner.arch }}.tar.gz
           if-no-files-found: error
 
   checks:

@@ -1,6 +1,9 @@
 mod args;
+mod data;
+mod editor;
 mod menu;
 mod presentation;
+mod tui;
 
 use std::fs::File;
 use std::io::{self, Read, Write};
@@ -52,7 +55,7 @@ impl From<ApiError> for CliError {
             "invalid_input" => "Invalid provider or operation input. Check the command and provider JSON.",
             "not_found" => "The requested provider, account, or file was not found.",
             "conflict" => "Configuration changed concurrently. Inspect the current configuration and retry.",
-            "config" | "json" => "Configuration cannot be read or validated. Inspect the files shown by ccsl paths.",
+            "config" | "json" => "Configuration cannot be read or validated. Inspect the files shown by leanflip paths.",
             "io" => "Cannot access a required file. Check paths and permissions.",
             "serialization" => "Configuration could not be serialized; the operation failed.",
             "codex.oauth.live_sync_failed" => "Account credentials were refreshed and saved, but the Codex client could not be synchronized. Check the client path and permissions; the new credentials were retained.",
@@ -107,8 +110,8 @@ impl Output {
                 "\n{} {count}\n{}",
                 lang.text("配置警告：", "Configuration warnings:"),
                 lang.text(
-                    "使用前请运行 ccsl paths <tool>，检查相关配置。",
-                    "Run ccsl paths <tool> and inspect the affected configuration before using it."
+                    "使用前请运行 leanflip paths <tool>，检查相关配置。",
+                    "Run leanflip paths <tool> and inspect the affected configuration before using it."
                 )
             ));
         }
@@ -327,7 +330,9 @@ fn run(cli: Cli) -> Result<Output, CliError> {
     }
     let service = open_service(cli.home.as_deref())?;
     let result: Result<Output, CliError> = match cli.command {
-        Command::Menu { .. } => unreachable!("menus are dispatched before commands"),
+        Command::Menu { .. } | Command::Tui { .. } => {
+            unreachable!("interactive interfaces are dispatched before commands")
+        }
         Command::Status => {
             let tools = service.overview()?;
             let rows = tools
@@ -373,13 +378,13 @@ fn run(cli: Cli) -> Result<Output, CliError> {
                     ]
                 })
                 .collect::<Vec<_>>();
-            let mut text = format!("{}\n\n{}\n\n{}", lang.text("CC Switch Lite · 工具概览", "CC Switch Lite · Tool overview"),
+            let mut text = format!("{}\n\n{}\n\n{}", lang.text("LeanFlip · 工具概览", "LeanFlip · Tool overview"),
                 table(&[lang.text("工具", "TOOL"), lang.text("模式", "MODE"), lang.text("卡片", "CARDS"), lang.text("当前选择 / 启用数", "SELECTION / ENABLED"), lang.text("客户端配置", "CLIENT CONFIG")], &rows),
-                lang.text("切换式状态来自已保存的选择；可用 ccsl list <tool> 查看卡片。", "Switch selections reflect the saved choice. Run ccsl list <tool> to inspect cards."));
+                lang.text("切换式状态来自已保存的选择；可用 leanflip list <tool> 查看卡片。", "Switch selections reflect the saved choice. Run leanflip list <tool> to inspect cards."));
             if tools.iter().all(|tool| tool.card_count == 0) {
                 text.push_str(lang.text(
-                    "\n还没有供应商。可用 ccsl import live <tool> 导入现有配置。",
-                    "\nNo providers yet. Use ccsl import live <tool> to import existing settings.",
+                    "\n还没有供应商。可用 leanflip import live <tool> 导入现有配置。",
+                    "\nNo providers yet. Use leanflip import live <tool> to import existing settings.",
                 ));
             }
             let tools = tools
@@ -417,7 +422,7 @@ fn run(cli: Cli) -> Result<Output, CliError> {
             );
             if providers.is_empty() {
                 text.push_str(&format!(
-                    "\n\n{}\n  ccsl import live {}\n  ccsl provider add {} --file provider.json",
+                    "\n\n{}\n  leanflip import live {}\n  leanflip provider add {} --file provider.json",
                     lang.text(
                         "暂无供应商。可导入客户端配置，或从 JSON 文件新增：",
                         "No providers yet. Import client settings or add a JSON card:"
@@ -428,7 +433,10 @@ fn run(cli: Cli) -> Result<Output, CliError> {
             } else {
                 let rows = providers
                     .iter()
-                    .map(|p| {
+                    .zip(&list.providers)
+                    .map(|(p, provider)| {
+                        let connection =
+                            ccsl_service::service::connection_info(list.tool, provider);
                         let state = if list.tool.is_coexist() {
                             match p["enabled"].as_bool() {
                                 Some(true) => lang.text("已启用", "Enabled"),
@@ -443,30 +451,32 @@ fn run(cli: Cli) -> Result<Output, CliError> {
                         vec![
                             field(p, "id"),
                             field(p, "name"),
-                            lang.text(
-                                if p["official"] == true {
-                                    "官方"
-                                } else {
-                                    "自定义"
-                                },
-                                if p["official"] == true {
-                                    "Official"
-                                } else {
-                                    "Custom"
-                                },
-                            )
+                            connection.base_url.unwrap_or_else(|| {
+                                lang.text("客户端默认 / 未设置", "Client default / not set")
+                                    .into()
+                            }),
+                            if connection.uses_login {
+                                lang.text("官方登录", "Official login")
+                            } else if !connection.editable {
+                                lang.text("高级配置", "Advanced config")
+                            } else if connection.api_key_set {
+                                lang.text("已配置", "Configured")
+                            } else {
+                                lang.text("未设置", "Not set")
+                            }
                             .into(),
                             state.into(),
                         ]
                     })
                     .collect::<Vec<_>>();
                 text.push_str(&format!(
-                    "\n\n{}\n\n{}\n  ccsl {} {} <provider-id>",
+                    "\n\n{}\n\n{}\n  leanflip {} {} <provider-id>",
                     table(
                         &[
                             "ID",
                             lang.text("名称", "NAME"),
-                            lang.text("类型", "TYPE"),
+                            "Base URL",
+                            "API Key",
                             lang.text("状态", "STATE")
                         ],
                         &rows
@@ -479,9 +489,14 @@ fn run(cli: Cli) -> Result<Output, CliError> {
                     },
                     list.tool
                 ));
+                text.push_str(&format!(
+                    "\n  leanflip provider edit {} <provider-id>  # {}",
+                    list.tool,
+                    lang.text("编辑 Base URL / API Key", "edit Base URL / API Key")
+                ));
             }
             if list.live_error.is_some() {
-                text.push_str(&format!("\n\n{}\n  ccsl paths {}", lang.text("无法读取客户端配置，启用状态未知。请先检查路径和文件格式：", "Client configuration is unreadable; enabled state is unknown. Check paths and file format:"), list.tool));
+                text.push_str(&format!("\n\n{}\n  leanflip paths {}", lang.text("无法读取客户端配置，启用状态未知。请先检查路径和文件格式：", "Client configuration is unreadable; enabled state is unknown. Check paths and file format:"), list.tool));
             }
             Ok(Output::new(
                 json!({"tool": list.tool, "kind": list.kind, "providers": providers,
@@ -556,6 +571,63 @@ fn run(cli: Cli) -> Result<Output, CliError> {
             };
             Ok(Output::new(json!(result), text))
         }
+        Command::Export {
+            path,
+            password_file,
+        } => data::export(&service, &path, password_file.as_deref(), cli.json, lang),
+        Command::Import {
+            source:
+                Import::Local {
+                    dir,
+                    apply,
+                    accounts,
+                    tools,
+                },
+        } => data::local(
+            &service,
+            dir,
+            apply,
+            accounts,
+            tools.into_iter().map(Tool::from).collect(),
+            lang,
+        ),
+        Command::Import {
+            source:
+                Import::Backup {
+                    path,
+                    apply,
+                    password_file,
+                    no_accounts,
+                    no_providers,
+                    no_settings,
+                    restore_paths,
+                    duplicate,
+                    tools,
+                },
+        } => {
+            let options = ccsl_service::service::RestoreOptions {
+                tools: if no_providers {
+                    vec![]
+                } else if tools.is_empty() {
+                    Tool::ALL.to_vec()
+                } else {
+                    tools.into_iter().map(Tool::from).collect()
+                },
+                accounts: !no_accounts,
+                settings: !no_settings,
+                paths: restore_paths,
+                duplicate: duplicate.into(),
+            };
+            data::restore(
+                &service,
+                &path,
+                password_file.as_deref(),
+                apply,
+                options,
+                cli.json,
+                lang,
+            )
+        }
         Command::Import {
             source:
                 Import::File {
@@ -585,51 +657,59 @@ fn run(cli: Cli) -> Result<Output, CliError> {
                 lang.text("已跳过", "Skipped:"),
                 report.skipped,
                 lang.text(
-                    "可用 ccsl list <tool> 查看，再通过 use 或 enable 应用到客户端。",
-                    "Run ccsl list <tool> to inspect cards, then use use or enable to apply them."
+                    "可用 leanflip list <tool> 查看，再通过 use 或 enable 应用到客户端。",
+                    "Run leanflip list <tool> to inspect cards, then use use or enable to apply them."
                 )
             );
             Ok(Output::new(json!(report), text))
         }
-        Command::Provider { action } => match action {
-            ProviderCommand::Add {
-                tool,
-                input,
-                activate,
-            } => Ok(Output::operation(
-                service.add_provider(tool.into(), provider(&input.file)?, activate)?,
-                lang,
-                if activate {
-                    "供应商已保存并应用。"
-                } else {
-                    "供应商已保存，可用 use 或 enable 应用。"
-                },
-                if activate {
-                    "Provider saved and applied."
-                } else {
-                    "Provider saved. Apply it with use or enable."
-                },
-            )),
-            ProviderCommand::Update { tool, input } => Ok(Output::operation(
-                service.update_provider(tool.into(), provider(&input.file)?)?,
-                lang,
-                "供应商已更新。",
-                "Provider updated.",
-            )),
-            ProviderCommand::Delete { tool, provider_id } => {
-                service.delete_provider(tool.into(), &provider_id)?;
-                Ok(Output::done(
+        Command::Provider { action } => {
+            match action {
+                ProviderCommand::Edit { tool, provider_id } => {
+                    if cli.json {
+                        return Err(CliError::input("interactive_terminal", "Interactive editing does not support --json; use provider update --file."));
+                    }
+                    editor::start(&service, tool.into(), &provider_id, lang)
+                }
+                ProviderCommand::Add {
+                    tool,
+                    input,
+                    activate,
+                } => Ok(Output::operation(
+                    service.add_provider(tool.into(), provider(&input.file)?, activate)?,
                     lang,
-                    "供应商卡片已删除。",
-                    "Provider card deleted.",
-                ))
+                    if activate {
+                        "供应商已保存并应用。"
+                    } else {
+                        "供应商已保存，可用 use 或 enable 应用。"
+                    },
+                    if activate {
+                        "Provider saved and applied."
+                    } else {
+                        "Provider saved. Apply it with use or enable."
+                    },
+                )),
+                ProviderCommand::Update { tool, input } => Ok(Output::operation(
+                    service.update_provider(tool.into(), provider(&input.file)?)?,
+                    lang,
+                    "供应商已更新。",
+                    "Provider updated.",
+                )),
+                ProviderCommand::Delete { tool, provider_id } => {
+                    service.delete_provider(tool.into(), &provider_id)?;
+                    Ok(Output::done(
+                        lang,
+                        "供应商卡片已删除。",
+                        "Provider card deleted.",
+                    ))
+                }
             }
-        },
+        }
         Command::Accounts { action } => match action {
             AccountCommand::List => {
                 let accounts = service.codex_accounts_checked()?;
                 let text = if accounts.is_empty() {
-                    lang.text("Codex · 暂无托管账号\n\n运行以下命令，通过浏览器完成登录：\n  ccsl accounts login", "Codex · No managed accounts\n\nSign in through your browser:\n  ccsl accounts login").to_string()
+                    lang.text("Codex · 暂无托管账号\n\n运行以下命令，通过浏览器完成登录：\n  leanflip accounts login", "Codex · No managed accounts\n\nSign in through your browser:\n  leanflip accounts login").to_string()
                 } else {
                     let rows = accounts
                         .iter()
@@ -672,8 +752,8 @@ fn run(cli: Cli) -> Result<Output, CliError> {
                             &rows
                         ),
                         lang.text(
-                            "需重新登录时：ccsl accounts login --account <account-id>",
-                            "To reauthenticate: ccsl accounts login --account <account-id>"
+                            "需重新登录时：leanflip accounts login --account <account-id>",
+                            "To reauthenticate: leanflip accounts login --account <account-id>"
                         )
                     )
                 };
@@ -717,7 +797,7 @@ fn run(cli: Cli) -> Result<Output, CliError> {
                     .into()
             } else {
                 format!("{} {}\n{}", lang.text("恢复处理已完成，提示数：", "Recovery completed; notices:"), notices.len(),
-                    lang.text("请用 ccsl paths <tool> 定位并检查相关配置后再使用。", "Run ccsl paths <tool> and inspect the affected configuration before using it."))
+                    lang.text("请用 leanflip paths <tool> 定位并检查相关配置后再使用。", "Run leanflip paths <tool> and inspect the affected configuration before using it."))
             };
             Ok(Output::new(json!({"noticeCount": notices.len()}), text))
         }
@@ -760,7 +840,7 @@ fn error_output(error: CliError, as_json: bool, lang: Language) -> ExitCode {
 fn write_stdout(mut writer: impl Write, line: &str, as_json: bool) -> ExitCode {
     match writeln!(writer, "{line}") {
         Ok(()) => ExitCode::SUCCESS,
-        // `ccsl list ... | head` is a normal way to read terminal output. A
+        // `leanflip list ... | head` is a normal way to read terminal output. A
         // closed consumer is not an operation failure. Keep JSON's exit contract.
         Err(error) if !as_json && error.kind() == io::ErrorKind::BrokenPipe => ExitCode::SUCCESS,
         Err(_) => ExitCode::from(1),
@@ -785,7 +865,7 @@ fn main() -> ExitCode {
         Err(error) => {
             let invalid = CliError::input(
                 "invalid_arguments",
-                "Invalid arguments. Run ccsl --help or ccsl <command> --help for usage.",
+                "Invalid arguments. Run leanflip --help or leanflip <command> --help for usage.",
             );
             if as_json {
                 return error_output(invalid, true, lang);
@@ -802,7 +882,7 @@ fn main() -> ExitCode {
                 clap::error::ErrorKind::MissingSubcommand
                     | clap::error::ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand
             ) {
-                if help.get_name() == "ccsl" && menu::can_interact() {
+                if help.get_name() == command.get_name() && menu::can_interact() {
                     let mut interactive = raw.clone();
                     interactive.push("menu".into());
                     if let Ok(cli) = command
@@ -813,8 +893,8 @@ fn main() -> ExitCode {
                         return execute(cli);
                     }
                 }
-                let title = if help.get_name() == "ccsl" {
-                    lang.text("CC Switch Lite · 快速入门", "CC Switch Lite · Quick start")
+                let title = if help.get_name() == command.get_name() {
+                    lang.text("LeanFlip · 快速入门", "LeanFlip · Quick start")
                 } else {
                     lang.text("命令帮助", "Command help")
                 };
@@ -833,18 +913,35 @@ fn main() -> ExitCode {
 }
 
 fn execute(cli: Cli) -> ExitCode {
-    if let Command::Menu { tool } = &cli.command {
+    if matches!(
+        &cli.command,
+        Command::Provider {
+            action: ProviderCommand::Edit { .. }
+        }
+    ) && !cli.json
+        && menu::can_interact()
+    {
+        if let Err(problem) = menu::install_interrupt_handler() {
+            return error_output(problem, false, cli.lang);
+        }
+    }
+    if let Command::Menu { tool } | Command::Tui { tool } = &cli.command {
         if cli.json {
             return error_output(
                 CliError::input(
                     "invalid_arguments",
-                    "Invalid arguments. Run ccsl --help or ccsl <command> --help for usage.",
+                    "Invalid arguments. Run leanflip --help or leanflip <command> --help for usage.",
                 ),
                 true,
                 cli.lang,
             );
         }
-        return match menu::start(cli.home.as_deref(), cli.lang, tool.map(Tool::from)) {
+        let result = if matches!(cli.command, Command::Tui { .. }) {
+            tui::start(cli.home.as_deref(), cli.lang, tool.map(Tool::from))
+        } else {
+            menu::start(cli.home.as_deref(), cli.lang, tool.map(Tool::from))
+        };
+        return match result {
             Ok(()) => ExitCode::SUCCESS,
             Err(error) => error_output(error, false, cli.lang),
         };
@@ -856,7 +953,7 @@ fn execute(cli: Cli) -> ExitCode {
             let line = if as_json {
                 json!({"ok": true, "data": output.data}).to_string()
             } else {
-                output.text
+                presentation::human_output(&output.text)
             };
             write_stdout(io::stdout().lock(), &line, as_json)
         }

@@ -273,7 +273,13 @@ fn managed_account_cards_need_the_account_manager() {
         Some(&alice),
     );
     let err = switch::switch(&sb.env, Tool::Codex, "managed").unwrap_err();
-    assert!(err.to_string().contains("托管"), "{err}");
+    assert!(matches!(
+        err,
+        ccsl_core::AppError::Localized {
+            key: "codex.oauth.manager_unavailable",
+            ..
+        }
+    ));
     assert_eq!(live_auth(&sb), Some(alice));
     assert_eq!(sb.current(Tool::Codex).as_deref(), Some("official"));
 }

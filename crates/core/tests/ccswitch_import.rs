@@ -195,3 +195,46 @@ fn imports_the_legacy_config_json_and_managed_accounts() {
         .unwrap()
         .is_empty());
 }
+
+#[test]
+fn detects_ccswitch_directory_preferences_within_the_supplied_home() {
+    let sb = Sandbox::new();
+    let root = if cfg!(target_os = "macos") {
+        "Library/Application Support"
+    } else if cfg!(windows) {
+        "AppData/Roaming"
+    } else {
+        ".local/share"
+    };
+    let preference = sb
+        .env
+        .home
+        .join(root)
+        .join("com.ccswitch.desktop/app_paths.json");
+    assert_eq!(
+        ccswitch_import::detected_dir(&sb.env).unwrap(),
+        sb.env.home.join(".cc-switch")
+    );
+    let custom = sb.env.home.join("custom-source");
+    std::fs::create_dir_all(&custom).unwrap();
+    sb.write(
+        &preference,
+        &json!({"app_config_dir_override":"~/custom-source"}).to_string(),
+    );
+    assert_eq!(ccswitch_import::detected_dir(&sb.env).unwrap(), custom);
+    sb.write(
+        &preference,
+        &json!({"app_config_dir_override":sb.env.home.join("missing")}).to_string(),
+    );
+    assert_eq!(
+        ccswitch_import::detected_dir(&sb.env).unwrap(),
+        sb.env.home.join(".cc-switch")
+    );
+    sb.write(&preference, "{broken");
+    assert!(ccswitch_import::detected_dir(&sb.env).is_err());
+    sb.write(
+        &preference,
+        &json!({"app_config_dir_override":"relative"}).to_string(),
+    );
+    assert!(ccswitch_import::detected_dir(&sb.env).is_err());
+}

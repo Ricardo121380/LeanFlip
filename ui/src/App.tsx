@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Download, RotateCcw, Settings, UsersRound } from "lucide-react";
+import { Download, Leaf, RotateCcw, Settings, UsersRound } from "lucide-react";
 import { toast } from "sonner";
 import { useBackendEvents, useOverview, useSettings } from "@/hooks/queries";
 import type { ToolId } from "@/lib/api";
@@ -160,15 +160,15 @@ export default function App() {
   const navButton = (active: boolean) =>
     cn(
       "flex min-h-9 w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
-      active && "bg-accent font-semibold text-foreground",
+      active && "bg-primary/10 font-semibold text-primary",
     );
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <aside className="flex w-56 shrink-0 flex-col border-r bg-muted/40 p-3">
-        <div className="shrink-0 px-2 pb-5 pt-1">
-          <p className="font-semibold">{t("app.title")}</p>
-          <p className="text-xs text-muted-foreground">{t("app.subtitle")}</p>
+      <aside className="flex w-56 shrink-0 flex-col border-r bg-card p-3">
+        <div className="flex shrink-0 items-center gap-3 px-2 pb-6 pt-2">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground"><Leaf className="size-6" strokeWidth={1.6} aria-hidden="true" /></div>
+          <div><p className="text-lg font-semibold tracking-tight">{t("app.title")}</p><p className="mt-0.5 text-[11px] text-muted-foreground">{t("app.subtitle")}</p></div>
         </div>
         <nav aria-label={t("nav.tools")} className="min-h-0 flex-1 space-y-4 overflow-y-auto pb-3">
           {(["switch", "coexist"] as const).map((kind) => (

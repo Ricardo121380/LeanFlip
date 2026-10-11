@@ -200,8 +200,8 @@ describe("Import navigation protection", () => {
     let finish!: () => void;
     const pending = new Promise<void>((resolve) => { finish = resolve; });
     start({ ccswitch_export_load: async () => { await pending; return { format: "json", items: [] }; } });
-    await userEvent.click(screen.getByRole("link", { name: "从 cc-switch 导入" }));
-    await userEvent.click(await screen.findByRole("tab", { name: "导出文件" }));
+    await userEvent.click(screen.getByRole("link", { name: "数据与迁移" }));
+    await userEvent.click(await screen.findByRole("tab", { name: "导入文件" }));
     await userEvent.upload(screen.getByTestId("export-file"), new File(["{}"], "providers.json", { type: "application/json" }));
     await waitFor(() => expect(screen.getByRole("tab", { name: "本机数据目录" })).toBeDisabled());
     await userEvent.click(screen.getByRole("link", { name: "Gemini CLI" }));

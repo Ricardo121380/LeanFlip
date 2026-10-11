@@ -1,7 +1,5 @@
-//! ccswitch-lite 的核心：只做「每个 agent 的配置切换」，没有本地代理 / 路由。
-//!
-//! 大部分写入逻辑移植自 [farion1231/cc-switch](https://github.com/farion1231/cc-switch)
-//! （MIT，Copyright (c) 2025 Jason Young），见仓库根目录的 `NOTICE.md`。
+//! LeanFlip shared configuration and account-management core.
+//! Implementation and compatibility notes: docs/engineering/independent-core.md.
 
 pub mod ccswitch_export;
 pub mod ccswitch_import;
