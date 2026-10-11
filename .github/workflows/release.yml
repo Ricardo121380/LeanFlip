@@ -1,0 +1,137 @@
+name: Release packages
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Release (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            platform: linux-x64
+            target: x86_64-unknown-linux-gnu
+            bundle: deb
+          - os: macos-14
+            platform: macos-arm64
+            target: aarch64-apple-darwin
+            bundle: app,dmg
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check tag and package versions
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, re, tomllib
+          tag = os.environ['RELEASE_TAG']
+          assert os.environ['REF_TYPE'] == 'tag', 'Run this workflow on a release tag'
+          assert re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+', tag), 'Expected vMAJOR.MINOR.PATCH'
+          version = tag[1:]
+          root = pathlib.Path('.')
+          assert json.loads((root / 'package.json').read_text())['version'] == version
+          assert json.loads((root / 'crates/app/tauri.conf.json').read_text())['version'] == version
+          assert tomllib.loads((root / 'Cargo.toml').read_text())['workspace']['package']['version'] == version
+          assert (root / f'docs/releases/{tag}.md').is_file(), 'Missing release notes'
+          with open(os.environ['GITHUB_ENV'], 'a') as env:
+              env.write(f'RELEASE_VERSION={version}\n')
+          PY
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.22.0
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Check runner architecture
+        env:
+          EXPECTED_TARGET: ${{ matrix.target }}
+        run: |
+          rustc -vV | grep -Fx "host: $EXPECTED_TARGET"
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libssl-dev libxdo-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+      - name: Install locked frontend dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Build standalone CLI
+        run: cargo build -p ccsl-cli --release --locked
+      - name: Verify standalone CLI
+        run: |
+          test "$(target/release/ccsl --version)" = "ccsl $RELEASE_VERSION"
+          target/release/ccsl --home "$RUNNER_TEMP/ccsl-release-smoke" status --json
+          test ! -e "$RUNNER_TEMP/ccsl-release-smoke"
+          python3 scripts/check-cli-menu.py --binary target/release/ccsl
+      - name: Build optimized desktop packages
+        run: pnpm tauri build --ci --bundles ${{ matrix.bundle }} -- --locked
+      - name: Assemble release assets
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          mkdir -p release-assets "$RUNNER_TEMP/ccsl-package"
+          cp target/release/ccsl LICENSE NOTICE.md "$RUNNER_TEMP/ccsl-package/"
+          cp crates/cli/README.md "$RUNNER_TEMP/ccsl-package/README.md"
+          tar -C "$RUNNER_TEMP/ccsl-package" -czf "release-assets/ccsl_${RELEASE_VERSION}_${PLATFORM}.tar.gz" ccsl LICENSE NOTICE.md README.md
+          if [ "$RUNNER_OS" = macOS ]; then
+            set -- target/release/bundle/dmg/*.dmg
+            test "$#" -eq 1 && test -f "$1"
+            hdiutil verify "$1"
+            cp "$1" "release-assets/ccswitch-lite_${RELEASE_VERSION}_${PLATFORM}.dmg"
+          else
+            set -- target/release/bundle/deb/*.deb
+            test "$#" -eq 1 && test -f "$1"
+            test "$(dpkg-deb -f "$1" Version)" = "$RELEASE_VERSION"
+            test "$(dpkg-deb -f "$1" Architecture)" = amd64
+            cp "$1" "release-assets/ccswitch-lite_${RELEASE_VERSION}_${PLATFORM}.deb"
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.platform }}
+          path: release-assets/*
+          if-no-files-found: error
+
+  draft:
+    name: Prepare draft release
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: release-assets
+      - name: Generate and verify checksums
+        working-directory: release-assets
+        run: |
+          test "$(find . -type f | wc -l)" -eq 4
+          sha256sum *.tar.gz *.deb *.dmg > SHA256SUMS
+          sha256sum --check SHA256SUMS
+      - name: Create draft with packages and release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$RELEASE_TAG" --json isDraft > "$RUNNER_TEMP/release.json" 2>/dev/null; then
+            python3 -c 'import json,sys; assert json.load(open(sys.argv[1]))["isDraft"], "Refusing to change a published release"' "$RUNNER_TEMP/release.json"
+            gh release edit "$RELEASE_TAG" --title "CC Switch Lite $RELEASE_TAG" --notes-file "docs/releases/$RELEASE_TAG.md"
+            gh release upload "$RELEASE_TAG" release-assets/* --clobber
+          else
+            gh release create "$RELEASE_TAG" release-assets/* --verify-tag --draft --title "CC Switch Lite $RELEASE_TAG" --notes-file "docs/releases/$RELEASE_TAG.md"
+          fi

@@ -2,6 +2,10 @@
 
 `ccsl` 与桌面 App 共用 `ccsl-service`、供应商库和目录覆盖设置，不需要运行桌面 App 或安装 WebView。
 
+下载 [GitHub Release](https://github.com/Ricardo121380/ccswitch-lite/releases/latest) 中对应平台的
+`ccsl_*.tar.gz`，解压后直接运行 `./ccsl`；需要全局调用时，将二进制放入已有的 PATH 目录。
+预编译版本无需安装 Rust 或 Node.js。以下命令适用于从源码构建：
+
 ```sh
 cargo build -p ccsl-cli --release
 ./target/release/ccsl
