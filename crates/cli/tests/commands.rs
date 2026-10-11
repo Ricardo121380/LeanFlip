@@ -480,3 +480,126 @@ fn human_preview_explains_fixed_reason_codes_and_preserves_json() {
     assert_eq!(zh.stdout, en.stdout);
     assert!(snapshot(&sb.env.home).is_empty());
 }
+
+#[test]
+fn missing_commands_show_help_without_opening_configuration_and_json_stays_an_error() {
+    let sb = Sandbox::new();
+    sb.write(
+        &sb.env.store_path(),
+        b"private-invalid-config-that-must-not-be-read",
+    );
+    let before = snapshot(&sb.env.home);
+    let quick_start = human(sb.run(&[]));
+    assert!(quick_start.contains("快速入门") && quick_start.contains("ccsl status"));
+    assert!(!quick_start.contains("错误 [") && !quick_start.contains("private-invalid"));
+    let english = human(sb.run(&["--lang", "en"]));
+    assert!(english.contains("Quick start") && english.contains("Examples:"));
+    let group = human(sb.run(&["provider"]));
+    assert!(group.contains("ccsl provider") && group.contains("新增、更新或删除"));
+    for args in [
+        vec!["--json"],
+        vec!["provider", "--json"],
+        vec!["--lang", "en", "--json"],
+    ] {
+        let result = sb.run(&args);
+        assert_eq!(result.status.code(), Some(2));
+        assert!(result.stdout.is_empty());
+        let error: Value = serde_json::from_slice(&result.stderr).unwrap();
+        assert_eq!(
+            error,
+            json!({"ok":false,"error":{"code":"invalid_arguments","message":"Invalid arguments. Run ccsl --help or ccsl <command> --help for usage."}})
+        );
+    }
+    assert_eq!(snapshot(&sb.env.home), before);
+}
+
+#[test]
+fn argument_errors_show_only_recognized_command_help_and_never_raw_arguments() {
+    let sb = Sandbox::new();
+    for (args, usage) in [
+        (
+            vec!["list", "private-invalid-tool"],
+            "ccsl list [OPTIONS] <TOOL>",
+        ),
+        (
+            vec!["provider", "add", "private-invalid-tool"],
+            "ccsl provider add [OPTIONS] <TOOL>",
+        ),
+        (
+            vec![
+                "providers",
+                "update",
+                "codex",
+                "--file",
+                "private-provider-path",
+                "--private-unknown-flag",
+            ],
+            "ccsl provider update [OPTIONS] <TOOL>",
+        ),
+        (
+            vec!["accounts", "login", "--timeout", "private-invalid-timeout"],
+            "ccsl accounts login [OPTIONS]",
+        ),
+        (
+            vec![
+                "import",
+                "file",
+                "private-export-path",
+                "--preview",
+                "--apply",
+            ],
+            "ccsl import file [OPTIONS] <PATH>",
+        ),
+        (vec!["provider", "private-invalid-action"], "ccsl provider"),
+    ] {
+        let result = sb.run(&args);
+        assert_eq!(result.status.code(), Some(2));
+        assert!(result.stdout.is_empty());
+        let text = String::from_utf8(result.stderr).unwrap();
+        assert!(text.contains(usage), "{args:?}: {text}");
+        assert!(!text.contains("private-"), "raw argument leaked: {text}");
+        assert!(text.contains("invalid_arguments"));
+        if args[0] == "list" || args[1] == "add" {
+            assert!(
+                text.contains("codex") && text.contains("opencode"),
+                "valid tools must remain discoverable"
+            );
+        }
+    }
+    let en = sb.run(&["--lang", "en", "list"]);
+    let text = String::from_utf8(en.stderr).unwrap();
+    assert!(text.contains("Usage: ccsl list") && text.contains("Examples:"));
+    assert!(snapshot(&sb.env.home).is_empty());
+}
+
+#[test]
+fn closing_a_human_output_pipe_is_quiet_success_while_json_retains_exit_one() {
+    let sb = Sandbox::new();
+    // Larger than a pipe's capacity, so the producer must observe the reader
+    // closing even if the subprocess starts before we drop its stdout handle.
+    store::add_provider(
+        &sb.env,
+        Tool::Claude,
+        Provider::new("large", "display-text".repeat(100_000), json!({"env":{}})),
+    )
+    .unwrap();
+    for (args, expected_exit) in [
+        (vec!["list", "claude"], 0),
+        (vec!["list", "claude", "--json"], 1),
+    ] {
+        let mut child = sb
+            .command(&args)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        drop(child.stdout.take());
+        let result = child.wait_with_output().unwrap();
+        assert_eq!(result.status.code(), Some(expected_exit));
+        assert!(
+            result.stderr.is_empty(),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+    }
+}

@@ -128,6 +128,21 @@ pub fn help(mut command: clap::Command, lang: Language) -> clap::Command {
     command
 }
 
+/// Select help only from the known command tree. The partial matches are used
+/// for presentation after a failed parse, never to execute an operation.
+pub fn matched_help(command: &clap::Command, matches: Option<&clap::ArgMatches>) -> clap::Command {
+    let mut command = command;
+    let mut matches = matches;
+    while let Some((name, submatches)) = matches.and_then(clap::ArgMatches::subcommand) {
+        let Some(subcommand) = command.find_subcommand(name) else {
+            break;
+        };
+        command = subcommand;
+        matches = Some(submatches);
+    }
+    command.clone()
+}
+
 fn localize_help(command: &mut clap::Command, path: &str, lang: Language) {
     let (zh, examples) = match path {
         "" => ("管理 AI 编程工具的供应商配置和 Codex 账号", "ccsl status\n  ccsl list codex\n  ccsl use codex <provider-id>\n  ccsl enable opencode <provider-id>\n  ccsl status --json\n  ccsl --lang en --help"),
