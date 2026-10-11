@@ -1,3 +1,4 @@
+import { useConfirm } from "@/components/ConfirmDialog";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
@@ -117,6 +118,7 @@ export function CodexAccountsPage() {
   const [login, setLogin] = useState<{ target?: string } | null>(null);
   const setDefault = useAction((id: string) => api.codexSetDefault(id));
   const remove = useAction((id: string) => api.codexRemoveAccount(id));
+  const [confirm, confirmDialog] = useConfirm();
 
   return (
     <div className="flex flex-col gap-5 p-6">
@@ -171,7 +173,15 @@ export function CodexAccountsPage() {
                 variant="ghost"
                 className="text-muted-foreground hover:text-destructive"
                 aria-label={`${t("codex.remove")} ${accountLabel(a)}`}
-                onClick={() => window.confirm(t("codex.confirmRemove", { label: accountLabel(a) })) && remove.mutate(a.id)}
+                onClick={async () => {
+                  const ok = await confirm({
+                    title: t("codex.confirmRemove", { label: accountLabel(a) }),
+                    description: t("codex.confirmRemoveHint"),
+                    confirmLabel: t("codex.confirmRemoveAction"),
+                    destructive: true,
+                  });
+                  if (ok) remove.mutate(a.id);
+                }}
               >
                 <Trash2 />
               </Button>
@@ -200,6 +210,7 @@ export function CodexAccountsPage() {
       </section>
 
       {login && <DeviceLoginDialog target={login.target} onClose={() => setLogin(null)} />}
+      {confirmDialog}
     </div>
   );
 }

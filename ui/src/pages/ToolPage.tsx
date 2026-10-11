@@ -1,3 +1,4 @@
+import { useConfirm } from "@/components/ConfirmDialog";
 import { lazy, Suspense, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, ArrowRightLeft, Download, Pencil, Plus, Star, Trash2, UserRound } from "lucide-react";
@@ -40,6 +41,7 @@ export function ToolPage({ tool }: { tool: ToolId }) {
   const logins = useLogins(tool === "codex").data ?? [];
   const [editing, setEditing] = useState<Provider | null>(null);
   const [adding, setAdding] = useState(false);
+  const [confirm, confirmDialog] = useConfirm();
 
   const switchAction = useAction(
     ({ id }: { id: string; name: string }) => api.switchProvider(tool, id),
@@ -64,8 +66,14 @@ export function ToolPage({ tool }: { tool: ToolId }) {
     );
 
   const coexist = data.kind === "coexist";
-  const confirmDelete = (p: Provider) => {
-    if (window.confirm(t("card.confirmDelete", { name: p.name }))) deleteAction.mutate(p.id);
+  const confirmDelete = async (p: Provider) => {
+    const ok = await confirm({
+      title: t("card.confirmDelete", { name: p.name }),
+      description: t("card.confirmDeleteHint"),
+      confirmLabel: t("card.confirmDeleteAction"),
+      destructive: true,
+    });
+    if (ok) deleteAction.mutate(p.id);
   };
 
   return (
@@ -146,7 +154,7 @@ export function ToolPage({ tool }: { tool: ToolId }) {
                     variant="ghost"
                     className="ml-auto text-muted-foreground hover:text-destructive"
                     disabled={current}
-                    onClick={() => confirmDelete(p)}
+                    onClick={() => void confirmDelete(p)}
                     aria-label={`${t("card.delete")} ${p.name}`}
                   >
                     <Trash2 />
@@ -188,7 +196,7 @@ export function ToolPage({ tool }: { tool: ToolId }) {
                   size="icon"
                   variant="ghost"
                   className="text-muted-foreground hover:text-destructive"
-                  onClick={() => confirmDelete(p)}
+                  onClick={() => void confirmDelete(p)}
                   aria-label={`${t("card.delete")} ${p.name}`}
                 >
                   <Trash2 />
@@ -223,6 +231,7 @@ export function ToolPage({ tool }: { tool: ToolId }) {
         />
       )}
       </Suspense>
+      {confirmDialog}
     </div>
   );
 }

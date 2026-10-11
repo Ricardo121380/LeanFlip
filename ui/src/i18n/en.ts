@@ -26,6 +26,8 @@ const en: Messages = {
     inLive: "In config",
     setDefaultModel: "Make default model",
     confirmDelete: "Delete “{{name}}”?",
+    confirmDeleteHint: "Only this card is removed; the client's current config is not changed.",
+    confirmDeleteAction: "Delete",
     switched: "Switched to {{name}}",
     managed: "Managed account",
     managedDefault: "Default managed account",
@@ -77,7 +79,9 @@ const en: Messages = {
     relogin: "Sign in again",
     remove: "Remove",
     reauth: "Sign-in required",
-    confirmRemove: "Remove {{label}}? Cards bound to it can no longer be switched to.",
+    confirmRemove: "Remove {{label}}?",
+    confirmRemoveHint: "Cards bound to it can no longer be switched to until you sign in again.",
+    confirmRemoveAction: "Remove",
     authenticatedAt: "Signed in {{time}}",
     deviceTitle: "Finish signing in in your browser",
     deviceStep1: "Open the sign-in page:",
@@ -143,7 +147,7 @@ const en: Messages = {
     saved: "Settings saved",
     dirsApplied: "Config directories switched",
   },
-  common: { loading: "Loading…", retry: "Retry", close: "Close", warnings: "Notes" },
+  common: { cancel: "Cancel", confirm: "OK", loading: "Loading…", retry: "Retry", close: "Close", warnings: "Notes" },
 };
 
 export default en;

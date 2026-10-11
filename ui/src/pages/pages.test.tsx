@@ -168,6 +168,63 @@ describe("ProviderEditor via ToolPage", () => {
   });
 });
 
+describe("delete confirmation", () => {
+  it("asks in an in-app alert dialog; cancel and Esc keep the card, confirm deletes", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm");
+    const fake = use({
+      list_providers: () => ({
+        tool: "claude",
+        kind: "switch",
+        current: null,
+        inLive: [],
+        liveError: null,
+        paths: [],
+        providers: [{ id: "relay", name: "Relay", settingsConfig: { env: {} } }],
+      }),
+      codex_accounts: () => [],
+      delete_provider: () => null,
+    });
+    renderWithClient(<ToolPage tool="claude" />);
+    const del = await screen.findByRole("button", { name: "删除 Relay" });
+
+    await userEvent.click(del);
+    let dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByText("确定删除「Relay」？")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "取消" })).toHaveFocus();
+    await userEvent.click(within(dialog).getByRole("button", { name: "取消" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+
+    await userEvent.click(del);
+    await screen.findByRole("alertdialog");
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    expect(fake.calls.some((c) => c.cmd === "delete_provider")).toBe(false);
+
+    await userEvent.click(del);
+    dialog = await screen.findByRole("alertdialog");
+    const action = within(dialog).getByRole("button", { name: "删除" });
+    expect(action.className).toMatch(/bg-destructive/);
+    await userEvent.click(action);
+    await waitFor(() => expect(fake.calls.find((c) => c.cmd === "delete_provider")?.args).toEqual({ tool: "claude", id: "relay" }));
+    expect(confirmSpy).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+
+  it("removes a Codex account only after confirming", async () => {
+    const fake = use({
+      codex_accounts: () => accounts,
+      codex_logins: () => [],
+      codex_remove_account: () => null,
+    });
+    renderWithClient(<CodexAccountsPage />);
+    await userEvent.click(await screen.findByRole("button", { name: /移除 me@example.com/ }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByText(/绑定它的卡将无法切换/)).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("button", { name: "移除" }));
+    await waitFor(() => expect(fake.calls.find((c) => c.cmd === "codex_remove_account")?.args).toEqual({ id: "acc-plus" }));
+  });
+});
+
 describe("CodexAccountsPage", () => {
   it("shows Plus / Team badges, default and re-auth state", async () => {
     use({

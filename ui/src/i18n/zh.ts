@@ -24,6 +24,8 @@ const zh = {
     inLive: "已写入配置",
     setDefaultModel: "设为默认模型",
     confirmDelete: "确定删除「{{name}}」？",
+    confirmDeleteHint: "只删除这张卡，不会改动客户端当前的配置。",
+    confirmDeleteAction: "删除",
     switched: "已切换到 {{name}}",
     managed: "托管账号",
     managedDefault: "默认托管账号",
@@ -75,7 +77,9 @@ const zh = {
     relogin: "重新登录",
     remove: "移除",
     reauth: "需要重新登录",
-    confirmRemove: "移除账号 {{label}}？绑定它的卡将无法切换。",
+    confirmRemove: "移除账号 {{label}}？",
+    confirmRemoveHint: "绑定它的卡将无法切换，需要重新登录才能再用。",
+    confirmRemoveAction: "移除",
     authenticatedAt: "登录于 {{time}}",
     deviceTitle: "用浏览器完成登录",
     deviceStep1: "打开登录页面：",
@@ -141,7 +145,7 @@ const zh = {
     saved: "设置已保存",
     dirsApplied: "配置目录已切换",
   },
-  common: { loading: "加载中…", retry: "重试", close: "关闭", warnings: "提示" },
+  common: { cancel: "取消", confirm: "确定", loading: "加载中…", retry: "重试", close: "关闭", warnings: "提示" },
 };
 
 export default zh;
