@@ -16,6 +16,9 @@ pub struct Cli {
     /// Use this home directory (ignores tool-specific environment variables).
     #[arg(long, global = true, value_name = "DIR")]
     pub home: Option<PathBuf>,
+    /// Language for terminal output and help; JSON messages stay unchanged.
+    #[arg(long, global = true, value_enum, default_value = "zh")]
+    pub lang: Language,
     #[command(subcommand)]
     pub command: Command,
 }
@@ -125,6 +128,21 @@ pub enum AccountCommand {
 pub enum Duplicate {
     Skip,
     Rename,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum Language {
+    Zh,
+    En,
+}
+
+impl Language {
+    pub fn text<'a>(self, zh: &'a str, en: &'a str) -> &'a str {
+        match self {
+            Self::Zh => zh,
+            Self::En => en,
+        }
+    }
 }
 
 impl From<Duplicate> for ccsl_core::ccswitch_export::DuplicatePolicy {
