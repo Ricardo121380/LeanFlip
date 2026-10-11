@@ -20,7 +20,9 @@ use crate::redact;
 use crate::settings::{self, AppSettings};
 
 mod backup;
+mod connection;
 pub use backup::{BackupItem, BackupPreview, RestoreOptions, RestoreReport, MAX_BACKUP_BYTES};
+pub use connection::{connection_info, ApiKeyChange, ConnectionInfo, ConnectionUpdate};
 
 /// 给前端的错误：一句话（按界面语言选中文 / 英文）。
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]

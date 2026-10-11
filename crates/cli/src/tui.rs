@@ -23,6 +23,8 @@ use crate::presentation::{clean, error};
 use crate::{open_service, run, CliError};
 
 mod data;
+mod editor;
+mod input;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Focus {
@@ -82,6 +84,7 @@ struct App {
     dialog: Option<Dialog>,
     quit: bool,
     data: Option<data::DataPanel>,
+    editor: Option<editor::Editor>,
 }
 
 impl App {
@@ -113,6 +116,7 @@ impl App {
             dialog: None,
             quit: false,
             data: None,
+            editor: None,
         };
         app.refresh();
         app
@@ -130,6 +134,10 @@ impl App {
             .filter(|provider| {
                 clean(&provider.name).to_lowercase().contains(&query)
                     || clean(&provider.id).to_lowercase().contains(&query)
+                    || ccsl_service::service::connection_info(self.tool(), provider)
+                        .base_url
+                        .as_deref()
+                        .is_some_and(|url| url.to_lowercase().contains(&query))
             })
             .collect()
     }
@@ -344,6 +352,7 @@ impl App {
                 clean(&provider.name),
                 format!("ID: {}", clean(&provider.id)),
                 state(list, provider, self.lang).into(),
+                crate::editor::connection_lines(list.tool, provider, self.lang),
             ]);
         }
         lines.push(String::new());
@@ -362,7 +371,30 @@ impl App {
         lines.join("\n")
     }
 
+    fn paste(&mut self, text: &str) {
+        if let Some(editor) = &mut self.editor {
+            editor.paste(text, self.lang);
+        } else if let Some(data) = &mut self.data {
+            data.paste(text);
+        } else if self.searching && !text.chars().any(char::is_control) {
+            self.query.extend(
+                text.chars()
+                    .take(128usize.saturating_sub(self.query.chars().count())),
+            );
+            self.providers_state
+                .select((!self.visible().is_empty()).then_some(0));
+        }
+    }
+
     fn key(&mut self, key: KeyEvent) -> Option<Pending> {
+        if let Some(editor) = &mut self.editor {
+            if editor.key(key) {
+                self.editor = None;
+                self.refresh();
+            }
+            return None;
+        }
+
         if let Some(data) = &mut self.data {
             if data.key(key) {
                 self.data = None;
@@ -435,6 +467,11 @@ impl App {
             KeyCode::Enter if self.focus == Focus::Tools => self.focus = Focus::Providers,
             KeyCode::Enter => self.prepare(false),
             KeyCode::Char('/') => { self.focus = Focus::Providers; self.searching = true; }
+            KeyCode::Char('e') => {
+                if let Some(provider)=self.selected().cloned() {
+                    self.editor=Some(editor::Editor::new(self.tool(),provider,self.list.as_ref().unwrap().paths.clone()));
+                } else { self.notice=self.lang.text("请先选择供应商。", "Select a provider first.").into(); }
+            },
             KeyCode::Char('i') => self.prepare(true),
             KeyCode::Char('b') => match data::DataPanel::new(self.home.as_deref(), self.lang) { Ok(panel) => self.data = Some(panel), Err(problem) => self.problem(problem) },
             KeyCode::Char('r') => {
@@ -444,8 +481,8 @@ impl App {
             }
             KeyCode::Char('p' | 'd') => self.dialog = Some(Dialog::info(self.lang.text("详情与路径", "Details and paths"), self.details())),
             KeyCode::Char('?') | KeyCode::F(1) => self.dialog = Some(Dialog::info(self.lang.text("快捷键", "Keyboard shortcuts"), self.lang.text(
-                "Tab / ← →   切换工具与供应商区域\n↑ ↓ / j k   移动选择\nEnter       选择工具 / 预览操作\n/           搜索供应商名称或 ID\nEsc         清除搜索 / 返回 / 取消\nb           数据中心：迁移、导入、加密备份\ni           从当前客户端导入卡片\nr           重新读取最新状态\np / d       查看完整详情与路径\n? / F1      打开帮助\nq           关闭面板或退出\nCtrl+C      退出并恢复终端\n\n确认弹窗默认取消；Tab 选择确认后按 Enter，或按 y 执行。\n长内容使用 ↑↓ / PgUp / PgDn 滚动。\n\n浏览、搜索和刷新不会写配置。卡片编辑和账号登录可使用 switchleaf --help 中的命令。",
-                "Tab / Left Right  Change focused pane\nUp Down / j k     Move selection\nEnter             Select tool / preview action\n/                 Search provider name or ID\nEsc               Clear filter / back / cancel\nb                 Data center: migrate, import, backup\ni                 Import current client settings\nr                 Reload current state\np / d             Show full details and paths\n? / F1            Show help\nq                 Close a panel or quit\nCtrl+C            Exit and restore the terminal\n\nConfirmation defaults to Cancel. Tab then Enter, or y, applies it.\nScroll long panels with Up/Down or PgUp/PgDn.\n\nBrowsing, search and refresh never write configuration. Use switchleaf --help for card editing and account login."
+                "Tab / ← →   切换工具与供应商区域\n↑ ↓ / j k   移动选择\nEnter       选择工具 / 预览操作\n/           搜索供应商名称或 ID\nEsc         清除搜索 / 返回 / 取消\ne           编辑名称、Base URL 和 API Key\nb           数据中心：迁移、导入、加密备份\ni           从当前客户端导入卡片\nr           重新读取最新状态\np / d       查看完整详情与路径\n? / F1      打开帮助\nq           关闭面板或退出\nCtrl+C      退出并恢复终端\n\n确认弹窗默认取消；Tab 选择确认后按 Enter，或按 y 执行。\n长内容使用 ↑↓ / PgUp / PgDn 滚动。\n\n浏览、搜索和刷新不会写配置。卡片编辑和账号登录可使用 switchleaf --help 中的命令。",
+                "Tab / Left Right  Change focused pane\nUp Down / j k     Move selection\nEnter             Select tool / preview action\n/                 Search provider name or ID\nEsc               Clear filter / back / cancel\ne                 Edit name, Base URL and API Key\nb                 Data center: migrate, import, backup\ni                 Import current client settings\nr                 Reload current state\np / d             Show full details and paths\n? / F1            Show help\nq                 Close a panel or quit\nCtrl+C            Exit and restore the terminal\n\nConfirmation defaults to Cancel. Tab then Enter, or y, applies it.\nScroll long panels with Up/Down or PgUp/PgDn.\n\nBrowsing, search and refresh never write configuration. Use switchleaf --help for card editing and account login."
             ).into())),
             _ => {}
         }
@@ -464,6 +501,10 @@ impl App {
                 .wrap(Wrap { trim: false }),
                 area,
             );
+            return;
+        }
+        if let Some(editor) = &mut self.editor {
+            editor.render(frame, self.lang);
             return;
         }
         if let Some(data) = &mut self.data {
@@ -537,13 +578,13 @@ impl App {
             )
         } else if area.width < 76 {
             self.lang.text(
-                "Tab 切换区域  ↑↓ 选择  Enter 打开\n/ 搜索  b 数据中心  r 刷新  ? 帮助  q 退出",
-                "Tab pane  Up/Down select  Enter open\n/ search  b data  r reload  ? help  q quit",
+                "↑↓ 选择  Enter 操作  Tab 区域\ne 编辑  p 详情  b 数据  ? 帮助",
+                "↑↓ select  Enter act  Tab pane\ne edit  p details  b data  ? help",
             )
         } else {
-            self.lang.text("Tab/←→ 切换区域   ↑↓/jk 选择   Enter 预览操作   / 搜索\nb 数据中心   i 从客户端导入   r 刷新   p 详情与路径   ? 帮助   q 退出", "Tab/Left/Right pane   Up/Down/jk select   Enter preview   / search\nb data center   i from client   r reload   p details/paths   ? help   q quit")
+            self.lang.text("↑↓ / jk 选择   Enter 操作   / 搜索   e 编辑\nb 数据中心   p 详情   r 刷新   ? 帮助   q 退出", "↑↓ / jk select   Enter act   / search   e edit\nb data center   p details   r reload   ? help   q quit")
         };
-        frame.render_widget(Paragraph::new(hints).style(accent()), footer);
+        frame.render_widget(Paragraph::new(hints).style(muted()), footer);
         if let Some(dialog) = &mut self.dialog {
             let confirmation = dialog.pending.is_some();
             render_dialog(frame, dialog, self.lang, confirmation);
@@ -589,7 +630,7 @@ impl App {
             Layout::vertical([Constraint::Length(2), Constraint::Min(0)]).areas(inner);
         let search_text = if self.query.is_empty() && !self.searching {
             self.lang
-                .text("/ 按名称或 ID 搜索", "/ search name or ID")
+                .text("/ 按名称 / ID / 地址搜索", "/ search name / ID / URL")
                 .into()
         } else {
             format!(
@@ -642,27 +683,36 @@ impl App {
             return;
         }
         let list = self.list.as_ref().expect("visible providers have a list");
+        let width = rows.width.saturating_sub(3) as usize;
         let items = visible
             .iter()
             .map(|provider| {
+                let connection = ccsl_service::service::connection_info(list.tool, provider);
+                let endpoint = connection.base_url.as_deref().unwrap_or(
+                    self.lang
+                        .text("客户端默认 / 未设置地址", "Client default / URL not set"),
+                );
                 ListItem::new(vec![
+                    Line::from(Span::styled(
+                        input::fit(&clean(&provider.name), width),
+                        Style::default().add_modifier(Modifier::BOLD),
+                    )),
+                    Line::from(Span::styled(input::fit(&clean(endpoint), width), muted())),
                     Line::from(vec![
+                        Span::styled(state(list, provider, self.lang), accent()),
+                        Span::raw(" · "),
                         Span::styled(
-                            clean(&provider.name),
-                            Style::default().add_modifier(Modifier::BOLD),
-                        ),
-                        Span::styled(
-                            format!("  [{}]", state(list, provider, self.lang)),
-                            if list.current.as_deref() == Some(&provider.id)
-                                || list.in_live.contains(&provider.id)
-                            {
-                                accent()
-                            } else {
-                                muted()
-                            },
+                            input::fit(
+                                &clean(&provider.id),
+                                width.saturating_sub(
+                                    unicode_width::UnicodeWidthStr::width(state(
+                                        list, provider, self.lang,
+                                    )) + 3,
+                                ),
+                            ),
+                            muted(),
                         ),
                     ]),
-                    Line::from(Span::styled(clean(&provider.id), muted())),
                     Line::default(),
                 ])
             })
@@ -698,7 +748,7 @@ fn accent() -> Style {
     if std::env::var_os("NO_COLOR").is_some() {
         style
     } else {
-        style.fg(Color::Rgb(134, 218, 171))
+        style.fg(Color::Rgb(217, 119, 87))
     }
 }
 
@@ -707,8 +757,8 @@ fn surface() -> Style {
         Style::default()
     } else {
         Style::default()
-            .bg(Color::Rgb(18, 27, 23))
-            .fg(Color::Rgb(222, 232, 224))
+            .bg(Color::Rgb(28, 27, 26))
+            .fg(Color::Rgb(235, 231, 224))
     }
 }
 
@@ -716,7 +766,7 @@ fn muted() -> Style {
     if std::env::var_os("NO_COLOR").is_some() {
         Style::default()
     } else {
-        Style::default().fg(Color::Rgb(153, 176, 161))
+        Style::default().fg(Color::Rgb(174, 168, 159))
     }
 }
 
@@ -726,8 +776,8 @@ fn selected_style(focused: bool) -> Style {
             Style::default().add_modifier(Modifier::REVERSED | Modifier::BOLD)
         } else {
             Style::default()
-                .bg(Color::Rgb(38, 75, 54))
-                .fg(Color::Rgb(235, 250, 237))
+                .bg(Color::Rgb(62, 47, 40))
+                .fg(Color::Rgb(248, 224, 211))
                 .add_modifier(Modifier::BOLD)
         }
     } else {
@@ -781,7 +831,11 @@ fn render_dialog(frame: &mut Frame, dialog: &mut Dialog, lang: Language, confirm
     let buttons_text = if confirmation {
         Line::from(vec![
             Span::styled(
-                lang.text(" [取消 Esc] ", " [Cancel Esc] "),
+                if inner.width < 60 {
+                    lang.text(" [取消] ", " [Cancel] ")
+                } else {
+                    lang.text(" [取消 Esc] ", " [Cancel Esc] ")
+                },
                 selected_style(!dialog.accept),
             ),
             Span::raw("   "),
@@ -789,7 +843,11 @@ fn render_dialog(frame: &mut Frame, dialog: &mut Dialog, lang: Language, confirm
                 lang.text(" [确认 Y] ", " [Apply Y] "),
                 selected_style(dialog.accept),
             ),
-            Span::raw(lang.text("  Tab 选择 · Enter 执行", "  Tab select · Enter choose")),
+            Span::raw(if inner.width < 60 {
+                "  Tab ↵"
+            } else {
+                lang.text("  Tab 选择 · Enter 执行", "  Tab select · Enter choose")
+            }),
         ])
     } else {
         Line::from(lang.text("Esc / Enter / q 关闭", "Esc / Enter / q close"))
@@ -800,6 +858,11 @@ fn render_dialog(frame: &mut Frame, dialog: &mut Dialog, lang: Language, confirm
 struct RestoreTerminal;
 impl Drop for RestoreTerminal {
     fn drop(&mut self) {
+        let _ = ratatui::crossterm::execute!(
+            std::io::stdout(),
+            ratatui::crossterm::event::DisableBracketedPaste,
+            ratatui::crossterm::terminal::EndSynchronizedUpdate
+        );
         ratatui::restore();
         let _ = ratatui::crossterm::execute!(std::io::stdout(), ratatui::crossterm::cursor::Show);
     }
@@ -815,7 +878,13 @@ pub fn start(home: Option<&Path>, lang: Language, tool: Option<Tool>) -> Result<
         .map_err(|_| terminal_error())?;
     let _restore = RestoreTerminal;
     let mut terminal = ratatui::try_init().map_err(|_| terminal_error())?;
+    ratatui::crossterm::execute!(
+        std::io::stdout(),
+        ratatui::crossterm::event::EnableBracketedPaste
+    )
+    .map_err(|_| terminal_error())?;
     let mut app = App::new(home, lang, tool);
+    let mut dirty = true;
     while !app.quit {
         if interrupted.load(Ordering::Relaxed) {
             return Err(CliError {
@@ -824,17 +893,55 @@ pub fn start(home: Option<&Path>, lang: Language, tool: Option<Tool>) -> Result<
                 exit: 130,
             });
         }
-        terminal
-            .draw(|frame| app.render(frame))
+        if dirty {
+            ratatui::crossterm::execute!(
+                std::io::stdout(),
+                ratatui::crossterm::terminal::BeginSynchronizedUpdate
+            )
             .map_err(|_| terminal_error())?;
-        let changed = app.data.as_mut().is_some_and(data::DataPanel::run_pending);
-        if changed {
-            app.refresh();
+            let draw = terminal.draw(|frame| app.render(frame));
+            ratatui::crossterm::execute!(
+                std::io::stdout(),
+                ratatui::crossterm::terminal::EndSynchronizedUpdate
+            )
+            .map_err(|_| terminal_error())?;
+            draw.map_err(|_| terminal_error())?;
+            dirty = false;
+        }
+        if app.data.as_ref().is_some_and(data::DataPanel::has_pending) {
+            if app.data.as_mut().unwrap().run_pending() {
+                app.refresh();
+            }
+            dirty = true;
+            continue;
+        }
+        if app.editor.as_ref().is_some_and(|editor| editor.pending) {
+            if let Some(message) = app.editor.as_mut().unwrap().save(home, lang) {
+                app.editor = None;
+                app.notice = message;
+                app.refresh();
+            }
+            dirty = true;
+            continue;
         }
         if !event::poll(Duration::from_millis(100)).map_err(|_| terminal_error())? {
             continue;
         }
-        if let Event::Key(key) = event::read().map_err(|_| terminal_error())? {
+        let event = event::read().map_err(|_| terminal_error())?;
+        match event {
+            Event::Resize(..) => {
+                dirty = true;
+                continue;
+            }
+            Event::Paste(ref value) => {
+                app.paste(value);
+                dirty = true;
+                continue;
+            }
+            _ => {}
+        }
+        dirty = true;
+        if let Event::Key(key) = event {
             if !matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat) {
                 continue;
             }

@@ -287,7 +287,8 @@ cargo build -p ccsl-cli --release --locked --locked
 | `Tab` / `←` / `→` | 切换工具与供应商区域 |
 | `↑` / `↓` 或 `j` / `k` | 移动选择 |
 | `Enter` | 选择工具，或预览所选供应商的操作 |
-| `/` | 按名称或 ID 搜索；`Enter` 完成输入，`Esc` 清除 |
+| `/` | 按名称、ID 或 Base URL 搜索；`Enter` 完成输入，`Esc` 清除 |
+| `e` | 编辑所选供应商的名称、Base URL 和 API Key |
 | `b` | 打开数据中心：本机迁移、文件导入与加密导出 |
 | `i` | 预览从当前客户端配置导入卡片 |
 | `r` | 重新读取最新状态，保留仍存在的选择 |
@@ -341,6 +342,17 @@ switchleaf --lang en status                # 英文输出
 `PROVIDER_ID` 请替换为对应工具下的 ID。通常不需要用 `sudo` 运行 `switchleaf`；使用其他用户身份会改变默认 HOME 和配置位置。
 
 ### 新增和更新供应商卡片
+
+常用连接设置可以直接交互编辑，不需要编写 JSON：
+
+```sh
+switchleaf provider edit claude PROVIDER_ID
+switchleaf provider edit codex PROVIDER_ID
+```
+
+CLI 菜单也提供“编辑供应商 · Base URL / API Key”；TUI 选择卡片后按 `e`。现有 API Key 不会填入输入框，留空保留原值；需要替换时隐藏输入。TUI 用 `Tab` 切换字段、左右键移动光标、`Ctrl+U` 清空当前字段，`Ctrl+K` 明确清空密钥，`Ctrl+S` 检查保存，`Esc` 取消或确认放弃。支持单行粘贴，确认页默认取消。修改已生效的卡片会同步客户端配置，未使用的卡片不会因此启用。
+
+列表及详情现在显示 Base URL 和密钥配置状态，敏感 URL 部分会隐藏；官方登录及云认证等高级配置仍在 App 中管理。终端编辑会保留模型、额外配置和元数据；卡片被其他进程修改或 TUI 编辑期间配置目录变更时，要求重新打开编辑并检查。需要修改完整配置时继续使用下面的 JSON 命令。
 
 下面以 Claude Code 为例。将内容保存为私有文件 `provider.json`，在本地编辑器中替换示例地址和密钥：
 

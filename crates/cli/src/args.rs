@@ -123,6 +123,8 @@ pub enum Import {
 
 #[derive(Subcommand)]
 pub enum ProviderCommand {
+    /// Edit a card name, Base URL and API Key in an interactive terminal.
+    Edit { tool: ToolArg, provider_id: String },
     /// Save a new card; does not activate it unless --activate is supplied.
     Add {
         tool: ToolArg,

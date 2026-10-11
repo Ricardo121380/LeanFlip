@@ -68,7 +68,7 @@ def screen_text(raw, width=120, height=24):
 
 def expect_screen(terminal, text, timeout=8):
     deadline = time.monotonic() + timeout
-    while text not in screen_text(terminal.output):
+    while text not in screen_text(terminal.output, width=getattr(terminal, "width", 120)):
         if time.monotonic() > deadline: raise AssertionError(f"Timed out waiting for visible {text!r}")
         if select.select([terminal.fd], [], [], 0.1)[0]:
             chunk = os.read(terminal.fd, 65536)
@@ -103,6 +103,7 @@ def start(binary, home, tool=None, width=120):
     if tool:
         args.append(tool)
     terminal = menu.Terminal(binary, args, width=width)
+    terminal.width = width
     terminal.expect("\x1b[?1049h")
     terminal.expect("SwitchLeaf")
     return terminal
@@ -166,6 +167,27 @@ def check(binary):
             assert finish(terminal) == 0
         assert not empty.exists()
         print("PASS: help, paths, refresh, empty search and terminal resize are read-only")
+
+        with start(binary, home, "claude", width=52) as terminal:
+            terminal.send("/beta\re")
+            expect_screen(terminal, "Edit provider")
+            before = menu.snapshot(home)
+            terminal.send("\t\x15\x1b[200~https://edited.example/v1\x1b[201~\t\x1b[200~fixture-edited-private-key\n\x1b[201~")
+            terminal.send("\r")
+            expect_screen(terminal, "Confirm save")
+            assert menu.snapshot(home) == before
+            terminal.send("\r")
+            expect_screen(terminal, "Edit provider")
+            assert menu.snapshot(home) == before
+            terminal.send("\ry")
+            expect_screen(terminal, "Provider connection saved")
+            assert finish(terminal, "q") == 0
+            assert b"fixture-edited-private-key" not in terminal.output
+        store = json.loads((home / ".cc-switch-lite/providers.json").read_text())
+        edited = next(card for card in store["apps"]["claude"]["providers"] if card["id"] == "beta")
+        assert edited["settingsConfig"]["env"]["ANTHROPIC_BASE_URL"] == "https://edited.example/v1"
+        assert edited["settingsConfig"]["env"]["ANTHROPIC_AUTH_TOKEN"] == "fixture-edited-private-key"
+        print("PASS: narrow-screen connection editing, bracketed paste, hidden keys and default cancellation")
 
         source = home / ".cc-switch"
         source.mkdir()

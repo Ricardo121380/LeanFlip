@@ -1,5 +1,6 @@
 mod args;
 mod data;
+mod editor;
 mod menu;
 mod presentation;
 mod tui;
@@ -377,7 +378,7 @@ fn run(cli: Cli) -> Result<Output, CliError> {
                     ]
                 })
                 .collect::<Vec<_>>();
-            let mut text = format!("{}\n\n{}\n\n{}", lang.text("CC Switch Lite · 工具概览", "CC Switch Lite · Tool overview"),
+            let mut text = format!("{}\n\n{}\n\n{}", lang.text("SwitchLeaf · 工具概览", "SwitchLeaf · Tool overview"),
                 table(&[lang.text("工具", "TOOL"), lang.text("模式", "MODE"), lang.text("卡片", "CARDS"), lang.text("当前选择 / 启用数", "SELECTION / ENABLED"), lang.text("客户端配置", "CLIENT CONFIG")], &rows),
                 lang.text("切换式状态来自已保存的选择；可用 ccsl list <tool> 查看卡片。", "Switch selections reflect the saved choice. Run ccsl list <tool> to inspect cards."));
             if tools.iter().all(|tool| tool.card_count == 0) {
@@ -432,7 +433,10 @@ fn run(cli: Cli) -> Result<Output, CliError> {
             } else {
                 let rows = providers
                     .iter()
-                    .map(|p| {
+                    .zip(&list.providers)
+                    .map(|(p, provider)| {
+                        let connection =
+                            ccsl_service::service::connection_info(list.tool, provider);
                         let state = if list.tool.is_coexist() {
                             match p["enabled"].as_bool() {
                                 Some(true) => lang.text("已启用", "Enabled"),
@@ -447,18 +451,19 @@ fn run(cli: Cli) -> Result<Output, CliError> {
                         vec![
                             field(p, "id"),
                             field(p, "name"),
-                            lang.text(
-                                if p["official"] == true {
-                                    "官方"
-                                } else {
-                                    "自定义"
-                                },
-                                if p["official"] == true {
-                                    "Official"
-                                } else {
-                                    "Custom"
-                                },
-                            )
+                            connection.base_url.unwrap_or_else(|| {
+                                lang.text("客户端默认 / 未设置", "Client default / not set")
+                                    .into()
+                            }),
+                            if connection.uses_login {
+                                lang.text("官方登录", "Official login")
+                            } else if !connection.editable {
+                                lang.text("高级配置", "Advanced config")
+                            } else if connection.api_key_set {
+                                lang.text("已配置", "Configured")
+                            } else {
+                                lang.text("未设置", "Not set")
+                            }
                             .into(),
                             state.into(),
                         ]
@@ -470,7 +475,8 @@ fn run(cli: Cli) -> Result<Output, CliError> {
                         &[
                             "ID",
                             lang.text("名称", "NAME"),
-                            lang.text("类型", "TYPE"),
+                            "Base URL",
+                            "API Key",
                             lang.text("状态", "STATE")
                         ],
                         &rows
@@ -482,6 +488,11 @@ fn run(cli: Cli) -> Result<Output, CliError> {
                         "use"
                     },
                     list.tool
+                ));
+                text.push_str(&format!(
+                    "\n  switchleaf provider edit {} <provider-id>  # {}",
+                    list.tool,
+                    lang.text("编辑 Base URL / API Key", "edit Base URL / API Key")
                 ));
             }
             if list.live_error.is_some() {
@@ -652,40 +663,48 @@ fn run(cli: Cli) -> Result<Output, CliError> {
             );
             Ok(Output::new(json!(report), text))
         }
-        Command::Provider { action } => match action {
-            ProviderCommand::Add {
-                tool,
-                input,
-                activate,
-            } => Ok(Output::operation(
-                service.add_provider(tool.into(), provider(&input.file)?, activate)?,
-                lang,
-                if activate {
-                    "供应商已保存并应用。"
-                } else {
-                    "供应商已保存，可用 use 或 enable 应用。"
-                },
-                if activate {
-                    "Provider saved and applied."
-                } else {
-                    "Provider saved. Apply it with use or enable."
-                },
-            )),
-            ProviderCommand::Update { tool, input } => Ok(Output::operation(
-                service.update_provider(tool.into(), provider(&input.file)?)?,
-                lang,
-                "供应商已更新。",
-                "Provider updated.",
-            )),
-            ProviderCommand::Delete { tool, provider_id } => {
-                service.delete_provider(tool.into(), &provider_id)?;
-                Ok(Output::done(
+        Command::Provider { action } => {
+            match action {
+                ProviderCommand::Edit { tool, provider_id } => {
+                    if cli.json {
+                        return Err(CliError::input("interactive_terminal", "Interactive editing does not support --json; use provider update --file."));
+                    }
+                    editor::start(&service, tool.into(), &provider_id, lang)
+                }
+                ProviderCommand::Add {
+                    tool,
+                    input,
+                    activate,
+                } => Ok(Output::operation(
+                    service.add_provider(tool.into(), provider(&input.file)?, activate)?,
                     lang,
-                    "供应商卡片已删除。",
-                    "Provider card deleted.",
-                ))
+                    if activate {
+                        "供应商已保存并应用。"
+                    } else {
+                        "供应商已保存，可用 use 或 enable 应用。"
+                    },
+                    if activate {
+                        "Provider saved and applied."
+                    } else {
+                        "Provider saved. Apply it with use or enable."
+                    },
+                )),
+                ProviderCommand::Update { tool, input } => Ok(Output::operation(
+                    service.update_provider(tool.into(), provider(&input.file)?)?,
+                    lang,
+                    "供应商已更新。",
+                    "Provider updated.",
+                )),
+                ProviderCommand::Delete { tool, provider_id } => {
+                    service.delete_provider(tool.into(), &provider_id)?;
+                    Ok(Output::done(
+                        lang,
+                        "供应商卡片已删除。",
+                        "Provider card deleted.",
+                    ))
+                }
             }
-        },
+        }
         Command::Accounts { action } => match action {
             AccountCommand::List => {
                 let accounts = service.codex_accounts_checked()?;
@@ -884,7 +903,7 @@ fn main() -> ExitCode {
                     }
                 }
                 let title = if help.get_name() == "ccsl" {
-                    lang.text("CC Switch Lite · 快速入门", "CC Switch Lite · Quick start")
+                    lang.text("SwitchLeaf · 快速入门", "SwitchLeaf · Quick start")
                 } else {
                     lang.text("命令帮助", "Command help")
                 };
@@ -903,6 +922,18 @@ fn main() -> ExitCode {
 }
 
 fn execute(cli: Cli) -> ExitCode {
+    if matches!(
+        &cli.command,
+        Command::Provider {
+            action: ProviderCommand::Edit { .. }
+        }
+    ) && !cli.json
+        && menu::can_interact()
+    {
+        if let Err(problem) = menu::install_interrupt_handler() {
+            return error_output(problem, false, cli.lang);
+        }
+    }
     if let Command::Menu { tool } | Command::Tui { tool } = &cli.command {
         if cli.json {
             return error_output(

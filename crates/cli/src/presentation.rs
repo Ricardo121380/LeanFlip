@@ -12,7 +12,7 @@ pub fn human_output(text: &str) -> String {
     }
     let (heading, rest) = text.split_once('\n').unwrap_or((text, ""));
     format!(
-        "\n\x1b[1;32m  SwitchLeaf\x1b[0m  \x1b[2m/  CLI\x1b[0m\n\n\x1b[1m{heading}\x1b[0m{}\n",
+        "\n\x1b[1;38;2;217;119;87m  SwitchLeaf\x1b[0m  \x1b[2m/  CLI\x1b[0m\n\n\x1b[1m{heading}\x1b[0m{}\n",
         if rest.is_empty() {
             String::new()
         } else {
@@ -40,11 +40,16 @@ pub fn clean(value: &str) -> String {
 
 /// Narrow terminals use labelled records instead of clipping IDs needed by later commands.
 pub fn table(headers: &[&str], rows: &[Vec<String>]) -> String {
-    let width = std::env::var("COLUMNS")
+    let preferred = std::env::var("COLUMNS")
         .ok()
         .and_then(|v| v.parse::<usize>().ok())
-        .filter(|width| (40..=240).contains(width))
-        .unwrap_or(100);
+        .filter(|width| (40..=240).contains(width));
+    let width = if std::io::stdout().is_terminal() {
+        let actual = dialoguer::console::Term::stdout().size().1.max(1) as usize;
+        preferred.map_or(actual, |preferred| preferred.min(actual))
+    } else {
+        preferred.unwrap_or(100)
+    };
     table_at_width(headers, rows, width)
 }
 
@@ -180,6 +185,7 @@ fn localize_help(command: &mut clap::Command, path: &str, lang: Language) {
         "import" => ("导入客户端现有配置或 cc-switch 导出文件", "switchleaf import live claude\n  switchleaf import file backup.sql\n  switchleaf import file backup.sql --apply --tool codex"),
         "import live" => ("将客户端当前配置导入供应商卡片库", "switchleaf import live claude\n  switchleaf list claude"),
         "import file" => ("预览 SQL、SQLite 或旧版 JSON 导出；--apply 才会保存", "switchleaf import file backup.sql\n  switchleaf import file backup.sql --apply --tool codex\n  switchleaf import file backup.sql --apply --duplicate rename"),
+        "provider edit" => ("交互编辑名称、Base URL 与 API Key；保存前预览影响范围", "switchleaf provider edit claude <provider-id>\n  switchleaf provider edit codex <provider-id>"),
         "provider" => ("新增、更新或删除供应商卡片", "switchleaf provider add claude --file provider.json\n  switchleaf provider update claude --file provider.json\n  switchleaf provider delete claude <provider-id>"),
         "provider add" => ("保存新卡片；--activate 可同时应用到客户端", "switchleaf provider add claude --file provider.json\n  cat provider.json | switchleaf provider add claude"),
         "provider update" => ("按 JSON 中的 id 替换卡片；生效中的配置也会更新", "switchleaf provider update claude --file provider.json"),
@@ -273,6 +279,8 @@ pub fn reason(code: &str, lang: Language) -> &str {
 
 pub fn error(code: &str, fallback: &str, lang: Language) -> String {
     let zh = match code {
+        "provider.connection_invalid" => lang.text("名称不能为空；Base URL 需要使用不带凭据、查询参数或片段的 HTTP(S) 地址，API Key 不能包含控制字符。", "Use a non-empty name and an HTTP(S) Base URL without credentials, query or fragment. API keys cannot contain control characters."),
+        "provider.connection_unsupported" => lang.text("此供应商使用官方登录或高级配置，请在 App 中管理连接字段。", "This provider uses official login or advanced configuration. Manage its connection fields in the App."),
         "backup.password" => lang.text("密码需要 10–4096 个字符。", "Use a passphrase of 10–4096 characters."),
         "backup.password_required" => lang.text("在交互终端输入密码，或使用 --password-file 指定私有密码文件。", "Use an interactive terminal or --password-file with a private passphrase file."),
         "backup.decrypt" => lang.text("密码不正确或备份已损坏；没有恢复数据。检查密码后重试。", "Incorrect passphrase or damaged backup. Nothing restored; check the passphrase and retry."),

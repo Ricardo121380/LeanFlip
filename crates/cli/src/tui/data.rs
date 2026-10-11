@@ -36,6 +36,7 @@ pub(super) struct DataPanel {
     view: View,
     menu: usize,
     field: usize,
+    cursor: usize,
     path: String,
     password: String,
     confirmation: String,
@@ -66,6 +67,7 @@ impl DataPanel {
             view: View::Home,
             menu: 0,
             field: 0,
+            cursor: 0,
             path: String::new(),
             password: String::new(),
             confirmation: String::new(),
@@ -91,6 +93,9 @@ impl DataPanel {
     fn clear_secrets(&mut self) {
         self.password.clear();
         self.confirmation.clear();
+        if self.field > 0 {
+            self.cursor = 0;
+        }
     }
     fn reset(&mut self) {
         self.service.backup_discard();
@@ -109,6 +114,15 @@ impl DataPanel {
             "switchleaf-backup.switchleaf".into()
         } else {
             String::new()
+        };
+        self.cursor = self.path.len();
+    }
+    fn focus_field(&mut self, index: usize) {
+        self.field = index;
+        self.cursor = match index {
+            0 => self.path.len(),
+            1 => self.password.len(),
+            _ => self.confirmation.len(),
         };
     }
     fn options(&self) -> RestoreOptions {
@@ -192,6 +206,33 @@ impl DataPanel {
             }
         }
     }
+    pub(super) fn has_pending(&self) -> bool {
+        self.pending.is_some()
+    }
+    pub(super) fn paste(&mut self, text: &str) {
+        if self.pending.is_some()
+            || self.confirm
+            || !matches!(self.view, View::LocalPath | View::Import | View::Export)
+        {
+            return;
+        }
+        let value = match self.field {
+            0 => &mut self.path,
+            1 => &mut self.password,
+            _ => &mut self.confirmation,
+        };
+        let mut cursor = self.cursor;
+        if !input::insert(value, &mut cursor, text) {
+            self.message = self
+                .lang
+                .text(
+                    "只接受单行文字，最多 4096 个字符。",
+                    "Use a single line of at most 4096 characters.",
+                )
+                .into();
+        }
+        self.cursor = cursor;
+    }
     /// Returns true only when the user leaves the data center.
     pub(super) fn key(&mut self, key: KeyEvent) -> bool {
         if self.pending.is_some() {
@@ -251,9 +292,11 @@ impl DataPanel {
                     1
                 };
                 match key.code {
-                    KeyCode::Tab | KeyCode::Down => self.field = (self.field + 1) % count,
-                    KeyCode::BackTab | KeyCode::Up => self.field = (self.field + count - 1) % count,
-                    KeyCode::Enter if self.field + 1 < count => self.field += 1,
+                    KeyCode::Tab | KeyCode::Down => self.focus_field((self.field + 1) % count),
+                    KeyCode::BackTab | KeyCode::Up => {
+                        self.focus_field((self.field + count - 1) % count)
+                    }
+                    KeyCode::Enter if self.field + 1 < count => self.focus_field(self.field + 1),
                     KeyCode::Enter => {
                         if self.path.trim().is_empty() {
                             self.message = self
@@ -286,24 +329,7 @@ impl DataPanel {
                             1 => &mut self.password,
                             _ => &mut self.confirmation,
                         };
-                        match key.code {
-                            KeyCode::Backspace => {
-                                input.pop();
-                            }
-                            KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                                input.clear()
-                            }
-                            KeyCode::Char(ch)
-                                if !ch.is_control()
-                                    && !key
-                                        .modifiers
-                                        .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
-                                    && input.chars().count() < 4096 =>
-                            {
-                                input.push(ch)
-                            }
-                            _ => {}
-                        }
+                        input::key(input, &mut self.cursor, key);
                     }
                 }
             }
@@ -658,30 +684,36 @@ impl DataPanel {
                 };
                 let inputs = [
                     clean(&self.path),
-                    "•".repeat(self.password.chars().count()),
-                    "•".repeat(self.confirmation.chars().count()),
+                    "*".repeat(self.password.chars().count()),
+                    "*".repeat(self.confirmation.chars().count()),
                 ];
                 // Compact two-line fields remain usable even at 44×12.
                 let mut lines = Vec::new();
                 for index in 0..count {
                     let focused = self.field == index;
                     lines.push(Line::from(Span::styled(
-                        format!(" {} {}", if focused { "›" } else { " " }, labels[index]),
+                        input::fit(
+                            &format!(" {} {}", if focused { ">" } else { " " }, labels[index]),
+                            inner.width as usize,
+                        ),
                         if focused { accent() } else { muted() },
                     )));
-                    let limit = inner.width.saturating_sub(5) as usize;
-                    let shown = inputs[index]
-                        .chars()
-                        .rev()
-                        .take(limit)
-                        .collect::<Vec<_>>()
-                        .into_iter()
-                        .rev()
-                        .collect::<String>();
-                    lines.push(Line::from(format!(
-                        "   {shown}{}",
-                        if focused { "▏" } else { "" }
-                    )));
+                    let source = match index {
+                        0 => &self.path,
+                        1 => &self.password,
+                        _ => &self.confirmation,
+                    };
+                    let shown = if focused {
+                        input::field(
+                            source,
+                            self.cursor,
+                            index > 0,
+                            inner.width.saturating_sub(3) as usize,
+                        )
+                    } else {
+                        input::fit(&inputs[index], inner.width.saturating_sub(3) as usize)
+                    };
+                    lines.push(Line::from(format!("   {shown}")));
                 }
                 let offset = if inner.height < (count * 2) as u16 {
                     (self.field * 2).saturating_sub(inner.height.saturating_sub(2) as usize) as u16
@@ -700,7 +732,10 @@ impl DataPanel {
                 frame.render_widget(
                     Paragraph::new(vec![
                         Line::from(self.summary.as_str()),
-                        Line::from(Span::styled(clean(&self.path), muted())),
+                        Line::from(Span::styled(
+                            input::fit(&clean(&self.path), summary.width as usize),
+                            muted(),
+                        )),
                     ]),
                     summary,
                 );
@@ -708,7 +743,10 @@ impl DataPanel {
                     .scope_rows()
                     .into_iter()
                     .map(|(label, checked)| {
-                        ListItem::new(format!("[{}] {label}", if checked { "x" } else { " " }))
+                        ListItem::new(input::fit(
+                            &format!("[{}] {label}", if checked { "x" } else { " " }),
+                            rows.width.saturating_sub(3) as usize,
+                        ))
                     })
                     .collect::<Vec<_>>();
                 frame.render_stateful_widget(
@@ -757,23 +795,23 @@ impl DataPanel {
         }
         let hints = match self.view {
             View::Home => self.lang.text(
-                "↑↓ 选择  Enter 打开  o 指定本机目录\nEsc 返回工作台",
-                "Up/Down select  Enter open  o custom local directory\nEsc workspace",
+                "↑↓ 选择  Enter 打开  o 手动目录\nEsc 返回工作台",
+                "↑↓ select  Enter open  o directory\nEsc workspace",
             ),
             View::Preview => self.lang.text(
-                "↑↓ 选择  Space 勾选  Enter 预览确认\nEsc 取消并返回数据中心",
-                "Up/Down select  Space toggle  Enter review\nEsc cancel and return to data center",
+                "↑↓ 选择  Space 勾选  Enter 检查\nEsc 返回",
+                "↑↓ select  Space toggle  Enter review\nEsc back",
             ),
             View::Result => self.lang.text(
                 "Enter 返回数据中心  Esc 返回",
                 "Enter data center  Esc back",
             ),
             _ => self.lang.text(
-                "Tab 切换输入框  Enter 下一步  Ctrl+U 清空\nEsc 取消 · 输入路径无需加引号",
-                "Tab field  Enter next  Ctrl+U clear\nEsc cancel · enter paths without quotes",
+                "Tab 字段  Enter 下一步  Ctrl+U 清空\nEsc 取消 · 路径无需引号",
+                "Tab field  Enter next  Ctrl+U clear\nEsc cancel · paths need no quotes",
             ),
         };
-        frame.render_widget(Paragraph::new(hints).style(accent()), footer);
+        frame.render_widget(Paragraph::new(hints).style(muted()), footer);
         if self.confirm {
             let scopes = self
                 .scope_rows()

@@ -32,7 +32,8 @@ cargo build -p ccsl-cli --release
 `switchleaf tui [tool]` 是独立的全屏工作台，支持 `--lang en` 和 `--home`。当前已发布的 v0.1.0 二进制尚未包含此功能，请按上面的源码命令构建；直接运行 `switchleaf` 的默认菜单保持不变。
 
 - `Tab` / `←` / `→` 切换工具与供应商区域，`↑` / `↓` 或 `j` / `k` 移动。
-- `/` 搜索名称或 ID，`Enter` 完成搜索；再次 `Enter` 预览操作。确认默认取消，`Tab` 后回车或 `y` / `Y` 才执行。
+- `/` 搜索名称、ID 或 Base URL，`Enter` 完成搜索；再次 `Enter` 预览操作。确认默认取消，`Tab` 后回车或 `y` / `Y` 才执行。
+- `e` 编辑名称、Base URL 与 API Key；`b` 打开数据中心。
 - `i` 导入当前客户端配置；`r` 重新读取最新状态；`p` / `d` 查看完整详情与路径；`?` / `F1` 查看帮助。
 - `Esc` 清除筛选、返回或关闭面板；`q` 退出（弹窗中先关闭）；`Ctrl+C` 退出并恢复终端。正在执行的写入会先完成再响应中断。
 - 宽窗口三栏、普通窗口两栏、窄窗口单栏；面板长内容用 `↑↓` / `PgUp` / `PgDn` 滚动。小于 44×12 时暂停操作并提示扩大窗口。
@@ -64,6 +65,12 @@ switchleaf import backup workspace.switchleaf --apply
 加密使用标准 age/scrypt，口令 10–4096 字符且不保存，遗失后无法恢复。脚本模式或 `--json` 需要 `--password-file FILE`（私有 UTF-8 文件）；不要把密码写入命令参数。已有备份文件不会覆盖，Unix 下新备份权限为 `0600`。完整范围和部分失败处理见[主 README](../../README.md#加密完整备份与恢复)。
 
 ## 导入与卡片编辑
+
+常用字段可直接交互编辑：`switchleaf provider edit TOOL ID`，或菜单中的“编辑供应商”。TUI 选择卡片后按 `e`。Base URL 和密钥状态会显示在终端列表 / 详情中；已有密钥只显示“已配置”，留空保留，替换时隐藏输入。HTTP(S) 地址中的登录信息、查询参数与片段不会显示，新地址请使用无凭据的 Base URL。
+
+TUI 编辑支持左右键、Home/End、单行粘贴、`Tab` 切换字段、`Ctrl+U` 清空字段、`Ctrl+K` 清空密钥及 `Ctrl+S` 检查保存。确认默认取消；修改生效中的卡片会同步客户端文件，未生效的卡片只保存在库里。模型和其他字段保持原样，官方 / 托管登录和云认证等高级配置请在 App 中管理。
+
+交互编辑需要真实终端，不支持 `--json`。已有 JSON 查询结构保持兼容，脚本编辑继续使用 `provider update --file`。CLI 自动读取实际终端宽度；TUI 使用暖灰与陶土橙色、同步重绘以及按显示宽度处理的输入窗口，`NO_COLOR` 仍有效。
 
 ```sh
 switchleaf import live claude

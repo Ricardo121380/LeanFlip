@@ -73,6 +73,18 @@ class Terminal:
             time.sleep(0.02)
         raise AssertionError("Menu did not exit")
 
+    def wait_exit(self):
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            pid, status = os.waitpid(self.pid, os.WNOHANG)
+            if pid:
+                flags = termios.tcgetattr(self.fd)[3]
+                assert flags & termios.ECHO and flags & termios.ICANON, "Terminal input modes were not restored"
+                os.close(self.fd); self.pid = None
+                return os.waitstatus_to_exitcode(status)
+            time.sleep(0.02)
+        raise AssertionError("Command did not exit")
+
     def __enter__(self):
         return self
 
@@ -151,6 +163,36 @@ def check(binary):
             assert terminal.leave() == 0
             assert b"fixture-secret-do-not-print" not in terminal.output
         print("PASS: automatic menu, arrows, search, cancel, switch and coexist toggles")
+
+        for save in (False, True):
+            before = snapshot(home)
+            with Terminal(binary, ["--home", str(home), "--lang", "en", "provider", "edit", "claude", "alpha"]) as terminal:
+                terminal.expect("Name")
+                terminal.send("\r")
+                terminal.expect("Base URL")
+                terminal.send("\r")
+                terminal.expect("API Key")
+                terminal.send("\x1b[B\r")
+                terminal.expect("New API Key")
+                terminal.send("fixture-new-editor-key\r")
+                terminal.expect("Save these changes?")
+                terminal.send("y\r" if save else "\r")
+                terminal.expect("Provider connection saved." if save else "Cancelled; nothing changed.")
+                assert terminal.wait_exit() == 0
+                assert b"fixture-new-editor-key" not in terminal.output
+            if not save:
+                assert snapshot(home) == before
+            else:
+                store = json.loads((home / ".cc-switch-lite/providers.json").read_text())
+                card = next(card for card in store["apps"]["claude"]["providers"] if card["id"] == "alpha")
+                assert card["settingsConfig"]["env"]["ANTHROPIC_AUTH_TOKEN"] == "fixture-new-editor-key"
+                assert command(binary, home, ["list", "claude", "--json"])["providers"][1]["current"]
+        with Terminal(binary, ["--home", str(home), "--lang", "en", "provider", "edit", "claude", "alpha"]) as terminal:
+            terminal.expect("Name")
+            terminal.send("\x03")
+            terminal.expect("\x1b[?25h")
+            assert terminal.wait_exit() == 130
+        print("PASS: CLI connection editor hides keys, defaults to cancel, saves only the selected card, and restores terminal modes")
 
         # A malformed client configuration must not be mistaken for disabled.
         path = Path(command(binary, home, ["paths", "opencode", "--json"])["tools"]["opencode"][0])
