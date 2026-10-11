@@ -751,12 +751,24 @@ fn error_output(error: CliError, as_json: bool, lang: Language) -> ExitCode {
     ExitCode::from(error.exit)
 }
 
+fn write_stdout(mut writer: impl Write, line: &str, as_json: bool) -> ExitCode {
+    match writeln!(writer, "{line}") {
+        Ok(()) => ExitCode::SUCCESS,
+        // `ccsl list ... | head` is a normal way to read terminal output. A
+        // closed consumer is not an operation failure. Keep JSON's exit contract.
+        Err(error) if !as_json && error.kind() == io::ErrorKind::BrokenPipe => ExitCode::SUCCESS,
+        Err(_) => ExitCode::from(1),
+    }
+}
+
 fn main() -> ExitCode {
     let raw = std::env::args_os().collect::<Vec<_>>();
     let as_json = raw.iter().any(|arg| arg == "--json");
     let lang = presentation::language_before_parse(&raw);
-    let parsed = presentation::help(Cli::command(), lang)
-        .try_get_matches_from(raw)
+    let command = presentation::help(Cli::command(), lang);
+    let parsed = command
+        .clone()
+        .try_get_matches_from(&raw)
         .and_then(|matches| Cli::from_arg_matches(&matches));
     let cli = match parsed {
         Ok(cli) => cli,
@@ -764,15 +776,40 @@ fn main() -> ExitCode {
             let _ = error.print();
             return ExitCode::SUCCESS;
         }
-        Err(_) => {
-            return error_output(
-                CliError::input(
-                    "invalid_arguments",
-                    "Invalid arguments. Run ccsl --help or ccsl <command> --help for usage.",
-                ),
-                as_json,
-                lang,
-            )
+        Err(error) => {
+            let invalid = CliError::input(
+                "invalid_arguments",
+                "Invalid arguments. Run ccsl --help or ccsl <command> --help for usage.",
+            );
+            if as_json {
+                return error_output(invalid, true, lang);
+            }
+            // Let clap identify the valid command prefix. Never display its
+            // original diagnostic, which may echo arbitrary input or credentials.
+            let partial = Cli::command()
+                .ignore_errors(true)
+                .try_get_matches_from(&raw)
+                .ok();
+            let mut help = presentation::matched_help(&command, partial.as_ref());
+            if matches!(
+                error.kind(),
+                clap::error::ErrorKind::MissingSubcommand
+                    | clap::error::ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand
+            ) {
+                let title = if help.get_name() == "ccsl" {
+                    lang.text("CC Switch Lite · 快速入门", "CC Switch Lite · Quick start")
+                } else {
+                    lang.text("命令帮助", "Command help")
+                };
+                return write_stdout(
+                    io::stdout().lock(),
+                    &format!("{title}\n\n{}", help.render_help()),
+                    false,
+                );
+            }
+            let exit = error_output(invalid, false, lang);
+            let _ = writeln!(io::stderr().lock(), "\n{}", help.render_help());
+            return exit;
         }
     };
     let as_json = cli.json;
@@ -784,11 +821,44 @@ fn main() -> ExitCode {
             } else {
                 output.text
             };
-            if writeln!(io::stdout().lock(), "{line}").is_err() {
-                return ExitCode::from(1);
-            }
-            ExitCode::SUCCESS
+            write_stdout(io::stdout().lock(), &line, as_json)
         }
         Err(error) => error_output(error, as_json, lang),
+    }
+}
+
+#[cfg(test)]
+mod output_tests {
+    use super::*;
+
+    struct FailedWriter(io::ErrorKind);
+
+    impl Write for FailedWriter {
+        fn write(&mut self, _: &[u8]) -> io::Result<usize> {
+            Err(io::Error::from(self.0))
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn closed_human_output_is_success_but_json_and_other_io_errors_are_not() {
+        assert_eq!(
+            write_stdout(FailedWriter(io::ErrorKind::BrokenPipe), "output", false),
+            ExitCode::SUCCESS
+        );
+        assert_eq!(
+            write_stdout(FailedWriter(io::ErrorKind::BrokenPipe), "{}", true),
+            ExitCode::from(1)
+        );
+        assert_eq!(
+            write_stdout(
+                FailedWriter(io::ErrorKind::PermissionDenied),
+                "output",
+                false
+            ),
+            ExitCode::from(1)
+        );
     }
 }
