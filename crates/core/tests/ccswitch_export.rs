@@ -18,6 +18,17 @@ fn fixture(name: &str) -> Vec<u8> {
 
 const V4: &str = "cc-switch-export-20261001_080000.sql";
 
+#[test]
+fn preview_does_not_create_a_store_lock() {
+    let sb = Sandbox::new();
+    let parsed = ccswitch_export::parse(&fixture(V4)).unwrap();
+    ccswitch_export::preview(&sb.env, &parsed, DuplicatePolicy::Skip).unwrap();
+    assert!(!sb.env.data_dir.exists());
+    std::fs::create_dir_all(&sb.env.data_dir).unwrap();
+    ccswitch_export::preview(&sb.env, &parsed, DuplicatePolicy::Skip).unwrap();
+    assert!(!sb.env.data_dir.join("providers.json.lock").exists());
+}
+
 /// HOME 下除 ccswitch-lite 自己的数据目录外的所有文件。
 fn files_outside_data_dir(sb: &Sandbox) -> Vec<PathBuf> {
     fn walk(dir: &Path, skip: &Path, out: &mut Vec<PathBuf>) {

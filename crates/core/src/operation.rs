@@ -313,7 +313,7 @@ pub fn settle(
     app: &str,
     commit_target: CommitTarget<'_>,
 ) -> Result<Option<RecoveryOutcome>, AppError> {
-    let guard = store.lock_app(app);
+    let guard = store.lock_app(app)?;
     recover(store, &guard, commit_target)
 }
 
@@ -369,7 +369,7 @@ impl<'a> AppWrite<'a> {
         app: &str,
         commit: CommitTarget<'a>,
     ) -> Result<Self, AppError> {
-        let guard = store.lock_app(app);
+        let guard = store.lock_app(app)?;
         let write = Self {
             store,
             guard,
@@ -401,7 +401,10 @@ pub fn recover_all(
     };
     apps.into_iter()
         .filter_map(|app| {
-            let guard = store.lock_app(&app);
+            let guard = match store.lock_app(&app) {
+                Ok(guard) => guard,
+                Err(err) => return Some((app, Err(err))),
+            };
             let commit = |target: &PendingTarget| commit_target(&app, target);
             match recover(store, &guard, &commit) {
                 Ok(Some(outcome)) => Some((app, Ok(outcome))),
