@@ -131,7 +131,7 @@ describe("ProviderEditor via ToolPage", () => {
     renderWithClient(<ToolPage tool="claude" />);
     await userEvent.click(await screen.findByRole("button", { name: /添加供应商/ }));
     await userEvent.type(await screen.findByPlaceholderText("搜索预设…"), "Kimi");
-    const option = (await screen.findAllByRole("option"))[0];
+    const option = await screen.findByRole("button", { name: "Kimi" });
     await userEvent.click(option);
     expect((screen.getByLabelText("ID") as HTMLInputElement).value).toMatch(/^kimi/);
     await userEvent.click(screen.getByRole("button", { name: "保存" }));

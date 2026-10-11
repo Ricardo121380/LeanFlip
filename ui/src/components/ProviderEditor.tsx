@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ExternalLink } from "lucide-react";
+import { Check, ExternalLink, Loader2, RotateCcw, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { Input, NativeSelect } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CodeEditor } from "@/components/CodeEditor";
@@ -110,6 +111,12 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, existingIds
   const [routes, setRoutes] = useState(() => routesOf(provider));
   const [apply, setApply] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [confirm, confirmDialog] = useConfirm();
+  const signature = JSON.stringify({ name, id, website, category, text, loginSource, routes, apply });
+  const [initialSignature] = useState(signature);
+  const [presetSignature, setPresetSignature] = useState(signature);
+  const dirty = signature !== initialSignature;
 
   const presetList = useQuery({
     queryKey: ["presets", tool],
@@ -124,19 +131,33 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, existingIds
   const showRoutes = tool === "claude-desktop" && !official;
   const routesOk = !showRoutes || routeErrors(routes).every((e) => e === null);
 
-  function choosePreset(p: Preset | null) {
+  async function choosePreset(p: Preset | null) {
+    if (saving || preset?.name === p?.name) return;
+    if (signature !== presetSignature && !(await confirm({ title: t("editor.replaceTitle"), description: t("editor.replaceHint"), confirmLabel: t("editor.replaceAction") }))) return;
     setPreset(p);
     const nextName = p?.name ?? "";
+    const nextId = idTouched ? id : uniqueId(slugify(nextName || "custom"), existingIds);
+    const nextWebsite = p?.websiteUrl ?? "";
+    const nextCategory = p?.isOfficial ? "official" : p?.category;
+    const nextText = toEditorText(meta.editor, p?.settingsConfig ?? customTemplate(tool));
     setName(nextName);
-    if (!idTouched) setId(uniqueId(slugify(nextName || "custom"), existingIds));
-    setWebsite(p?.websiteUrl ?? "");
-    setCategory(p?.isOfficial ? "official" : p?.category);
-    setText(toEditorText(meta.editor, p?.settingsConfig ?? customTemplate(tool)));
+    setId(nextId);
+    setWebsite(nextWebsite);
+    setCategory(nextCategory);
+    setText(nextText);
+    setSaveError(null);
+    setPresetSignature(JSON.stringify({ name: nextName, id: nextId, website: nextWebsite, category: nextCategory, text: nextText, loginSource, routes, apply }));
+  }
+
+  async function requestClose() {
+    if (saving) return;
+    if (!dirty || await confirm({ title: t("editor.discardTitle"), description: t("editor.discardHint"), confirmLabel: t("editor.discardAction") })) onOpenChange(false);
   }
 
   async function save() {
-    if (!parsed.ok) return;
+    if (!canSave || !parsed.ok) return;
     setSaving(true);
+    setSaveError(null);
     try {
       let next: Provider = editing
         ? { ...provider!, name: name.trim() || provider!.name, settingsConfig: parsed.value }
@@ -162,7 +183,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, existingIds
       toast.success(t("editor.saved"));
       onOpenChange(false);
     } catch (error) {
-      toast.error(errorMessage(error));
+      setSaveError(errorMessage(error));
     } finally {
       setSaving(false);
       void refreshAll(client);
@@ -170,56 +191,68 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, existingIds
   }
 
   const idTaken = !editing && existingIds.includes(id.trim());
-  const canSave = parsed.ok && routesOk && (editing || (id.trim() !== "" && !idTaken)) && !saving;
+  const canSave = parsed.ok && routesOk && (editing ? dirty : (id.trim() !== "" && !idTaken)) && !saving;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl">
-        <DialogHeader>
+    <>
+    <Dialog open={open} onOpenChange={(next) => { if (!next) void requestClose(); }}>
+      <DialogContent closeDisabled={saving} className="flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-4xl flex-col gap-0 overflow-hidden p-0">
+        <DialogHeader className="shrink-0 border-b px-5 py-4 pr-12">
           <DialogTitle>
             {editing ? t("editor.titleEdit") : t("editor.titleAdd")} · {meta.label}
           </DialogTitle>
+          <DialogDescription>{t(editing ? "editor.editHint" : "editor.addHint")}</DialogDescription>
         </DialogHeader>
 
-        <div className={cn("grid gap-4", !editing && "md:grid-cols-[220px_1fr]")}>
+        <fieldset disabled={saving} className={cn("grid min-h-0 flex-1 gap-5 overflow-y-auto p-5 md:overflow-hidden", !editing && "md:grid-cols-[200px_minmax(0,1fr)]")}>
           {!editing && (
             <div className="flex min-h-0 flex-col gap-2">
-              <Label>{t("editor.preset")}</Label>
-              <Input placeholder={t("editor.searchPreset")} value={query} onChange={(e) => setQuery(e.target.value)} />
-              <div className="flex max-h-[420px] flex-col gap-0.5 overflow-y-auto rounded-md border p-1" role="listbox">
+              <Label htmlFor="pe-preset-search">{t("editor.preset")}</Label>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-2.5 top-2.5 size-4 text-muted-foreground" aria-hidden="true" />
+                <Input id="pe-preset-search" type="search" className="pl-8" placeholder={t("editor.searchPreset")} value={query} onChange={(e) => setQuery(e.target.value)} />
+              </div>
+              <div className="flex max-h-52 min-h-0 flex-col gap-0.5 overflow-y-auto rounded-md border p-1 md:max-h-none md:flex-1" role="group" aria-label={t("editor.preset")}>
                 <button
                   type="button"
-                  className={cn("rounded px-2 py-1.5 text-left text-sm hover:bg-accent", preset === null && "bg-accent font-medium")}
-                  onClick={() => choosePreset(null)}
+                  aria-pressed={preset === null}
+                  className={cn("flex min-h-9 items-center justify-between gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent", preset === null && "bg-accent font-medium")}
+                  onClick={() => void choosePreset(null)}
                 >
                   {t("editor.custom")}
+                  {preset === null && <Check className="size-4 shrink-0" aria-hidden="true" />}
                 </button>
-                {presetList.isLoading && <p className="px-2 py-1.5 text-xs text-muted-foreground">{t("common.loading")}</p>}
+                {presetList.isLoading && <p role="status" className="px-2 py-1.5 text-xs text-muted-foreground">{t("common.loading")}</p>}
+                {presetList.isError && <div role="alert" className="space-y-2 p-2 text-xs text-destructive"><p>{t("editor.presetsError")}</p><Button type="button" size="sm" variant="outline" onClick={() => void presetList.refetch()}><RotateCcw />{t("common.retry")}</Button></div>}
+                {!presetList.isLoading && !presetList.isError && query.trim() && presets.length === 0 && <p role="status" className="px-2 py-3 text-xs leading-relaxed text-muted-foreground">{t("editor.noPresets")}</p>}
                 {presets.map((p) => (
                   <button
                     type="button"
                     key={p.name}
-                    role="option"
-                    aria-selected={preset?.name === p.name}
+                    aria-pressed={preset?.name === p.name}
                     className={cn(
-                      "rounded px-2 py-1.5 text-left text-sm hover:bg-accent",
+                      "flex min-h-9 items-center justify-between gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent",
                       preset?.name === p.name && "bg-accent font-medium",
                     )}
-                    onClick={() => choosePreset(p)}
+                    onClick={() => void choosePreset(p)}
                   >
-                    {p.name}
-                    {p.isOfficial && <span className="ml-1 text-xs text-muted-foreground">★</span>}
+                    <span className="min-w-0 break-words">{p.name}</span>
+                    {preset?.name === p.name && <Check className="size-4 shrink-0" aria-hidden="true" />}
                   </button>
                 ))}
               </div>
             </div>
           )}
 
-          <div className="flex min-w-0 flex-col gap-3">
+          <div className="flex min-h-0 min-w-0 flex-col gap-3 md:overflow-y-auto md:pr-1">
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="pe-name">{t("editor.name")}</Label>
-                <Input id="pe-name" value={name} onChange={(e) => setName(e.target.value)} />
+                <Input id="pe-name" value={name} onChange={(e) => {
+                  const next = e.target.value;
+                  setName(next);
+                  if (!editing && !idTouched) setId(next.trim() ? uniqueId(slugify(next), existingIds) : "");
+                }} />
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="pe-id">{t("editor.id")}</Label>
@@ -228,6 +261,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, existingIds
                   value={id}
                   disabled={editing}
                   aria-invalid={idTaken}
+                  aria-describedby={idTaken ? "pe-id-error" : undefined}
                   className={cn(idTaken && "border-destructive")}
                   onChange={(e) => {
                     setIdTouched(true);
@@ -236,6 +270,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, existingIds
                 />
               </div>
             </div>
+            {idTaken && <p id="pe-id-error" role="alert" className="text-xs text-destructive">{t("editor.idTaken")}</p>}
             {!editing && meta.kind === "coexist" && <p className="-mt-1 text-xs text-muted-foreground">{t("editor.idHint")}</p>}
             <div className="flex items-end gap-2">
               <div className="flex flex-1 flex-col gap-1.5">
@@ -243,7 +278,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, existingIds
                 <Input id="pe-web" value={website} onChange={(e) => setWebsite(e.target.value)} />
               </div>
               {preset?.apiKeyUrl && (
-                <Button variant="outline" size="sm" className="mb-0.5" onClick={() => void api.openUrl(preset.apiKeyUrl!)}>
+                <Button variant="outline" size="sm" className="mb-0.5" onClick={async () => { try { await api.openUrl(preset.apiKeyUrl!); } catch { toast.error(t("editor.openError")); } }}>
                   <ExternalLink /> {t("editor.getKey")}
                 </Button>
               )}
@@ -276,14 +311,14 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, existingIds
             {meta.editor === "codex" ? (
               <>
                 <Label>{t("editor.auth")}</Label>
-                <CodeEditor language="json" minHeight={90} value={text.json} onChange={(json) => setText((s) => ({ ...s, json }))} ariaLabel={t("editor.auth")} />
+                <CodeEditor readOnly={saving} language="json" minHeight={90} value={text.json} onChange={(json) => setText((s) => ({ ...s, json }))} ariaLabel={t("editor.auth")} />
                 <Label>{t("editor.config")}</Label>
-                <CodeEditor language="toml" value={text.toml ?? ""} onChange={(toml) => setText((s) => ({ ...s, toml }))} ariaLabel={t("editor.config")} />
+                <CodeEditor readOnly={saving} language="toml" value={text.toml ?? ""} onChange={(toml) => setText((s) => ({ ...s, toml }))} ariaLabel={t("editor.config")} />
               </>
             ) : (
               <>
                 <Label>{t("editor.settings")}</Label>
-                <CodeEditor language="json" minHeight={220} value={text.json} onChange={(json) => setText({ json })} ariaLabel={t("editor.settings")} />
+                <CodeEditor readOnly={saving} language="json" minHeight={220} value={text.json} onChange={(json) => setText({ json })} ariaLabel={t("editor.settings")} />
               </>
             )}
             {showRoutes && <ModelRoutesEditor rows={routes} onChange={setRoutes} />}
@@ -300,17 +335,22 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, existingIds
               </label>
             )}
           </div>
-        </div>
+        </fieldset>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+        <DialogFooter className="shrink-0 flex-wrap items-center border-t bg-muted/30 px-5 py-4">
+          <div className="mr-auto min-w-0 flex-1 basis-40 text-xs text-muted-foreground">
+            {saveError ? <p role="alert" className="break-words text-destructive">{t("editor.saveError")} {saveError}</p> : <p role="status">{t(saving ? "editor.saving" : editing && !dirty ? "editor.unchanged" : "editor.saveHint")}</p>}
+          </div>
+          <Button variant="outline" disabled={saving} onClick={() => void requestClose()}>
             {t("editor.cancel")}
           </Button>
           <Button onClick={() => void save()} disabled={!canSave}>
-            {t("editor.save")}
+            {saving && <Loader2 className="animate-spin" />}{t(saving ? "editor.saving" : "editor.save")}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    {confirmDialog}
+    </>
   );
 }
