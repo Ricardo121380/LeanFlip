@@ -9,6 +9,9 @@ import { Readable, Transform } from 'node:stream';
 
 export const manifest = JSON.parse(await readFile(new URL('../release.json', import.meta.url), 'utf8'));
 export const appName = manifest.appName ?? 'CC Switch Lite.app';
+export const productName = appName.replace(/\.app$/, '');
+export const cliName = manifest.cliName ?? 'ccsl';
+const desktopCommand = `${cliName}-app`;
 const bundleId = 'dev.ccswitch.lite';
 const maxDownload = 128 * 1024 * 1024;
 
@@ -70,17 +73,17 @@ export function command(program, args, options = {}) {
 export async function ensureCli() {
   const asset = selectAsset('cli');
   const directory = join(cacheRoot(), asset.sha256);
-  const binary = join(directory, 'ccsl');
-  const receipt = join(directory, 'ccsl.sha256');
+  const binary = join(directory, cliName);
+  const receipt = join(directory, `${cliName}.sha256`);
   if (await regularFile(binary) && await regularFile(receipt) && await sha256(binary) === (await readFile(receipt, 'utf8')).trim()) return binary;
   const archive = await verifiedDownload(asset, directory);
   const staging = await mkdtemp(join(directory, '.extract-'));
   try {
     // Extract only the expected member; never execute archive-provided scripts.
-    command('tar', ['-xzf', archive, '-C', staging, 'ccsl']);
-    const extracted = join(staging, 'ccsl');
+    command('tar', ['-xzf', archive, '-C', staging, cliName]);
+    const extracted = join(staging, cliName);
     const stat = await lstat(extracted);
-    if (!stat.isFile() || stat.nlink !== 1) throw new Error('The CLI archive does not contain a regular ccsl executable.');
+    if (!stat.isFile() || stat.nlink !== 1) throw new Error(`The CLI archive does not contain a regular ${cliName} executable.`);
     await chmod(extracted, 0o755);
     const digest = await sha256(extracted);
     await rename(extracted, binary);
@@ -95,7 +98,7 @@ export function parseDesktopArgs(args) {
   const options = { action: args[0] ?? 'help', replace: false };
   if (options.action === '--help' || options.action === '-h') options.action = 'help';
   if (options.action === '--version' || options.action === '-V') options.action = 'version';
-  if (!['help', 'version', 'install', 'download', 'open', 'path'].includes(options.action)) throw new Error('Unknown command. Run ccsl-app --help.');
+  if (!['help', 'version', 'install', 'download', 'open', 'path'].includes(options.action)) throw new Error(`Unknown command. Run ${desktopCommand} --help.`);
   for (let i = 1; i < args.length; i++) {
     if (args[i] === '--replace' && options.action === 'install') options.replace = true;
     else if (args[i] === '--app-dir' && ['install', 'open', 'path'].includes(options.action)) {
@@ -104,7 +107,7 @@ export function parseDesktopArgs(args) {
     } else if (args[i] === '--output' && options.action === 'download') {
       if (!args[++i]) throw new Error('--output requires a directory.');
       options.output = resolve(args[i]);
-    } else throw new Error('Invalid option. Run ccsl-app --help.');
+    } else throw new Error(`Invalid option. Run ${desktopCommand} --help.`);
   }
   return options;
 }
@@ -136,7 +139,7 @@ export async function installMacApp(archive, options) {
   const target = macAppPath(options.appDir);
   const hadExisting = await validateExistingApp(target, options.replace, inspectBundle);
   if (hadExisting && spawnSync('/usr/bin/pgrep', ['-x', 'ccswitch-lite']).status === 0) {
-    throw new Error('Quit SwitchLeaf before replacing the installed application.');
+    throw new Error(`Quit ${productName} before replacing the installed application.`);
   }
   const work = await mkdtemp(join(tmpdir(), 'ccswitch-lite-mount-'));
   const mount = join(work, 'volume');
@@ -181,17 +184,17 @@ export function linuxInstallCommand(archive, uid = process.getuid?.()) {
 }
 
 export async function desktop(options) {
-  if (options.action === 'version') { console.log(`ccsl-app ${manifest.version}`); return; }
+  if (options.action === 'version') { console.log(`${desktopCommand} ${manifest.version}`); return; }
   if (options.action === 'help') {
-    console.log(`SwitchLeaf ${manifest.version} · 桌面安装器 / Desktop installer
+    console.log(`${productName} ${manifest.version} · 桌面安装器 / Desktop installer
 
 用法 / Usage:
-  ccsl-app install                 安装桌面 App / Install the desktop app
-  ccsl-app install --replace       更新已有 App / Replace a previous install
-  ccsl-app download --output .     只下载并校验 / Download and verify only
-  ccsl-app open                    启动 App / Open the app
-  ccsl-app path                    显示默认安装位置 / Show the app path
-  ccsl                                 打开原生 CLI 菜单 / Open the native CLI menu
+  ${desktopCommand} install                 安装桌面 App / Install the desktop app
+  ${desktopCommand} install --replace       更新已有 App / Replace a previous install
+  ${desktopCommand} download --output .     只下载并校验 / Download and verify only
+  ${desktopCommand} open                    启动 App / Open the app
+  ${desktopCommand} path                    显示默认安装位置 / Show the app path
+  ${cliName}                               打开原生 CLI 菜单 / Open the native CLI menu
 
 macOS ARM64: 默认安装到 ~/Applications，--app-dir 可指定绝对路径。
 Linux x64: install 使用 apt（普通用户通过 sudo）；系统会提示确认和密码。
@@ -209,7 +212,7 @@ App 尚未做 Apple Developer ID 签名及公证。安装不会自动启动 App�
     if (process.platform === 'darwin') {
       let target = macAppPath(options.appDir);
       if (!options.appDir && !await exists(target)) target = join('/Applications', appName);
-      if (!await exists(target) || inspectBundle(target) !== bundleId) throw new Error('App not found. Run ccsl-app install first.');
+      if (!await exists(target) || inspectBundle(target) !== bundleId) throw new Error(`App not found. Run ${desktopCommand} install first.`);
       command('/usr/bin/open', [target], { stdio: 'inherit' });
     } else command('/usr/bin/ccswitch-lite', [], { stdio: 'inherit' });
     return;
@@ -220,11 +223,11 @@ App 尚未做 Apple Developer ID 签名及公证。安装不会自动启动 App�
   if (options.action === 'download') { console.log(archive); return; }
   if (process.platform === 'darwin') {
     const target = await installMacApp(archive, options);
-    console.log(`已安装 / Installed: ${target}\n启动 / Open: ccsl-app open`);
+    console.log(`已安装 / Installed: ${target}\n启动 / Open: ${desktopCommand} open`);
   } else {
     if (!process.stdin.isTTY) throw new Error(`A terminal is required for apt installation. Verified package: ${archive}\nRun: sudo apt install '${archive.replaceAll("'", "'\\''")}'`);
     const [program, args] = linuxInstallCommand(archive);
     command(program, args, { stdio: 'inherit' });
-    console.log('已安装 / Installed: CC Switch Lite. Launch it from your desktop application menu.');
+    console.log(`已安装 / Installed: ${productName}. Launch it from your desktop application menu.`);
   }
 }

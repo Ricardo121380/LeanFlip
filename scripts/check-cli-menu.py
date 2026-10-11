@@ -255,6 +255,6 @@ def check(binary):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--binary", type=Path, default=Path(__file__).resolve().parent.parent / "target/debug/ccsl")
+    parser.add_argument("--binary", type=Path, default=Path(__file__).resolve().parent.parent / "target/debug/leanflip")
     args = parser.parse_args()
     check(args.binary.resolve(strict=True))

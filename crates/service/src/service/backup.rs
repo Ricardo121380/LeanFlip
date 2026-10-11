@@ -1,4 +1,4 @@
-//! Password-encrypted, portable SwitchLeaf backups. Plaintext stays in memory;
+//! Password-encrypted, portable LeanFlip backups. Plaintext stays in memory;
 //! preview APIs return only identity/count metadata. Restores merge cards and
 //! accounts and never activate providers or replace existing login credentials.
 use std::collections::HashSet;
@@ -14,6 +14,7 @@ use ccsl_core::store::StoreData;
 use super::*;
 
 pub const MAX_BACKUP_BYTES: usize = 32 * 1024 * 1024;
+// Keep the wire identifier stable so existing SwitchLeaf backups stay compatible.
 const FORMAT: &str = "switchleaf-backup";
 const VERSION: u32 = 1;
 const WORK_FACTOR: u8 = 18;
@@ -87,8 +88,8 @@ pub struct RestoreReport {
 fn invalid() -> AppError {
     AppError::localized(
         "backup.invalid",
-        "不是有效的 SwitchLeaf 完整备份，或备份版本尚不受支持。",
-        "Not a valid SwitchLeaf backup, or its version is not supported.",
+        "不是有效的 LeanFlip 完整备份，或备份版本尚不受支持。",
+        "Not a valid LeanFlip backup, or its version is not supported.",
     )
 }
 

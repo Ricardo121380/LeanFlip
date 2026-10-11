@@ -1,4 +1,4 @@
-//! SwitchLeaf 桌面应用：Tauri 2 外壳，业务都在 `ccsl-core` 和 [`service`] 里。
+//! LeanFlip 桌面应用：Tauri 2 外壳，业务都在 `ccsl-core` 和 [`service`] 里。
 
 pub mod commands;
 pub use ccsl_service::{oauth_http, redact, service, settings};
@@ -140,7 +140,7 @@ pub fn run() {
             commands::open_url,
         ])
         .run(app_context())
-        .expect("error while running SwitchLeaf");
+        .expect("error while running LeanFlip");
 }
 
 /// 简单的 stderr 日志（`RUST_LOG` 不设时只打 warn 以上）。

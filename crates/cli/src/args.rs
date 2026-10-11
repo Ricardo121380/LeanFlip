@@ -5,9 +5,9 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 
 #[derive(Parser)]
 #[command(
-    name = "switchleaf",
+    name = "leanflip",
     version,
-    about = "Manage coding-tool providers with SwitchLeaf"
+    about = "Manage coding-tool providers with LeanFlip"
 )]
 pub struct Cli {
     /// Emit a JSON result; errors go to stderr with a stable error code.
@@ -83,7 +83,7 @@ pub enum Import {
         #[arg(long = "tool", value_delimiter = ',')]
         tools: Vec<ToolArg>,
     },
-    /// Unlock a SwitchLeaf backup and preview it; --apply restores selected data.
+    /// Unlock a LeanFlip backup and preview it; --apply restores selected data.
     Backup {
         path: PathBuf,
         #[arg(long)]

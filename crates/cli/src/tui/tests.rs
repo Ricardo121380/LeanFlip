@@ -63,7 +63,7 @@ fn render(app: &mut App, width: u16, height: u16) -> String {
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
     terminal.draw(|frame| app.render(frame)).unwrap();
     let buffer = terminal.backend().buffer();
-    if let Ok(destination) = std::env::var("SWITCHLEAF_CAPTURE") {
+    if let Ok(destination) = std::env::var("LEANFLIP_CAPTURE") {
         let color = |color: Color, fallback: &str| match color {
             Color::Rgb(r, g, b) => format!("#{r:02x}{g:02x}{b:02x}"),
             _ => fallback.to_string(),
@@ -233,7 +233,7 @@ fn responsive_views_and_scrollable_details_do_not_expose_configuration() {
             assert!(screen.contains(if width < 44 {
                 lang.text("窗口太小", "too small")
             } else {
-                "SwitchLeaf"
+                "LeanFlip"
             }));
             if width >= 110 {
                 assert!(screen.contains(lang.text("配置路径", "Configuration paths")));

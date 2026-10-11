@@ -16,7 +16,7 @@ const zh = {
   "save": "选择位置并导出",
   "saving": "正在生成加密备份…",
   "saved": "加密备份已保存",
-  "restoreTitle": "恢复 SwitchLeaf 备份",
+  "restoreTitle": "恢复 LeanFlip 备份",
   "changeFile": "更换文件",
   "unlockTitle": "先解锁，再决定恢复什么",
   "unlockHint": "解密后只显示内容摘要。确认恢复前，不会修改配置或导入账号。",
@@ -48,7 +48,7 @@ const zh = {
   "dataTitle": "数据与迁移",
   "dataHint": "迁入已有配置，或带走完整的加密备份。三个使用方式，共用同一份数据。"
 },
-  app: { title: "SwitchLeaf", subtitle: "轻松管理每个工具的配置" },
+  app: { title: "LeanFlip", subtitle: "精简配置，一步切换" },
   recovery: {
     title: "未完成写入的恢复结果",
     dismiss: "关闭恢复提示",
@@ -253,7 +253,7 @@ const zh = {
   },
   exportImport: {
     fileSource: "文件：{{name}}",
-    empty: "选择 .switchleaf 加密备份，或 CC Switch 的 .sql / .db / .json 文件。",
+    empty: "选择 .leanflip 加密备份，或 CC Switch 的 .sql / .db / .json 文件。",
     noItems: "文件中没有供应商条目，请选择其他备份。",
     selection: "已选择 {{tools}} 个工具、{{count}} 张卡",
     reset: "放弃此文件",
@@ -265,7 +265,7 @@ const zh = {
     progress: { load: "正在读取文件并生成预览…", preview: "正在按重复处理方式更新预览…", apply: "正在导入所选卡片…", discard: "正在清除文件预览…" },
     failed: { load: "无法读取导出文件", preview: "无法更新导入预览", apply: "导入未完成", discard: "无法清除文件预览" },
     title: "从文件迁入数据",
-    hint: "SwitchLeaf 加密备份可恢复供应商、托管账号和应用偏好。CC Switch 的 SQL、数据库快照或旧版 JSON 用于迁入供应商卡片；这类文件不导入登录凭据。两种方式都会先预览，再由你确认。",
+    hint: "LeanFlip 加密备份可恢复供应商、托管账号和应用偏好。CC Switch 的 SQL、数据库快照或旧版 JSON 用于迁入供应商卡片；这类文件不导入登录凭据。两种方式都会先预览，再由你确认。",
     file: "导出文件",
     choose: "选择导出文件…",
     duplicates: "同 id 的卡",

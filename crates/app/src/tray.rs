@@ -38,13 +38,13 @@ struct Labels {
 fn labels(english: bool) -> Labels {
     if english {
         Labels {
-            open: "Open SwitchLeaf",
+            open: "Open LeanFlip",
             quit: "Quit",
             empty: "(no providers)",
         }
     } else {
         Labels {
-            open: "打开 SwitchLeaf",
+            open: "打开 LeanFlip",
             quit: "退出",
             empty: "（没有供应商）",
         }
@@ -263,7 +263,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
     };
     let menu = build_menu(app, &placeholder)?;
     let mut builder = TrayIconBuilder::with_id(TRAY_ID)
-        .tooltip("SwitchLeaf")
+        .tooltip("LeanFlip")
         .menu(&menu)
         .show_menu_on_left_click(true)
         .on_menu_event(|app, event| on_menu(app, event.id().as_ref()));

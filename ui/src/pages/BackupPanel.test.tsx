@@ -25,7 +25,7 @@ it("exports with matching masked passwords, freezes input while saving, and clea
   await user.clear(confirm); await user.type(confirm, "fixture-passphrase");
   await user.click(screen.getByRole("button", { name: "选择位置并导出" }));
   expect(password).toBeDisabled(); expect(fake.calls).toHaveLength(1);
-  await act(async () => finish("/backup.switchleaf"));
+  await act(async () => finish("/backup.leanflip"));
   expect(await screen.findByRole("status")).toHaveTextContent("加密备份已保存");
   expect(password).toHaveValue(""); expect(confirm).toHaveValue("");
 });
@@ -34,7 +34,7 @@ it("retries a wrong password, previews without writing, and restores only select
   const user = userEvent.setup(); let attempts = 0;
   const fake = fakeBackend({ backup_load: () => { if (++attempts === 1) throw new Error("Incorrect password"); return preview; }, backup_apply: () => restored, backup_discard: () => null });
   backend.invoke.mockImplementation(fake.invoke);
-  renderWithClient(<BackupRestore bytes={new Uint8Array([1,2])} fileName="fixture.switchleaf" onBack={() => {}} />);
+  renderWithClient(<BackupRestore bytes={new Uint8Array([1,2])} fileName="fixture.leanflip" onBack={() => {}} />);
   await user.type(screen.getByLabelText("备份密码"), "wrong-password");
   await user.click(screen.getByRole("button", { name: "解密并预览" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("Incorrect password");
@@ -54,7 +54,7 @@ it("keeps a partial restore visible and retryable; directory restore requires pr
   const user = userEvent.setup();
   const fake = fakeBackend({ backup_load: () => preview, backup_apply: () => ({ ...restored, failures: ["preferences:io"] }), backup_discard: () => null });
   backend.invoke.mockImplementation(fake.invoke);
-  renderWithClient(<BackupRestore bytes={new Uint8Array()} fileName="fixture.switchleaf" onBack={() => {}} />);
+  renderWithClient(<BackupRestore bytes={new Uint8Array()} fileName="fixture.leanflip" onBack={() => {}} />);
   await user.type(screen.getByLabelText("备份密码"), "fixture-password"); await user.click(screen.getByRole("button", { name: "解密并预览" }));
   const paths = await screen.findByRole("checkbox", { name: /同时恢复本机目录/ });
   await user.click(paths); await user.click(screen.getByRole("checkbox", { name: "恢复应用偏好" }));

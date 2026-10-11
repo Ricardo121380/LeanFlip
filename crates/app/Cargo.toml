@@ -1,6 +1,6 @@
 [package]
 name = "ccsl-app"
-description = "CC Switch Lite desktop app (Tauri 2): thin command layer over ccsl-core"
+description = "LeanFlip desktop app (Tauri 2): thin command layer over ccsl-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

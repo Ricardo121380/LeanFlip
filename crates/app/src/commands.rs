@@ -258,13 +258,13 @@ pub async fn backup_save(
     use tauri_plugin_dialog::DialogExt;
     blocking(&state, move |service| {
         let filename = format!(
-            "switchleaf-backup-{}.switchleaf",
+            "leanflip-backup-{}.leanflip",
             chrono::Local::now().format("%Y%m%d-%H%M%S")
         );
         let Some(file) = app
             .dialog()
             .file()
-            .add_filter("SwitchLeaf encrypted backup", &["switchleaf"])
+            .add_filter("LeanFlip encrypted backup", &["leanflip"])
             .set_file_name(filename)
             .blocking_save_file()
         else {

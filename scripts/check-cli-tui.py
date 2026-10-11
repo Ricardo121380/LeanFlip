@@ -105,7 +105,7 @@ def start(binary, home, tool=None, width=120):
     terminal = menu.Terminal(binary, args, width=width)
     terminal.width = width
     terminal.expect("\x1b[?1049h")
-    terminal.expect("SwitchLeaf")
+    terminal.expect("LeanFlip")
     return terminal
 
 
@@ -203,7 +203,7 @@ def check(binary):
             assert finish(terminal, "\rqq") == 0
         print("PASS: local CC Switch detection, preview, cancel and confirmed migration")
 
-        backup = Path(root) / "roundtrip.switchleaf"
+        backup = Path(root) / "roundtrip.leanflip"
         password = "fixture-passphrase-only"
         with start(binary, home) as terminal:
             terminal.send("bjj\r\x15" + str(backup) + "\t" + password + "\t" + password + "\r")
@@ -233,6 +233,6 @@ def check(binary):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--binary", type=Path, default=Path(__file__).resolve().parent.parent / "target/debug/ccsl")
+    parser.add_argument("--binary", type=Path, default=Path(__file__).resolve().parent.parent / "target/debug/leanflip")
     args = parser.parse_args()
     check(args.binary.resolve(strict=True))

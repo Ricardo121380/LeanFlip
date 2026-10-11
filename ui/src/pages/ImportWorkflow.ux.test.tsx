@@ -112,6 +112,16 @@ describe("local import source consistency", () => {
 });
 
 describe("export preview and action ordering", () => {
+  it.each(["leanflip", "switchleaf", "age"])("opens a .%s backup in the password flow without parsing it as a CC Switch export", async (extension) => {
+    const user = userEvent.setup();
+    const fake = use({ backup_discard: () => null });
+    renderWithClient(<ExportImport />);
+    await user.upload(screen.getByTestId("export-file"), new File(["encrypted fixture"], `backup.${extension}`));
+    expect(await screen.findByLabelText("备份密码")).toHaveAttribute("type", "password");
+    expect(fake.calls.some((call) => call.cmd === "ccswitch_export_load")).toBe(false);
+    expect(fake.calls.some((call) => call.cmd === "backup_load")).toBe(false);
+  });
+
   it("locks source, policy and selection until preview and apply each settle", async () => {
     const user = userEvent.setup();
     let finishPreview!: (value: ExportPreview) => void;

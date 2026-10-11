@@ -133,7 +133,7 @@ pub(super) fn backup_preview(
         })
         .collect::<Vec<_>>();
     let text = format!("{}\n\n{}\n\n{} {} · {} {} · {}\n{}",
-        lang.text("SwitchLeaf · 已解密备份预览", "SwitchLeaf · Unlocked backup preview"),
+        lang.text("LeanFlip · 已解密备份预览", "LeanFlip · Unlocked backup preview"),
         table(&[lang.text("工具", "TOOL"),lang.text("名称", "NAME"),"ID",lang.text("状态", "STATE")], &rows),
         lang.text("供应商", "Providers"), rows.len(),lang.text("托管账号", "Managed accounts"),if options.accounts { preview.accounts } else { 0 },
         if options.settings { lang.text("恢复应用设置", "Restore preferences") } else { lang.text("保留本机设置", "Keep local preferences") },

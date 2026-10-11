@@ -277,7 +277,7 @@ impl Menu<'_> {
                     "No providers yet. Import your current client configuration to get started.",
                 ))?;
                 self.line(&format!(
-                    "{} ccsl provider add {} --file provider.json",
+                    "{} leanflip provider add {} --file provider.json",
                     self.lang.text("也可从文件新增：", "Or add a JSON card:"),
                     tool
                 ))?;
@@ -369,7 +369,7 @@ pub(super) fn install_interrupt_handler() -> Result<(), CliError> {
 
 pub fn start(home: Option<&Path>, lang: Language, tool: Option<Tool>) -> Result<(), CliError> {
     if !can_interact() {
-        return Err(CliError::input("interactive_terminal", "The menu requires an interactive terminal. Run ccsl --help for non-interactive commands."));
+        return Err(CliError::input("interactive_terminal", "The menu requires an interactive terminal. Run leanflip --help for non-interactive commands."));
     }
     install_interrupt_handler()?;
     let menu = Menu {
@@ -378,7 +378,7 @@ pub fn start(home: Option<&Path>, lang: Language, tool: Option<Tool>) -> Result<
         home,
         lang,
     };
-    menu.line(&format!("\n{}", style("SwitchLeaf").bold().color256(173)))?;
+    menu.line(&format!("\n{}", style("LeanFlip").bold().color256(173)))?;
     menu.line(lang.text(
         "交互菜单 · 输入筛选，↑↓选择，回车确认，Esc 返回或退出",
         "Interactive menu · type to filter, ↑↓ move, Enter confirm, Esc back or exit",

@@ -111,7 +111,7 @@ impl DataPanel {
         self.view = view;
         self.field = 0;
         self.path = if view == View::Export {
-            "switchleaf-backup.switchleaf".into()
+            "leanflip-backup.leanflip".into()
         } else {
             String::new()
         };
@@ -498,6 +498,7 @@ impl DataPanel {
                 self.service.export_discard();
                 let bytes = crate::read_limited(&self.input_path(), MAX_EXPORT_BYTES, false)?;
                 if bytes.starts_with(b"age-encryption.org/")
+                    || self.path.ends_with(".leanflip")
                     || self.path.ends_with(".switchleaf")
                     || self.path.ends_with(".age")
                 {
@@ -592,7 +593,7 @@ impl DataPanel {
         .areas(area);
         frame.render_widget(
             Paragraph::new(vec![
-                Line::from(Span::styled("  SwitchLeaf  /  DATA", accent())),
+                Line::from(Span::styled("  LeanFlip  /  DATA", accent())),
                 Line::from(self.lang.text(
                     "  数据与迁移 · 预览后再决定写入",
                     "  Data & migration · preview before applying",
@@ -615,8 +616,8 @@ impl DataPanel {
                     (
                         "02  导入文件",
                         "02  Import a file",
-                        "SwitchLeaf 加密备份 / CC Switch 导出",
-                        "SwitchLeaf encrypted backup / CC Switch export",
+                        "LeanFlip 加密备份 / CC Switch 导出",
+                        "LeanFlip encrypted backup / CC Switch export",
                     ),
                     (
                         "03  导出加密备份",

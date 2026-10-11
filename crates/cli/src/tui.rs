@@ -481,8 +481,8 @@ impl App {
             }
             KeyCode::Char('p' | 'd') => self.dialog = Some(Dialog::info(self.lang.text("详情与路径", "Details and paths"), self.details())),
             KeyCode::Char('?') | KeyCode::F(1) => self.dialog = Some(Dialog::info(self.lang.text("快捷键", "Keyboard shortcuts"), self.lang.text(
-                "Tab / ← →   切换工具与供应商区域\n↑ ↓ / j k   移动选择\nEnter       选择工具 / 预览操作\n/           搜索供应商名称或 ID\nEsc         清除搜索 / 返回 / 取消\ne           编辑名称、Base URL 和 API Key\nb           数据中心：迁移、导入、加密备份\ni           从当前客户端导入卡片\nr           重新读取最新状态\np / d       查看完整详情与路径\n? / F1      打开帮助\nq           关闭面板或退出\nCtrl+C      退出并恢复终端\n\n确认弹窗默认取消；Tab 选择确认后按 Enter，或按 y 执行。\n长内容使用 ↑↓ / PgUp / PgDn 滚动。\n\n浏览、搜索和刷新不会写配置。卡片编辑和账号登录可使用 switchleaf --help 中的命令。",
-                "Tab / Left Right  Change focused pane\nUp Down / j k     Move selection\nEnter             Select tool / preview action\n/                 Search provider name or ID\nEsc               Clear filter / back / cancel\ne                 Edit name, Base URL and API Key\nb                 Data center: migrate, import, backup\ni                 Import current client settings\nr                 Reload current state\np / d             Show full details and paths\n? / F1            Show help\nq                 Close a panel or quit\nCtrl+C            Exit and restore the terminal\n\nConfirmation defaults to Cancel. Tab then Enter, or y, applies it.\nScroll long panels with Up/Down or PgUp/PgDn.\n\nBrowsing, search and refresh never write configuration. Use switchleaf --help for card editing and account login."
+                "Tab / ← →   切换工具与供应商区域\n↑ ↓ / j k   移动选择\nEnter       选择工具 / 预览操作\n/           搜索供应商名称或 ID\nEsc         清除搜索 / 返回 / 取消\ne           编辑名称、Base URL 和 API Key\nb           数据中心：迁移、导入、加密备份\ni           从当前客户端导入卡片\nr           重新读取最新状态\np / d       查看完整详情与路径\n? / F1      打开帮助\nq           关闭面板或退出\nCtrl+C      退出并恢复终端\n\n确认弹窗默认取消；Tab 选择确认后按 Enter，或按 y 执行。\n长内容使用 ↑↓ / PgUp / PgDn 滚动。\n\n浏览、搜索和刷新不会写配置。卡片编辑和账号登录可使用 leanflip --help 中的命令。",
+                "Tab / Left Right  Change focused pane\nUp Down / j k     Move selection\nEnter             Select tool / preview action\n/                 Search provider name or ID\nEsc               Clear filter / back / cancel\ne                 Edit name, Base URL and API Key\nb                 Data center: migrate, import, backup\ni                 Import current client settings\nr                 Reload current state\np / d             Show full details and paths\n? / F1            Show help\nq                 Close a panel or quit\nCtrl+C            Exit and restore the terminal\n\nConfirmation defaults to Cancel. Tab then Enter, or y, applies it.\nScroll long panels with Up/Down or PgUp/PgDn.\n\nBrowsing, search and refresh never write configuration. Use leanflip --help for card editing and account login."
             ).into())),
             _ => {}
         }
@@ -521,7 +521,7 @@ impl App {
         frame.render_widget(
             Paragraph::new(vec![
                 Line::from(vec![
-                    Span::styled("  SwitchLeaf", accent()),
+                    Span::styled("  LeanFlip", accent()),
                     Span::styled("  /  WORKSPACE", muted()),
                     Span::raw(format!("  {}", env!("CARGO_PKG_VERSION"))),
                 ]),
@@ -672,7 +672,7 @@ impl App {
         }
         if visible.is_empty() {
             let empty = if self.query.is_empty() {
-                self.lang.text("还没有供应商\n\n按 b 迁入本机 CC Switch 或备份。\n按 i 导入当前客户端配置。\n也可使用 switchleaf provider add 添加卡片。", "No providers yet\n\nPress b to migrate CC Switch or a backup.\nPress i to import current client settings,\nor use switchleaf provider add to create a card.")
+                self.lang.text("还没有供应商\n\n按 b 迁入本机 CC Switch 或备份。\n按 i 导入当前客户端配置。\n也可使用 leanflip provider add 添加卡片。", "No providers yet\n\nPress b to migrate CC Switch or a backup.\nPress i to import current client settings,\nor use leanflip provider add to create a card.")
             } else {
                 self.lang.text(
                     "没有匹配结果\n\n按 / 修改搜索，或 Esc 清除筛选。",
@@ -870,7 +870,7 @@ impl Drop for RestoreTerminal {
 
 pub fn start(home: Option<&Path>, lang: Language, tool: Option<Tool>) -> Result<(), CliError> {
     if !can_interact() {
-        return Err(CliError::input("interactive_terminal", "The TUI requires an interactive terminal. Run ccsl --help for non-interactive commands."));
+        return Err(CliError::input("interactive_terminal", "The TUI requires an interactive terminal. Run leanflip --help for non-interactive commands."));
     }
     let interrupted = Arc::new(AtomicBool::new(false));
     let signal = interrupted.clone();

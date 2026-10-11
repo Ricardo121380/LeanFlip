@@ -1,14 +1,14 @@
-# SwitchLeaf
+# LeanFlip · 简切
 
 **一份配置库，桌面 App、CLI 与全屏 TUI 三种用法。**
 
-SwitchLeaf（原 CC Switch Lite）将供应商保存为本地卡片，按需写入 Claude Code、Codex、Gemini CLI 等工具的配置文件。App、独立 CLI `switchleaf` 与 TUI 共用同一份数据：可以先在 App 中添加供应商，再在终端用方向键切换。
+LeanFlip（简切，原 CC Switch Lite / SwitchLeaf）将供应商保存为本地卡片，按需写入 Claude Code、Codex、Gemini CLI 等工具的配置文件。App、独立 CLI `leanflip` 与 TUI 共用同一份数据：可以先在 App 中添加供应商，再在终端用方向键切换。
 
 项目专注于配置管理，不提供本地代理、请求转发、负载均衡或用量统计。使用前需要自行安装对应的 AI 工具，并准备该工具支持的账号或 API Key。
 
 [下载 v0.1.0](https://github.com/Ricardo121380/ccswitch-lite/releases/tag/v0.1.0) · [查看最新发布](https://github.com/Ricardo121380/ccswitch-lite/releases/latest) · [CLI 完整说明](crates/cli/README.md) · [反馈问题](https://github.com/Ricardo121380/ccswitch-lite/issues)
 
-> **版本说明：** 本分支源码已更名为 SwitchLeaf，包含 TUI、三端本机检测及加密完整备份。公开的 v0.1.0 仍是旧名称与旧功能；下面的 Homebrew 和 v0.1.0 下载入口安装的是该旧版本，npm 尚未发布。体验本轮功能请[从源码构建](#从源码构建与开发)。`ccsl` 命令、`~/.cc-switch-lite/` 数据目录和原应用标识继续兼容；GitHub 仓库地址暂不变。本文的新命令示例使用 `switchleaf`；使用 v0.1.0 时，已有命令请改用 `ccsl`，新迁移和备份命令需源码版本。
+> **版本说明：** 本分支源码已更名为 LeanFlip，包含 TUI、三端本机检测及加密完整备份。公开的 v0.1.0 仍是旧名称与旧功能；下面的 Homebrew 和 v0.1.0 下载入口安装的是该旧版本，npm 尚未发布。体验本轮功能请[从源码构建](#从源码构建与开发)。新版本只提供 `leanflip` 命令；`~/.cc-switch-lite/` 数据目录和原应用标识沿用，GitHub 仓库地址暂不变。本文的新命令示例使用 `leanflip`；使用 v0.1.0 时，已有命令请改用 `ccsl`，新迁移和备份命令需源码版本。
 
 ## 目录
 
@@ -33,11 +33,11 @@ SwitchLeaf（原 CC Switch Lite）将供应商保存为本地卡片，按需写�
 | --- | --- |
 | 第一次配置，希望从预设填写地址、密钥和模型 | 桌面 App |
 | 希望用方向键选择工具、搜索供应商、回车执行 | CLI 交互菜单：`ccsl` |
-| 希望在全屏终端中浏览工具、供应商和详情 | [TUI 工作台](#全屏-tui-工作台)：源码构建后运行 `switchleaf tui` |
+| 希望在全屏终端中浏览工具、供应商和详情 | [TUI 工作台](#全屏-tui-工作台)：源码构建后运行 `leanflip tui` |
 | 通过 SSH 使用，或在没有桌面环境的机器上管理配置 | 独立 CLI |
 | 在脚本中查询状态或切换供应商 | CLI 命令模式，配合 `--json` |
-| 从本机 CC Switch 迁移卡片及托管账号 | App“数据与迁移”、`switchleaf import local` 或 TUI 数据中心 |
-| 在设备之间迁移供应商、托管账号及偏好 | 三端通用的密码加密 `.switchleaf` 备份 |
+| 从本机 CC Switch 迁移卡片及托管账号 | App“数据与迁移”、`leanflip import local` 或 TUI 数据中心 |
+| 在设备之间迁移供应商、托管账号及偏好 | 三端通用的密码加密 `.leanflip` 备份 |
 
 App 和 CLI 可以单独安装，也可以一起使用。运行预编译的 CLI 不需要 Node.js、Rust、WebView 或桌面 App。
 
@@ -185,9 +185,9 @@ sha256sum ccsl_0.1.0_linux-x64.tar.gz
 CLI 中对应的入门流程：
 
 ```sh
-switchleaf paths codex          # 先确认配置路径
-switchleaf import live codex    # 导入当前客户端配置
-switchleaf menu codex           # 在菜单中选择供应商
+leanflip paths codex          # 先确认配置路径
+leanflip import live codex    # 导入当前客户端配置
+leanflip menu codex           # 在菜单中选择供应商
 ```
 
 “从当前配置导入”主要用于初次接管：**切换式工具已有卡片时，不会重新导入或覆盖这些卡片**；并存式工具可重复导入，补齐尚未保存的条目。导入动作本身不切换供应商；若上次有中断的写入，写操作入口会先处理恢复，详见[中断恢复](#中断恢复)。
@@ -198,7 +198,7 @@ switchleaf menu codex           # 在菜单中选择供应商
 2. 搜索并选择适合的预设，或选择“自定义”。
 3. 填写名称、ID，以及该供应商要求的地址、API Key、模型等字段。预设提供配置结构，实际账号和可用模型由供应商提供。
 4. 保存卡片。需要立即使用时，勾选“保存后立即切换到这张卡”或“保存后立即写入客户端配置”。
-5. 以后可以直接运行 `switchleaf`，在菜单中使用这张卡。
+5. 以后可以直接运行 `leanflip`，在菜单中使用这张卡。
 
 只使用 CLI 的用户，可以通过 JSON 文件[新增供应商卡片](#新增和更新供应商卡片)。交互菜单提供选择、导入和应用操作，完整配置编辑使用 App 或 `provider` 命令。
 
@@ -212,18 +212,18 @@ switchleaf menu codex           # 在菜单中选择供应商
 
 | 工具 | CLI 工具名 | 模式 | 常用操作 |
 | --- | --- | --- | --- |
-| Claude Code | `claude` | 单一配置切换 | `switchleaf use claude PROVIDER_ID` |
-| Codex | `codex` | 单一配置切换 | `switchleaf use codex PROVIDER_ID` |
-| Gemini CLI | `gemini` | 单一配置切换 | `switchleaf use gemini PROVIDER_ID` |
-| Grok Build | `grokbuild` | 单一配置切换 | `switchleaf use grokbuild PROVIDER_ID` |
-| Claude Desktop | `claude-desktop` | 单一配置切换 | `switchleaf use claude-desktop PROVIDER_ID` |
-| OpenCode | `opencode` | 多供应商并存 | `switchleaf enable opencode PROVIDER_ID` |
-| OpenClaw | `openclaw` | 多供应商并存 | `switchleaf enable openclaw PROVIDER_ID` |
-| Hermes | `hermes` | 多供应商并存 | `switchleaf enable hermes PROVIDER_ID` |
-| Pi | `pi` | 多供应商并存 | `switchleaf enable pi PROVIDER_ID` |
-| MCode | `mcode` | 多供应商并存 | `switchleaf enable mcode PROVIDER_ID` |
+| Claude Code | `claude` | 单一配置切换 | `leanflip use claude PROVIDER_ID` |
+| Codex | `codex` | 单一配置切换 | `leanflip use codex PROVIDER_ID` |
+| Gemini CLI | `gemini` | 单一配置切换 | `leanflip use gemini PROVIDER_ID` |
+| Grok Build | `grokbuild` | 单一配置切换 | `leanflip use grokbuild PROVIDER_ID` |
+| Claude Desktop | `claude-desktop` | 单一配置切换 | `leanflip use claude-desktop PROVIDER_ID` |
+| OpenCode | `opencode` | 多供应商并存 | `leanflip enable opencode PROVIDER_ID` |
+| OpenClaw | `openclaw` | 多供应商并存 | `leanflip enable openclaw PROVIDER_ID` |
+| Hermes | `hermes` | 多供应商并存 | `leanflip enable hermes PROVIDER_ID` |
+| Pi | `pi` | 多供应商并存 | `leanflip enable pi PROVIDER_ID` |
+| MCode | `mcode` | 多供应商并存 | `leanflip enable mcode PROVIDER_ID` |
 
-`PROVIDER_ID` 是占位符，请替换为 `switchleaf list 工具名` 中显示的真实 ID。名称用于展示，ID 用于命令和配置条目定位；App 中创建后不能修改 ID。
+`PROVIDER_ID` 是占位符，请替换为 `leanflip list 工具名` 中显示的真实 ID。名称用于展示，ID 用于命令和配置条目定位；App 中创建后不能修改 ID。
 
 - **切换式工具**：同一时间选择一张卡，使用 `use` 切换。
 - **并存式工具**：多张卡可以同时写入客户端，使用 `enable` / `disable` 启用或停用。具体使用哪个模型，仍由相应客户端的模型选择决定。
@@ -271,13 +271,13 @@ switchleaf menu codex           # 在菜单中选择供应商
 
 ### 全屏 TUI 工作台
 
-源码新增 `switchleaf tui`，可在一个全屏界面中浏览工具、搜索供应商、查看状态与配置路径，并确认切换、启用/停用或导入。**当前已发布的 v0.1.0 安装包尚未包含 TUI**，包括 Homebrew 和已准备的 npm 安装器；体验此功能请在源码目录构建：
+源码新增 `leanflip tui`，可在一个全屏界面中浏览工具、搜索供应商、查看状态与配置路径，并确认切换、启用/停用或导入。**当前已发布的 v0.1.0 安装包尚未包含 TUI**，包括 Homebrew 和已准备的 npm 安装器；体验此功能请在源码目录构建：
 
 ```sh
-cargo build -p ccsl-cli --release --locked --locked
-./target/release/switchleaf tui
-./target/release/switchleaf tui codex            # 直接选中 Codex
-./target/release/switchleaf tui --lang en       # 英文界面
+cargo build -p ccsl-cli --release --locked
+./target/release/leanflip tui
+./target/release/leanflip tui codex            # 直接选中 Codex
+./target/release/leanflip tui --lang en       # 英文界面
 ```
 
 宽窗口显示工具、供应商和详情三栏；普通窗口显示两栏，窄窗口按焦点显示单栏。用 `p` 可随时打开完整详情和路径，长内容支持滚动。终端小于 44 列、12 行时会提示扩大窗口，并暂停操作键。
@@ -301,14 +301,14 @@ cargo build -p ccsl-cli --release --locked --locked
 
 浏览、搜索、刷新和退出不会写配置，也不会显示密钥或令牌。TUI 与 App、CLI 共用目录覆盖和写入保护，支持 `--home` 隔离运行；刷新使用 `r`，不会自动监控文件。正在执行的写入会先完成再响应中断。文件导入和备份在 `b` 数据中心完成；卡片 JSON 编辑及账号登录仍使用下面的普通命令或 App。
 
-TUI 与交互菜单一样需要真实终端，不支持管道或 `--json`。直接运行 `switchleaf` 仍打开原有菜单。
+TUI 与交互菜单一样需要真实终端，不支持管道或 `--json`。直接运行 `leanflip` 仍打开原有菜单。
 
 ### 交互菜单
 
 ```sh
-switchleaf                   # 打开工具菜单
-switchleaf menu codex        # 直接进入 Codex 供应商菜单
-switchleaf --lang en menu    # 使用英文菜单
+leanflip                   # 打开工具菜单
+leanflip menu codex        # 直接进入 Codex 供应商菜单
+leanflip --lang en menu    # 使用英文菜单
 ```
 
 | 按键 / 操作 | 效果 |
@@ -326,28 +326,28 @@ switchleaf --lang en menu    # 使用英文菜单
 ### 常用命令
 
 ```sh
-switchleaf status                          # 查看全部工具概览
-switchleaf list codex                      # 查看 Codex 卡片和真实 ID
-switchleaf paths codex                     # 查看实际配置路径
-switchleaf use codex PROVIDER_ID            # 应用一张 Codex 卡片
-switchleaf enable opencode PROVIDER_ID      # 写入一个并存式供应商
-switchleaf disable opencode PROVIDER_ID     # 移出客户端配置，保留卡片
-switchleaf import live claude               # 从当前 Claude Code 配置导入
-switchleaf --help                          # 总帮助
-switchleaf provider --help                 # 卡片管理帮助
-switchleaf import file --help              # 文件导入帮助
-switchleaf --lang en status                # 英文输出
+leanflip status                          # 查看全部工具概览
+leanflip list codex                      # 查看 Codex 卡片和真实 ID
+leanflip paths codex                     # 查看实际配置路径
+leanflip use codex PROVIDER_ID            # 应用一张 Codex 卡片
+leanflip enable opencode PROVIDER_ID      # 写入一个并存式供应商
+leanflip disable opencode PROVIDER_ID     # 移出客户端配置，保留卡片
+leanflip import live claude               # 从当前 Claude Code 配置导入
+leanflip --help                          # 总帮助
+leanflip provider --help                 # 卡片管理帮助
+leanflip import file --help              # 文件导入帮助
+leanflip --lang en status                # 英文输出
 ```
 
-`PROVIDER_ID` 请替换为对应工具下的 ID。通常不需要用 `sudo` 运行 `switchleaf`；使用其他用户身份会改变默认 HOME 和配置位置。
+`PROVIDER_ID` 请替换为对应工具下的 ID。通常不需要用 `sudo` 运行 `leanflip`；使用其他用户身份会改变默认 HOME 和配置位置。
 
 ### 新增和更新供应商卡片
 
 常用连接设置可以直接交互编辑，不需要编写 JSON：
 
 ```sh
-switchleaf provider edit claude PROVIDER_ID
-switchleaf provider edit codex PROVIDER_ID
+leanflip provider edit claude PROVIDER_ID
+leanflip provider edit codex PROVIDER_ID
 ```
 
 CLI 菜单也提供“编辑供应商 · Base URL / API Key”；TUI 选择卡片后按 `e`。现有 API Key 不会填入输入框，留空保留原值；需要替换时隐藏输入。TUI 用 `Tab` 切换字段、左右键移动光标、`Ctrl+U` 清空当前字段，`Ctrl+K` 明确清空密钥，`Ctrl+S` 检查保存，`Esc` 取消或确认放弃。支持单行粘贴，确认页默认取消。修改已生效的卡片会同步客户端配置，未使用的卡片不会因此启用。
@@ -372,17 +372,17 @@ CLI 菜单也提供“编辑供应商 · Base URL / API Key”；TUI 选择卡�
 示例地址不能用于真实请求；请使用供应商给出的、与该客户端兼容的地址。文件中包含密钥时，可先执行 `chmod 600 provider.json` 限制读取权限。
 
 ```sh
-switchleaf provider add claude --file provider.json     # 只保存卡片
-switchleaf list claude                                # 确认卡片及 ID
-switchleaf use claude my-claude                        # 需要使用时再切换
+leanflip provider add claude --file provider.json     # 只保存卡片
+leanflip list claude                                # 确认卡片及 ID
+leanflip use claude my-claude                        # 需要使用时再切换
 ```
 
 也可以在首次添加时使用 `--activate`，一次完成保存和应用；同一 ID 已存在时应使用 `update`，不要重复 `add`。
 
 ```sh
-switchleaf provider update claude --file provider.json # 按文件里的 ID 更新
-cat provider.json | switchleaf provider update claude  # 也支持标准输入
-switchleaf provider delete claude PROVIDER_ID          # 删除前先确认生效状态
+leanflip provider update claude --file provider.json # 按文件里的 ID 更新
+cat provider.json | leanflip provider update claude  # 也支持标准输入
+leanflip provider delete claude PROVIDER_ID          # 删除前先确认生效状态
 ```
 
 `update` 接收的是完整卡片，不是局部 JSON 补丁；请保留需要的字段。不同工具的 `settingsConfig` 结构不同，例如 Codex 使用 `{ "auth": { ... }, "config": "TOML 原文" }`。可以先在 App 中使用对应工具的预设，或导入已有配置。
@@ -392,9 +392,9 @@ switchleaf provider delete claude PROVIDER_ID          # 删除前先确认生�
 ### JSON 输出与脚本
 
 ```sh
-switchleaf status --json
-switchleaf list codex --json
-switchleaf paths --json
+leanflip status --json
+leanflip list codex --json
+leanflip paths --json
 ```
 
 成功结果写入标准输出，基本结构为 `{"ok":true,"data":...}`；失败结果写入标准错误，结构为 `{"ok":false,"error":{"code":"...","message":"..."}}`。`data` 随命令变化，脚本应依据退出码和稳定错误码处理结果。
@@ -416,32 +416,32 @@ switchleaf paths --json
 
 ```sh
 CCSL_DEMO_HOME=$(mktemp -d)
-switchleaf --home "$CCSL_DEMO_HOME" status
-switchleaf --home "$CCSL_DEMO_HOME" menu
+leanflip --home "$CCSL_DEMO_HOME" status
+leanflip --home "$CCSL_DEMO_HOME" menu
 ```
 
 后续每条试用命令都要带上同一个 `--home`。它使用该目录的默认布局，忽略 `CODEX_HOME` 等工具环境变量，但仍会应用该目录内已有的 App 目录覆盖设置，因此完整隔离应从空目录开始。真实账号登录会访问外部服务，试用菜单本身不需要登录。
 
 ## 从 cc-switch 迁移
 
-SwitchLeaf 的数据目录为 `~/.cc-switch-lite/`，cc-switch 通常使用 `~/.cc-switch/`。导入时只读取源数据，保存到 SwitchLeaf 的库中；迁移不会自动切换当前供应商。
+LeanFlip 的数据目录为 `~/.cc-switch-lite/`，cc-switch 通常使用 `~/.cc-switch/`。导入时只读取源数据，保存到 LeanFlip 的库中；迁移不会自动切换当前供应商。
 
 | 数据来源 | App 入口 | CLI 入口 | 导入内容 |
 | --- | --- | --- | --- |
-| 某个 AI 工具当前的配置 | 工具页 → 从当前配置导入 | `switchleaf import live TOOL` | 从客户端配置生成卡片 |
-| 本机 cc-switch 数据目录 | 数据与迁移 → 本机数据目录 | `switchleaf import local`，TUI 按 `b` | 支持的卡片；选中 Codex 时可一并导入兼容的托管账号 |
-| cc-switch 导出文件 | 数据与迁移 → 导出文件 | `switchleaf import file FILE` | 支持的供应商卡片，不导入 OAuth 登录凭据 |
+| 某个 AI 工具当前的配置 | 工具页 → 从当前配置导入 | `leanflip import live TOOL` | 从客户端配置生成卡片 |
+| 本机 cc-switch 数据目录 | 数据与迁移 → 本机数据目录 | `leanflip import local`，TUI 按 `b` | 支持的卡片；选中 Codex 时可一并导入兼容的托管账号 |
+| cc-switch 导出文件 | 数据与迁移 → 导出文件 | `leanflip import file FILE` | 支持的供应商卡片，不导入 OAuth 登录凭据 |
 
 ### 本机数据目录
 
 CLI 与 TUI（本分支源码）：
 
 ```sh
-switchleaf import local                              # 自动检测，只预览
-switchleaf import local --accounts --apply            # 确认迁入卡片和托管账号
-switchleaf import local --dir /path/to/.cc-switch     # 手动指定绝对路径
-switchleaf import local --apply --tool claude,codex   # 仅迁入所选工具，不导入账号
-switchleaf tui                                       # 按 b → 检测本机 CC Switch
+leanflip import local                              # 自动检测，只预览
+leanflip import local --accounts --apply            # 确认迁入卡片和托管账号
+leanflip import local --dir /path/to/.cc-switch     # 手动指定绝对路径
+leanflip import local --apply --tool claude,codex   # 仅迁入所选工具，不导入账号
+leanflip tui                                       # 按 b → 检测本机 CC Switch
 ```
 
 CLI 只有显式指定 `--accounts` 才迁入登录凭据；App/TUI 的预览中可以取消账号勾选。迁入托管账号时需要选中 Codex。源文件保持只读。
@@ -459,9 +459,9 @@ CLI 只有显式指定 `--accounts` 才迁入登录凭据；App/TUI 的预览中
 支持 `.sql` SQL 导出、`.db` SQLite 快照和旧版 `.json` 配置。CLI 默认只预览，明确加 `--apply` 才写入卡片库：
 
 ```sh
-switchleaf import file backup.sql --preview
-switchleaf import file backup.sql --apply --tool claude,codex
-switchleaf import file backup.sql --apply --duplicate rename --tool codex
+leanflip import file backup.sql --preview
+leanflip import file backup.sql --apply --tool claude,codex
+leanflip import file backup.sql --apply --duplicate rename --tool codex
 ```
 
 `--tool` 可以重复指定，也可以用逗号分隔；省略时处理支持的全部工具。
@@ -469,11 +469,11 @@ switchleaf import file backup.sql --apply --duplicate rename --tool codex
 - `--duplicate skip`：默认策略，跳过已存在的同 ID 卡片。
 - `--duplicate rename`：同 ID 且配置不同时，改名后导入；相同配置仍跳过。
 
-文件导入不会应用新卡片，不导入 OAuth 登录凭据，并会清理推广链接。它用于迁移卡片，不等同于完整账号备份恢复。SwitchLeaf 完整迁移使用下面的加密备份功能。
+文件导入不会应用新卡片，不导入 OAuth 登录凭据，并会清理推广链接。它用于迁移卡片，不等同于完整账号备份恢复。LeanFlip 完整迁移使用下面的加密备份功能。
 
 ## 加密完整备份与恢复
 
-`.switchleaf` 是三端共用的完整迁移格式：使用标准 **age 密码加密（scrypt）**，没有明文备份文件落盘。导出时输入两次 10–4096 字符的密码；密码不保存，遗失后无法恢复。备份可跨 App、CLI、TUI 使用。CC Switch 本身不能读取这个格式。
+`.leanflip` 是三端共用的完整迁移格式：使用标准 **age 密码加密（scrypt）**，没有明文备份文件落盘。旧版 `.switchleaf` 备份仍可直接导入，无需转换。导出时输入两次 10–4096 字符的密码；密码不保存，遗失后无法恢复。备份可跨 App、CLI、TUI 使用。CC Switch 本身不能读取这个格式。
 
 | 内容 | 备份 | 恢复行为 |
 | --- | --- | --- |
@@ -486,23 +486,23 @@ switchleaf import file backup.sql --apply --duplicate rename --tool codex
 | 客户端当前配置、当前供应商指针 | 不应用 | 恢复后在工具页或 TUI 中单独切换 |
 | 独立客户端登录暂存、客户端会话、日志、历史快照 | 不迁移 | 客户端登录需在目标设备重新认证；可按下节进行本机目录备份 |
 
-**App：**“数据与迁移 → 导出备份”，设置密码，选择保存位置。恢复时在“导入文件”中选择 `.switchleaf`，输入密码解锁，查看摘要并勾选恢复范围，再点击“确认恢复所选内容”。
+**App：**“数据与迁移 → 导出备份”，设置密码，选择保存位置。恢复时在“导入文件”中选择 `.leanflip`，输入密码解锁，查看摘要并勾选恢复范围，再点击“确认恢复所选内容”。
 
-**TUI：**`switchleaf tui` 后按 `b`。方向键选择“导出加密备份”或“导入文件”；`Tab` 切换字段，密码显示为圆点。预览中用 `↑↓` 选择、`Space` 勾选、`d` 切换重复策略；`Enter` 打开最终确认，默认选中取消，`y` 执行。`Esc` 取消或返回。文件路径支持 `~/`，输入时无需引号。
+**TUI：**`leanflip tui` 后按 `b`。方向键选择“导出加密备份”或“导入文件”；`Tab` 切换字段，密码显示为圆点。预览中用 `↑↓` 选择、`Space` 勾选、`d` 切换重复策略；`Enter` 打开最终确认，默认选中取消，`y` 执行。`Esc` 取消或返回。文件路径支持 `~/`，输入时无需引号。
 
 **CLI：**默认隐藏输入密码，导入默认只预览，`--apply` 才执行：
 
 ```sh
-switchleaf export ~/Backups/workspace.switchleaf
-switchleaf import backup ~/Backups/workspace.switchleaf
-switchleaf import backup ~/Backups/workspace.switchleaf --apply
+leanflip export ~/Backups/workspace.leanflip
+leanflip import backup ~/Backups/workspace.leanflip
+leanflip import backup ~/Backups/workspace.leanflip --apply
 
 # 只恢复 Claude 卡片，保留本机账号与设置
-switchleaf import backup workspace.switchleaf --tool claude --no-accounts --no-settings --apply
+leanflip import backup workspace.leanflip --tool claude --no-accounts --no-settings --apply
 # 只恢复托管账号
-switchleaf import backup workspace.switchleaf --no-providers --no-settings --apply
+leanflip import backup workspace.leanflip --no-providers --no-settings --apply
 # 冲突卡片另存副本；路径仍默认保留本机设置
-switchleaf import backup workspace.switchleaf --duplicate rename --apply
+leanflip import backup workspace.leanflip --duplicate rename --apply
 ```
 
 脚本模式和 `--json` 使用 `--password-file /private/path/passphrase.txt`，从私有 UTF-8 文件读取口令（忽略一个结尾换行）。不要将密码写在命令参数或 shell 历史中；密码文件建议权限 `0600`。导出目录需要已存在，已有文件不会覆盖；加密备份上限 32 MiB，在 Unix 下导出文件权限为 `0600`。
@@ -517,7 +517,7 @@ Codex 官方卡可以选择“本机的 ChatGPT 登录（自动）”。应用�
 
 “设置 → 切到第三方时保留 Codex 的 ChatGPT 登录”默认关闭：切到第三方时会暂存本机登录并从 `auth.json` 移出，切回采用本机登录的官方卡时恢复。开启后可以保留登录，实际请求行为仍由客户端配置决定。
 
-这里的登录操作针对 `switchleaf paths codex` 显示的配置目录；使用前请确认它就是要管理的 Codex 客户端目录。
+这里的登录操作针对 `leanflip paths codex` 显示的配置目录；使用前请确认它就是要管理的 Codex 客户端目录。
 
 ### 托管多个 ChatGPT 账号
 
@@ -532,13 +532,13 @@ App 中的流程：
 CLI 也可以管理账号：
 
 ```sh
-switchleaf accounts list
-switchleaf accounts login
-switchleaf accounts login --timeout 600
-switchleaf accounts default ACCOUNT_ID
-switchleaf accounts login --account ACCOUNT_ID
-switchleaf accounts refresh ACCOUNT_ID
-switchleaf accounts remove ACCOUNT_ID
+leanflip accounts list
+leanflip accounts login
+leanflip accounts login --timeout 600
+leanflip accounts default ACCOUNT_ID
+leanflip accounts login --account ACCOUNT_ID
+leanflip accounts refresh ACCOUNT_ID
+leanflip accounts remove ACCOUNT_ID
 ```
 
 `ACCOUNT_ID` 替换为 `accounts list` 中的 ID。登录默认等待 300 秒，`--timeout` 可设为 1–1800 秒；超时后重新执行会生成新的登录流程。
@@ -554,8 +554,8 @@ switchleaf accounts remove ACCOUNT_ID
 以 App 工具页中的“配置文件”或 CLI 输出为准：
 
 ```sh
-switchleaf paths
-switchleaf paths codex
+leanflip paths
+leanflip paths codex
 ```
 
 常见默认路径如下。设置中的目录覆盖、相关环境变量和旧版文件兼容规则可能改变实际位置。
@@ -573,7 +573,7 @@ switchleaf paths codex
 | Pi | `~/.pi/agent/models.json` |
 | MCode | `~/.minimax/config.yaml` |
 
-普通运行会遵循 `CODEX_HOME`、`HERMES_HOME`、`PI_CODING_AGENT_DIR`、`MINIMAX_DATA_DIR` / `MAVIS_DATA_DIR` 等已支持的路径环境变量，再应用 App 保存的目录覆盖。自定义配置目录时，建议在 App 中设置后运行 `switchleaf paths` 核对。
+普通运行会遵循 `CODEX_HOME`、`HERMES_HOME`、`PI_CODING_AGENT_DIR`、`MINIMAX_DATA_DIR` / `MAVIS_DATA_DIR` 等已支持的路径环境变量，再应用 App 保存的目录覆盖。自定义配置目录时，建议在 App 中设置后运行 `leanflip paths` 核对。
 
 ### 本应用保存哪些数据
 
@@ -604,7 +604,7 @@ switchleaf paths codex
 )
 ```
 
-如需恢复“当前客户端正在使用的完整配置”，还应另外备份 `switchleaf paths` 显示的客户端文件。首次写入备份只保存每个路径第一次写入前的状态，不是每次切换的历史版本。
+如需恢复“当前客户端正在使用的完整配置”，还应另外备份 `leanflip paths` 显示的客户端文件。首次写入备份只保存每个路径第一次写入前的状态，不是每次切换的历史版本。
 
 备份目录中的 `.source` 文件记录原始路径；原文件当时不存在时，可能只有来源记录而没有原始文件备份。手工恢复前，请先退出相关客户端并保存当前文件，再核对路径和备份内容。首版没有一键还原任意历史版本的命令。
 
@@ -613,8 +613,8 @@ switchleaf paths codex
 App 启动和相关写操作会处理未完成的配置写入。CLI 的 `status`、`list`、`paths` 和文件导入预览保持只读，不会自动执行恢复；需要显式处理时使用：
 
 ```sh
-switchleaf recover codex   # 只处理 Codex
-switchleaf recover         # 处理所有工具
+leanflip recover codex   # 只处理 Codex
+leanflip recover         # 处理所有工具
 ```
 
 `recover` 用于补完或清理中断的操作，**不表示撤销上一次切换**。如果恢复提示某些文件已被外部修改或只能部分恢复，请通过 `paths` 定位后检查；不要直接覆盖仍在使用的新配置或新登录凭据。
@@ -623,15 +623,15 @@ switchleaf recover         # 处理所有工具
 
 ### `ccsl: command not found`
 
-确认已经将二进制放入 PATH，并重新打开终端。也可以先用绝对路径或 `./ccsl-0.1.0/switchleaf --version` 验证文件能否运行，参见 [CLI 安装步骤](#3-安装独立-cli)。
+确认已经将二进制放入 PATH，并重新打开终端。源码构建可用 `./target/release/leanflip --version` 验证；v0.1.0 压缩包使用 `./ccsl-0.1.0/ccsl --version`，参见 [CLI 安装步骤](#3-安装独立-cli)。
 
 ### `Permission denied`、`Exec format error` 或 `Bad CPU type`
 
-确认下载的操作系统和 CPU 架构正确。压缩包保留执行权限；如果复制过程中丢失，可对自己的 `switchleaf` 文件执行 `chmod +x ccsl`。Linux 包使用 glibc，不能假定可直接用于 Alpine 等 musl 环境。
+确认下载的操作系统和 CPU 架构正确。压缩包保留执行权限；如果复制过程中丢失，可对自己的 `leanflip` 文件执行 `chmod +x leanflip`（v0.1.0 使用 `chmod +x ccsl`）。Linux 包使用 glibc，不能假定可直接用于 Alpine 等 musl 环境。
 
 ### macOS 提示无法验证开发者或文件已损坏
 
-本版 macOS App 和 CLI 均未做 Apple Developer ID 签名与公证。Homebrew 安装完成不代表已获得系统运行许可，首次打开 App 或执行 `switchleaf` 都可能被拦截。
+本版 macOS App 和 CLI 均未做 Apple Developer ID 签名与公证。Homebrew 安装完成不代表已获得系统运行许可，首次打开 App 或执行 `leanflip` 都可能被拦截。
 
 先确认下载来源与 SHA256，再到“系统设置 → 隐私与安全性”找到刚刚被拦截的 **CC Switch Lite** 或 **ccsl**，按提示选择“仍要打开”，然后重新启动 App 或执行 CLI。详见 [Apple 官方说明](https://support.apple.com/zh-cn/102445)。安装器不会替用户关闭系统安全检查。
 
@@ -639,11 +639,11 @@ switchleaf recover         # 处理所有工具
 
 ### 工具显示“未检测到配置文件”
 
-这表示预期位置的配置文件尚不存在，不代表已检测到或安装了那个 AI 工具。先运行 `switchleaf paths TOOL` 核对位置；自定义目录应在设置中填写。必要时先在对应客户端完成首次启动或登录。
+这表示预期位置的配置文件尚不存在，不代表已检测到或安装了那个 AI 工具。先运行 `leanflip paths TOOL` 核对位置；自定义目录应在设置中填写。必要时先在对应客户端完成首次启动或登录。
 
 ### 导入成功了，为什么配置没切换？
 
-从 cc-switch 迁移只保存卡片。进入工具页点击“切换”或启用开关，或执行 `switchleaf use TOOL PROVIDER_ID` / `switchleaf enable TOOL PROVIDER_ID`。新增卡片默认也只保存，除非明确选择立即应用。
+从 cc-switch 迁移只保存卡片。进入工具页点击“切换”或启用开关，或执行 `leanflip use TOOL PROVIDER_ID` / `leanflip enable TOOL PROVIDER_ID`。新增卡片默认也只保存，除非明确选择立即应用。
 
 ### “从当前配置导入”显示没有新条目
 
@@ -655,7 +655,7 @@ switchleaf recover         # 处理所有工具
 
 ### 提示配置读取失败、状态未知、写入冲突或权限错误
 
-先运行 `switchleaf paths TOOL` 找到实际文件，检查其 JSON / TOML / YAML 格式、写入权限，以及是否有其他程序同时修改。修复后重试读取。App 和 CLI 的跨进程锁用于协调本应用的操作，不能阻止其他编辑器或客户端改写文件。
+先运行 `leanflip paths TOOL` 找到实际文件，检查其 JSON / TOML / YAML 格式、写入权限，以及是否有其他程序同时修改。修复后重试读取。App 和 CLI 的跨进程锁用于协调本应用的操作，不能阻止其他编辑器或客户端改写文件。
 
 ### 显示已切换，但客户端仍使用原供应商
 
@@ -663,7 +663,7 @@ switchleaf recover         # 处理所有工具
 
 ### Codex 提示需要重新登录，或出现 `codex.oauth.live_sync_failed`
 
-“需要重新登录”时，在 App 账号页重新登录，或执行 `switchleaf accounts login --account ACCOUNT_ID`。
+“需要重新登录”时，在 App 账号页重新登录，或执行 `leanflip accounts login --account ACCOUNT_ID`。
 
 `codex.oauth.live_sync_failed` 表示新凭据已保存到账号库，但同步客户端失败。检查 Codex 配置路径和权限后，再应用对应官方卡；不要用旧 token 覆盖已保存的新凭据。
 
@@ -702,9 +702,9 @@ switchleaf recover         # 处理所有工具
 ```sh
 git clone https://github.com/Ricardo121380/ccswitch-lite.git
 cd ccswitch-lite
-cargo build -p ccsl-cli --release --locked --locked
-./target/release/switchleaf --version
-./target/release/switchleaf
+cargo build -p ccsl-cli --release --locked
+./target/release/leanflip --version
+./target/release/leanflip
 ```
 
 该命令只构建 CLI，不需要安装 Tauri 桌面依赖或前端依赖。
@@ -766,8 +766,8 @@ env -u CODEX_HOME -u HERMES_HOME -u PI_CODING_AGENT_DIR \
 cargo test --workspace --locked
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test -p ccsl-cli --locked
-python3 scripts/check-cli-menu.py --binary target/release/ccsl
-python3 scripts/check-cli-tui.py --binary target/release/ccsl
+python3 scripts/check-cli-menu.py --binary target/release/leanflip
+python3 scripts/check-cli-tui.py --binary target/release/leanflip
 ```
 
 测试、菜单和 TUI 检查使用临时 HOME。终端脚本面向 macOS / Linux，仅需 Python 3 标准库，并需先构建 CLI；TUI 还覆盖缩放、中断后的终端恢复及只读浏览。
