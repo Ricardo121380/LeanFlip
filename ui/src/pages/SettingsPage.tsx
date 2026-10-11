@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Loader2, RotateCcw, Save } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -6,8 +7,9 @@ import { Card } from "@/components/ui/card";
 import { Input, NativeSelect } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { QueryState } from "@/components/QueryState";
 import { useAction, useSettings } from "@/hooks/queries";
-import { api, type AppSettings, type DirOverrides } from "@/lib/api";
+import { api, errorMessage, type AppSettings, type DirOverrides, type SettingsView } from "@/lib/api";
 import { applyLanguage } from "@/i18n";
 
 const DIR_FIELDS: { key: keyof DirOverrides; label: string; tool: string }[] = [
@@ -33,105 +35,164 @@ export function cleanOverrides(overrides: DirOverrides): DirOverrides {
   return out;
 }
 
-function Row({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+function Row({ id, label, hint, children }: { id: string; label: string; hint?: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-6 py-3">
-      <div>
-        <p className="text-sm font-medium">{label}</p>
-        {hint && <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>}
+    <div className="flex items-center justify-between gap-4 py-3 sm:gap-6">
+      <div className="min-w-0">
+        <Label htmlFor={id}>{label}</Label>
+        {hint && <p id={`${id}-hint`} className="mt-1 text-xs leading-relaxed text-muted-foreground">{hint}</p>}
       </div>
       {children}
     </div>
   );
 }
 
+type SettingsDraft = { app: AppSettings; keep: boolean; refresh: string };
+
+function toDraft(data: SettingsView): SettingsDraft {
+  return { app: data.app, keep: data.keepCodexLogin, refresh: String(data.app.backgroundRefreshHours) };
+}
+
+function sameDraft(a: SettingsDraft, b: SettingsDraft) {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
 export function SettingsPage() {
   const { t } = useTranslation();
-  const { data } = useSettings();
-  const [app, setApp] = useState<AppSettings | null>(null);
-  const [keep, setKeep] = useState(false);
-
-  useEffect(() => {
-    if (data) {
-      setApp(data.app);
-      setKeep(data.keepCodexLogin);
-    }
-  }, [data]);
+  const { data, isError, error, refetch } = useSettings();
+  const [draft, setDraft] = useState<SettingsDraft | null>(null);
+  const baseline = useRef<SettingsDraft | null>(null);
 
   const save = useAction(
-    () => api.saveSettings({ ...app!, dirOverrides: cleanOverrides(app!.dirOverrides) }, keep),
-    (result) => {
-      applyLanguage(app!.language);
+    (submitted: SettingsDraft) => api.saveSettings(submitted.app, submitted.keep),
+    (result, submitted) => {
+      baseline.current = submitted;
+      setDraft(submitted);
+      applyLanguage(submitted.app.language);
       toast.success(t("settings.saved"));
       if (result.dirsChanged) toast.info(t("settings.dirsApplied"));
     },
   );
 
-  if (!data || !app) return <p className="p-8 text-sm text-muted-foreground">{t("common.loading")}</p>;
-  const set = (patch: Partial<AppSettings>) => setApp({ ...app, ...patch });
+  useEffect(() => {
+    if (!data) return;
+    setDraft((current) => {
+      // Backend events can refresh settings while the user is editing.
+      if (current && baseline.current && !sameDraft(current, baseline.current)) return current;
+      const next = toDraft(data);
+      baseline.current = next;
+      return next;
+    });
+  }, [data]);
+
+  if (!data || !draft) return (
+    <div className="p-6">
+      <QueryState
+        state={isError ? "error" : "loading"}
+        title={t(isError ? "settings.loadError" : "settings.loading")}
+        description={isError ? errorMessage(error) : undefined}
+        onRetry={isError ? () => void refetch() : undefined}
+      />
+    </div>
+  );
+  const { app, keep } = draft;
+  const dirty = !baseline.current || !sameDraft(draft, baseline.current);
+  const refreshHours = Number(draft.refresh);
+  const refreshValid = draft.refresh.trim() !== "" && Number.isInteger(refreshHours) && refreshHours >= 0 && refreshHours <= 4294967295;
+  const set = (patch: Partial<AppSettings>) => setDraft({ ...draft, app: { ...app, ...patch } });
+  const reset = () => {
+    const next = toDraft(data);
+    baseline.current = next;
+    setDraft(next);
+  };
+  const submit = () => {
+    if (!dirty || !refreshValid || save.isPending) return;
+    save.mutate({ ...draft, app: { ...app, backgroundRefreshHours: refreshHours, dirOverrides: cleanOverrides(app.dirOverrides) }, refresh: String(refreshHours) });
+  };
 
   return (
-    <div className="flex max-w-3xl flex-col gap-5 p-6">
+    <form className="flex max-w-3xl flex-col gap-6 p-6" onSubmit={(event) => { event.preventDefault(); submit(); }}>
       <h1 className="text-xl font-semibold">{t("settings.title")}</h1>
 
-      <Card className="divide-y px-4">
-        <Row label={t("settings.language")}>
-          <NativeSelect
-            aria-label={t("settings.language")}
-            className="w-40"
-            value={app.language ?? ""}
-            onChange={(e) => set({ language: (e.target.value || null) as AppSettings["language"] })}
-          >
-            <option value="">{t("settings.languageSystem")}</option>
-            <option value="zh">中文</option>
-            <option value="en">English</option>
-          </NativeSelect>
-        </Row>
-        <Row label={t("settings.autostart")}>
-          <Switch aria-label={t("settings.autostart")} checked={app.autostart} onCheckedChange={(v) => set({ autostart: v })} />
-        </Row>
-        <Row label={t("settings.closeToTray")}>
-          <Switch aria-label={t("settings.closeToTray")} checked={app.closeToTray} onCheckedChange={(v) => set({ closeToTray: v })} />
-        </Row>
-        <Row label={t("settings.keepCodexLogin")} hint={t("settings.keepCodexLoginHint")}>
-          <Switch aria-label={t("settings.keepCodexLogin")} checked={keep} onCheckedChange={setKeep} />
-        </Row>
-        <Row label={t("settings.refresh")} hint={t("settings.refreshHint")}>
-          <Input
-            type="number"
-            min={0}
-            className="w-24"
-            aria-label={t("settings.refresh")}
-            value={app.backgroundRefreshHours}
-            onChange={(e) => set({ backgroundRefreshHours: Math.max(0, Number(e.target.value) || 0) })}
-          />
-        </Row>
-      </Card>
+      {isError && <QueryState state="error" title={t("settings.refreshError")} description={errorMessage(error)} onRetry={() => void refetch()} />}
 
-      <section className="flex flex-col gap-2">
-        <h2 className="font-medium">{t("settings.dirs")}</h2>
-        <p className="text-xs text-muted-foreground">{t("settings.dirsHint")}</p>
-        <Card className="grid gap-3 p-4">
-          {DIR_FIELDS.map((f) => (
-            <div key={f.key} className="grid grid-cols-[180px_1fr] items-center gap-3">
-              <Label htmlFor={`dir-${f.key}`}>{f.label}</Label>
+      <fieldset disabled={save.isPending} className="flex min-w-0 flex-col gap-6">
+        <section aria-labelledby="settings-general" className="flex flex-col gap-2">
+          <h2 id="settings-general" className="font-medium">{t("settings.general")}</h2>
+          <Card className="divide-y px-4">
+            <Row id="settings-language" label={t("settings.language")}>
+              <NativeSelect
+                id="settings-language"
+                aria-label={t("settings.language")}
+                className="w-36 shrink-0"
+                value={app.language ?? ""}
+                onChange={(e) => set({ language: (e.target.value || null) as AppSettings["language"] })}
+              >
+                <option value="">{t("settings.languageSystem")}</option>
+                <option value="zh">中文</option>
+                <option value="en">English</option>
+              </NativeSelect>
+            </Row>
+            <Row id="settings-autostart" label={t("settings.autostart")}>
+              <Switch id="settings-autostart" aria-label={t("settings.autostart")} checked={app.autostart} onCheckedChange={(v) => set({ autostart: v })} />
+            </Row>
+            <Row id="settings-close-to-tray" label={t("settings.closeToTray")}>
+              <Switch id="settings-close-to-tray" aria-label={t("settings.closeToTray")} checked={app.closeToTray} onCheckedChange={(v) => set({ closeToTray: v })} />
+            </Row>
+            <Row id="settings-keep-login" label={t("settings.keepCodexLogin")} hint={t("settings.keepCodexLoginHint")}>
+              <Switch id="settings-keep-login" aria-describedby="settings-keep-login-hint" aria-label={t("settings.keepCodexLogin")} checked={keep} onCheckedChange={(keep) => setDraft({ ...draft, keep })} />
+            </Row>
+            <Row id="settings-refresh" label={t("settings.refresh")} hint={t("settings.refreshHint")}>
               <Input
-                id={`dir-${f.key}`}
-                placeholder={data.dirs?.[f.key] ?? data.livePaths[f.tool]?.[0]}
-                value={app.dirOverrides[f.key] ?? ""}
-                onChange={(e) => set({ dirOverrides: { ...app.dirOverrides, [f.key]: e.target.value } })}
+                id="settings-refresh"
+                type="number"
+                min={0}
+                max={4294967295}
+                step={1}
+                required
+                className="w-24 shrink-0 tabular-nums"
+                aria-label={t("settings.refresh")}
+                aria-invalid={!refreshValid}
+                aria-describedby={`settings-refresh-hint${refreshValid ? "" : " settings-refresh-error"}`}
+                value={draft.refresh}
+                onChange={(e) => setDraft({ ...draft, refresh: e.target.value })}
               />
-            </div>
-          ))}
-        </Card>
-        <p className="font-mono text-xs text-muted-foreground">{t("settings.dataDir", { path: data.dataDir })}</p>
-      </section>
+            </Row>
+            {!refreshValid && <p id="settings-refresh-error" role="alert" className="py-3 text-sm text-destructive">{t("settings.refreshInvalid")}</p>}
+          </Card>
+        </section>
 
-      <div>
-        <Button onClick={() => save.mutate(undefined)} disabled={save.isPending}>
-          {t("settings.save")}
-        </Button>
+        <section aria-labelledby="settings-dirs" className="flex flex-col gap-2">
+          <h2 id="settings-dirs" className="font-medium">{t("settings.dirs")}</h2>
+          <p id="settings-dirs-hint" className="text-xs leading-relaxed text-muted-foreground">{t("settings.dirsHint")}</p>
+          <Card className="grid gap-3 p-4">
+            {DIR_FIELDS.map((f) => (
+              <div key={f.key} className="grid min-w-0 gap-2 sm:grid-cols-[180px_minmax(0,1fr)] sm:items-center sm:gap-3">
+                <Label htmlFor={`dir-${f.key}`}>{f.label}</Label>
+                <Input
+                  id={`dir-${f.key}`}
+                  aria-describedby="settings-dirs-hint"
+                  placeholder={data.dirs?.[f.key] ?? data.livePaths[f.tool]?.[0]}
+                  value={app.dirOverrides[f.key] ?? ""}
+                  onChange={(e) => set({ dirOverrides: { ...app.dirOverrides, [f.key]: e.target.value } })}
+                />
+              </div>
+            ))}
+          </Card>
+          <p className="break-all font-mono text-xs text-muted-foreground">{t("settings.dataDir", { path: data.dataDir })}</p>
+        </section>
+      </fieldset>
+
+      <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t bg-background py-4">
+        <p role="status" className="text-sm text-muted-foreground">{t(save.isPending ? "settings.saving" : dirty ? "settings.unsaved" : "settings.unchanged")}</p>
+        <div className="flex items-center gap-2">
+          <Button type="button" variant="outline" onClick={reset} disabled={!dirty || save.isPending}><RotateCcw /> {t("settings.reset")}</Button>
+          <Button type="submit" disabled={!dirty || !refreshValid || save.isPending}>
+            {save.isPending ? <Loader2 className="animate-spin" /> : <Save />}
+            {t(save.isPending ? "settings.saving" : "settings.save")}
+          </Button>
+        </div>
       </div>
-    </div>
+    </form>
   );
 }
