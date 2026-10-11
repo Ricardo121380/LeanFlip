@@ -42,6 +42,7 @@ export interface ToolSummary {
   current: string | null;
   currentName: string | null;
   inLive: string[];
+  liveReadable?: boolean;
 }
 
 export interface ToolProviders {
