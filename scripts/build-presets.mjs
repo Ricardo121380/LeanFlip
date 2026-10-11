@@ -32,8 +32,34 @@ const KEEP = ["name", "websiteUrl", "apiKeyUrl", "settingsConfig", "isOfficial",
 
 // Codex / Grok 预设是顶层 auth + config；Claude Desktop 是 baseUrl + 模式。统一成卡片的
 // settingsConfig。
+// Grok Build 的 cc-switch 预设是 Codex 风格的载体（model_provider / model_providers），
+// cc-switch 保存时才转成 Grok 自己的 [models] / [model.<name>]。这里直接转好，
+// 和 cc-switch 库里存的形状一致（api_key 留空让用户填）。
+export function grokNativeConfig(carrier, fallbackName) {
+  const line = (key) => carrier.match(new RegExp(`^${key}\\s*=\\s*"([^"]*)"`, "m"))?.[1] ?? "";
+  const model = line("model") || "grok-4.5";
+  const q = JSON.stringify;
+  return [
+    "[models]",
+    `default = ${q(model)}`,
+    "",
+    `[model.${q(model)}]`,
+    `model = ${q(model)}`,
+    `base_url = ${q(line("base_url"))}`,
+    `name = ${q(line("name") || fallbackName)}`,
+    'api_key = ""',
+    'api_backend = "responses"',
+    "context_window = 500000",
+    "",
+  ].join("\n");
+}
+
 function normalize(tool, preset) {
-  if ((tool === "codex" || tool === "grokbuild") && !preset.settingsConfig) {
+  if (tool === "grokbuild" && !preset.settingsConfig) {
+    const official = preset.category === "official";
+    return { ...preset, settingsConfig: { config: official ? preset.config ?? "" : grokNativeConfig(preset.config ?? "", preset.name) } };
+  }
+  if (tool === "codex" && !preset.settingsConfig) {
     return { ...preset, settingsConfig: { auth: preset.auth ?? {}, config: preset.config ?? "" } };
   }
   if (tool === "claude-desktop" && !preset.settingsConfig) {

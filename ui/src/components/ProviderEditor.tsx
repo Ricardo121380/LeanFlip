@@ -30,6 +30,10 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 const CODEX_TEMPLATE = (model: string) =>
   `model_provider = "custom"\nmodel = "${model}"\n\n[model_providers.custom]\nname = "custom"\nbase_url = ""\nwire_api = "responses"\nrequires_openai_auth = true\n`;
 
+/** Grok Build 自己的格式：[models].default 指向一张 [model.<name>] 表。 */
+const GROK_TEMPLATE =
+  '[models]\ndefault = "grok-4.5"\n\n[model."grok-4.5"]\nmodel = "grok-4.5"\nbase_url = ""\nname = "custom"\napi_key = ""\napi_backend = "responses"\ncontext_window = 500000\n';
+
 export function customTemplate(tool: ToolId): Record<string, unknown> {
   switch (tool) {
     case "claude":
@@ -40,7 +44,7 @@ export function customTemplate(tool: ToolId): Record<string, unknown> {
     case "codex":
       return { auth: { OPENAI_API_KEY: "" }, config: CODEX_TEMPLATE("gpt-5.5") };
     case "grokbuild":
-      return { auth: { OPENAI_API_KEY: "" }, config: CODEX_TEMPLATE("grok-4.5") };
+      return { config: GROK_TEMPLATE };
     case "opencode":
       return { npm: "@ai-sdk/openai-compatible", name: "", options: { baseURL: "", apiKey: "" }, models: {} };
     case "openclaw":

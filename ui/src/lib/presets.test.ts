@@ -38,6 +38,18 @@ describe("trimmed cc-switch presets", () => {
     }
   });
 
+  it("custom Grok presets use Grok's own [models] / [model.<name>] shape", () => {
+    for (const p of presetsFor("grokbuild").filter((p) => !p.isOfficial && p.category !== "official")) {
+      const doc = parse(p.settingsConfig.config as string) as { models?: { default?: string }; model?: Record<string, Record<string, unknown>> };
+      const name = doc.models?.default ?? "";
+      const table = doc.model?.[name];
+      expect(table, p.name).toBeDefined();
+      expect(table!.base_url, p.name).toMatch(/^https:\/\//);
+      expect(table!.api_backend).toBe("responses");
+      expect(Number(table!.context_window)).toBeGreaterThan(0);
+    }
+  });
+
   it("loads lazily and caches per tool", async () => {
     const a = loadPresets("claude");
     expect(loadPresets("claude")).toBe(a);
