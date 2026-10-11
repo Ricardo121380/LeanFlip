@@ -1,10 +1,7 @@
 //! CC Switch Lite 桌面应用：Tauri 2 外壳，业务都在 `ccsl-core` 和 [`service`] 里。
 
 pub mod commands;
-pub mod oauth_http;
-pub mod redact;
-pub mod service;
-pub mod settings;
+pub use ccsl_service::{oauth_http, redact, service, settings};
 mod tray;
 mod watcher;
 
@@ -21,9 +18,8 @@ pub const EVENT_PROVIDERS_CHANGED: &str = "providers-changed";
 #[derive(Clone)]
 pub struct AppState(pub Arc<Service>);
 
-/// 应用自己改了数据：重建托盘菜单、通知前端，并让文件监听忽略紧随其后的「回声」。
+/// 应用自己改了数据：立即请求重建托盘菜单、通知前端。
 pub fn notify_changed(app: &tauri::AppHandle) {
-    watcher::ECHO.mark(std::time::Instant::now());
     refresh_views(app);
 }
 
@@ -40,7 +36,14 @@ fn start_background_refresh(app: tauri::AppHandle, service: Arc<Service>) {
             // 启动后先等一会儿，别和首屏抢。
             std::thread::sleep(Duration::from_secs(60));
             loop {
-                let results = service.refresh_stale_accounts();
+                let results = match service.refresh_stale_accounts() {
+                    Ok(results) => results,
+                    Err(err) => {
+                        log::warn!("background account refresh failed: {err}");
+                        std::thread::sleep(Duration::from_secs(60 * 60));
+                        continue;
+                    }
+                };
                 let mut changed = false;
                 for (id, result) in results {
                     match result {
@@ -58,6 +61,10 @@ fn start_background_refresh(app: tauri::AppHandle, service: Arc<Service>) {
             }
         })
         .expect("spawn refresh thread");
+}
+
+fn app_context() -> tauri::Context<tauri::Wry> {
+    tauri::generate_context!()
 }
 
 pub fn run() {
@@ -100,6 +107,7 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            commands::get_recovery_notices,
             commands::get_overview,
             commands::list_providers,
             commands::switch_provider,
@@ -126,7 +134,7 @@ pub fn run() {
             commands::ccswitch_export_discard,
             commands::open_url,
         ])
-        .run(tauri::generate_context!())
+        .run(app_context())
         .expect("error while running CC Switch Lite");
 }
 
@@ -157,4 +165,18 @@ fn env_logger_init() -> Result<(), log::SetLoggerError> {
     log::set_logger(Box::leak(Box::new(Stderr(level))))?;
     log::set_max_level(level);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn generated_window_icon_has_rgba8_pixels_for_the_tray() {
+        let context = super::app_context();
+        let icon = context.default_window_icon().expect("window and tray icon");
+        assert_eq!(
+            icon.rgba().len(),
+            (icon.width() * icon.height() * 4) as usize,
+            "the tray requires four bytes per pixel"
+        );
+    }
 }

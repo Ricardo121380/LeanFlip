@@ -226,12 +226,16 @@ struct Inner {
     pending: HashMap<String, PendingDevice>,
 }
 
+/// 批量保活结果：每个账号是否实际刷新，或该账号自己的失败原因。
+pub type RefreshResults = Vec<(String, Result<bool, AppError>)>;
+
 /// 托管 ChatGPT 账号管理器。
 pub struct CodexOAuthManager {
     env: Env,
     transport: Option<Arc<dyn OAuthTransport>>,
     clock: Arc<dyn Clock>,
-    /// 代数锁：刷新、采纳、生成 bundle、删除都在它下面串行（会跨网络调用持有）。
+    /// 锁顺序：进程内 generation → 账号库文件锁 → Codex live 写锁。
+    /// 刷新持有前两把锁跨网络调用，确保 App 和 CLI 不会消费同一代 refresh token。
     generation: Mutex<()>,
     /// 内存状态，只在短时间内持有，不跨网络调用。
     inner: Mutex<Inner>,
@@ -333,28 +337,7 @@ impl CodexOAuthManager {
             generation: Mutex::new(()),
             inner: Mutex::new(Inner::default()),
         };
-        let path = manager.store_path();
-        if let Some(bytes) = read_current(&path)? {
-            let store: StoreFile =
-                serde_json::from_slice(&bytes).map_err(|source| AppError::json(&path, source))?;
-            if !matches!(store.version, 1 | 2)
-                || store
-                    .accounts
-                    .iter()
-                    .any(|(key, account)| key.trim().is_empty() || *key != account.account_id)
-            {
-                return Err(AppError::Config(format!(
-                    "Codex 账号库 {} 的版本或索引无效，没有加载也不会覆盖它",
-                    path.display()
-                )));
-            }
-            let mut inner = lock(&manager.inner);
-            inner.default_account_id = store
-                .default_account_id
-                .filter(|id| store.accounts.contains_key(id))
-                .or_else(|| Self::fallback_default(&store.accounts));
-            inner.accounts = store.accounts;
-        }
+        manager.reload()?;
         Ok(manager)
     }
 
@@ -366,6 +349,57 @@ impl CodexOAuthManager {
 
     pub fn store_path(&self) -> std::path::PathBuf {
         self.env.data_file(STORE_FILENAME)
+    }
+
+    /// 调用方先持有 generation；只在要写入/刷新时创建跨进程锁文件。
+    fn lock_store(&self) -> Result<std::fs::File, AppError> {
+        let guard = crate::live::engine::lock_file(
+            &self.env.data_file("codex_oauth_auth.json.lock"),
+            true,
+        )?;
+        self.reload()?;
+        Ok(guard)
+    }
+
+    fn read_snapshot(path: &std::path::Path) -> Result<StoreFile, AppError> {
+        let Some(bytes) = read_current(path)? else {
+            return Ok(StoreFile::default());
+        };
+        let store: StoreFile =
+            serde_json::from_slice(&bytes).map_err(|source| AppError::json(path, source))?;
+        if !matches!(store.version, 1 | 2)
+            || store
+                .accounts
+                .iter()
+                .any(|(key, account)| key.trim().is_empty() || *key != account.account_id)
+        {
+            return Err(AppError::Config(format!(
+                "Codex 账号库 {} 的版本或索引无效，没有加载也不会覆盖它",
+                path.display()
+            )));
+        }
+        Ok(store)
+    }
+
+    /// 原子文件读快照，不创建目录或锁文件。调用方持有 generation（或尚未发布实例）。
+    fn reload(&self) -> Result<(), AppError> {
+        let store = Self::read_snapshot(&self.store_path())?;
+        let mut inner = lock(&self.inner);
+        let Inner {
+            accounts, tokens, ..
+        } = &mut *inner;
+        tokens.retain(|id, _| {
+            store
+                .accounts
+                .get(id)
+                .is_some_and(|account| accounts.get(id) == Some(account))
+        });
+        inner.default_account_id = store
+            .default_account_id
+            .filter(|id| store.accounts.contains_key(id))
+            .or_else(|| Self::fallback_default(&store.accounts));
+        inner.accounts = store.accounts;
+        Ok(())
     }
 
     fn now_ms(&self) -> i64 {
@@ -428,6 +462,26 @@ impl CodexOAuthManager {
         }
     }
 
+    /// 最新的账号摘要；读盘失败时保留错误，不返回旧缓存。
+    pub fn try_list_accounts(&self) -> Result<Vec<AccountInfo>, AppError> {
+        let _generation = lock(&self.generation);
+        self.reload()?;
+        Ok(self.list_accounts())
+    }
+
+    pub fn try_account(&self, account_id: &str) -> Result<Option<AccountData>, AppError> {
+        let _generation = lock(&self.generation);
+        self.reload()?;
+        Ok(self.account(account_id))
+    }
+
+    pub fn try_default_account_id(&self) -> Result<Option<String>, AppError> {
+        let _generation = lock(&self.generation);
+        self.reload()?;
+        Ok(self.default_account_id())
+    }
+
+    /// 当前进程的缓存快照。用户可见查询应使用 [`Self::try_list_accounts`]。
     pub fn list_accounts(&self) -> Vec<AccountInfo> {
         let inner = lock(&self.inner);
         let mut accounts: Vec<AccountInfo> = inner
@@ -444,21 +498,27 @@ impl CodexOAuthManager {
         accounts
     }
 
+    /// 缓存快照；需要读取其他进程的更新时使用 [`Self::try_account`]。
     pub fn account(&self, account_id: &str) -> Option<AccountData> {
         lock(&self.inner).accounts.get(account_id).cloned()
     }
 
+    /// 缓存快照；用户可见查询应使用 [`Self::try_default_account_id`]。
     pub fn default_account_id(&self) -> Option<String> {
         lock(&self.inner).default_account_id.clone()
     }
 
     pub fn set_default_account(&self, account_id: &str) -> Result<(), AppError> {
+        let _generation = lock(&self.generation);
+        let _store = self.lock_store()?;
         let mut inner = lock(&self.inner);
         if !inner.accounts.contains_key(account_id) {
             return Err(not_found(account_id));
         }
-        inner.default_account_id = Some(account_id.to_string());
-        self.save(&inner)
+        let default = Some(account_id.to_string());
+        Self::save_snapshot(&self.store_path(), &inner.accounts, default.clone())?;
+        inner.default_account_id = default;
+        Ok(())
     }
 
     // ==================== 设备码登录 ====================
@@ -470,7 +530,7 @@ impl CodexOAuthManager {
         target_account_id: Option<&str>,
     ) -> Result<DeviceFlow, AppError> {
         if let Some(target) = target_account_id {
-            if !lock(&self.inner).accounts.contains_key(target) {
+            if self.try_account(target)?.is_none() {
                 return Err(not_found(target));
             }
         }
@@ -560,6 +620,7 @@ impl CodexOAuthManager {
         target_account_id: Option<&str>,
     ) -> Result<AccountInfo, AppError> {
         let _generation = lock(&self.generation);
+        let _store = self.lock_store()?;
         let (workspace, email) = token_metadata(tokens);
         let workspace = workspace.ok_or_else(|| {
             AppError::localized(
@@ -665,6 +726,11 @@ impl CodexOAuthManager {
     /// 删除一个账号，连同它在 live 的登录和标记。live 清理失败时账号保留。
     pub fn remove_account(&self, account_id: &str) -> Result<(), AppError> {
         let _generation = lock(&self.generation);
+        let _store = self.lock_store()?;
+        self.remove_locked(account_id)
+    }
+
+    fn remove_locked(&self, account_id: &str) -> Result<(), AppError> {
         if !lock(&self.inner).accounts.contains_key(account_id) {
             return Err(not_found(account_id));
         }
@@ -690,14 +756,15 @@ impl CodexOAuthManager {
 
     /// 退出全部账号。
     pub fn clear_all(&self) -> Result<(), AppError> {
+        let _generation = lock(&self.generation);
+        let _store = self.lock_store()?;
         let ids: Vec<String> = lock(&self.inner).accounts.keys().cloned().collect();
         for id in ids {
-            self.remove_account(&id)?;
+            self.remove_locked(&id)?;
         }
-        let _generation = lock(&self.generation);
-        let mut inner = lock(&self.inner);
-        inner.pending.clear();
-        crate::fsutil::delete_file(&self.store_path())
+        crate::fsutil::delete_file(&self.store_path())?;
+        lock(&self.inner).pending.clear();
+        Ok(())
     }
 
     // ==================== 代数判定 ====================
@@ -846,6 +913,7 @@ impl CodexOAuthManager {
     /// 采纳 Codex CLI 轮换过的 refresh token。返回管理器状态是否变了。
     pub fn adopt_live_refresh(&self, account_id: &str) -> Result<AdoptOutcome, AppError> {
         let _generation = lock(&self.generation);
+        let _store = self.lock_store()?;
         match self.live_generation(account_id)? {
             Some(live) => self.adopt_locked(account_id, &live, AdoptMode::TimestampChecked),
             None => Ok(AdoptOutcome::Synchronized {
@@ -941,15 +1009,18 @@ impl CodexOAuthManager {
             &stored_refresh,
             &live::format_last_refresh(obtained),
         );
-        // live 仍是这个账号的旧一代时同步过去；失败不回滚管理器（下次写入会再同步）。
-        if let Err(err) =
-            live::sync_live_after_refresh(&self.env, account_id, &refresh_token, &refreshed)
-        {
-            log::warn!("刷新后同步 Codex live auth 失败（{account_id}）: {err}");
-        }
+        // 新一代已持久化，先保留 access 缓存；同步失败也不能回滚已消费的 refresh token。
         lock(&self.inner)
             .tokens
             .insert(account_id.to_string(), cached.clone());
+        live::sync_live_after_refresh(&self.env, account_id, &refresh_token, &refreshed)
+            .map_err(|err| {
+                AppError::localized(
+                    "codex.oauth.live_sync_failed",
+                    format!("账号 {account_id} 的凭据已刷新并保存，但同步 Codex 客户端失败；新凭据已保留，没有回滚。请修复后重新切换该账号。{err}"),
+                    format!("Credentials for account {account_id} were refreshed and saved, but syncing the Codex client failed. The new credentials were retained, not rolled back. Fix the issue and switch to this account again. {err}"),
+                )
+            })?;
         Ok(cached)
     }
 
@@ -957,6 +1028,7 @@ impl CodexOAuthManager {
     /// 再核对一次盘上的代数：期间被 CLI 刷新了（采纳了新一代）或分不出新旧就停下。
     pub fn token_bundle(&self, account_id: &str) -> Result<TokenBundle, AppError> {
         let _generation = lock(&self.generation);
+        let _store = self.lock_store()?;
         self.ensure_ready(account_id)?;
         let cached = self.resolve_locked(account_id)?;
         let observed = self.live_generation(account_id)?;
@@ -996,6 +1068,7 @@ impl CodexOAuthManager {
     /// 核对。分不出新旧就停下（不删可能更新的登录）。
     pub fn prepare_switch_away(&self, account_id: &str) -> Result<SwitchAwayGuard, AppError> {
         let _generation = lock(&self.generation);
+        let _store = self.lock_store()?;
         if !lock(&self.inner).accounts.contains_key(account_id) {
             return Ok(SwitchAwayGuard::MissingAccount);
         }
@@ -1021,6 +1094,7 @@ impl CodexOAuthManager {
         default_account_id: Option<String>,
     ) -> Result<Vec<String>, AppError> {
         let _generation = lock(&self.generation);
+        let _store = self.lock_store()?;
         let mut inner = lock(&self.inner);
         let mut added = Vec::new();
         for account in accounts {
@@ -1047,15 +1121,7 @@ impl CodexOAuthManager {
     pub fn read_store_file(
         path: &std::path::Path,
     ) -> Result<(Vec<AccountData>, Option<String>), AppError> {
-        let bytes = match std::fs::read(path) {
-            Ok(bytes) => bytes,
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
-                return Ok((Vec::new(), None))
-            }
-            Err(err) => return Err(AppError::io(path, err)),
-        };
-        let file: StoreFile =
-            serde_json::from_slice(&bytes).map_err(|source| AppError::json(path, source))?;
+        let file = Self::read_snapshot(path)?;
         Ok((
             file.accounts.into_values().collect(),
             file.default_account_id,
@@ -1065,8 +1131,10 @@ impl CodexOAuthManager {
     /// 后台保活：上次取得 token 超过 `max_age_ms` 的账号各刷新一次（换一代 refresh
     /// token，live 是这个账号的旧一代时一并同步）。需要重新登录的账号跳过。返回
     /// `(账号, 是否刷新了)`；单个账号失败不影响其他账号。
-    pub fn refresh_stale(&self, max_age_ms: i64) -> Vec<(String, Result<bool, AppError>)> {
+    pub fn refresh_stale(&self, max_age_ms: i64) -> Result<RefreshResults, AppError> {
         let due: Vec<String> = {
+            let _generation = lock(&self.generation);
+            self.reload()?;
             let inner = lock(&self.inner);
             let now = self.now_ms();
             inner
@@ -1077,10 +1145,12 @@ impl CodexOAuthManager {
                 .map(|account| account.account_id.clone())
                 .collect()
         };
-        due.into_iter()
+        Ok(due
+            .into_iter()
             .map(|account_id| {
                 let result = (|| {
                     let _generation = lock(&self.generation);
+                    let _store = self.lock_store()?;
                     let still_due = lock(&self.inner)
                         .accounts
                         .get(&account_id)
@@ -1093,7 +1163,16 @@ impl CodexOAuthManager {
                 })();
                 (account_id, result)
             })
-            .collect()
+            .collect())
+    }
+
+    /// 显式刷新一个账号，即使本进程还有有效的 access token 缓存。
+    pub fn refresh_account(&self, account_id: &str) -> Result<(), AppError> {
+        let _generation = lock(&self.generation);
+        let _store = self.lock_store()?;
+        self.ensure_ready(account_id)?;
+        lock(&self.inner).tokens.remove(account_id);
+        self.resolve_locked(account_id).map(|_| ())
     }
 
     /// 测试用：直接放一个缓存的 access token。
@@ -1305,10 +1384,13 @@ mod tests {
             .unwrap()
             .id;
         let day = 24 * 3600 * 1000;
-        assert!(mgr.refresh_stale(7 * day).is_empty(), "fresh account");
+        assert!(
+            mgr.refresh_stale(7 * day).unwrap().is_empty(),
+            "fresh account"
+        );
         let before = mgr.account(&id).unwrap().refresh_token;
         clock.advance(8 * day);
-        let results = mgr.refresh_stale(7 * day);
+        let results = mgr.refresh_stale(7 * day).unwrap();
         assert!(
             matches!(results[..], [(ref a, Ok(true))] if *a == id),
             "{results:?}"
@@ -1316,11 +1398,14 @@ mod tests {
         let after = mgr.account(&id).unwrap().refresh_token;
         assert_ne!(before, after, "rotated");
         assert_eq!(fake.refresh_calls().len(), 1);
-        assert!(mgr.refresh_stale(7 * day).is_empty(), "now fresh again");
+        assert!(
+            mgr.refresh_stale(7 * day).unwrap().is_empty(),
+            "now fresh again"
+        );
         // 服务端作废了：报错，不影响下次。
         clock.advance(8 * day);
         fake.invalidate(&after);
-        let results = mgr.refresh_stale(7 * day);
+        let results = mgr.refresh_stale(7 * day).unwrap();
         assert!(matches!(results[..], [(_, Err(_))]), "{results:?}");
     }
 }

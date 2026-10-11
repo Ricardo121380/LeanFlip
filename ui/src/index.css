@@ -13,7 +13,7 @@
     --secondary: 210 40% 96%;
     --secondary-foreground: 222 47% 11%;
     --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
+    --muted-foreground: 215 16% 43%;
     --accent: 210 40% 94%;
     --accent-foreground: 222 47% 11%;
     --destructive: 0 72% 51%;
@@ -21,7 +21,7 @@
     --border: 214 32% 91%;
     --input: 214 32% 91%;
     --ring: 221 83% 53%;
-    --radius: 0.6rem;
+    --radius: 0.75rem;
   }
   * {
     @apply border-border;
@@ -29,5 +29,23 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans CJK SC", "PingFang SC", sans-serif;
+  }
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+  input, textarea {
+    caret-color: hsl(var(--primary));
+  }
+  ::selection {
+    background: hsl(var(--primary) / 0.15);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }

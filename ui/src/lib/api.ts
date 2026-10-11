@@ -42,6 +42,7 @@ export interface ToolSummary {
   current: string | null;
   currentName: string | null;
   inLive: string[];
+  liveReadable?: boolean;
 }
 
 export interface ToolProviders {
@@ -177,6 +178,7 @@ export interface ExportReport {
 }
 
 export const api = {
+  recoveryNotices: () => invoke<string[]>("get_recovery_notices"),
   overview: () => invoke<ToolSummary[]>("get_overview"),
   listProviders: (tool: ToolId) => invoke<ToolProviders>("list_providers", { tool }),
   switchProvider: (tool: ToolId, id: string) => invoke<OpResult>("switch_provider", { tool, id }),

@@ -306,16 +306,16 @@ fn managed_accounts_and_background_refresh_go_through_the_manager() {
         PollResult::Pending => panic!("fake authorizes immediately"),
     };
     assert_eq!(account.plan.as_deref(), Some("plus"));
-    let wire = serde_json::to_string(&service.codex_accounts()).unwrap();
+    let wire = serde_json::to_string(&service.codex_accounts().unwrap()).unwrap();
     assert!(!wire.to_lowercase().contains("refresh_token"), "{wire}");
 
     // 刚登录的不刷新。
     let before = fake.refresh_calls().len();
-    service.refresh_stale_accounts();
+    service.refresh_stale_accounts().unwrap();
     assert_eq!(fake.refresh_calls().len(), before);
 
     service.codex_remove_account(&account.id).unwrap();
-    assert!(service.codex_accounts().is_empty());
+    assert!(service.codex_accounts().unwrap().is_empty());
 }
 
 #[test]
@@ -430,4 +430,196 @@ fn export_file_is_staged_previewed_and_applied_into_the_store_only() {
     let listing = service.list_providers(Tool::Claude).unwrap();
     assert!(listing.providers.iter().any(|p| p.id == "relay-2"));
     assert_eq!(listing.current, None);
+}
+
+/// 发布已开始、但剩余文件被客户端另改：恢复必须保留文件并将路径呈现给用户。
+fn pending_recovery(sb: &Sandbox, path: &Path) {
+    use ccsl_core::live::engine::digest;
+    use ccsl_core::state::{self, Pending, PendingFile, PendingTarget};
+
+    state::set_pending(
+        &sb.env().device_store(),
+        Tool::Claude.as_str(),
+        Some(Pending {
+            op: "switch".into(),
+            published: true,
+            target: PendingTarget::default(),
+            files: vec![PendingFile {
+                path: path.to_path_buf(),
+                pre: digest(Some(b"before")),
+                planned: digest(Some(b"planned")),
+                staged: None,
+            }],
+        }),
+    )
+    .unwrap();
+}
+
+#[test]
+fn startup_partial_recovery_is_visible_and_reads_do_not_consume_it() {
+    let sb = Sandbox::new();
+    let path = sb.env().claude_settings_path();
+    sb.write(&path, "external edit");
+    pending_recovery(&sb, &path);
+
+    let service = sb.service();
+    let notices = service.recovery();
+    assert_eq!(notices.len(), 1);
+    assert!(notices[0].contains("仅部分恢复"), "{}", notices[0]);
+    assert!(notices[0].contains(path.to_str().unwrap()));
+    assert_eq!(service.recovery(), notices);
+    assert_eq!(std::fs::read_to_string(path).unwrap(), "external edit");
+}
+
+#[test]
+fn startup_recovery_error_is_visible_without_stopping_service_start() {
+    let sb = Sandbox::new();
+    let path = sb.env().claude_settings_path();
+    std::fs::create_dir_all(&path).unwrap(); // read_current 会返回 IO 错误。
+    pending_recovery(&sb, &path);
+
+    let service = sb.service();
+    let notices = service.recovery();
+    assert_eq!(notices.len(), 1);
+    assert!(notices[0].contains("恢复失败"), "{}", notices[0]);
+    assert!(notices[0].contains(path.to_str().unwrap()));
+    assert!(
+        ccsl_core::state::pending(&sb.env().device_store(), "claude")
+            .unwrap()
+            .is_some()
+    );
+}
+
+#[test]
+fn recovery_notice_survives_a_later_operation_error() {
+    let sb = Sandbox::new();
+    let service = sb.service();
+    let path = sb.env().claude_settings_path();
+    sb.write(&path, "external edit");
+    pending_recovery(&sb, &path);
+
+    service
+        .switch_provider(Tool::Claude, "missing")
+        .unwrap_err();
+    let notices = service.recovery();
+    assert_eq!(notices.len(), 1);
+    assert!(notices[0].contains("仅部分恢复"));
+    assert!(notices[0].contains(path.to_str().unwrap()));
+    assert_eq!(std::fs::read_to_string(path).unwrap(), "external edit");
+}
+
+#[test]
+fn operation_result_preserves_recovery_and_existing_warnings() {
+    let sb = Sandbox::new();
+    let service = sb.service();
+    let path = sb.env().claude_settings_path();
+    let result = service.op_result(OperationReport {
+        recovered: Some(RecoveryOutcome::RolledForwardExcept {
+            paths: vec![path.clone()],
+        }),
+        warnings: vec!["existing warning".into()],
+        ..OperationReport::default()
+    });
+    assert_eq!(result.warnings.len(), 2);
+    assert_eq!(result.warnings[0], "existing warning");
+    assert!(result.warnings[1].contains(path.to_str().unwrap()));
+}
+
+#[test]
+fn opening_and_querying_an_empty_home_creates_nothing() {
+    let sb = Sandbox::new();
+    let service = Service::open(sb.env(), None).unwrap();
+    assert_eq!(service.overview().unwrap().len(), Tool::ALL.len());
+    for tool in Tool::ALL {
+        assert!(service.list_providers(tool).unwrap().providers.is_empty());
+    }
+    service.settings().unwrap();
+    assert!(service.codex_accounts_checked().unwrap().is_empty());
+    assert_eq!(std::fs::read_dir(&sb.home).unwrap().count(), 0);
+}
+
+#[test]
+fn readonly_open_preserves_pending_recovery_until_explicitly_requested() {
+    let sb = Sandbox::new();
+    let path = sb.env().claude_settings_path();
+    sb.write(&path, "external edit");
+    pending_recovery(&sb, &path);
+    let state_path = sb.env().device_store().state_path();
+    let before = std::fs::read(&state_path).unwrap();
+    let service = Service::open(sb.env(), None).unwrap();
+    service.overview().unwrap();
+    service.list_providers(Tool::Claude).unwrap();
+    assert!(service.recovery().is_empty());
+    assert_eq!(std::fs::read(&state_path).unwrap(), before);
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), "external edit");
+    assert_eq!(service.recover_tool(Tool::Claude).unwrap().len(), 1);
+    assert_ne!(std::fs::read(state_path).unwrap(), before);
+}
+
+#[test]
+fn cli_open_honors_desktop_paths_and_rejects_broken_settings() {
+    let sb = Sandbox::new();
+    let mut app = AppSettings::default();
+    let alt = sb.home.join("custom-claude");
+    app.dir_overrides.claude_dir = Some(alt.clone());
+    settings::save(&sb.env().data_dir, &app).unwrap();
+    assert_eq!(Service::open(sb.env(), None).unwrap().env().claude_dir, alt);
+    sb.write(&settings::path(&sb.env().data_dir), "broken");
+    assert!(Service::open(sb.env(), None).is_err());
+}
+
+#[test]
+fn structured_error_codes_preserve_the_desktop_string_wire_format() {
+    let error = ApiError::from_core(AppError::Conflict("changed".into()), true);
+    assert_eq!(error.code(), "conflict");
+    assert_eq!(serde_json::to_value(&error).unwrap(), json!(error.0));
+    let localized = ApiError::from_core(AppError::localized("test.code", "中", "English"), true);
+    assert_eq!(localized.code(), "test.code");
+    assert_eq!(localized.0, "English");
+}
+
+#[test]
+fn a_failed_service_lock_prevents_all_live_writes() {
+    let sb = Sandbox::new();
+    let env = sb.env();
+    store::add_provider(&env, Tool::Claude, claude_card("a", "https://a.example")).unwrap();
+    std::fs::create_dir_all(env.data_dir.join("locks/service.lock")).unwrap();
+    let before = std::fs::read(env.store_path()).unwrap();
+    let service = Service::open(env.clone(), None).unwrap();
+    assert_eq!(
+        service
+            .switch_provider(Tool::Claude, "a")
+            .unwrap_err()
+            .code(),
+        "io"
+    );
+    assert!(!env.claude_settings_path().exists());
+    assert_eq!(std::fs::read(env.store_path()).unwrap(), before);
+}
+
+#[test]
+fn deleting_a_card_settles_its_pending_activation_first() {
+    use ccsl_core::state::{self, Pending, PendingTarget};
+    let sb = Sandbox::new();
+    let env = sb.env();
+    for id in ["a", "b"] {
+        store::add_provider(&env, Tool::Claude, claude_card(id, "https://example.test")).unwrap();
+    }
+    store::set_current(&env, Tool::Claude, "a").unwrap();
+    state::set_pending(
+        &env.device_store(),
+        "claude",
+        Some(Pending {
+            op: "switch".into(),
+            files: Vec::new(),
+            target: PendingTarget::pointer(Some("b".into())),
+            published: true,
+        }),
+    )
+    .unwrap();
+    let service = Service::open(env.clone(), None).unwrap();
+    assert!(service.delete_provider(Tool::Claude, "b").is_err());
+    let data = store::load_readonly(&env).unwrap();
+    assert!(data.provider(Tool::Claude, "b").is_some());
+    assert_eq!(data.current(Tool::Claude).unwrap().id, "b");
 }

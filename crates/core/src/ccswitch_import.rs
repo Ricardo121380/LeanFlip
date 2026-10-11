@@ -67,7 +67,7 @@ pub fn scan(env: &Env, dir: &Path) -> Result<Scan, AppError> {
     } else {
         (None, Vec::new())
     };
-    let data = store::load(env)?;
+    let data = store::load_readonly(env)?;
     let candidates = rows
         .into_iter()
         .map(|(tool, provider)| {

@@ -158,6 +158,18 @@ fn state_lock() -> &'static Mutex<()> {
 /// 读状态文件。不存在时是空状态；内容坏了就挪到一旁（`live-state.json.corrupt-<unix 秒>`）
 /// 从空状态开始：这是 ccswitch-lite 自己的文件，里面只有未完成操作的意图。
 pub fn load(store: &DeviceStore) -> Result<LiveState, AppError> {
+    let _guard = state_lock().lock().unwrap_or_else(|e| e.into_inner());
+    // load 可能移走损坏文件，因此读也需要排他锁；目录不存在时没有文件可恢复。
+    let _file = store
+        .state_path()
+        .parent()
+        .is_some_and(|parent| parent.is_dir())
+        .then(|| crate::live::engine::lock_file(&store.file("live-state.json.lock"), true))
+        .transpose()?;
+    load_unlocked(store)
+}
+
+fn load_unlocked(store: &DeviceStore) -> Result<LiveState, AppError> {
     let path = store.state_path();
     let bytes = match fs::read(&path) {
         Ok(bytes) => bytes,
@@ -194,7 +206,8 @@ pub fn update<R>(
     change: impl FnOnce(&mut LiveState) -> R,
 ) -> Result<R, AppError> {
     let _guard = state_lock().lock().unwrap_or_else(|e| e.into_inner());
-    let mut state = load(store)?;
+    let _file = crate::live::engine::lock_file(&store.file("live-state.json.lock"), true)?;
+    let mut state = load_unlocked(store)?;
     let result = change(&mut state);
     state.apps.retain(|_, app| !app.is_empty());
     save(store, &state)?;
@@ -202,7 +215,6 @@ pub fn update<R>(
 }
 
 pub fn pending(store: &DeviceStore, app: &str) -> Result<Option<Pending>, AppError> {
-    let _guard = state_lock().lock().unwrap_or_else(|e| e.into_inner());
     Ok(load(store)?
         .apps
         .get(app)
@@ -221,7 +233,6 @@ pub fn set_pending(
 
 /// 这个应用的写入记录；`None` 表示新版还没写过。
 pub fn written(store: &DeviceStore, app: &str) -> Result<Option<Written>, AppError> {
-    let _guard = state_lock().lock().unwrap_or_else(|e| e.into_inner());
     Ok(load(store)?
         .apps
         .get(app)
@@ -230,7 +241,6 @@ pub fn written(store: &DeviceStore, app: &str) -> Result<Option<Written>, AppErr
 
 /// 有未完成操作的应用。
 pub fn apps_with_pending(store: &DeviceStore) -> Result<Vec<String>, AppError> {
-    let _guard = state_lock().lock().unwrap_or_else(|e| e.into_inner());
     Ok(load(store)?
         .apps
         .into_iter()
@@ -314,6 +324,27 @@ mod tests {
                 .any(|name| name.starts_with("live-state.json.corrupt-")),
             "{names:?}"
         );
+    }
+
+    #[test]
+    fn unavailable_state_lock_stops_updates_and_corruption_recovery() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = DeviceStore::at(dir.path());
+        fs::write(store.state_path(), "{ not json").unwrap();
+        fs::create_dir(store.file("live-state.json.lock")).unwrap();
+
+        assert!(matches!(load(&store), Err(AppError::Io { .. })));
+        let mut called = false;
+        assert!(matches!(
+            update(&store, |_| called = true),
+            Err(AppError::Io { .. })
+        ));
+        assert!(!called);
+        assert_eq!(
+            fs::read_to_string(store.state_path()).unwrap(),
+            "{ not json"
+        );
+        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 2);
     }
 
     #[cfg(unix)]

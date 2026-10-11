@@ -386,6 +386,32 @@ pub fn run(
     let write = AppWrite::begin(env.device_store(), Tool::Codex.as_str(), &commit)?;
     let store = &write.store;
 
+    // prepare 后另一进程可能删号或轮换了账号库。这里只读原子快照，不在 live 锁内
+    // 反向取得账号锁；删除操作持有账号锁后拿 live 锁，因此旧 bundle 不会复活已删账号。
+    if let Some((account_id, auth, _)) = &prepared.target_login {
+        let (accounts, _) = CodexOAuthManager::read_store_file(
+            &env.data_file(crate::codex::oauth::STORE_FILENAME),
+        )?;
+        let unchanged = accounts.iter().any(|account| {
+            account.account_id == *account_id
+                && Some(account.refresh_token.as_str())
+                    == auth
+                        .pointer("/tokens/refresh_token")
+                        .and_then(Value::as_str)
+                && account.id_token.as_deref()
+                    == auth.pointer("/tokens/id_token").and_then(Value::as_str)
+                && account.chatgpt_account_id.as_deref()
+                    == auth.pointer("/tokens/account_id").and_then(Value::as_str)
+        });
+        if !unchanged {
+            return Err(AppError::localized(
+                "codex.oauth.account_changed",
+                format!("托管账号 {account_id} 在准备切换后已更新或删除，本次没有写入旧凭据，请重试"),
+                format!("Managed account {account_id} changed or was removed after preparing the switch. Stale credentials were not written. Please retry"),
+            ));
+        }
+    }
+
     // 切走的托管账号：采纳之后 CLI 又刷新（或登出）了就停下，免得删掉新 token。
     if let Some((account, guard)) = &prepared.outgoing {
         guard.ensure_unchanged(env, account)?;

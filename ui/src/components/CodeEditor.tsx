@@ -1,5 +1,5 @@
-import { useEffect, useRef } from "react";
-import { EditorState } from "@codemirror/state";
+import { useEffect, useRef, useState } from "react";
+import { Compartment, EditorState } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { json } from "@codemirror/lang-json";
@@ -12,12 +12,14 @@ interface Props {
   language: "json" | "toml";
   minHeight?: number;
   ariaLabel?: string;
+  readOnly?: boolean;
 }
 
 /** 纯文本编辑器：内容原样进出，不做任何格式化（TOML 一字不改地保存）。 */
-export function CodeEditor({ value, onChange, language, minHeight = 160, ariaLabel }: Props) {
+export function CodeEditor({ value, onChange, language, minHeight = 160, ariaLabel, readOnly = false }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
+  const [editability] = useState(() => new Compartment());
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
 
@@ -26,6 +28,7 @@ export function CodeEditor({ value, onChange, language, minHeight = 160, ariaLab
     const state = EditorState.create({
       doc: value,
       extensions: [
+        editability.of([EditorState.readOnly.of(readOnly), EditorView.editable.of(!readOnly)]),
         lineNumbers(),
         history(),
         bracketMatching(),
@@ -59,6 +62,10 @@ export function CodeEditor({ value, onChange, language, minHeight = 160, ariaLab
       v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: value } });
     }
   }, [value]);
+
+  useEffect(() => {
+    view.current?.dispatch({ effects: editability.reconfigure([EditorState.readOnly.of(readOnly), EditorView.editable.of(!readOnly)]) });
+  }, [readOnly, editability]);
 
   return <div ref={host} data-testid={`editor-${language}`} />;
 }

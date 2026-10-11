@@ -22,7 +22,7 @@ async fn blocking<T: Send + 'static>(
     let service = state.0.clone();
     tauri::async_runtime::spawn_blocking(move || f(&service))
         .await
-        .map_err(|e| ApiError(e.to_string()))?
+        .map_err(|e| ApiError::message(e.to_string()))?
 }
 
 async fn mutating<T: Send + 'static>(
@@ -33,6 +33,11 @@ async fn mutating<T: Send + 'static>(
     let result = blocking(state, f).await;
     notify_changed(app);
     result
+}
+
+#[tauri::command]
+pub async fn get_recovery_notices(state: State<'_, AppState>) -> ApiResult<Vec<String>> {
+    blocking(&state, |s| Ok(s.recovery())).await
 }
 
 #[tauri::command]
@@ -111,7 +116,7 @@ pub async fn import_live(
 
 #[tauri::command]
 pub async fn codex_accounts(state: State<'_, AppState>) -> ApiResult<Vec<AccountInfo>> {
-    blocking(&state, |s| Ok(s.codex_accounts())).await
+    blocking(&state, |s| s.codex_accounts()).await
 }
 
 #[tauri::command]
@@ -162,8 +167,17 @@ pub async fn codex_remove_account(
 }
 
 #[tauri::command]
-pub async fn codex_logins(state: State<'_, AppState>) -> ApiResult<Vec<LoginSummary>> {
-    blocking(&state, |s| s.codex_logins()).await
+pub async fn codex_logins(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> ApiResult<Vec<LoginSummary>> {
+    let before = state.0.recovery().len();
+    let result = blocking(&state, |s| s.codex_logins()).await;
+    // 登录查询本身可能补完之前的写入；提示查询可能已先返回，需要再刷新一次。
+    if state.0.recovery().len() != before {
+        notify_changed(&app);
+    }
+    result
 }
 
 #[tauri::command]
@@ -207,7 +221,7 @@ pub async fn save_settings(
         };
         if let Err(err) = applied {
             log::warn!("autostart: {err}");
-            return Err(ApiError(format!("autostart: {err}")));
+            return Err(ApiError::message(format!("autostart: {err}")));
         }
     }
     Ok(result)
@@ -239,7 +253,7 @@ pub async fn ccswitch_export_load(
     request: tauri::ipc::Request<'_>,
 ) -> ApiResult<ccswitch_export::Preview> {
     let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
-        return Err(ApiError(
+        return Err(ApiError::message(
             "expected the file bytes as the request body".into(),
         ));
     };
@@ -282,10 +296,10 @@ pub fn ccswitch_export_discard(state: State<'_, AppState>) {
 #[tauri::command]
 pub async fn open_url(app: AppHandle, url: String) -> ApiResult<()> {
     if !url.starts_with("https://") {
-        return Err(ApiError("only https URLs can be opened".into()));
+        return Err(ApiError::message("only https URLs can be opened".into()));
     }
     use tauri_plugin_opener::OpenerExt;
     app.opener()
         .open_url(url, None::<&str>)
-        .map_err(|e| ApiError(e.to_string()))
+        .map_err(|e| ApiError::message(e.to_string()))
 }
