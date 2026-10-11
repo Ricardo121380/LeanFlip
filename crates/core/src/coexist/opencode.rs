@@ -164,10 +164,17 @@ pub(crate) fn validate(provider: &Provider) -> Result<(), AppError> {
             if !fragment.is_object()
                 || (fragment.get("npm").is_none() && fragment.get("options").is_none())
             {
-                return Err(AppError::InvalidInput(format!(
-                    "OpenCode 供应商 {} 的配置必须是含 npm 或 options 的对象",
-                    provider.id
-                )));
+                return Err(AppError::localized(
+                    "provider.opencode.invalid",
+                    format!(
+                        "OpenCode 供应商 {} 的配置必须是含 npm 或 options 的对象",
+                        provider.id
+                    ),
+                    format!(
+                        "OpenCode provider {} must be an object with npm or options",
+                        provider.id
+                    ),
+                ));
             }
             Ok(())
         }

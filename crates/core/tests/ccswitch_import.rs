@@ -89,9 +89,21 @@ fn imports_from_the_database_read_only_with_skip_rules() {
             .skip_reason
             .clone()
     };
-    assert!(reason("openai-ish").unwrap().contains("openai_chat"));
-    assert!(reason("copilot").unwrap().contains("github_copilot"));
-    assert!(reason("h").unwrap().contains("已有"));
+    let openai = reason("openai-ish").unwrap();
+    assert_eq!(openai.code, "routing");
+    assert!(openai.zh.contains("openai_chat") && openai.zh.contains("本地路由"));
+    assert!(openai.en.contains("openai_chat") && openai.en.contains("local routing"));
+    let copilot = reason("copilot").unwrap();
+    assert!(copilot.zh.contains("github_copilot") && copilot.en.contains("github_copilot"));
+    let dup = reason("h").unwrap();
+    assert_eq!(dup.code, "duplicate");
+    assert!(dup.zh.contains("已有"));
+    assert!(dup.en.contains("already exists"));
+    for c in &scan.candidates {
+        if let Some(r) = &c.skip_reason {
+            assert!(r.en.is_ascii(), "English reason has no Chinese: {}", r.en);
+        }
+    }
     assert_eq!(reason("relay"), None);
 
     let report = ccswitch_import::apply(&sb.env, &dir, &Tool::ALL, None).unwrap();

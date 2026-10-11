@@ -63,8 +63,10 @@ pub(crate) fn validate(id: &str, config: &Value) -> Result<(), AppError> {
             .chars()
             .any(|c| !c.is_ascii_alphanumeric() && !matches!(c, '-' | '_'))
     {
-        return Err(AppError::InvalidInput(
-            "MCode 供应商的键只能包含字母、数字、- 和 _".into(),
+        return Err(AppError::localized(
+            "provider.mcode.invalid_key",
+            "MCode 供应商的键只能包含字母、数字、- 和 _",
+            "MCode provider keys may only contain letters, digits, - and _",
         ));
     }
     if !matches!(
@@ -73,15 +75,21 @@ pub(crate) fn validate(id: &str, config: &Value) -> Result<(), AppError> {
             .map_or(Some("anthropic-messages"), Value::as_str),
         Some("anthropic-messages" | "openai-completions" | "openai-responses")
     ) {
-        return Err(AppError::InvalidInput("MCode 不支持这个 API 格式".into()));
+        return Err(AppError::localized(
+            "provider.mcode.api_unsupported",
+            "MCode 不支持这个 API 格式",
+            "MCode does not support this API format",
+        ));
     }
     let base_url = config
         .pointer("/options/baseURL")
         .and_then(Value::as_str)
         .unwrap_or_default();
     if !valid_http_url(base_url) {
-        return Err(AppError::InvalidInput(
-            "MCode 的接口地址不是合法的 http(s) URL".into(),
+        return Err(AppError::localized(
+            "provider.mcode.invalid_url",
+            "MCode 的接口地址不是合法的 http(s) URL",
+            "The MCode base URL is not a valid http(s) URL",
         ));
     }
     if config
@@ -89,15 +97,21 @@ pub(crate) fn validate(id: &str, config: &Value) -> Result<(), AppError> {
         .and_then(Value::as_str)
         .is_none_or(|key| key.trim().is_empty())
     {
-        return Err(AppError::InvalidInput("MCode 供应商缺少 API Key".into()));
+        return Err(AppError::localized(
+            "provider.mcode.missing_key",
+            "MCode 供应商缺少 API Key",
+            "The MCode provider is missing an API key",
+        ));
     }
     if config
         .get("models")
         .and_then(Value::as_object)
         .is_none_or(|models| models.is_empty() || models.keys().any(|id| id.trim().is_empty()))
     {
-        return Err(AppError::InvalidInput(
-            "MCode 供应商至少要有一个模型".into(),
+        return Err(AppError::localized(
+            "provider.mcode.no_models",
+            "MCode 供应商至少要有一个模型",
+            "An MCode provider needs at least one model",
         ));
     }
     Ok(())

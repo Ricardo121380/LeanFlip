@@ -31,10 +31,17 @@ pub(crate) fn validate(provider: &Provider) -> Result<(), AppError> {
             .iter()
             .any(|key| settings.get(*key).is_some())
     {
-        return Err(AppError::InvalidInput(format!(
-            "OpenClaw 供应商 {} 的配置必须是含 baseUrl、api 或 models 的对象",
-            provider.id
-        )));
+        return Err(AppError::localized(
+            "provider.openclaw.invalid",
+            format!(
+                "OpenClaw 供应商 {} 的配置必须是含 baseUrl、api 或 models 的对象",
+                provider.id
+            ),
+            format!(
+                "OpenClaw provider {} must be an object with baseUrl, api or models",
+                provider.id
+            ),
+        ));
     }
     Ok(())
 }

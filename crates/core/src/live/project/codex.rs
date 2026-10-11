@@ -128,13 +128,18 @@ fn config_error(zh: impl Into<String>, en: impl Into<String>) -> AppError {
 
 impl CodexProjection {
     pub fn of(input: &RowInput<'_>) -> Result<Self, AppError> {
-        let settings = input
-            .settings
-            .as_object()
-            .ok_or_else(|| AppError::Config("Codex 供应商配置必须是 JSON 对象".to_string()))?;
+        let settings = input.settings.as_object().ok_or_else(|| {
+            AppError::localized(
+                "provider.codex.not_object",
+                "Codex 供应商配置必须是 JSON 对象",
+                "The Codex provider config must be a JSON object",
+            )
+        })?;
         if !settings.contains_key("auth") {
-            return Err(AppError::Config(
-                "Codex 供应商配置缺少 'auth' 字段".to_string(),
+            return Err(AppError::localized(
+                "provider.codex.missing_auth",
+                "Codex 供应商配置缺少 'auth' 字段",
+                "The Codex provider config is missing the 'auth' field",
             ));
         }
         let config_text = settings.get("config").and_then(Value::as_str).unwrap_or("");

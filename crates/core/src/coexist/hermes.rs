@@ -49,8 +49,10 @@ pub(crate) fn entries(text: &str) -> Result<Map<String, Value>, AppError> {
 
 pub(crate) fn validate(provider: &Provider) -> Result<(), AppError> {
     if provider.id.trim().is_empty() || !provider.settings_config.is_object() {
-        return Err(AppError::InvalidInput(
-            "Hermes 供应商需要非空的名字，配置必须是对象".into(),
+        return Err(AppError::localized(
+            "provider.hermes.invalid",
+            "Hermes 供应商需要非空的名字，配置必须是对象",
+            "A Hermes provider needs a non-empty name and an object config",
         ));
     }
     Ok(())

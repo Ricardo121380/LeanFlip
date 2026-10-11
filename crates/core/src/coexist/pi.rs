@@ -35,10 +35,18 @@ pub(crate) fn entries(path: &Path, text: &str) -> Result<Map<String, Value>, App
 
 pub(crate) fn validate(provider: &Provider) -> Result<(), AppError> {
     if provider.id.trim().is_empty() {
-        return Err(AppError::InvalidInput("Pi 供应商的键不能为空".into()));
+        return Err(AppError::localized(
+            "provider.pi.empty_key",
+            "Pi 供应商的键不能为空",
+            "The Pi provider key must not be empty",
+        ));
     }
     if !provider.settings_config.is_object() {
-        return Err(AppError::InvalidInput("Pi 供应商配置必须是对象".into()));
+        return Err(AppError::localized(
+            "provider.pi.not_object",
+            "Pi 供应商配置必须是对象",
+            "The Pi provider config must be an object",
+        ));
     }
     Ok(())
 }

@@ -69,11 +69,22 @@ pub struct Reason {
 }
 
 impl Reason {
-    fn new(code: &'static str, zh: impl Into<String>, en: impl Into<String>) -> Self {
+    pub fn new(code: &'static str, zh: impl Into<String>, en: impl Into<String>) -> Self {
         Self {
             code,
             zh: zh.into(),
             en: en.into(),
+        }
+    }
+
+    /// 把错误转成双语说明：本地化错误各取各的语言，其他错误两边同一句。
+    pub fn from_error(code: &'static str, err: AppError) -> Self {
+        match err {
+            AppError::Localized { zh, en, .. } => Self::new(code, zh, en),
+            other => {
+                let text = other.to_string();
+                Self::new(code, text.clone(), text)
+            }
         }
     }
 }
@@ -337,11 +348,7 @@ fn classify(data: &StoreData, row: &RawRow) -> Result<(Tool, Provider, Vec<Reaso
         }
     }
     if let Err(err) = crate::switch::preflight(data, tool, &provider) {
-        let (zh, en) = match err {
-            AppError::Localized { zh, en, .. } => (zh, en),
-            other => (other.to_string(), other.to_string()),
-        };
-        return Err(Reason::new("unsupported_config", zh, en));
+        return Err(Reason::from_error("unsupported_config", err));
     }
     let mut notes = Vec::new();
     if let Some(account) = provider

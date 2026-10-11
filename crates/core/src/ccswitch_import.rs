@@ -14,6 +14,7 @@ use std::str::FromStr;
 use serde::Serialize;
 use serde_json::{Map, Value};
 
+use crate::ccswitch_export::Reason;
 use crate::codex::oauth::CodexOAuthManager;
 use crate::env::Env;
 use crate::error::AppError;
@@ -34,8 +35,8 @@ pub fn default_dir(env: &Env) -> PathBuf {
 pub struct Candidate {
     pub tool: Tool,
     pub provider: Provider,
-    /// 有值表示不会导入（原因）。
-    pub skip_reason: Option<String>,
+    /// 有值表示不会导入（中英双语原因）。
+    pub skip_reason: Option<Reason>,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -51,7 +52,7 @@ pub struct Scan {
 pub struct Report {
     /// (工具, id)
     pub created: Vec<(Tool, String)>,
-    pub skipped: Vec<(Tool, String, String)>,
+    pub skipped: Vec<(Tool, String, Reason)>,
     pub accounts_added: Vec<String>,
 }
 
@@ -108,7 +109,7 @@ pub fn apply(
             // 扫描之后库可能变了：再查一次重复。
             let reason = candidate.skip_reason.or_else(|| {
                 data.provider(candidate.tool, &id)
-                    .map(|_| "已有同 id 的卡".to_string())
+                    .map(|_| duplicate_reason())
             });
             if let Some(reason) = reason {
                 report.skipped.push((candidate.tool, id, reason));
@@ -127,9 +128,17 @@ pub fn apply(
     Ok(report)
 }
 
-fn skip_reason(data: &store::StoreData, tool: Tool, provider: &Provider) -> Option<String> {
+fn duplicate_reason() -> Reason {
+    Reason::new(
+        "duplicate",
+        "已有同 id 的卡",
+        "A card with this id already exists",
+    )
+}
+
+fn skip_reason(data: &store::StoreData, tool: Tool, provider: &Provider) -> Option<Reason> {
     if data.provider(tool, &provider.id).is_some() {
-        return Some("已有同 id 的卡".into());
+        return Some(duplicate_reason());
     }
     // cc-switch 把这些放在 meta 里；手改过的旧版 config.json 也可能放在顶层。
     let meta = |key: &str| {
@@ -141,15 +150,23 @@ fn skip_reason(data: &store::StoreData, tool: Tool, provider: &Provider) -> Opti
             .and_then(Value::as_str)
     };
     if let Some(kind @ ("github_copilot" | "codex_oauth" | "xai_oauth")) = meta("providerType") {
-        return Some(format!("需要本地路由（{kind}）"));
+        return Some(Reason::new(
+            "routing",
+            format!("需要本地路由（{kind}）"),
+            format!("Needs local routing ({kind})"),
+        ));
     }
     if matches!(tool, Tool::Claude | Tool::ClaudeDesktop) {
         if let Some(format) = meta("apiFormat").filter(|f| !f.is_empty() && *f != "anthropic") {
-            return Some(format!("需要本地路由（{format} 格式转换）"));
+            return Some(Reason::new(
+                "routing",
+                format!("需要本地路由（{format} 格式转换）"),
+                format!("Needs local routing ({format} format conversion)"),
+            ));
         }
     }
     if let Err(err) = crate::switch::preflight(data, tool, provider) {
-        return Some(err.to_string());
+        return Some(Reason::from_error("unsupported_config", err));
     }
     None
 }

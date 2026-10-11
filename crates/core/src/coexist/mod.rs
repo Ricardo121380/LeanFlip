@@ -76,7 +76,11 @@ fn ensure_coexist(tool: Tool) -> Result<(), AppError> {
     if tool.is_coexist() {
         Ok(())
     } else {
-        Err(AppError::InvalidInput(format!("{tool} 不是并存式工具")))
+        Err(AppError::localized(
+            "tool.not_coexist",
+            format!("{tool} 不是并存式工具"),
+            format!("{tool} is not a coexisting tool"),
+        ))
     }
 }
 
@@ -387,6 +391,30 @@ mod tests {
     use crate::switch::recover_on_startup;
     use serde_json::json;
     use std::fs;
+
+    #[test]
+    fn validation_errors_are_bilingual() {
+        let bad = [
+            (Tool::Mcode, Provider::new("bad key!", "x", json!({}))),
+            (Tool::Mcode, Provider::new("k", "x", json!({"api": "nope"}))),
+            (Tool::Pi, Provider::new("p", "x", json!([]))),
+            (Tool::OpenClaw, Provider::new("o", "x", json!({"x": 1}))),
+            (Tool::Hermes, Provider::new("h", "x", json!(1))),
+        ];
+        for (tool, provider) in bad {
+            match validate(tool, &provider) {
+                Err(AppError::Localized { zh, en, .. }) => {
+                    assert!(!zh.is_ascii(), "{tool}: {zh}");
+                    assert!(en.is_ascii(), "{tool}: {en}");
+                }
+                other => panic!("{tool}: expected a localized error, got {other:?}"),
+            }
+        }
+        assert!(matches!(
+            validate(Tool::Claude, &Provider::new("c", "x", json!({}))),
+            Err(AppError::Localized { .. })
+        ));
+    }
 
     fn sandbox() -> (tempfile::TempDir, Env) {
         let dir = tempfile::tempdir().unwrap();
