@@ -68,7 +68,7 @@ export function ToolPage({ tool }: { tool: ToolId }) {
   );
 
   if (isLoading) return <QueryState state="loading" title={t("tool.loading", { tool: meta.label })} />;
-  if (error || !data)
+  if (!data)
     return <QueryState state="error" title={t("tool.loadError", { tool: meta.label })} description={error ? errorMessage(error) : t("tool.noData")} onRetry={() => void refetch()} />;
 
   const coexist = data.kind === "coexist";
@@ -120,6 +120,18 @@ export function ToolPage({ tool }: { tool: ToolId }) {
         </div>
         {data.providers.length > 0 && <div className="flex flex-wrap gap-2">{importButton}{addButton}</div>}
       </header>
+
+      {error && (
+        <div role="alert" className="flex min-w-0 items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          <div className="min-w-0 flex-1">
+            <p className="font-medium">{t("tool.refreshError")}</p>
+            <p className="mt-1 text-xs leading-relaxed">{t("tool.refreshErrorHint")}</p>
+            <p className="mt-1 break-words text-xs leading-relaxed [overflow-wrap:anywhere]">{errorMessage(error)}</p>
+            <Button variant="outline" size="sm" className="mt-2 border-amber-300" onClick={() => void refetch()}>{t("common.retry")}</Button>
+          </div>
+        </div>
+      )}
 
       <div className="flex min-w-0 flex-col gap-3 rounded-lg bg-muted/60 px-4 py-3">
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm" aria-live="polite">

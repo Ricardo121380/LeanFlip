@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fakeBackend, renderWithClient, type Handler } from "@/test/utils";
 import type { ToolProviders } from "@/lib/api";
 
@@ -140,6 +141,54 @@ describe("ToolPage task states", () => {
     await user.click(screen.getByRole("button", { name: "重试" }));
     expect(await screen.findByTestId("card-official")).toBeInTheDocument();
     expect(attempts).toBe(2);
+  });
+
+  it("preserves the open editor draft across background refresh failure and retry", async () => {
+    const user = userEvent.setup();
+    let attempts = 0;
+    use({ list_providers: () => {
+      attempts++;
+      if (attempts === 2) throw new Error("temporary read failure");
+      return providers;
+    } });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={client}><ToolPage tool="claude" /></QueryClientProvider>);
+    await user.click(await screen.findByRole("button", { name: "编辑 Relay" }));
+    const name = await screen.findByLabelText("名称");
+    await user.clear(name);
+    await user.type(name, "Unsaved draft");
+
+    await act(async () => { await client.refetchQueries({ queryKey: ["providers", "claude"] }); });
+    expect(await screen.findByText("无法刷新供应商列表")).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByLabelText("名称")).toBe(name);
+    expect(name).toHaveValue("Unsaved draft");
+
+    await act(async () => { await client.refetchQueries({ queryKey: ["providers", "claude"] }); });
+    await waitFor(() => expect(screen.queryByText("无法刷新供应商列表")).not.toBeInTheDocument());
+    expect(screen.getByLabelText("名称")).toBe(name);
+    expect(name).toHaveValue("Unsaved draft");
+    expect(attempts).toBe(3);
+  });
+
+  it("keeps cached cards visible and retries a failed background refresh in place", async () => {
+    const user = userEvent.setup();
+    let attempts = 0;
+    use({ list_providers: () => {
+      attempts++;
+      if (attempts === 2) throw new Error("temporary read failure");
+      return providers;
+    } });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={client}><ToolPage tool="claude" /></QueryClientProvider>);
+    const card = await screen.findByTestId("card-backup-relay");
+    await act(async () => { await client.refetchQueries({ queryKey: ["providers", "claude"] }); });
+    expect(await screen.findByText("无法刷新供应商列表")).toBeInTheDocument();
+    expect(screen.getByTestId("card-backup-relay")).toBe(card);
+    await user.click(screen.getByRole("button", { name: "重试" }));
+    await waitFor(() => expect(screen.queryByText("无法刷新供应商列表")).not.toBeInTheDocument());
+    expect(screen.getByTestId("card-backup-relay")).toBe(card);
+    expect(attempts).toBe(3);
   });
 
   it("counts enabled saved cards without including unimported client entries", async () => {

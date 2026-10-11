@@ -21,6 +21,8 @@ const zh = {
     inLiveCount: "{{count}} 个已写入",
     loading: "正在读取 {{tool}} 配置…",
     loadError: "无法加载 {{tool}} 供应商",
+    refreshError: "无法刷新供应商列表",
+    refreshErrorHint: "仍显示上次读取的数据，正在编辑的内容会保留。",
     noData: "未收到配置数据，请重试。",
     stateUnknown: "配置读取失败，当前状态待确认",
     currentConfig: "当前选择",
