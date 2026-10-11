@@ -145,8 +145,9 @@ pub fn matched_help(command: &clap::Command, matches: Option<&clap::ArgMatches>)
 
 fn localize_help(command: &mut clap::Command, path: &str, lang: Language) {
     let (zh, examples) = match path {
-        "" => ("管理 AI 编程工具的供应商配置和 Codex 账号", "ccsl menu\n  ccsl status\n  ccsl list codex\n  ccsl use codex <provider-id>\n  ccsl enable opencode <provider-id>\n  ccsl status --json\n  ccsl --lang en --help"),
+        "" => ("管理 AI 编程工具的供应商配置和 Codex 账号", "ccsl tui\n  ccsl menu\n  ccsl status\n  ccsl list codex\n  ccsl use codex <provider-id>\n  ccsl enable opencode <provider-id>\n  ccsl status --json\n  ccsl --lang en --help"),
         "menu" => ("交互菜单：搜索并选择工具、供应商，回车执行", "ccsl menu\n  ccsl menu codex\n  ccsl menu --lang en"),
+        "tui" => ("全屏终端工作台：浏览工具、搜索供应商、确认切换和查看路径", "ccsl tui\n  ccsl tui codex\n  ccsl tui --lang en\n  ccsl --home /tmp/ccsl-demo tui"),
         "status" => ("查看各工具已保存的选择及配置检测状态", "ccsl status\n  ccsl status --json"),
         "list" => ("列出供应商及当前状态，隐藏配置内容和凭据", "ccsl list codex\n  ccsl list opencode --json"),
         "use" => ("切换供应商；仅适用于切换式工具", "ccsl list codex\n  ccsl use codex <provider-id>"),
@@ -243,8 +244,9 @@ pub fn reason(code: &str, lang: Language) -> &str {
 pub fn error(code: &str, fallback: &str, lang: Language) -> String {
     let zh = match code {
         "invalid_arguments" => "命令参数不正确。运行 ccsl --help，或 ccsl <command> --help 查看用法。",
-        "interactive_terminal" => "交互菜单需要真实终端，不能与管道或 --json 一起使用。运行 ccsl --help 查看命令用法。",
+        "interactive_terminal" => "交互界面需要真实终端，不能与管道或 --json 一起使用。运行 ccsl --help 查看命令用法。",
         "terminal_io" => "交互终端无法读写，请重新打开终端，或用 ccsl --help 中的普通命令继续操作。",
+        "interrupted" => "已中断。",
         "invalid_tool_mode" => "命令与工具模式不匹配。切换式工具使用 use；并存式工具使用 enable / disable。",
         "invalid_provider_json" => "卡片 JSON 无效。请检查 id、name、settingsConfig 字段；输入原文已隐藏。",
         "invalid_input" => "输入或当前操作不适用。请核对卡片 JSON；删除当前卡片前需先切换供应商。",

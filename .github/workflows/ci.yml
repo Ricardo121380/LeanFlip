@@ -35,6 +35,8 @@ jobs:
           test ! -e "$RUNNER_TEMP/ccsl-smoke"
       - name: Check interactive menu in a pseudo-terminal
         run: python3 scripts/check-cli-menu.py --binary target/release/ccsl
+      - name: Check full-screen TUI in a pseudo-terminal
+        run: python3 scripts/check-cli-tui.py --binary target/release/ccsl
       - name: Archive binary with executable permissions
         run: tar -C target/release -czf ccsl-${{ matrix.os }}-${{ runner.arch }}.tar.gz ccsl
       - uses: actions/upload-artifact@v4

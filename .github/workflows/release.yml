@@ -76,6 +76,7 @@ jobs:
           target/release/ccsl --home "$RUNNER_TEMP/ccsl-release-smoke" status --json
           test ! -e "$RUNNER_TEMP/ccsl-release-smoke"
           python3 scripts/check-cli-menu.py --binary target/release/ccsl
+          python3 scripts/check-cli-tui.py --binary target/release/ccsl
       - name: Build optimized desktop packages
         run: pnpm tauri build --ci --bundles ${{ matrix.bundle }} -- --locked
       - name: Assemble release assets

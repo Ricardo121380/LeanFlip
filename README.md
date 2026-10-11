@@ -30,6 +30,7 @@ CC Switch Lite 将供应商保存为本地卡片，按需写入 Claude Code、Co
 | --- | --- |
 | 第一次配置，希望从预设填写地址、密钥和模型 | 桌面 App |
 | 希望用方向键选择工具、搜索供应商、回车执行 | CLI 交互菜单：`ccsl` |
+| 希望在全屏终端中浏览工具、供应商和详情 | [TUI 工作台](#全屏-tui-工作台)：源码构建后运行 `ccsl tui` |
 | 通过 SSH 使用，或在没有桌面环境的机器上管理配置 | 独立 CLI |
 | 在脚本中查询状态或切换供应商 | CLI 命令模式，配合 `--json` |
 | 从本机 cc-switch 数据目录迁移卡片及托管账号 | App 的“从 cc-switch 导入” |
@@ -264,6 +265,38 @@ ccsl menu codex           # 在菜单中选择供应商
 
 ## CLI 使用指南
 
+### 全屏 TUI 工作台
+
+源码新增 `ccsl tui`，可在一个全屏界面中浏览工具、搜索供应商、查看状态与配置路径，并确认切换、启用/停用或导入。**当前已发布的 v0.1.0 安装包尚未包含 TUI**，包括 Homebrew 和已准备的 npm 安装器；体验此功能请在源码目录构建：
+
+```sh
+cargo build -p ccsl-cli --release --locked
+./target/release/ccsl tui
+./target/release/ccsl tui codex            # 直接选中 Codex
+./target/release/ccsl tui --lang en       # 英文界面
+```
+
+宽窗口显示工具、供应商和详情三栏；普通窗口显示两栏，窄窗口按焦点显示单栏。用 `p` 可随时打开完整详情和路径，长内容支持滚动。终端小于 44 列、12 行时会提示扩大窗口，并暂停操作键。
+
+| 按键 | 效果 |
+| --- | --- |
+| `Tab` / `←` / `→` | 切换工具与供应商区域 |
+| `↑` / `↓` 或 `j` / `k` | 移动选择 |
+| `Enter` | 选择工具，或预览所选供应商的操作 |
+| `/` | 按名称或 ID 搜索；`Enter` 完成输入，`Esc` 清除 |
+| `i` | 预览从当前客户端配置导入卡片 |
+| `r` | 重新读取最新状态，保留仍存在的选择 |
+| `p` / `d` | 完整详情与配置路径 |
+| `?` / `F1` | 快捷键帮助 |
+| `Esc` | 清除筛选、返回工具列表或关闭面板 |
+| `q` / `Ctrl+C` | 退出；弹窗中的 `q` 先关闭弹窗 |
+
+写入确认默认选择“取消”；按 `Tab` 选择确认后回车，或按 `y` / `Y` 执行。确认期间卡片或可见状态变化时会要求重新确认。并存工具的客户端配置无法读取时，TUI 显示“状态未知”并阻止启用/停用。
+
+浏览、搜索、刷新和退出不会写配置，也不会显示密钥或令牌。TUI 与 App、CLI 共用目录覆盖和写入保护，支持 `--home` 隔离运行；刷新使用 `r`，不会自动监控文件。正在执行的写入会先完成再响应中断。卡片 JSON 编辑、文件导入及账号登录仍使用下面的普通命令或 App。
+
+TUI 与交互菜单一样需要真实终端，不支持管道或 `--json`。直接运行 `ccsl` 仍打开原有菜单。
+
 ### 交互菜单
 
 ```sh
@@ -354,7 +387,7 @@ ccsl paths --json
 | `0` | 操作成功，或正常显示帮助 |
 | `1` | 读取、写入、网络等执行失败 |
 | `2` | 参数、输入或操作前置条件不正确，例如工具模式不匹配、试图删除当前卡片 |
-| `130` | 交互菜单被 `Ctrl+C` 中断 |
+| `130` | 交互菜单或 TUI 被 `Ctrl+C` 中断 |
 
 `--lang` 只改变人读输出和帮助，不改变 JSON 字段、英文错误消息或退出码。列表与状态输出不包含供应商配置原文或登录令牌。并存式工具读取失败时，`enabled` / `inLive` 可能为 `null`，应按“未知”处理。
 
@@ -667,9 +700,10 @@ cargo test --workspace --locked
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test -p ccsl-cli --locked
 python3 scripts/check-cli-menu.py --binary target/release/ccsl
+python3 scripts/check-cli-tui.py --binary target/release/ccsl
 ```
 
-测试及交互菜单检查使用临时 HOME。菜单脚本面向 macOS / Linux，需要 Python 3，并需先构建 CLI。
+测试、菜单和 TUI 检查使用临时 HOME。终端脚本面向 macOS / Linux，仅需 Python 3 标准库，并需先构建 CLI；TUI 还覆盖缩放、中断后的终端恢复及只读浏览。
 
 - [检查工作流](.github/workflows/ci.yml)：主分支 push 和 PR 时运行类型检查、前端测试、Rust 测试、Clippy，以及 Linux / macOS 桌面打包验证；CLI 单独构建、检查并上传压缩包。
 - [发布工作流](.github/workflows/release.yml)：版本标签触发正式 App / CLI 构建，校验版本与架构，生成 SHA256 文件并创建草稿 Release，再确认发布。包含分发工作流的后续版本还会生成 npm 安装器附件；不自动发布 npm 官方仓库。
@@ -691,7 +725,7 @@ pnpm presets /absolute/path/to/cc-switch
 | [`crates/core`](crates/core) | 配置投影与写入、供应商库、首次写入备份、中断恢复、导入和 Codex OAuth；无 Tauri 依赖 |
 | [`crates/service`](crates/service) | App / CLI 共用业务层、设置、路径覆盖、脱敏及 OAuth HTTP 实现 |
 | [`crates/app`](crates/app) | Tauri 2 桌面外壳、托盘、文件监听及后台账号刷新 |
-| [`crates/cli`](crates/cli) | 独立命令行 `ccsl` 及交互菜单 |
+| [`crates/cli`](crates/cli) | 独立命令行 `ccsl`、交互菜单及全屏 TUI |
 | [`ui`](ui) | React、TypeScript、Vite、TanStack Query 前端及中英文界面 |
 | [`scripts`](scripts) | 预设生成、CLI 伪终端检查及分发元数据生成脚本 |
 | [`Casks`](Casks) | Homebrew 原生 CLI 与 macOS 桌面 App 的二进制 Cask |

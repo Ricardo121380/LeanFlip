@@ -12,7 +12,7 @@ use crate::args::{Cli, Command, Import, Language};
 use crate::presentation::{clean, error};
 use crate::{open_service, run, CliError};
 
-fn terminal_error() -> CliError {
+pub(super) fn terminal_error() -> CliError {
     CliError { code: "terminal_io".into(), message: "Cannot use the interactive terminal. Reopen your terminal or use the non-interactive commands.", exit: 1 }
 }
 
@@ -23,7 +23,7 @@ pub fn can_interact() -> bool {
         && std::env::var("TERM").as_deref() != Ok("dumb")
 }
 
-fn name(tool: Tool) -> &'static str {
+pub(super) fn name(tool: Tool) -> &'static str {
     match tool {
         Tool::Claude => "Claude Code",
         Tool::Codex => "Codex",

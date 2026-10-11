@@ -1,6 +1,7 @@
 mod args;
 mod menu;
 mod presentation;
+mod tui;
 
 use std::fs::File;
 use std::io::{self, Read, Write};
@@ -327,7 +328,9 @@ fn run(cli: Cli) -> Result<Output, CliError> {
     }
     let service = open_service(cli.home.as_deref())?;
     let result: Result<Output, CliError> = match cli.command {
-        Command::Menu { .. } => unreachable!("menus are dispatched before commands"),
+        Command::Menu { .. } | Command::Tui { .. } => {
+            unreachable!("interactive interfaces are dispatched before commands")
+        }
         Command::Status => {
             let tools = service.overview()?;
             let rows = tools
@@ -833,7 +836,7 @@ fn main() -> ExitCode {
 }
 
 fn execute(cli: Cli) -> ExitCode {
-    if let Command::Menu { tool } = &cli.command {
+    if let Command::Menu { tool } | Command::Tui { tool } = &cli.command {
         if cli.json {
             return error_output(
                 CliError::input(
@@ -844,7 +847,12 @@ fn execute(cli: Cli) -> ExitCode {
                 cli.lang,
             );
         }
-        return match menu::start(cli.home.as_deref(), cli.lang, tool.map(Tool::from)) {
+        let result = if matches!(cli.command, Command::Tui { .. }) {
+            tui::start(cli.home.as_deref(), cli.lang, tool.map(Tool::from))
+        } else {
+            menu::start(cli.home.as_deref(), cli.lang, tool.map(Tool::from))
+        };
+        return match result {
             Ok(()) => ExitCode::SUCCESS,
             Err(error) => error_output(error, false, cli.lang),
         };

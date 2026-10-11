@@ -28,6 +28,8 @@ pub enum Command {
     /// Open a searchable menu; optionally start with a specific tool.
     #[command(alias = "ui")]
     Menu { tool: Option<ToolArg> },
+    /// Open the full-screen terminal workspace; optionally select a tool.
+    Tui { tool: Option<ToolArg> },
     /// Show stored selection and detected configuration paths for all tools.
     Status,
     /// List providers without exposing their configuration or credentials.

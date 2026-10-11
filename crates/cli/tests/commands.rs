@@ -611,6 +611,8 @@ fn interactive_menu_requires_a_terminal_and_never_consumes_piped_input() {
         vec!["menu"],
         vec!["menu", "codex"],
         vec!["ui", "--lang", "en"],
+        vec!["tui"],
+        vec!["tui", "codex", "--lang", "en"],
     ] {
         let output = sb.run(&args);
         assert_eq!(output.status.code(), Some(2));
@@ -626,6 +628,12 @@ fn interactive_menu_requires_a_terminal_and_never_consumes_piped_input() {
     let error: Value = serde_json::from_slice(&output.stderr).unwrap();
     assert_eq!(error["error"]["code"], "invalid_arguments");
     assert!(snapshot(&sb.env.home).is_empty());
+    let output = sb.run(&["tui", "--json"]);
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
+    let error: Value = serde_json::from_slice(&output.stderr).unwrap();
+    assert_eq!(error["error"]["code"], "invalid_arguments");
+    assert!(snapshot(&sb.env.home).is_empty());
 }
 
 #[test]
@@ -633,6 +641,8 @@ fn interactive_help_is_bilingual_and_plain_no_argument_help_stays_noninteractive
     let sb = Sandbox::new();
     assert!(human(sb.run(&["menu", "--help"])).contains("交互菜单"));
     assert!(human(sb.run(&["menu", "--help", "--lang", "en"])).contains("searchable menu"));
+    assert!(human(sb.run(&["tui", "--help"])).contains("全屏终端工作台"));
+    assert!(human(sb.run(&["tui", "--help", "--lang", "en"])).contains("full-screen terminal"));
     assert!(human(sb.run(&[])).contains("快速入门"));
     assert!(snapshot(&sb.env.home).is_empty());
 }

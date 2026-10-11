@@ -10,6 +10,8 @@
 cargo build -p ccsl-cli --release
 ./target/release/ccsl
 ./target/release/ccsl menu codex
+./target/release/ccsl tui
+./target/release/ccsl tui codex
 ./target/release/ccsl status
 ./target/release/ccsl list codex
 ./target/release/ccsl paths codex
@@ -25,11 +27,23 @@ cargo build -p ccsl-cli --release
 
 `ccsl menu codex` 可直接进入指定工具，菜单同样支持 `--lang en` 和 `--home`。菜单会刷新当前选择与启用状态，不显示密钥或登录令牌。普通命令继续适用于脚本；输入/输出被重定向时，无命令的 `ccsl` 保持显示快速入门，显式 `menu` 则提示需要交互终端。`--json` 不进入菜单。
 
+## 全屏 TUI
+
+`ccsl tui [tool]` 是独立的全屏工作台，支持 `--lang en` 和 `--home`。当前已发布的 v0.1.0 二进制尚未包含此功能，请按上面的源码命令构建；直接运行 `ccsl` 的默认菜单保持不变。
+
+- `Tab` / `←` / `→` 切换工具与供应商区域，`↑` / `↓` 或 `j` / `k` 移动。
+- `/` 搜索名称或 ID，`Enter` 完成搜索；再次 `Enter` 预览操作。确认默认取消，`Tab` 后回车或 `y` / `Y` 才执行。
+- `i` 导入当前客户端配置；`r` 重新读取最新状态；`p` / `d` 查看完整详情与路径；`?` / `F1` 查看帮助。
+- `Esc` 清除筛选、返回或关闭面板；`q` 退出（弹窗中先关闭）；`Ctrl+C` 退出并恢复终端。正在执行的写入会先完成再响应中断。
+- 宽窗口三栏、普通窗口两栏、窄窗口单栏；面板长内容用 `↑↓` / `PgUp` / `PgDn` 滚动。小于 44×12 时暂停操作并提示扩大窗口。
+
+TUI 不显示配置内容或凭据；浏览不写入，状态需按 `r` 刷新。确认前重新读取卡片和状态，变化时拒绝执行旧确认；并存配置不可读时阻止启用/停用。卡片编辑、文件导入和账号登录使用普通命令。管道或 `--json` 不启动 TUI。
+
 `ccsl provider` 等未选择动作的命令组会显示对应帮助，不读取客户端配置。参数填写错误时，终端显示已识别命令的用法、示例和合法工具名，不回显输入原文。人读输出可配合 `head` 等管道工具使用：接收端提前关闭时安静退出，不把截断阅读视为操作失败。
 
 工具名：`claude`、`codex`、`gemini`、`grokbuild`、`claude-desktop`、`opencode`、`openclaw`、`hermes`、`pi`、`mcode`。后五种使用 `enable` / `disable`，其余使用 `use`。
 
-开发时运行 `cargo test -p ccsl-cli --locked`。macOS/Linux 还可使用 `python3 scripts/check-cli-menu.py --binary target/release/ccsl` 在真实伪终端中验证方向键、筛选、取消、写入及 Ctrl+C；该检查仅使用临时 HOME，不访问实际账号。
+开发时运行 `cargo test -p ccsl-cli --locked`。macOS/Linux 使用 `python3 scripts/check-cli-menu.py --binary target/release/ccsl` 和 `python3 scripts/check-cli-tui.py --binary target/release/ccsl` 在真实伪终端中验证选择、筛选、取消、写入及中断后的终端恢复；这些检查仅使用临时 HOME，不访问实际账号。
 
 `status` 显示保存在卡片库里的当前选择；它不证明客户端文件未经外部修改。`list` 的 `liveReadable` 为 `false` 时，`enabled` 状态不可用。查询及导入预览不写配置、不执行启动恢复；需要手动恢复中断写入时执行 `ccsl recover [tool]`。修改命令会先处理相应工具的中断写入。
 
