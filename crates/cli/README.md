@@ -10,7 +10,10 @@ cargo build -p ccsl-cli --release
 ./target/release/ccsl use codex provider-id
 ./target/release/ccsl enable opencode provider-id
 ./target/release/ccsl disable opencode provider-id
+./target/release/ccsl --lang en status
 ```
+
+终端界面默认中文，`--lang en` 切换英文，帮助与错误提示也随之切换。`ccsl --help` 和各子命令的 `--help` 包含可参照的示例。列表按工具模式显示「当前使用」或「已启用」，并给出下一步命令；空列表和无法读取的配置有单独提示。表格按 Unicode 显示宽度对齐，超出 `COLUMNS`（默认 100 列）时显示为字段列表，供应商与账号 ID 始终完整保留。
 
 工具名：`claude`、`codex`、`gemini`、`grokbuild`、`claude-desktop`、`opencode`、`openclaw`、`hermes`、`pi`、`mcode`。后五种使用 `enable` / `disable`，其余使用 `use`。
 
@@ -65,19 +68,20 @@ ccsl accounts remove account-id
 
 ## 脚本接口与隔离环境
 
-`--json` 和 `--home` 是全局参数，可写在子命令前后：
+`--json`、`--home` 和 `--lang` 是全局参数，可写在子命令前后：
 
 ```sh
 ccsl status --json
 ccsl --json list codex
 ccsl --home /absolute/path/to/test-home paths
+ccsl list codex --lang en
 ```
 
 默认使用 App 相同的系统路径、环境变量和 `app-settings.json` 目录覆盖。`--home` 使用指定根目录的默认布局，忽略 `CODEX_HOME` 等各工具环境变量，但仍应用该根目录下保存的 App 目录覆盖；需要完全隔离的测试环境时使用空目录。
 
-标准输出成功格式为 `{"ok":true,"data":...}`；错误只写标准错误，格式为 `{"ok":false,"error":{"code":"...","message":"..."}}`。退出码 `0` 表示成功，`2` 表示参数或输入错误，`1` 表示执行失败。错误 `code` 保留业务层稳定键；说明不会回显配置原文。设备登录在标准错误输出额外的 `device_login` JSON 事件，最终结果仍在标准输出。
+标准输出成功格式为 `{"ok":true,"data":...}`；错误只写标准错误，格式为 `{"ok":false,"error":{"code":"...","message":"..."}}`。退出码 `0` 表示成功，`2` 表示参数或输入错误，`1` 表示执行失败。错误 `code` 保留业务层稳定键；说明不会回显配置原文。`--lang` 只改变人读界面，不改变 JSON 字段、英文错误消息或退出码；脚本应使用 `--json`。设备登录在标准错误输出额外的 `device_login` JSON 事件，最终结果仍在标准输出。
 
-列表仅输出卡片身份、当前选择和启用状态，不输出 `settingsConfig`、扩展字段或 `meta`。导入预览仅输出原因代码；操作警告和恢复结果输出数量，避免解析错误或恢复信息中的配置内容泄漏。数量非零时，请通过 `paths` 定位并检查相关配置。
+列表仅输出卡片身份、当前选择和启用状态，不输出 `settingsConfig`、扩展字段或 `meta`。导入预览在终端显示固定的原因说明，JSON 保留原因代码；操作警告和恢复结果输出数量，避免解析错误或恢复信息中的配置内容泄漏。数量非零时，请通过 `paths` 定位并检查相关配置。
 
 切换式工具使用 `current` 表示库中选择，`enabled` / `inLive` / `liveReadable` 为 `null`；
 并存式工具配置读不出来时，启用状态也为 `null`，不会假报为全部关闭。

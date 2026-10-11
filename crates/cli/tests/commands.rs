@@ -70,6 +70,15 @@ fn success(output: Output) -> Value {
     body["data"].clone()
 }
 
+fn human(output: Output) -> String {
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8(output.stdout).unwrap()
+}
+
 fn snapshot(root: &Path) -> BTreeMap<PathBuf, Option<Vec<u8>>> {
     fn walk(root: &Path, out: &mut BTreeMap<PathBuf, Option<Vec<u8>>>) {
         for entry in fs::read_dir(root).unwrap() {
@@ -352,4 +361,122 @@ fn account_listing_is_readonly_and_account_updates_never_print_tokens() {
     let listed = sb.ok(&["accounts", "list", "--json"]);
     assert_eq!(listed["accounts"].as_array().unwrap().len(), 1);
     assert!(!listed.to_string().contains("private-"));
+}
+
+#[test]
+fn human_empty_states_provide_next_steps_in_both_languages_without_writes() {
+    let sb = Sandbox::new();
+    let zh = human(sb.run(&["list", "codex"]));
+    assert!(zh.contains("暂无供应商"));
+    assert!(zh.contains("ccsl import live codex"));
+    assert!(
+        zh.contains("--home"),
+        "follow-up hints must retain the selected environment"
+    );
+    let en = human(sb.run(&["list", "codex", "--lang", "en"]));
+    assert!(en.contains("No providers yet"));
+    assert!(en.contains("ccsl provider add codex --file provider.json"));
+    let accounts = human(sb.run(&["accounts", "list"]));
+    assert!(accounts.contains("暂无托管账号"));
+    assert!(accounts.contains("ccsl accounts login"));
+    let status = human(sb.run(&["status"]));
+    assert!(status.contains("工具概览") && status.contains("尚未选择"));
+    assert!(!status.contains("false") && !status.contains("null"));
+    assert!(snapshot(&sb.env.home).is_empty());
+}
+
+#[test]
+fn human_list_uses_tool_specific_state_and_keeps_full_identifiers() {
+    let sb = Sandbox::new();
+    let id = "provider-with-a-long-stable-id-that-must-remain-copyable";
+    store::add_provider(
+        &sb.env,
+        Tool::Claude,
+        Provider::new(id, "中文供应商", json!({"env": {}})),
+    )
+    .unwrap();
+    let narrow = human(
+        sb.command(&["list", "claude"])
+            .env("COLUMNS", "40")
+            .output()
+            .unwrap(),
+    );
+    assert!(narrow.contains(id));
+    assert!(narrow.contains("中文供应商"));
+    assert!(narrow.contains("未选中"));
+    assert!(!narrow.contains("null") && !narrow.contains("false"));
+    assert!(narrow.contains("ccsl use claude"));
+    store::add_provider(
+        &sb.env,
+        Tool::OpenCode,
+        Provider::new(
+            "p",
+            "并存卡片",
+            json!({"npm":"@ai-sdk/openai-compatible","options":{},"models":{}}),
+        ),
+    )
+    .unwrap();
+    sb.write(&sb.env.opencode_config_path(), b"{secret-config-parser");
+    let unreadable = human(sb.run(&["list", "opencode"]));
+    assert!(unreadable.contains("无法读取"));
+    assert!(unreadable.contains("ccsl paths opencode"));
+    assert!(!unreadable.contains("secret-config-parser"));
+}
+
+#[test]
+fn help_is_localized_and_includes_actionable_examples_without_loading_config() {
+    let sb = Sandbox::new();
+    sb.write(&sb.env.store_path(), b"invalid-secret-provider-store");
+    let before = snapshot(&sb.env.home);
+    let zh = human(sb.run(&["--help"]));
+    assert!(zh.contains("用法：") && zh.contains("示例："));
+    assert!(zh.contains("ccsl list codex") && zh.contains("--lang"));
+    assert!(!zh.contains("Options:") && !zh.contains("Print help"));
+    let en = human(sb.run(&["--lang", "en", "import", "file", "--help"]));
+    assert!(en.contains("Examples:"));
+    assert!(en.contains("--apply --tool codex"));
+    let zh_sub = human(sb.run(&["import", "file", "--lang=zh", "--help"]));
+    assert!(zh_sub.contains("仅预览，不保存") && zh_sub.contains("保存导入卡片"));
+    assert_eq!(snapshot(&sb.env.home), before);
+}
+
+#[test]
+fn language_never_changes_json_bytes_error_messages_or_exit_codes() {
+    let sb = Sandbox::new();
+    for args in [
+        vec!["status", "--json"],
+        vec!["list", "codex", "--json"],
+        vec!["accounts", "list", "--json"],
+        vec!["use", "opencode", "p", "--json"],
+        vec!["list", "invalid-private-tool", "--json"],
+    ] {
+        let mut zh_args = args.clone();
+        zh_args.extend(["--lang", "zh"]);
+        let mut en_args = args;
+        en_args.extend(["--lang", "en"]);
+        let zh = sb.run(&zh_args);
+        let en = sb.run(&en_args);
+        assert_eq!(zh.status.code(), en.status.code());
+        assert_eq!(zh.stdout, en.stdout);
+        assert_eq!(zh.stderr, en.stderr);
+        assert!(!String::from_utf8_lossy(&zh.stderr).contains("invalid-private-tool"));
+    }
+    assert!(snapshot(&sb.env.home).is_empty());
+}
+
+#[test]
+fn human_preview_explains_fixed_reason_codes_and_preserves_json() {
+    let sb = Sandbox::new();
+    let export = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../core/tests/fixtures/ccswitch-export/cc-switch-export-20261001_080000.sql");
+    let path = export.to_str().unwrap();
+    let text = human(sb.run(&["import", "file", path, "--tool", "claude"]));
+    assert!(text.contains("导入预览") && text.contains("尚未保存"));
+    assert!(text.contains("需要代理或协议转换"));
+    assert!(text.contains("--apply"));
+    assert!(!text.contains("sk-test") && !text.contains("rt-secret"));
+    let zh = sb.run(&["import", "file", path, "--json", "--lang", "zh"]);
+    let en = sb.run(&["import", "file", path, "--json", "--lang", "en"]);
+    assert_eq!(zh.stdout, en.stdout);
+    assert!(snapshot(&sb.env.home).is_empty());
 }
