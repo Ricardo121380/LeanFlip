@@ -8,47 +8,15 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use ccsl_core::{Env, Tool};
 use notify::RecursiveMode;
 use notify_debouncer_mini::{new_debouncer, DebouncedEvent, Debouncer};
 use tauri::{AppHandle, Manager};
 
-/// 去抖时长；回声窗口要比它长。
+/// 合并同一批文件事件；不能按时间忽略事件，否则会漏掉其他客户端紧随其后的写入。
 const DEBOUNCE: Duration = Duration::from_millis(500);
-const ECHO_WINDOW: Duration = Duration::from_millis(1500);
-
-/// 应用自己写文件后已经刷新过一次；监听随后报上来的同一批变化就不用再刷新托盘和前端。
-pub(crate) struct EchoGate {
-    last_self_write: Mutex<Option<Instant>>,
-    window: Duration,
-}
-
-impl EchoGate {
-    pub(crate) const fn new(window: Duration) -> Self {
-        Self {
-            last_self_write: Mutex::new(None),
-            window,
-        }
-    }
-
-    pub(crate) fn mark(&self, now: Instant) {
-        *self
-            .last_self_write
-            .lock()
-            .unwrap_or_else(|e| e.into_inner()) = Some(now);
-    }
-
-    pub(crate) fn is_echo(&self, now: Instant) -> bool {
-        self.last_self_write
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .is_some_and(|at| now.saturating_duration_since(at) < self.window)
-    }
-}
-
-pub(crate) static ECHO: EchoGate = EchoGate::new(ECHO_WINDOW);
 
 /// 需要关心的文件 / 目录。
 pub(crate) fn targets(env: &Env) -> Vec<PathBuf> {
@@ -203,9 +171,7 @@ impl WatchSet {
 pub fn start(app: &AppHandle, env: &Env) {
     let handle = app.clone();
     match WatchSet::new(env.clone(), DEBOUNCE, move || {
-        if !ECHO.is_echo(Instant::now()) {
-            crate::refresh_views(&handle);
-        }
+        crate::refresh_views(&handle);
     }) {
         Ok(set) => {
             app.manage(set);
@@ -333,14 +299,23 @@ mod tests {
     }
 
     #[test]
-    fn echo_gate_skips_events_right_after_our_own_writes() {
-        let gate = EchoGate::new(Duration::from_millis(1500));
-        let t0 = Instant::now();
-        assert!(!gate.is_echo(t0), "nothing written yet");
-        gate.mark(t0);
-        assert!(gate.is_echo(t0 + Duration::from_millis(600)));
-        assert!(!gate.is_echo(t0 + Duration::from_millis(1600)));
-        // 时钟比标记早（并发）也算回声，不 panic。
-        assert!(gate.is_echo(t0 - Duration::from_millis(10)));
+    fn external_write_immediately_after_a_local_write_is_observed() {
+        let (_dir, env) = sandbox();
+        std::fs::create_dir_all(&env.claude_dir).unwrap();
+        let path = env.claude_settings_path();
+        let watched_path = path.clone();
+        let observed = Arc::new(Mutex::new(String::new()));
+        let snapshot = observed.clone();
+        let _set = WatchSet::new(env, DEBOUNCE, move || {
+            *snapshot.lock().unwrap() = std::fs::read_to_string(&watched_path).unwrap();
+        })
+        .unwrap();
+
+        std::fs::write(&path, r#"{"writer":"ccsl"}"#).unwrap();
+        assert!(wait_for(|| observed.lock().unwrap().contains("ccsl")));
+
+        // 紧接上一次刷新，模拟客户端再次写同一配置；不能当成应用自己的回声丢掉。
+        std::fs::write(&path, r#"{"writer":"external-client"}"#).unwrap();
+        assert!(wait_for(|| observed.lock().unwrap().contains("external-client")));
     }
 }
