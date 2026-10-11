@@ -1,5 +1,10 @@
 const zh = {
   app: { title: "CC Switch Lite", subtitle: "每个 agent 的配置切换" },
+  recovery: {
+    title: "未完成写入的恢复结果",
+    dismiss: "关闭恢复提示",
+    loadError: "无法读取恢复结果，请稍后重试。",
+  },
   nav: { tools: "工具", codexAccounts: "Codex 账号", import: "从 cc-switch 导入", settings: "设置" },
   kind: { switch: "切换", coexist: "并存" },
   tool: {

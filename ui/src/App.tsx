@@ -6,6 +6,7 @@ import type { ToolId } from "@/lib/api";
 import { TOOLS } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 import { applyLanguage } from "@/i18n";
+import { RecoveryNotices } from "@/components/RecoveryNotices";
 import { ToolPage } from "@/pages/ToolPage";
 
 // 不常用的页面按需加载。
@@ -89,6 +90,7 @@ export default function App() {
         </div>
       </aside>
       <main className="min-w-0 flex-1 overflow-y-auto">
+        <RecoveryNotices />
         <Suspense fallback={<p className="p-8 text-sm text-muted-foreground">{t("common.loading")}</p>}>
           {view.type === "tool" && <ToolPage key={view.tool} tool={view.tool} />}
           {view.type === "codex" && <CodexAccountsPage />}

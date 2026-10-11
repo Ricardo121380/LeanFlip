@@ -431,3 +431,96 @@ fn export_file_is_staged_previewed_and_applied_into_the_store_only() {
     assert!(listing.providers.iter().any(|p| p.id == "relay-2"));
     assert_eq!(listing.current, None);
 }
+
+/// 发布已开始、但剩余文件被客户端另改：恢复必须保留文件并将路径呈现给用户。
+fn pending_recovery(sb: &Sandbox, path: &Path) {
+    use ccsl_core::live::engine::digest;
+    use ccsl_core::state::{self, Pending, PendingFile, PendingTarget};
+
+    state::set_pending(
+        &sb.env().device_store(),
+        Tool::Claude.as_str(),
+        Some(Pending {
+            op: "switch".into(),
+            published: true,
+            target: PendingTarget::default(),
+            files: vec![PendingFile {
+                path: path.to_path_buf(),
+                pre: digest(Some(b"before")),
+                planned: digest(Some(b"planned")),
+                staged: None,
+            }],
+        }),
+    )
+    .unwrap();
+}
+
+#[test]
+fn startup_partial_recovery_is_visible_and_reads_do_not_consume_it() {
+    let sb = Sandbox::new();
+    let path = sb.env().claude_settings_path();
+    sb.write(&path, "external edit");
+    pending_recovery(&sb, &path);
+
+    let service = sb.service();
+    let notices = service.recovery();
+    assert_eq!(notices.len(), 1);
+    assert!(notices[0].contains("仅部分恢复"), "{}", notices[0]);
+    assert!(notices[0].contains(path.to_str().unwrap()));
+    assert_eq!(service.recovery(), notices);
+    assert_eq!(std::fs::read_to_string(path).unwrap(), "external edit");
+}
+
+#[test]
+fn startup_recovery_error_is_visible_without_stopping_service_start() {
+    let sb = Sandbox::new();
+    let path = sb.env().claude_settings_path();
+    std::fs::create_dir_all(&path).unwrap(); // read_current 会返回 IO 错误。
+    pending_recovery(&sb, &path);
+
+    let service = sb.service();
+    let notices = service.recovery();
+    assert_eq!(notices.len(), 1);
+    assert!(notices[0].contains("恢复失败"), "{}", notices[0]);
+    assert!(notices[0].contains(path.to_str().unwrap()));
+    assert!(
+        ccsl_core::state::pending(&sb.env().device_store(), "claude")
+            .unwrap()
+            .is_some()
+    );
+}
+
+#[test]
+fn recovery_notice_survives_a_later_operation_error() {
+    let sb = Sandbox::new();
+    let service = sb.service();
+    let path = sb.env().claude_settings_path();
+    sb.write(&path, "external edit");
+    pending_recovery(&sb, &path);
+
+    service
+        .switch_provider(Tool::Claude, "missing")
+        .unwrap_err();
+    let notices = service.recovery();
+    assert_eq!(notices.len(), 1);
+    assert!(notices[0].contains("仅部分恢复"));
+    assert!(notices[0].contains(path.to_str().unwrap()));
+    assert_eq!(std::fs::read_to_string(path).unwrap(), "external edit");
+}
+
+#[test]
+fn operation_result_preserves_recovery_and_existing_warnings() {
+    let sb = Sandbox::new();
+    let service = sb.service();
+    let path = sb.env().claude_settings_path();
+    let result = service.op_result(OperationReport {
+        recovered: Some(RecoveryOutcome::RolledForwardExcept {
+            paths: vec![path.clone()],
+        }),
+        warnings: vec!["existing warning".into()],
+        ..OperationReport::default()
+    });
+    assert_eq!(result.warnings.len(), 2);
+    assert_eq!(result.warnings[0], "existing warning");
+    assert!(result.warnings[1].contains(path.to_str().unwrap()));
+}

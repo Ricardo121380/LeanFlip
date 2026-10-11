@@ -5,11 +5,16 @@ import { api, errorMessage, type OpResult, type ToolId } from "@/lib/api";
 
 export const keys = {
   overview: ["overview"] as const,
+  recovery: ["recovery"] as const,
   providers: (tool: ToolId) => ["providers", tool] as const,
   accounts: ["codex-accounts"] as const,
   logins: ["codex-logins"] as const,
   settings: ["settings"] as const,
 };
+
+export function useRecoveryNotices() {
+  return useQuery({ queryKey: keys.recovery, queryFn: api.recoveryNotices });
+}
 
 export function useOverview() {
   return useQuery({ queryKey: keys.overview, queryFn: api.overview });

@@ -331,6 +331,18 @@ pub fn recover_before_write(
     match recover(store, guard, commit_target)? {
         // 丢弃的操作什么都没改（指针、模式都没动）。
         None | Some(RecoveryOutcome::Discarded | RecoveryOutcome::Abandoned { .. }) => Ok(()),
+        Some(RecoveryOutcome::RolledForwardExcept { paths }) => {
+            let paths = paths
+                .iter()
+                .map(|p| p.display().to_string())
+                .collect::<Vec<_>>()
+                .join("\n");
+            Err(AppError::localized(
+                "live.recovered_before_write",
+                format!("上次写入仅部分恢复，以下文件保持原样，请检查配置后重新操作。这次写入尚未开始：\n{paths}"),
+                format!("The previous write was only partially recovered. These files were left unchanged; check the config before retrying. The requested write has not started:\n{paths}"),
+            ))
+        }
         Some(outcome) => {
             log::info!("[{}] 写入前补完了上一次的操作: {outcome:?}", guard.app());
             Err(AppError::localized(
@@ -991,6 +1003,34 @@ mod tests {
         failpoint::crash_at(None);
         let guard = lock_app(&fx.app);
         recover_before_write(&fx.store, &guard, &commit).expect("discarded");
+    }
+
+    #[test]
+    fn retry_error_names_files_that_were_not_recovered() {
+        let fx = Fixture::new();
+        let pointer = RefCell::new(None);
+        failpoint::crash_at(Some("published:0"));
+        switch(&fx, &pointer).expect_err("crash");
+        failpoint::crash_at(None);
+        fs::write(&fx.b, r#"{"key":"client edit"}"#).unwrap();
+        let commit = |target: &PendingTarget| {
+            *pointer.borrow_mut() = target.pointer.clone();
+            Ok(())
+        };
+        let guard = lock_app(&fx.app);
+        let err = recover_before_write(&fx.store, &guard, &commit).expect_err("partial recovery");
+        let AppError::Localized { zh, en, .. } = err else {
+            panic!("expected localized retry error")
+        };
+        assert!(
+            zh.contains("仅部分恢复") && zh.contains(fx.b.to_str().unwrap()),
+            "{zh}"
+        );
+        assert!(
+            en.contains("partially recovered") && en.contains(fx.b.to_str().unwrap()),
+            "{en}"
+        );
+        assert_eq!(fx.read(&fx.b), json!({"key": "client edit"}));
     }
 
     /// macOS 上用不可变标志让替换失败（目标被占用、只读时的样子）。
