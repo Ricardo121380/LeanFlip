@@ -59,17 +59,34 @@ fn is_own_temp_file(path: &Path) -> bool {
     name.ends_with(".lock") || name.contains(".tmp")
 }
 
+/// 文件可能刚被删除或还没创建，只规范化已存在的上级，再拼回剩余路径。
+/// macOS 的 FSEvents 会报告 `/private/var/...`，环境路径则可能仍是 `/var/...`。
+fn resolve_alias(path: &Path) -> PathBuf {
+    for ancestor in path.ancestors() {
+        if let Ok(real) = ancestor.canonicalize() {
+            return real.join(path.strip_prefix(ancestor).expect("path ancestor"));
+        }
+    }
+    path.to_path_buf()
+}
+
 /// 这个路径的变化需要刷新吗：是关心的文件、在数据目录里、或者是通往它们的目录。
 pub(crate) fn is_relevant(env: &Env, path: &Path) -> bool {
     if is_own_temp_file(path) {
         return false;
     }
-    if path.starts_with(&env.data_dir) {
+    let path = resolve_alias(path);
+    if path.starts_with(resolve_alias(&env.data_dir)) {
         return true;
     }
     targets(env)
         .iter()
-        .any(|target| target == path || target.starts_with(path) || target.parent() == Some(path))
+        .map(|target| resolve_alias(target))
+        .any(|target| {
+            target == path
+                || target.starts_with(&path)
+                || target.parent() == Some(path.as_path())
+        })
 }
 
 struct Inner {
@@ -250,6 +267,26 @@ mod tests {
             &env,
             &env.claude_dir.join("settings.json.tmp123")
         ));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn canonical_events_match_aliased_paths_even_when_the_file_is_missing() {
+        let (dir, env) = sandbox();
+        let alias = dir.path().join("home-alias");
+        std::os::unix::fs::symlink(&env.home, &alias).unwrap();
+        let aliased = Env::with_home(alias);
+        let real_home = env.home.canonicalize().unwrap();
+        let path = real_home.join(".claude/settings.json");
+        assert!(is_relevant(&aliased, &path));
+        assert!(is_relevant(&aliased, &real_home.join(".claude")));
+        assert!(!is_relevant(&aliased, &real_home.join("notes.txt")));
+
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, "{}").unwrap();
+        assert!(is_relevant(&aliased, &path));
+        std::fs::remove_file(&path).unwrap();
+        assert!(is_relevant(&aliased, &path));
     }
 
     #[test]
