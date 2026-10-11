@@ -1,4 +1,4 @@
-//! 桌面应用的业务层：不依赖 Tauri，命令层只是把这里的方法放到后台线程里调用。
+//! 桌面和 CLI 共用的业务层，不依赖 Tauri。
 //! 单元测试用临时 HOME 直接测这一层。
 //!
 //! 安全约定：从这里出去的数据都经过 [`crate::redact`]，ChatGPT 登录凭据不会到前端。
@@ -21,16 +21,45 @@ use crate::settings::{self, AppSettings};
 
 /// 给前端的错误：一句话（按界面语言选中文 / 英文）。
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
-pub struct ApiError(pub String);
+#[serde(transparent)]
+pub struct ApiError(pub String, #[serde(skip)] &'static str);
 
 impl ApiError {
     pub fn from_core(error: AppError, english: bool) -> Self {
-        match error {
-            AppError::Localized { zh, en, .. } => ApiError(if english { en } else { zh }),
-            other => ApiError(other.to_string()),
-        }
+        let code = match &error {
+            AppError::Config(_) => "config",
+            AppError::InvalidInput(_) => "invalid_input",
+            AppError::Conflict(_) => "conflict",
+            AppError::Io { .. } | AppError::IoContext { .. } => "io",
+            AppError::Json { .. } => "json",
+            AppError::JsonSerialize { .. } => "serialization",
+            AppError::NotFound(_) => "not_found",
+            AppError::Localized { key, .. } => *key,
+            AppError::Message(_) => "operation_failed",
+        };
+        let message = match error {
+            AppError::Localized { zh, en, .. } => {
+                if english {
+                    en
+                } else {
+                    zh
+                }
+            }
+            other => other.to_string(),
+        };
+        Self(message, code)
+    }
+
+    pub fn message(message: String) -> Self {
+        Self(message, "operation_failed")
+    }
+
+    pub fn code(&self) -> &'static str {
+        self.1
     }
 }
+
+impl std::error::Error for ApiError {}
 
 impl std::fmt::Display for ApiError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -237,15 +266,38 @@ impl Service {
             log::warn!("app settings unreadable, using defaults: {err}");
             AppSettings::default()
         });
+        let service = Self::initialize(base, transport, app_settings)?;
+        let env = service.env();
+        let _guard = env.device_store().lock_app("service")?;
+        let notices = recover(&env, service.english());
+        service
+            .recovery
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .extend(notices);
+        Ok(service)
+    }
+
+    /// CLI 打开环境时只读设置和账号快照。查询不恢复 pending，也不创建目录或锁文件。
+    /// 设置损坏时停止，不能悄悄使用默认路径写入另一套配置。
+    pub fn open(base: Env, transport: Option<Arc<dyn OAuthTransport>>) -> Result<Self, AppError> {
+        let app_settings = settings::load(&base.data_dir)?;
+        Self::initialize(base, transport, app_settings)
+    }
+
+    fn initialize(
+        base: Env,
+        transport: Option<Arc<dyn OAuthTransport>>,
+        app_settings: AppSettings,
+    ) -> Result<Self, AppError> {
         let env = base.clone().with_overrides(&app_settings.dir_overrides);
-        let recovery = recover(&env, app_settings.language.as_deref() == Some("en"));
         let oauth = Arc::new(CodexOAuthManager::new(&env, transport.clone())?);
         Ok(Self {
             base,
             transport,
             runtime: RwLock::new(Arc::new(Runtime { env, oauth })),
             settings: Mutex::new(app_settings),
-            recovery: Mutex::new(recovery),
+            recovery: Mutex::new(Vec::new()),
             staged_export: Mutex::new(None),
         })
     }
@@ -260,6 +312,32 @@ impl Service {
 
     pub fn env(&self) -> Env {
         self.runtime().env.clone()
+    }
+
+    /// 串行整个高层操作（读取当前卡、OAuth 准备、写 live、落库），不只保护最后的 rename。
+    /// App 的后台刷新也用同一把跨进程锁。锁顺序：service → OAuth/tool → state/store。
+    fn write_guard(&self) -> ApiResult<ccsl_core::live::engine::AppWriteGuard> {
+        self.env()
+            .device_store()
+            .lock_app("service")
+            .map_err(|e| self.err(e))
+    }
+
+    pub fn recover_tool(&self, tool: Tool) -> ApiResult<Vec<String>> {
+        let _guard = self.write_guard()?;
+        let before = self.recovery().len();
+        self.settle(&self.runtime(), tool)?;
+        Ok(self.recovery()[before..].to_vec())
+    }
+
+    pub fn recover_all(&self) -> ApiResult<Vec<String>> {
+        let _guard = self.write_guard()?;
+        let before = self.recovery().len();
+        let rt = self.runtime();
+        for tool in Tool::ALL {
+            self.settle(&rt, tool)?;
+        }
+        Ok(self.recovery()[before..].to_vec())
     }
 
     /// 套用新的目录覆盖，立即生效。Codex 目录没变时沿用同一个账号管理器（进行中的设备码
@@ -359,7 +437,7 @@ impl Service {
 
     pub fn overview(&self) -> ApiResult<Vec<ToolSummary>> {
         let rt = self.runtime();
-        let data = store::load(&rt.env).map_err(|e| self.err(e))?;
+        let data = store::load_readonly(&rt.env).map_err(|e| self.err(e))?;
         Ok(Tool::ALL
             .iter()
             .map(|&tool| {
@@ -381,7 +459,7 @@ impl Service {
 
     pub fn list_providers(&self, tool: Tool) -> ApiResult<ToolProviders> {
         let rt = self.runtime();
-        let data = store::load(&rt.env).map_err(|e| self.err(e))?;
+        let data = store::load_readonly(&rt.env).map_err(|e| self.err(e))?;
         let (in_live, live_error) = match self.live_ids(tool) {
             Ok(ids) => (ids, None),
             Err(err) => (Vec::new(), Some(self.err(err).0)),
@@ -404,6 +482,7 @@ impl Service {
     // ---- 切换 / 卡片 ----
 
     pub fn switch_provider(&self, tool: Tool, id: &str) -> ApiResult<OpResult> {
+        let _guard = self.write_guard()?;
         let rt = self.runtime();
         self.settle(&rt, tool)?;
         switch::switch_with(&rt.env, services(&rt), tool, id)
@@ -413,14 +492,14 @@ impl Service {
 
     fn check_incoming(&self, provider: &Provider) -> ApiResult<()> {
         if provider.id.trim().is_empty() {
-            return Err(ApiError(if self.english() {
+            return Err(ApiError::message(if self.english() {
                 "Provider id must not be empty".into()
             } else {
                 "供应商 id 不能为空".into()
             }));
         }
         if redact::contains_placeholder(&provider.settings_config) {
-            return Err(ApiError(if self.english() {
+            return Err(ApiError::message(if self.english() {
                 "Redacted login values cannot be saved into another card".into()
             } else {
                 "隐藏的登录凭据不能保存到别的卡里".into()
@@ -435,6 +514,7 @@ impl Service {
         provider: Provider,
         add_to_live: bool,
     ) -> ApiResult<OpResult> {
+        let _guard = self.write_guard()?;
         let rt = self.runtime();
         self.check_incoming(&provider)?;
         self.settle(&rt, tool)?;
@@ -458,6 +538,7 @@ impl Service {
     }
 
     pub fn update_provider(&self, tool: Tool, mut provider: Provider) -> ApiResult<OpResult> {
+        let _guard = self.write_guard()?;
         let rt = self.runtime();
         self.settle(&rt, tool)?;
         let data = store::load(&rt.env).map_err(|e| self.err(e))?;
@@ -470,6 +551,7 @@ impl Service {
     }
 
     pub fn delete_provider(&self, tool: Tool, id: &str) -> ApiResult<()> {
+        let _guard = self.write_guard()?;
         let rt = self.runtime();
         let result = if tool.is_coexist() {
             self.settle(&rt, tool)?;
@@ -482,6 +564,7 @@ impl Service {
 
     /// 并存式工具：写进 / 移出客户端配置。
     pub fn set_in_live(&self, tool: Tool, id: &str, enabled: bool) -> ApiResult<OpResult> {
+        let _guard = self.write_guard()?;
         let rt = self.runtime();
         self.settle(&rt, tool)?;
         let result = if enabled {
@@ -493,6 +576,7 @@ impl Service {
     }
 
     pub fn import_live(&self, tool: Tool) -> ApiResult<ImportLiveResult> {
+        let _guard = self.write_guard()?;
         let rt = self.runtime();
         self.settle(&rt, tool)?;
         import::import_live(&rt.env, tool)
@@ -502,9 +586,21 @@ impl Service {
 
     // ---- Codex 托管账号 / 本机登录 ----
 
-    pub fn codex_accounts(&self) -> Vec<AccountInfo> {
+    pub fn codex_accounts(&self) -> ApiResult<Vec<AccountInfo>> {
+        self.codex_accounts_checked()
+    }
+
+    pub fn codex_accounts_checked(&self) -> ApiResult<Vec<AccountInfo>> {
         let rt = self.runtime();
-        rt.oauth.list_accounts()
+        rt.oauth.try_list_accounts().map_err(|e| self.err(e))
+    }
+
+    pub fn codex_refresh_account(&self, id: &str) -> ApiResult<()> {
+        let _guard = self.write_guard()?;
+        self.runtime()
+            .oauth
+            .refresh_account(id)
+            .map_err(|e| self.err(e))
     }
 
     pub fn codex_start_login(&self, target: Option<&str>) -> ApiResult<DeviceFlow> {
@@ -513,6 +609,7 @@ impl Service {
     }
 
     pub fn codex_poll_login(&self, device_code: &str) -> ApiResult<PollResult> {
+        let _guard = self.write_guard()?;
         let rt = self.runtime();
         match rt.oauth.poll_device_flow(device_code) {
             Ok(DeviceFlowPoll::Pending) => Ok(PollResult::Pending),
@@ -527,11 +624,13 @@ impl Service {
     }
 
     pub fn codex_set_default(&self, id: &str) -> ApiResult<()> {
+        let _guard = self.write_guard()?;
         let rt = self.runtime();
         rt.oauth.set_default_account(id).map_err(|e| self.err(e))
     }
 
     pub fn codex_remove_account(&self, id: &str) -> ApiResult<()> {
+        let _guard = self.write_guard()?;
         let rt = self.runtime();
         self.settle(&rt, Tool::Codex)?;
         rt.oauth.remove_account(id).map_err(|e| self.err(e))
@@ -539,12 +638,14 @@ impl Service {
 
     /// 本机 `auth.json` / 登录暂存里的 ChatGPT 登录：只有身份信息，没有 token。
     pub fn codex_logins(&self) -> ApiResult<Vec<ccsl_core::codex::login::LoginSummary>> {
+        let _guard = self.write_guard()?;
         let rt = self.runtime();
         self.settle(&rt, Tool::Codex)?;
         switch::codex::available_logins(&rt.env).map_err(|e| self.err(e))
     }
 
     pub fn codex_set_login_ref(&self, id: &str, identity: Option<&str>) -> ApiResult<OpResult> {
+        let _guard = self.write_guard()?;
         let rt = self.runtime();
         self.settle(&rt, Tool::Codex)?;
         switch::codex::set_login_ref(&rt.env, services(&rt), id, identity)
@@ -553,25 +654,28 @@ impl Service {
     }
 
     /// 后台刷新：太久没换过 token 的托管账号各刷新一次。
-    pub fn refresh_stale_accounts(&self) -> Vec<(String, Result<bool, String>)> {
+    pub fn refresh_stale_accounts(&self) -> ApiResult<Vec<(String, Result<bool, String>)>> {
+        let _guard = self.write_guard()?;
         let rt = self.runtime();
         let hours = self.app_settings().background_refresh_hours;
         if hours == 0 {
-            return Vec::new();
+            return Ok(Vec::new());
         }
         let max_age_ms = i64::from(hours) * 3_600_000;
-        rt.oauth
+        Ok(rt
+            .oauth
             .refresh_stale(max_age_ms)
+            .map_err(|e| self.err(e))?
             .into_iter()
             .map(|(id, r)| (id, r.map_err(|e| e.to_string())))
-            .collect()
+            .collect())
     }
 
     // ---- 设置 ----
 
     pub fn settings(&self) -> ApiResult<SettingsView> {
         let rt = self.runtime();
-        let data = store::load(&rt.env).map_err(|e| self.err(e))?;
+        let data = store::load_readonly(&rt.env).map_err(|e| self.err(e))?;
         Ok(SettingsView {
             app: self.app_settings(),
             keep_codex_login: data.settings.preserve_codex_official_auth_on_switch,
@@ -587,6 +691,7 @@ impl Service {
     }
 
     pub fn save_settings(&self, input: SettingsInput) -> ApiResult<SaveSettingsResult> {
+        let _guard = self.write_guard()?;
         let rt = self.runtime();
         let mut app = input.app;
         if let Some(lang) = app.language.as_deref() {
@@ -630,6 +735,7 @@ impl Service {
         dir: Option<PathBuf>,
         tools: Vec<Tool>,
     ) -> ApiResult<ccswitch_import::Report> {
+        let _guard = self.write_guard()?;
         let rt = self.runtime();
         ccswitch_import::apply(&rt.env, &self.ccswitch_dir(dir), &tools, Some(&rt.oauth))
             .map_err(|e| self.err(e))
@@ -677,6 +783,7 @@ impl Service {
         tools: Vec<Tool>,
         policy: ccswitch_export::DuplicatePolicy,
     ) -> ApiResult<ccswitch_export::Report> {
+        let _guard = self.write_guard()?;
         let report = ccswitch_export::apply(&self.runtime().env, &self.staged()?, &tools, policy)
             .map_err(|e| self.err(e))?;
         self.export_discard();
