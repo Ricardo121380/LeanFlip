@@ -24,7 +24,7 @@
   {
     "name": "ZetaAPI",
     "websiteUrl": "https://zetaapi.ai/",
-    "apiKeyUrl": "https://zetaapi.ai/go/u117",
+    "apiKeyUrl": "https://zetaapi.ai/",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -36,7 +36,7 @@
   {
     "name": "APINebula",
     "websiteUrl": "https://apinebula.ai/",
-    "apiKeyUrl": "https://apinebula.ai/VjM74M",
+    "apiKeyUrl": "https://apinebula.ai/",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -107,7 +107,7 @@
   {
     "name": "AIGoCode",
     "websiteUrl": "https://aigocode.app/",
-    "apiKeyUrl": "https://aigocode.app/invite/CC-SWITCH",
+    "apiKeyUrl": "https://aigocode.app/",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -118,8 +118,8 @@
   },
   {
     "name": "Qiniu",
-    "websiteUrl": "https://s.qiniu.com/nMvAvy",
-    "apiKeyUrl": "https://s.qiniu.com/nMvAvy",
+    "websiteUrl": "https://www.qiniu.com/",
+    "apiKeyUrl": "https://www.qiniu.com/",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -179,7 +179,7 @@
   {
     "name": "Code0",
     "websiteUrl": "https://code0.ai/",
-    "apiKeyUrl": "https://code0.ai/agent/register/B2XHxGjGmRvqgznY",
+    "apiKeyUrl": "https://code0.ai/",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""
@@ -275,7 +275,7 @@
   {
     "name": "SoleAPI",
     "websiteUrl": "https://soleapi.com/",
-    "apiKeyUrl": "https://soleapi.com/r/ccswitch",
+    "apiKeyUrl": "https://soleapi.com/",
     "settingsConfig": {
       "auth": {
         "OPENAI_API_KEY": ""

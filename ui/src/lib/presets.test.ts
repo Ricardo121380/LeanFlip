@@ -58,7 +58,11 @@ describe("preset links", () => {
     for (const tool of TOOLS) {
       for (const p of presetsFor(tool.id)) {
         for (const url of [p.websiteUrl, p.apiKeyUrl]) {
-          if (url) expect(url, `${tool.id}/${p.name}`).not.toMatch(tracking);
+          if (!url) continue;
+          expect(url, `${tool.id}/${p.name}`).not.toMatch(tracking);
+          const path = new URL(url).pathname;
+          expect(path, `${tool.id}/${p.name}: ${url}`).not.toMatch(/^\/(i|invite|r|go)\/|cc-?switch|\/register\/[A-Za-z0-9]{6,}/i);
+          expect(new URL(url).host, url).not.toBe("s.qiniu.com");
         }
       }
     }

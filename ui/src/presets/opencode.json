@@ -221,7 +221,7 @@
   {
     "name": "ZetaAPI",
     "websiteUrl": "https://zetaapi.ai/",
-    "apiKeyUrl": "https://zetaapi.ai/go/u117",
+    "apiKeyUrl": "https://zetaapi.ai/",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "ZetaAPI",
@@ -242,7 +242,7 @@
   {
     "name": "APINebula",
     "websiteUrl": "https://apinebula.ai/",
-    "apiKeyUrl": "https://apinebula.ai/VjM74M",
+    "apiKeyUrl": "https://apinebula.ai/",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "APINebula",
@@ -448,7 +448,7 @@
   {
     "name": "AIGoCode",
     "websiteUrl": "https://aigocode.app/",
-    "apiKeyUrl": "https://aigocode.app/invite/CC-SWITCH",
+    "apiKeyUrl": "https://aigocode.app/",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
       "name": "AIGoCode",
@@ -472,8 +472,8 @@
   },
   {
     "name": "Qiniu",
-    "websiteUrl": "https://s.qiniu.com/nMvAvy",
-    "apiKeyUrl": "https://s.qiniu.com/nMvAvy",
+    "websiteUrl": "https://www.qiniu.com/",
+    "apiKeyUrl": "https://www.qiniu.com/",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "Qiniu",
@@ -557,7 +557,7 @@
   {
     "name": "AICoding",
     "websiteUrl": "https://aicoding.inc/",
-    "apiKeyUrl": "https://aicoding.inc/i/CCSWITCH",
+    "apiKeyUrl": "https://aicoding.inc/",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
       "name": "AICoding",
@@ -831,7 +831,7 @@
   {
     "name": "Code0",
     "websiteUrl": "https://code0.ai/",
-    "apiKeyUrl": "https://code0.ai/agent/register/B2XHxGjGmRvqgznY",
+    "apiKeyUrl": "https://code0.ai/",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "Code0",
@@ -890,7 +890,7 @@
   {
     "name": "PPIO",
     "websiteUrl": "https://ppio.com/",
-    "apiKeyUrl": "https://ppio.com/activity/ccswitch",
+    "apiKeyUrl": "https://ppio.com/",
     "settingsConfig": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "PPIO",
@@ -1143,7 +1143,7 @@
   {
     "name": "SoleAPI",
     "websiteUrl": "https://soleapi.com/",
-    "apiKeyUrl": "https://soleapi.com/r/ccswitch",
+    "apiKeyUrl": "https://soleapi.com/",
     "settingsConfig": {
       "npm": "@ai-sdk/anthropic",
       "name": "SoleAPI",

@@ -23,7 +23,7 @@
   {
     "name": "APINebula",
     "websiteUrl": "https://apinebula.ai/",
-    "apiKeyUrl": "https://apinebula.ai/VjM74M",
+    "apiKeyUrl": "https://apinebula.ai/",
     "settingsConfig": {
       "env": {
         "GOOGLE_GEMINI_BASE_URL": "https://apinebula.ai",
@@ -60,7 +60,7 @@
   {
     "name": "AIGoCode",
     "websiteUrl": "https://aigocode.app/",
-    "apiKeyUrl": "https://aigocode.app/invite/CC-SWITCH",
+    "apiKeyUrl": "https://aigocode.app/",
     "settingsConfig": {
       "env": {
         "GOOGLE_GEMINI_BASE_URL": "https://api.aigocode.app",
@@ -71,8 +71,8 @@
   },
   {
     "name": "Qiniu",
-    "websiteUrl": "https://s.qiniu.com/nMvAvy",
-    "apiKeyUrl": "https://s.qiniu.com/nMvAvy",
+    "websiteUrl": "https://www.qiniu.com/",
+    "apiKeyUrl": "https://www.qiniu.com/",
     "settingsConfig": {
       "env": {
         "GOOGLE_GEMINI_BASE_URL": "https://api.qnaigc.com/bypass/vertex",
@@ -84,7 +84,7 @@
   {
     "name": "AICoding",
     "websiteUrl": "https://aicoding.inc/",
-    "apiKeyUrl": "https://aicoding.inc/i/CCSWITCH",
+    "apiKeyUrl": "https://aicoding.inc/",
     "settingsConfig": {
       "env": {
         "GOOGLE_GEMINI_BASE_URL": "https://api.aicoding.inc",
@@ -147,7 +147,7 @@
   {
     "name": "Code0",
     "websiteUrl": "https://code0.ai/",
-    "apiKeyUrl": "https://code0.ai/agent/register/B2XHxGjGmRvqgznY",
+    "apiKeyUrl": "https://code0.ai/",
     "settingsConfig": {
       "env": {
         "GOOGLE_GEMINI_BASE_URL": "https://code0.ai",
@@ -183,7 +183,7 @@
   {
     "name": "SoleAPI",
     "websiteUrl": "https://soleapi.com/",
-    "apiKeyUrl": "https://soleapi.com/r/ccswitch",
+    "apiKeyUrl": "https://soleapi.com/",
     "settingsConfig": {
       "env": {
         "GOOGLE_GEMINI_BASE_URL": "https://soleapi.com",

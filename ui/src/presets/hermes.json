@@ -136,7 +136,7 @@
   {
     "name": "ZetaAPI",
     "websiteUrl": "https://zetaapi.ai/",
-    "apiKeyUrl": "https://zetaapi.ai/go/u117",
+    "apiKeyUrl": "https://zetaapi.ai/",
     "settingsConfig": {
       "name": "zetaapi",
       "base_url": "https://api.zetaapi.ai/v1",
@@ -154,7 +154,7 @@
   {
     "name": "APINebula",
     "websiteUrl": "https://apinebula.ai/",
-    "apiKeyUrl": "https://apinebula.ai/VjM74M",
+    "apiKeyUrl": "https://apinebula.ai/",
     "settingsConfig": {
       "name": "apinebula",
       "base_url": "https://apinebula.ai/v1",
@@ -280,7 +280,7 @@
   {
     "name": "AIGoCode",
     "websiteUrl": "https://aigocode.app/",
-    "apiKeyUrl": "https://aigocode.app/invite/CC-SWITCH",
+    "apiKeyUrl": "https://aigocode.app/",
     "settingsConfig": {
       "name": "aigocode",
       "base_url": "https://api.aigocode.app",
@@ -305,8 +305,8 @@
   },
   {
     "name": "Qiniu",
-    "websiteUrl": "https://s.qiniu.com/nMvAvy",
-    "apiKeyUrl": "https://s.qiniu.com/nMvAvy",
+    "websiteUrl": "https://www.qiniu.com/",
+    "apiKeyUrl": "https://www.qiniu.com/",
     "settingsConfig": {
       "name": "qiniu",
       "base_url": "https://api.qnaigc.com/v1",
@@ -340,7 +340,7 @@
   {
     "name": "AICoding",
     "websiteUrl": "https://aicoding.inc/",
-    "apiKeyUrl": "https://aicoding.inc/i/CCSWITCH",
+    "apiKeyUrl": "https://aicoding.inc/",
     "settingsConfig": {
       "name": "aicoding",
       "base_url": "https://api.aicoding.inc",
@@ -538,7 +538,7 @@
   {
     "name": "Code0",
     "websiteUrl": "https://code0.ai/",
-    "apiKeyUrl": "https://code0.ai/agent/register/B2XHxGjGmRvqgznY",
+    "apiKeyUrl": "https://code0.ai/",
     "settingsConfig": {
       "name": "code0",
       "base_url": "https://code0.ai/v1",
@@ -579,7 +579,7 @@
   {
     "name": "PPIO",
     "websiteUrl": "https://ppio.com/",
-    "apiKeyUrl": "https://ppio.com/activity/ccswitch",
+    "apiKeyUrl": "https://ppio.com/",
     "settingsConfig": {
       "name": "ppio",
       "base_url": "https://api.ppio.com/openai/v1",
@@ -706,7 +706,7 @@
   {
     "name": "SiliconFlow",
     "websiteUrl": "https://siliconflow.cn/",
-    "apiKeyUrl": "https://cloud.siliconflow.cn/i/YflgU2Ve",
+    "apiKeyUrl": "https://cloud.siliconflow.cn/",
     "settingsConfig": {
       "name": "siliconflow",
       "base_url": "https://api.siliconflow.cn/v1",
@@ -724,7 +724,7 @@
   {
     "name": "SiliconFlow en",
     "websiteUrl": "https://siliconflow.com/",
-    "apiKeyUrl": "https://cloud.siliconflow.cn/i/YflgU2Ve",
+    "apiKeyUrl": "https://cloud.siliconflow.cn/",
     "settingsConfig": {
       "name": "siliconflow_en",
       "base_url": "https://api.siliconflow.com/v1",
@@ -852,7 +852,7 @@
   {
     "name": "SoleAPI",
     "websiteUrl": "https://soleapi.com/",
-    "apiKeyUrl": "https://soleapi.com/r/ccswitch",
+    "apiKeyUrl": "https://soleapi.com/",
     "settingsConfig": {
       "name": "soleapi",
       "base_url": "https://soleapi.com",

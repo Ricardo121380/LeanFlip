@@ -68,9 +68,39 @@ const TRACKING_PARAMS = new Set([
   "aff", "track_id", "ref", "invite", "invite_code", "invitecode", "inviteCode", "ic", "code",
   "source", "from", "ch", "ytag", "ac", "rc",
 ]);
+// 路径形式的返利 / 邀请码：/i/CODE、/invite/CODE、/r/CODE、/go/CODE、/register/CODE、
+// /agent/register/CODE、路径里带 ccswitch 的活动页、单段随机短码（/VjM74M）。命中时只留域名。
+const REFERRAL_PATH = [
+  /^\/(i|invite|r|ref|go|aff|s)\/[^/]+\/?$/i,
+  /^\/(agent\/)?register\/[A-Za-z0-9_-]{6,}\/?$/,
+  /cc-?switch/i,
+];
+const SHORT_CODE = /^\/(?=[A-Za-z0-9]*\d)(?=[A-Za-z0-9]*[A-Z])[A-Za-z0-9]{5,10}\/?$/;
+// 短链接服务：跳转目标未知，换成厂商主页。
+const SHORTENERS = { "s.qiniu.com": "https://www.qiniu.com/" };
+
+export function stripReferralPath(value) {
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    return value;
+  }
+  if (SHORTENERS[url.host]) return SHORTENERS[url.host];
+  if (REFERRAL_PATH.some((re) => re.test(url.pathname)) || SHORT_CODE.test(url.pathname)) {
+    return `${url.origin}/`;
+  }
+  return value;
+}
+
+export const changedLinks = [];
+
 function cleanUrl(value) {
   if (typeof value !== "string" || !value) return value;
   try {
+    const before = value;
+    value = stripReferralPath(value);
+    if (value !== before) changedLinks.push(`${before} -> ${value}`);
     const url = new URL(value);
     for (const key of [...url.searchParams.keys()]) {
       if (TRACKING_PARAMS.has(key) || key.startsWith("utm_")) url.searchParams.delete(key);
@@ -118,3 +148,4 @@ for (const [tool, [file, exportName]] of Object.entries(sources)) {
 }
 rmSync(tmp, { recursive: true, force: true });
 console.log("presets kept/total:", counts);
+if (changedLinks.length) console.log("path-form referral links rewritten:\n  " + [...new Set(changedLinks)].join("\n  "));
