@@ -12,9 +12,28 @@
   保护和多个托管 ChatGPT 账号）、Gemini CLI、Grok Build、Claude Desktop（直连）；并存式工具：
   OpenCode、OpenClaw、Hermes、Pi、MCode。
 - `crates/app`：Tauri 2 桌面外壳（薄命令层 + 托盘 + 文件监听 + 托管账号后台刷新）。
+- `crates/service`：App 和 CLI 共用的业务层、路径设置、脱敏与 OAuth 网络实现，不依赖 Tauri。
+- `crates/cli`：独立命令行程序 `ccsl`，可在没有桌面 App、Node.js 或 WebView 的环境构建和运行。
 - `ui/`：React + TypeScript + Vite + TanStack Query + shadcn/ui 风格组件，中英文界面。
 
 还没有发布版本。截图见 `docs/screenshots/`。
+
+## CLI
+
+```sh
+cargo build -p ccsl-cli --release --locked
+./target/release/ccsl status
+./target/release/ccsl list codex
+./target/release/ccsl use codex provider-id
+./target/release/ccsl enable opencode provider-id
+./target/release/ccsl import file backup.sql --preview
+./target/release/ccsl status --json
+```
+
+CLI 与 App 共用 `~/.cc-switch-lite/` 及目录覆盖设置。查询和导入预览不会恢复中断写入；
+写入命令在跨进程锁下执行，`ccsl recover [tool]` 可显式恢复。`--home` 可指定独立测试根目录。
+卡片编辑支持文件或标准输入，列表及 JSON 输出不包含密钥。完整命令、账号登录及退出码见
+[CLI 使用说明](crates/cli/README.md)。
 
 ## 结构
 
@@ -71,6 +90,8 @@ HOME=$DEMO/home CCSL_HOME=$DEMO/home XDG_CONFIG_HOME=$DEMO/xdg target/release/cc
 
 `.github/workflows/ci.yml` 在 push / PR 时检查前端类型和测试、Rust 测试与 Clippy，
 并在 Linux / macOS 分别验证 debug `.deb` / `.app` 打包；不会发布 Release。
+CLI 使用独立任务测试和构建，不安装桌面依赖；两种平台的 release 二进制以保留执行权限的
+`.tar.gz` 包保存在 CI artifacts。
 macOS 配置在 `crates/app/tauri.macos.conf.json`；Linux 仍使用 `.deb` / `.AppImage`
 默认配置。公开分发所需的 Apple 签名和公证需另行配置。
 

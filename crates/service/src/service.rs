@@ -68,6 +68,7 @@ impl std::fmt::Display for ApiError {
 }
 
 pub type ApiResult<T> = Result<T, ApiError>;
+pub type AccountRefreshResults = Vec<(String, Result<bool, String>)>;
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -557,8 +558,8 @@ impl Service {
     pub fn delete_provider(&self, tool: Tool, id: &str) -> ApiResult<()> {
         let _guard = self.write_guard()?;
         let rt = self.runtime();
+        self.settle(&rt, tool)?;
         let result = if tool.is_coexist() {
-            self.settle(&rt, tool)?;
             coexist::delete_provider(&rt.env, tool, id)
         } else {
             store::remove_provider(&rt.env, tool, id)
@@ -658,7 +659,7 @@ impl Service {
     }
 
     /// 后台刷新：太久没换过 token 的托管账号各刷新一次。
-    pub fn refresh_stale_accounts(&self) -> ApiResult<Vec<(String, Result<bool, String>)>> {
+    pub fn refresh_stale_accounts(&self) -> ApiResult<AccountRefreshResults> {
         let _guard = self.write_guard()?;
         let rt = self.runtime();
         let hours = self.app_settings().background_refresh_hours;

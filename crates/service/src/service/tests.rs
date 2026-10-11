@@ -596,3 +596,30 @@ fn a_failed_service_lock_prevents_all_live_writes() {
     assert!(!env.claude_settings_path().exists());
     assert_eq!(std::fs::read(env.store_path()).unwrap(), before);
 }
+
+#[test]
+fn deleting_a_card_settles_its_pending_activation_first() {
+    use ccsl_core::state::{self, Pending, PendingTarget};
+    let sb = Sandbox::new();
+    let env = sb.env();
+    for id in ["a", "b"] {
+        store::add_provider(&env, Tool::Claude, claude_card(id, "https://example.test")).unwrap();
+    }
+    store::set_current(&env, Tool::Claude, "a").unwrap();
+    state::set_pending(
+        &env.device_store(),
+        "claude",
+        Some(Pending {
+            op: "switch".into(),
+            files: Vec::new(),
+            target: PendingTarget::pointer(Some("b".into())),
+            published: true,
+        }),
+    )
+    .unwrap();
+    let service = Service::open(env.clone(), None).unwrap();
+    assert!(service.delete_provider(Tool::Claude, "b").is_err());
+    let data = store::load_readonly(&env).unwrap();
+    assert!(data.provider(Tool::Claude, "b").is_some());
+    assert_eq!(data.current(Tool::Claude).unwrap().id, "b");
+}

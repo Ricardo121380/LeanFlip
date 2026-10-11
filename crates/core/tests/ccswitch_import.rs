@@ -67,6 +67,15 @@ fn make_db(path: &std::path::Path) {
 }
 
 #[test]
+fn scan_does_not_create_a_lock_in_an_existing_data_directory() {
+    let sb = Sandbox::new();
+    std::fs::create_dir_all(&sb.env.data_dir).unwrap();
+    let scan = ccswitch_import::scan(&sb.env, &sb.env.home.join("missing-source")).unwrap();
+    assert!(scan.candidates.is_empty());
+    assert_eq!(std::fs::read_dir(&sb.env.data_dir).unwrap().count(), 0);
+}
+
+#[test]
 fn imports_from_the_database_read_only_with_skip_rules() {
     let sb = Sandbox::new();
     let dir = ccswitch_import::default_dir(&sb.env);

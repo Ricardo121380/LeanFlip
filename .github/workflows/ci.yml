@@ -13,6 +13,33 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  cli:
+    name: Standalone CLI (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Test CLI without desktop dependencies
+        run: cargo test -p ccsl-cli --locked
+      - name: Build standalone binary
+        run: cargo build -p ccsl-cli --release --locked
+      - name: Smoke test in an isolated home
+        run: |
+          target/release/ccsl --version
+          target/release/ccsl --home "$RUNNER_TEMP/ccsl-smoke" status --json
+          test ! -e "$RUNNER_TEMP/ccsl-smoke"
+      - name: Archive binary with executable permissions
+        run: tar -C target/release -czf ccsl-${{ matrix.os }}-${{ runner.arch }}.tar.gz ccsl
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ccsl-${{ matrix.os }}-${{ runner.arch }}
+          path: ccsl-${{ matrix.os }}-${{ runner.arch }}.tar.gz
+          if-no-files-found: error
+
   checks:
     name: Test and package (${{ matrix.os }})
     strategy:

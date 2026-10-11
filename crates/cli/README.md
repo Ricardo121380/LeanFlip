@@ -79,4 +79,9 @@ ccsl --home /absolute/path/to/test-home paths
 
 列表仅输出卡片身份、当前选择和启用状态，不输出 `settingsConfig`、扩展字段或 `meta`。导入预览仅输出原因代码；操作警告和恢复结果输出数量，避免解析错误或恢复信息中的配置内容泄漏。数量非零时，请通过 `paths` 定位并检查相关配置。
 
+切换式工具使用 `current` 表示库中选择，`enabled` / `inLive` / `liveReadable` 为 `null`；
+并存式工具配置读不出来时，启用状态也为 `null`，不会假报为全部关闭。
+若刷新返回 `codex.oauth.live_sync_failed`，新凭据已经保存在账号库，只有客户端同步失败；
+修复配置路径或权限后再操作，不要用旧 token 覆盖新凭据。
+
 验证：`cargo test -p ccsl-cli`。所有子进程测试均使用独立临时目录，不触碰真实客户端配置或发起外部登录。

@@ -132,6 +132,24 @@ fn read_commands_do_not_recover_pending_operations() {
 }
 
 #[test]
+fn mutating_commands_report_automatic_recovery() {
+    let sb = Sandbox::new();
+    sb.write(
+        &sb.env.device_store().state_path(),
+        json!({
+            "version": 1, "apps": {"claude": {"pending": {
+                "op": "switch", "files": [], "target": {}, "published": false
+            }}}
+        })
+        .to_string(),
+    );
+    let result = sb.input(&["provider", "add", "claude", "--json"], &json!({
+        "id": "test", "name": "Test", "settingsConfig": {"env": {"ANTHROPIC_BASE_URL": "https://example.test", "ANTHROPIC_AUTH_TOKEN": "test-only"}}
+    }));
+    assert_eq!(result["recoveryNoticeCount"], 1);
+}
+
+#[test]
 fn safe_listing_excludes_configuration_unknown_fields_and_metadata() {
     let sb = Sandbox::new();
     let mut card = Provider::new(

@@ -52,6 +52,7 @@ impl From<ApiError> for CliError {
             "config" | "json" => "Configuration cannot be read or validated. Inspect the files shown by ccsl paths.",
             "io" => "Cannot access a required file. Check paths and permissions.",
             "serialization" => "Configuration could not be serialized; the operation failed.",
+            "codex.oauth.live_sync_failed" => "Account credentials were refreshed and saved, but the Codex client could not be synchronized. Check the client path and permissions; the new credentials were retained.",
             _ => "The operation failed. Use the error code to identify the cause; configuration contents are withheld.",
         };
         Self {
@@ -255,7 +256,7 @@ fn run(cli: Cli) -> Result<Output, CliError> {
         exit: 1,
     })?;
     let service = Service::open(base, Some(Arc::new(transport)))?;
-    match cli.command {
+    let result: Result<Output, CliError> = match cli.command {
         Command::Status => {
             let tools = service.overview()?;
             let mut text = String::from("TOOL\tCARDS\tCURRENT (stored)\tENABLED\tDETECTED");
@@ -265,7 +266,9 @@ fn run(cli: Cli) -> Result<Output, CliError> {
                     tool.tool,
                     tool.card_count,
                     clean(tool.current.as_deref().unwrap_or("-")),
-                    if tool.live_readable {
+                    if !tool.tool.is_coexist() {
+                        "-".into()
+                    } else if tool.live_readable {
                         tool.in_live.len().to_string()
                     } else {
                         "unknown".into()
@@ -280,8 +283,8 @@ fn run(cli: Cli) -> Result<Output, CliError> {
                         "tool": tool.tool, "kind": tool.kind, "paths": tool.paths,
                         "detected": tool.detected, "cardCount": tool.card_count,
                         "current": tool.current, "currentName": tool.current_name,
-                        "inLive": tool.live_readable.then_some(tool.in_live),
-                        "liveReadable": tool.live_readable
+                        "inLive": (tool.tool.is_coexist() && tool.live_readable).then_some(tool.in_live),
+                        "liveReadable": tool.tool.is_coexist().then_some(tool.live_readable)
                     })
                 })
                 .collect::<Vec<_>>();
@@ -296,7 +299,7 @@ fn run(cli: Cli) -> Result<Output, CliError> {
                     json!({
                         "id": p.id, "name": p.name, "official": p.is_official_category(),
                         "current": list.current.as_deref() == Some(&p.id),
-                        "enabled": list.live_error.is_none().then(|| list.in_live.contains(&p.id))
+                        "enabled": (list.tool.is_coexist() && list.live_error.is_none()).then(|| list.in_live.contains(&p.id))
                     })
                 })
                 .collect::<Vec<_>>();
@@ -315,7 +318,7 @@ fn run(cli: Cli) -> Result<Output, CliError> {
             }
             Ok(Output::new(
                 json!({"tool": list.tool, "kind": list.kind, "providers": providers,
-                "liveReadable": list.live_error.is_none(), "paths": list.paths}),
+                "liveReadable": list.tool.is_coexist().then_some(list.live_error.is_none()), "paths": list.paths}),
                 text,
             ))
         }
@@ -449,7 +452,16 @@ fn run(cli: Cli) -> Result<Output, CliError> {
             };
             Ok(Output::new(json!({"noticeCount": notices.len()}), text))
         }
+    };
+    let mut output = result?;
+    let recovery_count = service.recovery().len();
+    if recovery_count > 0 {
+        output.data["recoveryNoticeCount"] = json!(recovery_count);
+        output.text.push_str(&format!(
+            "\n{recovery_count} recovery notice(s): inspect the affected client configuration."
+        ));
     }
+    Ok(output)
 }
 
 fn error_output(error: CliError, as_json: bool) -> ExitCode {
@@ -480,6 +492,7 @@ fn main() -> ExitCode {
             )
         }
     };
+    let as_json = cli.json;
     match run(cli) {
         Ok(output) => {
             let line = if as_json {
