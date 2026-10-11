@@ -9,10 +9,12 @@ import { join } from 'node:path';
 test('release metadata preserves v0.1.0 assets and prepares only LeanFlip commands for new releases', async t => {
   const root = await mkdtemp(join(tmpdir(), 'leanflip-metadata-'));
   t.after(() => rm(root, { recursive: true, force: true }));
-  for (const part of ['scripts', 'packages/npm', 'assets']) await mkdir(join(root, part), { recursive: true });
+  for (const part of ['scripts', 'packages/npm', 'assets', 'docs/releases']) await mkdir(join(root, part), { recursive: true });
   await copyFile(new URL('../../../scripts/prepare-distribution.mjs', import.meta.url), join(root, 'scripts/prepare-distribution.mjs'));
   await copyFile(new URL('../package.json', import.meta.url), join(root, 'packages/npm/package.json'));
-  await writeFile(join(root, 'LICENSE'), 'Fixture license'); await writeFile(join(root, 'NOTICE.md'), 'Fixture notice');
+  await writeFile(join(root, 'LICENSE'), 'Current fixture license');
+  await writeFile(join(root, 'docs/releases/v0.1.0-LICENSE'), 'Legacy fixture license');
+  await writeFile(join(root, 'docs/releases/v0.1.0-NOTICE.md'), 'Legacy fixture notice');
   for (const version of ['0.1.0', '0.2.0', '0.1.0']) {
     const cliPrefix = version === '0.1.0' ? 'ccsl' : 'leanflip';
     const appPrefix = version === '0.1.0' ? 'ccswitch-lite' : 'leanflip';
@@ -29,11 +31,17 @@ test('release metadata preserves v0.1.0 assets and prepares only LeanFlip comman
     const pkg = JSON.parse(await readFile(join(root, 'packages/npm/package.json')));
     const manifest = JSON.parse(await readFile(join(root, 'packages/npm/release.json')));
     if (version === '0.1.0') {
+      assert.equal(await readFile(join(root, 'packages/npm/LICENSE'), 'utf8'), 'Legacy fixture license');
+      assert.match(await readFile(join(root, 'packages/npm/NOTICE.md'), 'utf8'), /Legacy fixture notice/);
+      assert.ok(pkg.files.includes('NOTICE.md'));
       assert.equal(pkg.name, 'ccswitch-lite'); assert.equal(manifest.appName, undefined);
       assert.equal(manifest.cliName, undefined);
       assert.deepEqual(Object.keys(pkg.bin).sort(), ['ccsl', 'ccsl-app']);
       assert.match(await readFile(join(root, 'Casks/ccswitch-lite.rb'), 'utf8'), /app "CC Switch Lite.app"/);
     } else {
+      assert.equal(await readFile(join(root, 'packages/npm/LICENSE'), 'utf8'), 'Current fixture license');
+      await assert.rejects(readFile(join(root, 'packages/npm/NOTICE.md')), { code: 'ENOENT' });
+      assert.ok(!pkg.files.includes('NOTICE.md'));
       assert.equal(pkg.name, 'leanflip'); assert.equal(manifest.appName, 'LeanFlip.app');
       assert.equal(manifest.cliName, 'leanflip');
       assert.deepEqual(Object.keys(pkg.bin).sort(), ['leanflip','leanflip-app']);

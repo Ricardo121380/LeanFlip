@@ -1,53 +1,64 @@
-//! 错误类型（从 cc-switch `error.rs` 精简：去掉了数据库、HTTP、MCP、代理相关的变体）。
-
-use std::path::Path;
-
-use thiserror::Error;
-
-#[derive(Debug, Error)]
+//! Structured errors shared by the desktop and terminal frontends.
+use std::{fmt, path::Path};
+#[derive(Debug)]
 pub enum AppError {
-    #[error("配置错误: {0}")]
     Config(String),
-    #[error("无效输入: {0}")]
     InvalidInput(String),
-    /// 客户端文件在 ccswitch-lite 读过之后被别的程序改过。
-    #[error("并发冲突: {0}")]
     Conflict(String),
-    #[error("IO 错误: {path}: {source}")]
+    Message(String),
+    NotFound(String),
     Io {
         path: String,
-        #[source]
         source: std::io::Error,
     },
-    #[error("{context}: {source}")]
     IoContext {
         context: String,
-        #[source]
         source: std::io::Error,
     },
-    #[error("JSON 解析错误: {path}: {source}")]
     Json {
         path: String,
-        #[source]
         source: serde_json::Error,
     },
-    #[error("JSON 序列化失败: {source}")]
     JsonSerialize {
-        #[source]
         source: serde_json::Error,
     },
-    #[error("{0}")]
-    Message(String),
-    #[error("{zh} ({en})")]
     Localized {
         key: &'static str,
         zh: String,
         en: String,
     },
-    #[error("找不到: {0}")]
-    NotFound(String),
 }
-
+impl fmt::Display for AppError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Config(message) => write!(f, "配置无效：{message}"),
+            Self::InvalidInput(message) => write!(f, "输入无效：{message}"),
+            Self::Conflict(message) => write!(f, "文件已被其他程序修改：{message}"),
+            Self::Message(message) => f.write_str(message),
+            Self::NotFound(message) => write!(f, "未找到：{message}"),
+            Self::Localized { zh, en, .. } => write!(f, "{zh} ({en})"),
+            Self::Io { path, source } => write!(f, "无法访问 {path}：{source}"),
+            Self::IoContext { context, source } => write!(f, "{context}：{source}"),
+            // Parser messages can include credentials from the malformed source.
+            Self::Json { path, source } => write!(
+                f,
+                "{path}：JSON 格式错误（{}:{}）",
+                source.line(),
+                source.column()
+            ),
+            Self::JsonSerialize { .. } => f.write_str("无法编码 JSON 数据"),
+        }
+    }
+}
+impl std::error::Error for AppError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Io { source, .. } | Self::IoContext { source, .. } => Some(source),
+            Self::Json { source, .. } | Self::JsonSerialize { source } => Some(source),
+            _ => None,
+        }
+    }
+}
 impl AppError {
     pub fn io(path: impl AsRef<Path>, source: std::io::Error) -> Self {
         Self::Io {
@@ -55,14 +66,12 @@ impl AppError {
             source,
         }
     }
-
     pub fn json(path: impl AsRef<Path>, source: serde_json::Error) -> Self {
         Self::Json {
             path: path.as_ref().display().to_string(),
             source,
         }
     }
-
     pub fn localized(key: &'static str, zh: impl Into<String>, en: impl Into<String>) -> Self {
         Self::Localized {
             key,
@@ -71,9 +80,8 @@ impl AppError {
         }
     }
 }
-
 impl From<AppError> for String {
-    fn from(err: AppError) -> Self {
-        err.to_string()
+    fn from(error: AppError) -> String {
+        error.to_string()
     }
 }

@@ -139,7 +139,7 @@ fn claude_settings_round_trip_a_b_a() {
         |v: &serde_json::Value| -> Vec<String> { v.as_object().unwrap().keys().cloned().collect() };
     assert_eq!(keys(&back_json), keys(&original), "top-level order kept");
     // 第一次写入会把文件规范化成 serde_json 的 pretty 格式（行内数组展开、`\u00e9` 写成
-    // 字符），被清掉再写回的关键字段排到 env 末尾：这是移植来的 JsonPatch 的既定行为，值和
+    // 字符），被清掉再写回的关键字段排到 env 末尾：这是 JSON 编辑器当前的输出行为，值和
     // 用户键的位置不变。规范化之后再往返就是逐字节稳定的。
     assert_ne!(back, CLAUDE_LIVE);
     switch::switch(&sb.env, Tool::Claude, "b").unwrap();

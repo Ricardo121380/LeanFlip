@@ -15,7 +15,8 @@ fn presets(tool: &str) -> Vec<Value> {
 fn grok_presets_pass_preflight_once_a_key_is_filled_in() {
     let data = StoreData::default();
     let list = presets("grokbuild");
-    assert!(list.len() > 5);
+    assert!(list.iter().any(|p| p["isOfficial"] == true));
+    assert!(list.iter().any(|p| p["isOfficial"] != true));
     for preset in list {
         let name = preset["name"].as_str().unwrap();
         let mut settings = preset["settingsConfig"].clone();

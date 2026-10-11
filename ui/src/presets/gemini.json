@@ -1,287 +1,31 @@
 [
   {
     "name": "Google Official",
-    "websiteUrl": "https://ai.google.dev/",
-    "apiKeyUrl": "https://aistudio.google.com/apikey",
     "settingsConfig": {
       "env": {}
     },
-    "category": "official"
+    "isOfficial": true,
+    "category": "official",
+    "websiteUrl": "https://gemini.google.com"
   },
   {
-    "name": "PackyCode",
+    "name": "Google Gemini API",
     "settingsConfig": {
       "env": {
-        "GOOGLE_GEMINI_BASE_URL": "https://www.packyapi.ai",
-        "GEMINI_MODEL": "gemini-3.6-flash"
+        "GEMINI_API_KEY": ""
       }
     },
-    "category": "third_party"
+    "websiteUrl": "https://aistudio.google.com",
+    "apiKeyField": "GEMINI_API_KEY"
   },
   {
-    "name": "APINebula",
+    "name": "Gemini Gateway",
     "settingsConfig": {
       "env": {
-        "GOOGLE_GEMINI_BASE_URL": "https://apinebula.ai",
+        "GOOGLE_GEMINI_BASE_URL": "https://api.example.com",
         "GEMINI_API_KEY": "",
-        "GEMINI_MODEL": "gemini-3.6-flash"
+        "GEMINI_MODEL": "your-model-id"
       }
-    },
-    "category": "third_party"
-  },
-  {
-    "name": "AICodeMirror",
-    "settingsConfig": {
-      "env": {
-        "GOOGLE_GEMINI_BASE_URL": "https://api.aicodemirror.ai/api/gemini",
-        "GEMINI_MODEL": "gemini-3.6-flash"
-      }
-    },
-    "category": "third_party"
-  },
-  {
-    "name": "Shengsuanyun",
-    "settingsConfig": {
-      "env": {
-        "GOOGLE_GEMINI_BASE_URL": "https://router.shengsuanyun.com/api",
-        "GEMINI_MODEL": "google/gemini-3.6-flash"
-      }
-    },
-    "category": "aggregator"
-  },
-  {
-    "name": "AIGoCode",
-    "settingsConfig": {
-      "env": {
-        "GOOGLE_GEMINI_BASE_URL": "https://api.aigocode.app",
-        "GEMINI_MODEL": "gemini-3.6-flash"
-      }
-    },
-    "category": "third_party"
-  },
-  {
-    "name": "Qiniu",
-    "settingsConfig": {
-      "env": {
-        "GOOGLE_GEMINI_BASE_URL": "https://api.qnaigc.com/bypass/vertex",
-        "GEMINI_MODEL": "gemini-3.6-flash"
-      }
-    },
-    "category": "aggregator"
-  },
-  {
-    "name": "AICoding",
-    "settingsConfig": {
-      "env": {
-        "GOOGLE_GEMINI_BASE_URL": "https://api.aicoding.inc",
-        "GEMINI_MODEL": "gemini-3.6-flash"
-      }
-    },
-    "category": "third_party"
-  },
-  {
-    "name": "SubRouter",
-    "settingsConfig": {
-      "env": {
-        "GOOGLE_GEMINI_BASE_URL": "https://subrouter.ai/v1beta",
-        "GEMINI_MODEL": "gemini-3.6-flash"
-      }
-    },
-    "category": "aggregator"
-  },
-  {
-    "name": "88API",
-    "settingsConfig": {
-      "env": {
-        "GOOGLE_GEMINI_BASE_URL": "https://api.88api.ai",
-        "GEMINI_API_KEY": "",
-        "GEMINI_MODEL": "gemini-3.8-flash"
-      }
-    },
-    "category": "aggregator"
-  },
-  {
-    "name": "APIKEY.FUN",
-    "settingsConfig": {
-      "env": {
-        "GOOGLE_GEMINI_BASE_URL": "https://api.apikey.fan",
-        "GEMINI_API_KEY": "",
-        "GEMINI_MODEL": "gemini-3.6-flash"
-      }
-    },
-    "category": "third_party"
-  },
-  {
-    "name": "9527CODE",
-    "settingsConfig": {
-      "env": {
-        "GOOGLE_GEMINI_BASE_URL": "https://9527.codes",
-        "GEMINI_API_KEY": "",
-        "GEMINI_MODEL": "gemini-3.6-flash"
-      }
-    },
-    "category": "aggregator"
-  },
-  {
-    "name": "Code0",
-    "settingsConfig": {
-      "env": {
-        "GOOGLE_GEMINI_BASE_URL": "https://code0.ai",
-        "GEMINI_MODEL": "gemini-3.6-flash"
-      }
-    },
-    "category": "aggregator"
-  },
-  {
-    "name": "A6API",
-    "settingsConfig": {
-      "env": {
-        "GOOGLE_GEMINI_BASE_URL": "https://api.a6api.com",
-        "GEMINI_MODEL": "gemini-3.6-flash"
-      }
-    },
-    "category": "aggregator"
-  },
-  {
-    "name": "SSSAiCode",
-    "settingsConfig": {
-      "env": {
-        "GOOGLE_GEMINI_BASE_URL": "https://node-hk.sssaicodeapi.com/api",
-        "GEMINI_MODEL": "gemini-3.6-flash"
-      }
-    },
-    "category": "third_party"
-  },
-  {
-    "name": "SoleAPI",
-    "settingsConfig": {
-      "env": {
-        "GOOGLE_GEMINI_BASE_URL": "https://soleapi.com",
-        "GEMINI_API_KEY": "",
-        "GEMINI_MODEL": "gemini-3.8-flash"
-      }
-    },
-    "category": "aggregator"
-  },
-  {
-    "name": "Cubence",
-    "settingsConfig": {
-      "env": {
-        "GOOGLE_GEMINI_BASE_URL": "https://api.cubence.com",
-        "GEMINI_MODEL": "gemini-3.6-flash"
-      }
-    },
-    "category": "third_party"
-  },
-  {
-    "name": "CrazyRouter",
-    "settingsConfig": {
-      "env": {
-        "GOOGLE_GEMINI_BASE_URL": "https://cn.crazyrouter.com",
-        "GEMINI_MODEL": "gemini-3.6-flash"
-      }
-    },
-    "category": "third_party"
-  },
-  {
-    "name": "SudoCode.us",
-    "settingsConfig": {
-      "env": {
-        "GOOGLE_GEMINI_BASE_URL": "https://sudocode.us",
-        "GEMINI_API_KEY": "",
-        "GEMINI_MODEL": "gemini-3.1-flash-lite"
-      }
-    },
-    "category": "third_party"
-  },
-  {
-    "name": "XycAi",
-    "settingsConfig": {
-      "env": {
-        "GOOGLE_GEMINI_BASE_URL": "https://apicdn.xycai.us",
-        "GEMINI_API_KEY": "",
-        "GEMINI_MODEL": "gemini-3.6-flash"
-      }
-    },
-    "category": "aggregator"
-  },
-  {
-    "name": "Tu-zi",
-    "settingsConfig": {
-      "env": {
-        "GOOGLE_GEMINI_BASE_URL": "https://api.tu-zi.com",
-        "GEMINI_API_KEY": "",
-        "GEMINI_MODEL": "gemini-3.8-flash"
-      }
-    },
-    "category": "aggregator"
-  },
-  {
-    "name": "E-FlowCode",
-    "settingsConfig": {
-      "env": {
-        "GOOGLE_GEMINI_BASE_URL": "https://e-flowcode.cc",
-        "GEMINI_API_KEY": "",
-        "GEMINI_MODEL": "gemini-3.6-flash"
-      },
-      "config": {
-        "general": {
-          "previewFeatures": true,
-          "sessionRetention": {
-            "enabled": true,
-            "maxAge": "30d",
-            "warningAcknowledged": true
-          }
-        },
-        "mcpServers": {},
-        "security": {
-          "auth": {
-            "selectedType": "gemini-api-key"
-          }
-        }
-      }
-    },
-    "category": "third_party"
-  },
-  {
-    "name": "CherryIN",
-    "settingsConfig": {
-      "env": {
-        "GOOGLE_GEMINI_BASE_URL": "https://open.cherryin.net",
-        "GEMINI_API_KEY": "",
-        "GEMINI_MODEL": "google/gemini-3.6-flash"
-      }
-    },
-    "category": "aggregator"
-  },
-  {
-    "name": "OpenRouter",
-    "settingsConfig": {
-      "env": {
-        "GOOGLE_GEMINI_BASE_URL": "https://openrouter.ai/api",
-        "GEMINI_MODEL": "gemini-3.6-flash"
-      }
-    },
-    "category": "aggregator"
-  },
-  {
-    "name": "TheRouter",
-    "settingsConfig": {
-      "env": {
-        "GOOGLE_GEMINI_BASE_URL": "https://api.therouter.ai",
-        "GEMINI_MODEL": "gemini-3.6-flash"
-      }
-    },
-    "category": "aggregator"
-  },
-  {
-    "name": "AICodeWith",
-    "settingsConfig": {
-      "env": {
-        "GOOGLE_GEMINI_BASE_URL": "https://api.aicodewith.ai/gemini_cli",
-        "GEMINI_MODEL": "gemini-3.1-pro-preview"
-      }
-    },
-    "category": "aggregator"
+    }
   }
 ]

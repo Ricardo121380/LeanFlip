@@ -34,7 +34,7 @@ gh release download v0.1.0 --dir target/distribution-assets
 node scripts/prepare-distribution.mjs 0.1.0 target/distribution-assets
 ```
 
-版本号、目录按实际发布调整。生成脚本会核对附件本身的 SHA256，然后生成对应版本的 Homebrew Cask、npm 包版本和 `release.json`，并复制 LICENSE / NOTICE 到 npm 包。不要手工猜测或关闭 SHA256 校验。
+版本号、目录按实际发布调整。生成脚本会核对附件本身的 SHA256，然后生成对应版本的 Homebrew Cask、npm 包版本和 `release.json`，并为新版本复制当前 LICENSE 到 npm 包。生成 v0.1.0 历史安装器时，使用 docs/releases/ 内归档的原 LICENSE / NOTICE；新版不再附带 CC Switch NOTICE。不要手工猜测或关闭 SHA256 校验。
 
 ```sh
 node scripts/prepare-distribution.mjs 0.1.0 target/distribution-assets --check

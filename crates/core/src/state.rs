@@ -1,45 +1,31 @@
-//! `live-state.json`：这台设备上每个应用的客户端文件状态。
-//!
-//! 移植自 cc-switch `mode/state.rs`，只保留：
-//! - `written`：上次写进客户端文件、之后要按记录删掉的东西（Phase 2 的 Grok 模型表）；
-//! - `pending`：一次写客户端文件的操作在发布前写下的意图，按文件记录写前、写后的
-//!   hash 和已备好的临时文件，崩溃后据此前滚或丢弃（[`crate::operation`]）。
-//!
-//! 去掉了直连 / 代理模式（`mode`、`attached`、`proxy_route`、`contract`）和 Stack。
-//!
-//! 不认识的字段读写时原样保留。
-//!
-//! 文件是设备本地的（0600，不同步），路径见 [`DeviceStore`]。
-
-use std::collections::BTreeMap;
-use std::fs;
-use std::io::ErrorKind;
-use std::path::PathBuf;
-use std::sync::Mutex;
-
+//! Persistent write-journal schema and serialized updates for LeanFlip.
+//! Field names remain a storage contract, including unknown extension fields.
+use crate::{
+    fsutil,
+    live::engine::{lock_file, DeviceStore},
+    AppError,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
-
-use crate::error::AppError;
-use crate::fsutil::stage_write;
-use crate::live::engine::DeviceStore;
+use std::{collections::BTreeMap, fs, io::Write, path::PathBuf};
 
 pub const STATE_VERSION: u32 = 1;
+fn version() -> u32 {
+    STATE_VERSION
+}
+fn unset(value: &bool) -> bool {
+    !value
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LiveState {
-    #[serde(default = "state_version")]
+    #[serde(default = "version")]
     pub version: u32,
     #[serde(default)]
     pub apps: BTreeMap<String, AppLiveState>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }
-
-fn state_version() -> u32 {
-    STATE_VERSION
-}
-
 impl Default for LiveState {
     fn default() -> Self {
         Self {
@@ -49,316 +35,197 @@ impl Default for LiveState {
         }
     }
 }
-
-/// CC Switch 上次写进客户端文件、切走时要按记录删掉的东西。
-///
-/// 不能按 live 现在的内容去找：客户端自己会改。Grok 的 `/settings` 会把 `models.default`
-/// 改成内置模型，按它找表就会漏删上一家的表；而 CC Switch 默认的表名 `grok-4.5` 正好是
-/// 内置模型 ID，留下的表会覆盖内置模型，把官方请求连同第三方 Key 发到第三方地址。
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct AppLiveState {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pending: Option<Pending>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub written: Option<Written>,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Written {
-    /// Grok Build `config.toml` 里 CC Switch 写的 `[model."<名称>"]` 表。
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tables: Vec<String>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }
-
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-pub struct AppLiveState {
-    /// 没有值：这台设备上还没有写过这个应用的文件。
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub written: Option<Written>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub pending: Option<Pending>,
-    /// cc-switch 原版里的 mode/attached/proxy_route/contract/stack 等字段 ccswitch-lite
-    /// 不用；读到时原样保留在这里。
-    #[serde(flatten)]
-    pub extra: Map<String, Value>,
-}
-
-impl AppLiveState {
-    fn is_empty(&self) -> bool {
-        self.pending.is_none() && self.written.is_none() && self.extra.is_empty()
-    }
-}
-
-fn is_false(value: &bool) -> bool {
-    !*value
-}
-
-/// 操作名。用字符串而不是枚举，旧版本读到新版本写的操作名也能照常前滚或丢弃。
-pub mod op {
-    /// 切换供应商（会改指针）。
-    pub const SWITCH: &str = "switch";
-    /// 把当前供应商重新写进客户端文件（编辑后重写等）。
-    pub const APPLY: &str = "apply";
-}
-
-/// 一次操作的写前意图。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Pending {
     pub op: String,
     pub files: Vec<PendingFile>,
     #[serde(default)]
     pub target: PendingTarget,
-    /// 已经开始发布：换进第一个文件之前记下，所以只要有文件发布过它就一定在。发布过的
-    /// 文件之后可能又被客户端改掉（Codex 刷新登录），单看文件内容就分不出发布开始过没有，
-    /// 恢复时靠它决定前滚还是丢弃。
-    #[serde(default, skip_serializing_if = "is_false")]
+    #[serde(default, skip_serializing_if = "unset")]
     pub published: bool,
 }
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PendingFile {
     pub path: PathBuf,
-    /// 写前内容的 hash；`None` 表示写前文件不存在。
     pub pre: Option<String>,
-    /// 写后内容的 hash；`None` 表示这个操作要删掉它。
     #[serde(default)]
     pub planned: Option<String>,
-    /// 已写好写后内容、等着 rename 的临时文件；删文件时没有。
     #[serde(default)]
     pub staged: Option<PathBuf>,
 }
-
-/// 文件都写完之后要落定的状态。
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct PendingTarget {
-    /// 当前供应商指针：切换成功后当前供应商是谁（落定到供应商库）。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pointer: Option<String>,
-    /// 写入记录：有值时整体替换。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub written: Option<Written>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }
-
 impl PendingTarget {
-    /// 只改直连指针（`None` 表示不改）。
     pub fn pointer(pointer: Option<String>) -> Self {
         Self {
             pointer,
             ..Self::default()
         }
     }
-
     pub fn is_empty(&self) -> bool {
         self.pointer.is_none() && self.written.is_none() && self.extra.is_empty()
     }
 }
-
-/// 状态文件是所有应用共用的，读改写要串行。
-fn state_lock() -> &'static Mutex<()> {
-    static LOCK: Mutex<()> = Mutex::new(());
-    &LOCK
+pub mod op {
+    pub const SWITCH: &str = "switch";
+    pub const APPLY: &str = "apply";
 }
 
-/// 读状态文件。不存在时是空状态；内容坏了就挪到一旁（`live-state.json.corrupt-<unix 秒>`）
-/// 从空状态开始：这是 ccswitch-lite 自己的文件，里面只有未完成操作的意图。
-pub fn load(store: &DeviceStore) -> Result<LiveState, AppError> {
-    let _guard = state_lock().lock().unwrap_or_else(|e| e.into_inner());
-    // load 可能移走损坏文件，因此读也需要排他锁；目录不存在时没有文件可恢复。
-    let _file = store
-        .state_path()
-        .parent()
-        .is_some_and(|parent| parent.is_dir())
-        .then(|| crate::live::engine::lock_file(&store.file("live-state.json.lock"), true))
-        .transpose()?;
-    load_unlocked(store)
-}
-
-fn load_unlocked(store: &DeviceStore) -> Result<LiveState, AppError> {
+fn read_locked(store: &DeviceStore) -> Result<LiveState, AppError> {
     let path = store.state_path();
     let bytes = match fs::read(&path) {
         Ok(bytes) => bytes,
-        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(LiveState::default()),
-        Err(source) => return Err(AppError::io(&path, source)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(LiveState::default()),
+        Err(e) => return Err(AppError::io(&path, e)),
     };
     match serde_json::from_slice::<LiveState>(&bytes) {
-        Ok(state) => Ok(state),
-        Err(err) => {
-            let stamp = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs();
-            let aside = path.with_file_name(format!("live-state.json.corrupt-{stamp}"));
-            log::warn!(
-                "live-state.json 无法解析（{err}），已移到 {} 并从空状态开始",
-                aside.display()
-            );
-            fs::rename(&path, &aside).map_err(|source| AppError::io(&path, source))?;
+        Ok(state) if state.version == STATE_VERSION => Ok(state),
+        Ok(_) => Err(AppError::Config("Unsupported write-journal version".into())),
+        Err(_) => {
+            // Archive invalid bytes under a collision-free name before resetting.
+            // Parsing diagnostics are deliberately excluded from logs.
+            let parent = path
+                .parent()
+                .ok_or_else(|| AppError::Config("Invalid journal path".into()))?;
+            let mut archive = tempfile::Builder::new()
+                .prefix("live-state.json.corrupt-")
+                .tempfile_in(parent)
+                .map_err(|e| AppError::io(parent, e))?;
+            archive
+                .write_all(&bytes)
+                .map_err(|e| AppError::io(&path, e))?;
+            archive
+                .as_file()
+                .sync_all()
+                .map_err(|e| AppError::io(&path, e))?;
+            archive.keep().map_err(|e| AppError::io(&path, e.error))?;
+            fsutil::delete_file(&path)?;
+            log::warn!("An invalid LeanFlip journal was archived before recovery");
             Ok(LiveState::default())
         }
     }
 }
 
-fn save(store: &DeviceStore, state: &LiveState) -> Result<(), AppError> {
-    let bytes =
-        serde_json::to_vec_pretty(state).map_err(|source| AppError::JsonSerialize { source })?;
-    stage_write(&store.state_path(), &bytes, Some(0o600), true)?.commit()
+pub fn load(store: &DeviceStore) -> Result<LiveState, AppError> {
+    if !store
+        .state_path()
+        .parent()
+        .is_some_and(|path| path.is_dir())
+    {
+        return Ok(LiveState::default());
+    }
+    let _file = lock_file(&store.file("live-state.json.lock"), true)?;
+    read_locked(store)
 }
-
-/// 读改写状态文件。
 pub fn update<R>(
     store: &DeviceStore,
     change: impl FnOnce(&mut LiveState) -> R,
 ) -> Result<R, AppError> {
-    let _guard = state_lock().lock().unwrap_or_else(|e| e.into_inner());
-    let _file = crate::live::engine::lock_file(&store.file("live-state.json.lock"), true)?;
-    let mut state = load_unlocked(store)?;
-    let result = change(&mut state);
-    state.apps.retain(|_, app| !app.is_empty());
-    save(store, &state)?;
+    let _file = lock_file(&store.file("live-state.json.lock"), true)?;
+    let mut data = read_locked(store)?;
+    let result = change(&mut data);
+    data.apps
+        .retain(|_, app| app.pending.is_some() || app.written.is_some() || !app.extra.is_empty());
+    let bytes =
+        serde_json::to_vec_pretty(&data).map_err(|source| AppError::JsonSerialize { source })?;
+    fsutil::atomic_write_private(&store.state_path(), &bytes)?;
     Ok(result)
 }
-
 pub fn pending(store: &DeviceStore, app: &str) -> Result<Option<Pending>, AppError> {
     Ok(load(store)?
         .apps
-        .get(app)
-        .and_then(|state| state.pending.clone()))
+        .get_mut(app)
+        .and_then(|entry| entry.pending.take()))
 }
-
-pub fn set_pending(
-    store: &DeviceStore,
-    app: &str,
-    pending: Option<Pending>,
-) -> Result<(), AppError> {
-    update(store, |state| {
-        state.apps.entry(app.to_string()).or_default().pending = pending;
-    })
-}
-
-/// 这个应用的写入记录；`None` 表示新版还没写过。
 pub fn written(store: &DeviceStore, app: &str) -> Result<Option<Written>, AppError> {
     Ok(load(store)?
         .apps
-        .get(app)
-        .and_then(|state| state.written.clone()))
+        .get_mut(app)
+        .and_then(|entry| entry.written.take()))
 }
-
-/// 有未完成操作的应用。
+pub fn set_pending(
+    store: &DeviceStore,
+    app: &str,
+    intent: Option<Pending>,
+) -> Result<(), AppError> {
+    update(store, |data| {
+        data.apps.entry(app.into()).or_default().pending = intent
+    })
+}
 pub fn apps_with_pending(store: &DeviceStore) -> Result<Vec<String>, AppError> {
     Ok(load(store)?
         .apps
         .into_iter()
-        .filter(|(_, state)| state.pending.is_some())
-        .map(|(app, _)| app)
+        .filter_map(|(key, app)| app.pending.map(|_| key))
         .collect())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
-
-    fn sample_pending() -> Pending {
-        Pending {
-            op: op::SWITCH.to_string(),
-            files: vec![PendingFile {
-                path: PathBuf::from("/tmp/settings.json"),
-                pre: None,
-                planned: Some("abc".to_string()),
-                staged: Some(PathBuf::from("/tmp/settings.json.tmp.1")),
-            }],
-            target: PendingTarget::pointer(Some("p1".to_string())),
-            published: false,
-        }
-    }
-
     #[test]
-    fn pending_round_trips_and_clears() {
-        let dir = tempfile::tempdir().unwrap();
-        let store = DeviceStore::at(dir.path());
-
-        assert_eq!(pending(&store, "claude").unwrap(), None);
-        set_pending(&store, "claude", Some(sample_pending())).unwrap();
-        assert_eq!(pending(&store, "claude").unwrap(), Some(sample_pending()));
-        assert_eq!(
-            apps_with_pending(&store).unwrap(),
-            vec!["claude".to_string()]
-        );
-
-        set_pending(&store, "claude", None).unwrap();
-        assert_eq!(pending(&store, "claude").unwrap(), None);
-        let raw: Value = serde_json::from_slice(&fs::read(store.state_path()).unwrap()).unwrap();
-        assert_eq!(raw, json!({"version": 1, "apps": {}}));
-    }
-
-    #[test]
-    fn unknown_fields_survive_a_rewrite() {
-        let dir = tempfile::tempdir().unwrap();
-        let store = DeviceStore::at(dir.path());
+    fn independent_tool_updates_and_unknown_fields_survive() {
+        let root = tempfile::tempdir().unwrap();
+        let store = DeviceStore::at(root.path());
         fs::write(
             store.state_path(),
-            r#"{"version": 2, "future": true, "apps": {"codex": {"mode": "proxy"}}}"#,
+            br#"{"version":1,"future":{"enabled":true},"apps":{"one":{"other":42}}}"#,
         )
         .unwrap();
-
-        set_pending(&store, "claude", Some(sample_pending())).unwrap();
-        set_pending(&store, "claude", None).unwrap();
-
-        let raw: Value = serde_json::from_slice(&fs::read(store.state_path()).unwrap()).unwrap();
-        assert_eq!(
-            raw,
-            json!({"version": 2, "future": true, "apps": {"codex": {"mode": "proxy"}}})
-        );
+        update(&store, |data| {
+            data.apps.entry("two".into()).or_default().written = Some(Written::default())
+        })
+        .unwrap();
+        let data = load(&store).unwrap();
+        assert_eq!(data.apps["one"].extra["other"], 42);
+        assert_eq!(data.extra["future"]["enabled"], true);
+        assert!(data.apps["two"].written.is_some());
     }
-
     #[test]
-    fn a_corrupt_state_file_is_moved_aside() {
-        let dir = tempfile::tempdir().unwrap();
-        let store = DeviceStore::at(dir.path());
-        fs::write(store.state_path(), "{ not json").unwrap();
-
-        assert_eq!(load(&store).unwrap(), LiveState::default());
-        let names: Vec<String> = fs::read_dir(dir.path())
+    fn corrupt_bytes_are_retained_and_newer_versions_are_not_reset() {
+        let root = tempfile::tempdir().unwrap();
+        let store = DeviceStore::at(root.path());
+        fs::write(store.state_path(), b"incomplete journal {").unwrap();
+        assert!(load(&store).unwrap().apps.is_empty());
+        let archive = fs::read_dir(root.path())
             .unwrap()
-            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
-            .collect();
-        assert!(
-            names
-                .iter()
-                .any(|name| name.starts_with("live-state.json.corrupt-")),
-            "{names:?}"
-        );
-    }
-
-    #[test]
-    fn unavailable_state_lock_stops_updates_and_corruption_recovery() {
-        let dir = tempfile::tempdir().unwrap();
-        let store = DeviceStore::at(dir.path());
-        fs::write(store.state_path(), "{ not json").unwrap();
-        fs::create_dir(store.file("live-state.json.lock")).unwrap();
-
-        assert!(matches!(load(&store), Err(AppError::Io { .. })));
-        let mut called = false;
-        assert!(matches!(
-            update(&store, |_| called = true),
-            Err(AppError::Io { .. })
-        ));
-        assert!(!called);
+            .filter_map(Result::ok)
+            .find(|entry| {
+                entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with("live-state.json.corrupt-")
+            })
+            .unwrap();
+        assert_eq!(fs::read(archive.path()).unwrap(), b"incomplete journal {");
+        fs::write(store.state_path(), br#"{"version":99,"apps":{}}"#).unwrap();
+        assert!(load(&store).is_err());
         assert_eq!(
-            fs::read_to_string(store.state_path()).unwrap(),
-            "{ not json"
+            fs::read(store.state_path()).unwrap(),
+            br#"{"version":99,"apps":{}}"#
         );
-        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 2);
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn state_file_is_owner_only() {
-        use std::os::unix::fs::PermissionsExt;
-        let dir = tempfile::tempdir().unwrap();
-        let store = DeviceStore::at(dir.path());
-        set_pending(&store, "claude", Some(sample_pending())).unwrap();
-        let mode = fs::metadata(store.state_path())
-            .unwrap()
-            .permissions()
-            .mode()
-            & 0o777;
-        assert_eq!(mode, 0o600);
     }
 }

@@ -8,7 +8,7 @@ LeanFlip（简切，原 CC Switch Lite / SwitchLeaf）将供应商保存为本�
 
 [下载 v0.1.0](https://github.com/Ricardo121380/ccswitch-lite/releases/tag/v0.1.0) · [查看最新发布](https://github.com/Ricardo121380/ccswitch-lite/releases/latest) · [CLI 完整说明](crates/cli/README.md) · [反馈问题](https://github.com/Ricardo121380/ccswitch-lite/issues)
 
-> **版本说明：** 本分支源码已更名为 LeanFlip，包含 TUI、三端本机检测及加密完整备份。公开的 v0.1.0 仍是旧名称与旧功能；下面的 Homebrew 和 v0.1.0 下载入口安装的是该旧版本，npm 尚未发布。体验本轮功能请[从源码构建](#从源码构建与开发)。新版本只提供 `leanflip` 命令；`~/.cc-switch-lite/` 数据目录和原应用标识沿用，GitHub 仓库地址暂不变。本文的新命令示例使用 `leanflip`；使用 v0.1.0 时，已有命令请改用 `ccsl`，新迁移和备份命令需源码版本。
+> **版本说明：** 本分支源码已更名为 LeanFlip，包含独立重写的配置核心、TUI、三端本机检测及加密完整备份。公开的 v0.1.0 仍是旧名称与旧功能；下面的 Homebrew 和 v0.1.0 下载入口安装的是该旧版本，npm 尚未发布。体验本轮功能请[从源码构建](#从源码构建与开发)。新版本只提供 `leanflip` 命令；`~/.cc-switch-lite/` 数据目录和原应用标识沿用，GitHub 仓库地址暂不变。本文的新命令示例使用 `leanflip`；使用 v0.1.0 时，已有命令请改用 `ccsl`，新迁移和备份命令需源码版本。
 
 ## 目录
 
@@ -777,13 +777,13 @@ python3 scripts/check-cli-tui.py --binary target/release/leanflip
 - [v0.1.0 发布说明](docs/releases/v0.1.0.md)：首版功能与平台范围。
 - [分发维护说明](docs/distribution.md)：更新 Homebrew Cask、生成 npm 包和手动发布流程。
 
-重新生成内置预设时，使用本机的上游源码目录：
+内置预设由 LeanFlip 自己维护，不需要下载其他项目源码：
 
 ```sh
-pnpm presets /absolute/path/to/cc-switch
+pnpm presets
 ```
 
-预设生成脚本仅保留支持的直连配置和模型厂商官方链接。域名白名单见 [official-vendor-domains.json](ui/src/lib/official-vendor-domains.json)，移除记录见 [removed-preset-links.json](ui/src/lib/removed-preset-links.json)。
+本轮用 26 个官方登录及通用连接模板替换原来的上游供应商预设库，覆盖全部 10 种工具。已有供应商卡不受影响；其他厂商可以通过通用模板填写地址、密钥与模型，也可以从客户端或 CC Switch 导入。`api.example.com` 和 `your-model-id` 是需要替换的示例值，Grok 的 `context_window` 也应按所选模型调整。
 
 ## 项目结构与许可证
 
@@ -792,10 +792,12 @@ pnpm presets /absolute/path/to/cc-switch
 | [`crates/core`](crates/core) | 配置投影与写入、供应商库、首次写入备份、中断恢复、导入和 Codex OAuth；无 Tauri 依赖 |
 | [`crates/service`](crates/service) | App / CLI 共用业务层、设置、路径覆盖、脱敏及 OAuth HTTP 实现 |
 | [`crates/app`](crates/app) | Tauri 2 桌面外壳、托盘、文件监听及后台账号刷新 |
-| [`crates/cli`](crates/cli) | 独立命令行 `ccsl`、交互菜单及全屏 TUI |
+| [`crates/cli`](crates/cli) | 独立命令行 `leanflip`、交互菜单及全屏 TUI |
 | [`ui`](ui) | React、TypeScript、Vite、TanStack Query 前端及中英文界面 |
 | [`scripts`](scripts) | 预设生成、CLI 伪终端检查及分发元数据生成脚本 |
 | [`Casks`](Casks) | Homebrew 原生 CLI 与 macOS 桌面 App 的二进制 Cask |
 | [`packages/npm`](packages/npm) | 零运行时依赖的 npm CLI 启动器与桌面安装器 |
 
-本项目基于 [farion1231/cc-switch](https://github.com/farion1231/cc-switch) 的写入引擎重写，保留其 MIT 版权声明。许可证见 [LICENSE](LICENSE)，移植来源与改动说明见 [NOTICE.md](NOTICE.md)。原作版权 © 2025 Jason Young。
+当前源码以 [MIT License](LICENSE) 发布。本轮替换了原来从 CC Switch 移植的实现、测试和预设；实现依据、兼容边界及核查记录见[独立实现记录](docs/engineering/independent-core.md)。CC Switch 导入格式和历史数据标识仍为互操作用途保留。
+
+**历史版本不变：** v0.1.0 包含上游代码，仍适用原 [LICENSE](docs/releases/v0.1.0-LICENSE) 和 [NOTICE](docs/releases/v0.1.0-NOTICE.md)。仓库内当前指向这些旧二进制的 npm 安装器保留相应通知；为新的独立版本生成安装器时会自动切换许可证材料。本轮尚未发布新版本。第三方依赖继续适用各自许可证。

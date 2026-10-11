@@ -52,6 +52,15 @@ class Terminal:
             self.output += chunk
         self.pending = self.pending[self.pending.index(token) + len(token):]
 
+    def wait_secure_input(self):
+        # The password library prints its prompt before switching ECHO off with
+        # TCSAFLUSH. Sending immediately on prompt text can be discarded.
+        deadline = time.monotonic() + 3
+        while termios.tcgetattr(self.fd)[3] & termios.ECHO:
+            if time.monotonic() > deadline:
+                raise AssertionError("Password input did not enter secure mode")
+            time.sleep(0.01)
+
     def send(self, text):
         os.write(self.fd, text.encode())
 
@@ -174,6 +183,7 @@ def check(binary):
                 terminal.expect("API Key")
                 terminal.send("\x1b[B\r")
                 terminal.expect("New API Key")
+                terminal.wait_secure_input()
                 terminal.send("fixture-new-editor-key\r")
                 terminal.expect("Save these changes?")
                 terminal.send("y\r" if save else "\r")

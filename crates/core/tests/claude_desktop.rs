@@ -252,7 +252,7 @@ fn a_corrupt_file_aborts_the_whole_operation() {
 }
 
 #[test]
-fn model_id_safety_matches_upstream() {
+fn model_ids_follow_the_desktop_menu_contract() {
     for ok in [
         "claude-sonnet-4-5",
         "anthropic/claude-opus-4-1",
@@ -274,7 +274,7 @@ fn model_id_safety_matches_upstream() {
 }
 
 #[test]
-fn import_takes_over_an_applied_cc_switch_profile() {
+fn import_reads_the_selected_gateway_profile() {
     let sb = Sandbox::new();
     sb.write(
         &claude_desktop::meta_path(&sb.env),

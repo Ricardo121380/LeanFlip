@@ -84,9 +84,9 @@ jobs:
           PLATFORM: ${{ matrix.platform }}
         run: |
           mkdir -p release-assets "$RUNNER_TEMP/ccsl-package"
-          cp target/release/leanflip LICENSE NOTICE.md "$RUNNER_TEMP/ccsl-package/"
+          cp target/release/leanflip LICENSE "$RUNNER_TEMP/ccsl-package/"
           cp crates/cli/README.md "$RUNNER_TEMP/ccsl-package/README.md"
-          tar -C "$RUNNER_TEMP/ccsl-package" -czf "release-assets/leanflip_${RELEASE_VERSION}_${PLATFORM}.tar.gz" leanflip LICENSE NOTICE.md README.md
+          tar -C "$RUNNER_TEMP/ccsl-package" -czf "release-assets/leanflip_${RELEASE_VERSION}_${PLATFORM}.tar.gz" leanflip LICENSE README.md
           if [ "$RUNNER_OS" = macOS ]; then
             set -- target/release/bundle/dmg/*.dmg
             test "$#" -eq 1 && test -f "$1"
