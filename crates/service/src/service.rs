@@ -98,6 +98,8 @@ pub struct ToolSummary {
     pub current: Option<String>,
     pub current_name: Option<String>,
     pub in_live: Vec<String>,
+    /// false 表示并存配置无法读取，不能把空列表当作全部停用。
+    pub live_readable: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -443,6 +445,7 @@ impl Service {
             .map(|&tool| {
                 let paths = rt.env.live_paths(tool);
                 let current = data.current(tool);
+                let live_ids = self.live_ids(tool);
                 ToolSummary {
                     tool,
                     kind: kind(tool),
@@ -451,7 +454,8 @@ impl Service {
                     card_count: data.providers(tool).len(),
                     current: current.map(|p| p.id.clone()),
                     current_name: current.map(|p| p.name.clone()),
-                    in_live: self.live_ids(tool).unwrap_or_default(),
+                    live_readable: live_ids.is_ok(),
+                    in_live: live_ids.unwrap_or_default(),
                 }
             })
             .collect())
