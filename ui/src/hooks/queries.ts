@@ -24,8 +24,8 @@ export function useProviders(tool: ToolId) {
   return useQuery({ queryKey: keys.providers(tool), queryFn: () => api.listProviders(tool) });
 }
 
-export function useAccounts() {
-  return useQuery({ queryKey: keys.accounts, queryFn: api.codexAccounts });
+export function useAccounts(enabled = true) {
+  return useQuery({ queryKey: keys.accounts, queryFn: api.codexAccounts, enabled });
 }
 
 export function useLogins(enabled = true) {
