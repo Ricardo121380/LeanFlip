@@ -8,12 +8,47 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use ccsl_core::{Env, Tool};
 use notify::RecursiveMode;
 use notify_debouncer_mini::{new_debouncer, DebouncedEvent, Debouncer};
 use tauri::{AppHandle, Manager};
+
+/// 去抖时长；回声窗口要比它长。
+const DEBOUNCE: Duration = Duration::from_millis(500);
+const ECHO_WINDOW: Duration = Duration::from_millis(1500);
+
+/// 应用自己写文件后已经刷新过一次；监听随后报上来的同一批变化就不用再刷新托盘和前端。
+pub(crate) struct EchoGate {
+    last_self_write: Mutex<Option<Instant>>,
+    window: Duration,
+}
+
+impl EchoGate {
+    pub(crate) const fn new(window: Duration) -> Self {
+        Self {
+            last_self_write: Mutex::new(None),
+            window,
+        }
+    }
+
+    pub(crate) fn mark(&self, now: Instant) {
+        *self
+            .last_self_write
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()) = Some(now);
+    }
+
+    pub(crate) fn is_echo(&self, now: Instant) -> bool {
+        self.last_self_write
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .is_some_and(|at| now.saturating_duration_since(at) < self.window)
+    }
+}
+
+pub(crate) static ECHO: EchoGate = EchoGate::new(ECHO_WINDOW);
 
 /// 需要关心的文件 / 目录。
 pub(crate) fn targets(env: &Env) -> Vec<PathBuf> {
@@ -167,8 +202,10 @@ impl WatchSet {
 
 pub fn start(app: &AppHandle, env: &Env) {
     let handle = app.clone();
-    match WatchSet::new(env.clone(), Duration::from_millis(500), move || {
-        crate::notify_changed(&handle)
+    match WatchSet::new(env.clone(), DEBOUNCE, move || {
+        if !ECHO.is_echo(Instant::now()) {
+            crate::refresh_views(&handle);
+        }
     }) {
         Ok(set) => {
             app.manage(set);
@@ -293,5 +330,17 @@ mod tests {
         };
         set.set_env(env.clone().with_overrides(&overrides));
         assert!(set.watched().contains(&alt));
+    }
+
+    #[test]
+    fn echo_gate_skips_events_right_after_our_own_writes() {
+        let gate = EchoGate::new(Duration::from_millis(1500));
+        let t0 = Instant::now();
+        assert!(!gate.is_echo(t0), "nothing written yet");
+        gate.mark(t0);
+        assert!(gate.is_echo(t0 + Duration::from_millis(600)));
+        assert!(!gate.is_echo(t0 + Duration::from_millis(1600)));
+        // 时钟比标记早（并发）也算回声，不 panic。
+        assert!(gate.is_echo(t0 - Duration::from_millis(10)));
     }
 }

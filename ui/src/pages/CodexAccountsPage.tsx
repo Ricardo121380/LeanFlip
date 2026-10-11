@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useAccounts, useAction, useLogins } from "@/hooks/queries";
+import { useAccounts, useAction, useLogins, refreshAll } from "@/hooks/queries";
 import { api, errorMessage, type DeviceFlow } from "@/lib/api";
 import { accountLabel, planBadge } from "@/lib/cards";
 
@@ -44,7 +44,7 @@ function DeviceLoginDialog({ target, onClose }: { target?: string; onClose: () =
               if (result.status === "added") {
                 done.current = true;
                 toast.success(t("codex.added", { label: accountLabel(result.account) }));
-                void client.invalidateQueries();
+                void refreshAll(client);
                 onClose();
               } else {
                 timer = setTimeout(poll, Math.max(1, started.interval) * 1000);

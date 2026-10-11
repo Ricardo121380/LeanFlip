@@ -24,7 +24,7 @@ import {
 import { filterPresets, loadPresets, type Preset } from "@/lib/presets";
 import { toolMeta } from "@/lib/tools";
 import { cn } from "@/lib/utils";
-import { showWarnings } from "@/hooks/queries";
+import { showWarnings, refreshAll } from "@/hooks/queries";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 const CODEX_TEMPLATE = (model: string) =>
@@ -161,7 +161,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, existingIds
       toast.error(errorMessage(error));
     } finally {
       setSaving(false);
-      void client.invalidateQueries();
+      void refreshAll(client);
     }
   }
 

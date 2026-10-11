@@ -21,8 +21,14 @@ pub const EVENT_PROVIDERS_CHANGED: &str = "providers-changed";
 #[derive(Clone)]
 pub struct AppState(pub Arc<Service>);
 
-/// 数据变了：重建托盘菜单、通知前端。
+/// 应用自己改了数据：重建托盘菜单、通知前端，并让文件监听忽略紧随其后的「回声」。
 pub fn notify_changed(app: &tauri::AppHandle) {
+    watcher::ECHO.mark(std::time::Instant::now());
+    refresh_views(app);
+}
+
+/// 重建托盘菜单、通知前端。
+fn refresh_views(app: &tauri::AppHandle) {
     tray::rebuild(app);
     let _ = app.emit(EVENT_PROVIDERS_CHANGED, ());
 }

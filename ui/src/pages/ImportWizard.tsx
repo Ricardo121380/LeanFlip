@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useSettings } from "@/hooks/queries";
+import { useSettings, refreshAll } from "@/hooks/queries";
 import { api, errorMessage, type ImportReport, type ImportScan, type ToolId } from "@/lib/api";
 import { TOOLS, toolMeta } from "@/lib/tools";
 import { cn } from "@/lib/utils";
@@ -52,7 +52,7 @@ export function ImportWizard() {
     setBusy(true);
     try {
       setReport(await api.ccswitchApply([...selected], dir.trim() || undefined));
-      void client.invalidateQueries();
+      void refreshAll(client);
     } catch (e) {
       toast.error(errorMessage(e));
     } finally {
