@@ -18,6 +18,13 @@
 
 还没有发布版本。截图见 `docs/screenshots/`。
 
+## 桌面操作
+
+侧栏将单一配置切换与多供应商并存分组显示。供应商页支持按名称、ID、地址搜索，
+当前选择单独标明，配置文件路径可展开和复制。写入时会禁用冲突操作；读取失败可原地重试。
+设置页显示未保存状态，支持放弃修改；后台刷新不会覆盖正在编辑的设置或供应商草稿。
+最小窗口为 860×560，侧栏与内容区可独立滚动，导航和控件支持键盘聚焦。
+
 ## CLI
 
 ```sh
@@ -28,12 +35,15 @@ cargo build -p ccsl-cli --release --locked
 ./target/release/ccsl enable opencode provider-id
 ./target/release/ccsl import file backup.sql --preview
 ./target/release/ccsl status --json
+./target/release/ccsl --lang en --help
 ```
 
 CLI 与 App 共用 `~/.cc-switch-lite/` 及目录覆盖设置。查询和导入预览不会恢复中断写入；
 写入命令在跨进程锁下执行，`ccsl recover [tool]` 可显式恢复。`--home` 可指定独立测试根目录。
 卡片编辑支持文件或标准输入，列表及 JSON 输出不包含密钥。完整命令、账号登录及退出码见
 [CLI 使用说明](crates/cli/README.md)。
+终端界面默认中文，`--lang en` 切换英文；列表按中英文显示宽度对齐，较窄的 `COLUMNS`
+会启用字段列表。`--json` 的字段、英文错误消息和退出码保持稳定。
 
 ## 结构
 
