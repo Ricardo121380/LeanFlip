@@ -11,17 +11,11 @@ npm 包 `leanflip` 下载并校验 LeanFlip 的原生程序，功能以对应的
 
 ## 安装
 
-npm 官方仓库尚未发布本包。先按[分发维护说明](https://github.com/Ricardo121380/LeanFlip/blob/main/docs/distribution.md)为新原生资产生成匹配元数据，再从项目根目录打包。没有生成 `release.json` 时打出的包无法运行：
-
 ```sh
-mkdir -p target/npm
-LEANFLIP_NPM_TARBALL=$(npm pack ./packages/npm --ignore-scripts --pack-destination target/npm --silent)
-npm install -g "./target/npm/$LEANFLIP_NPM_TARBALL" --ignore-scripts
+npm install -g leanflip
 leanflip --version
 leanflip
 ```
-
-已有 `.tgz` 文件时，也可直接执行 `npm install -g /absolute/path/to/leanflip-VERSION.tgz --ignore-scripts`。VERSION 替换为实际版本。
 
 首次运行 `leanflip` 会下载该版本对应的原生二进制，随后从用户缓存启动；参数、标准输入、JSON 输出和终端按键保持原 CLI 行为。
 
@@ -41,7 +35,7 @@ leanflip-app open --app-dir /Applications
 
 Linux 使用 `apt install` 安装 DEB，普通用户通过 `sudo` 调用；需要终端确认和系统密码，图形桌面启动 App 时仍使用普通用户。请勿用 sudo 运行 `leanflip` 或桌面 App。该 Linux 包在 Ubuntu 24.04 构建和验证，不适用于所有发行版。
 
-macOS App 和 CLI 均未做 Apple Developer ID 签名和公证。首次运行时可能需要在系统“隐私与安全性”中手动允许，详见[项目安装说明](https://github.com/Ricardo121380/LeanFlip#下载与安装)。安装完成后不会自动启动 App。
+macOS App 和 CLI 均未做 Apple Developer ID 签名和公证。首次运行时可能需要在系统“隐私与安全性”中手动允许，详见[项目安装说明](https://github.com/Ricardo121380/LeanFlip#安装)。安装完成后不会自动启动 App。
 
 ## 下载、路径与升级
 
