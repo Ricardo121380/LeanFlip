@@ -781,7 +781,7 @@ python3 scripts/check-cli-tui.py --binary target/release/leanflip
 
 - [检查工作流](.github/workflows/ci.yml)：主分支 push 和 PR 时运行类型检查、前端测试、Rust 测试、Clippy，以及 Linux / macOS 桌面打包验证；命令行单独构建、检查并上传压缩包。
 - [发布工作流](.github/workflows/release.yml)：版本标签触发正式 App / 命令行构建，校验版本与架构，生成 SHA256 文件并创建草稿 Release。
-- [分发维护说明](docs/distribution.md)：Homebrew、npm 安装器和手动发布流程。
+- [分发维护说明](docs/distribution.md)：Homebrew、npm 安装器和发布流程。
 
 内置预设由 LeanFlip 自己维护，覆盖全部 10 种工具：
 

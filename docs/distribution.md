@@ -16,7 +16,7 @@ Homebrew Cask 与 npm 安装器共用 GitHub Release 的原生二进制。它们
 - CLI Cask：`Casks/leanflip.rb`（发布新版本时生成），macOS ARM64 / Linux x64；Linux 需要 Homebrew 7+。
 - 桌面 Cask：`Casks/leanflip-app.rb`（发布新版本时生成），macOS ARM64。
 - npm 包源：`packages/npm`，包名 `leanflip`，命令为 `leanflip` 和 `leanflip-app`。
-- npm 官方仓库：[`leanflip`](https://www.npmjs.com/package/leanflip)，从 0.2.1 起发布，由维护者在本机手动发布。
+- npm 官方仓库：[`leanflip`](https://www.npmjs.com/package/leanflip)，从 0.2.1 起发布；0.2.1 由维护者手动发布，之后由 `npm-publish.yml` 在正式发布 Release 时自动发布。
 
 两个 Homebrew 入口都用 `brew install --cask` 安装，避免预编译 CLI 被作为源码配方触发编译工具检查。
 
@@ -58,21 +58,33 @@ npm pack ./packages/npm --ignore-scripts --pack-destination target/npm
 
 `.github/workflows/distribution.yml` 会在 macOS 和 Linux 打包并安装 npm 包，运行原生 CLI 和伪终端菜单检查；同时验证桌面下载、macOS 安装与替换，以及 Homebrew 实际安装。
 
-发布工作流会在 Release 草稿中附带与同版本原生程序匹配的 npm `.tgz`，并纳入 `SHA256SUMS`。该工作流不调用 `npm publish`。
+发布工作流会在 Release 草稿中附带与同版本原生程序匹配的 npm `.tgz`，并纳入 `SHA256SUMS`。它不调用 `npm publish`；发布到 npm 由正式发布 Release 后的 `npm-publish.yml` 完成，见下一节。
 
 ## 发布到 npm 官方仓库
 
-GitHub Release 正式发布后，由维护者在自己的终端完成 npm 登录并发布同一个 `.tgz`。不要将密码、令牌或验证码写入仓库、工作流或聊天记录。
+正式发布 GitHub Release（把草稿点成 Published）时，`.github/workflows/npm-publish.yml` 会下载该 Release 附带的 `leanflip-VERSION.tgz`，核对 `SHA256SUMS`、包名和版本号，再发布到 npm。npm 通过“可信发布”（Trusted Publishing）信任这个工作流：仓库和工作流里不保存任何 npm 令牌，发布时自动生成来源证明（provenance）。已经在 npm 上的版本会跳过；预发布版本不会发布。
+
+npm 端的配置在 [leanflip 的 Access 设置页](https://www.npmjs.com/package/leanflip/access) 的 Trusted Publisher 里，选 GitHub Actions，字段区分大小写：
+
+| 字段 | 值 |
+| --- | --- |
+| Organization or user | `Ricardo121380` |
+| Repository | `LeanFlip` |
+| Workflow filename | `npm-publish.yml` |
+| Environment name | 留空 |
+
+新建的配置必须在 2 天内完成第一次成功发布，否则会失效，需要删除后重建。因此在准备正式发布某个版本时再添加，然后发布草稿。第一次自动发布成功后，可以在同一页把 Publishing access 改为 “Require two-factor authentication and disallow tokens”，只保留可信发布这条路径。
+
+工作流要求 npm 11.5.1 及以上、Node 22.14 及以上（工作流用 Node 24 并固定 npm 11.12.1）。`packages/npm/package.json` 的 `repository.url` 必须指向本仓库。Release 必须由维护者账号发布：用 `GITHUB_TOKEN` 发布的 Release 不会触发其他工作流。
+
+自动发布失败、或需要补发时，可以在 Actions 页手动运行 “Publish to npm” 并填写标签，例如 `v0.2.1`。也可以由维护者在本机发布同一个 `.tgz`，npm 会在浏览器中要求二次验证。不要将密码、令牌或验证码写入仓库、工作流或聊天记录：
 
 ```sh
 npm login --registry=https://registry.npmjs.org/
-npm whoami --registry=https://registry.npmjs.org/
-npm publish ./target/npm/leanflip-VERSION.tgz --access public --registry=https://registry.npmjs.org/
+npm publish ./leanflip-VERSION.tgz --access public --registry=https://registry.npmjs.org/
 ```
 
-将 `VERSION` 替换为实际发布版本；发布时使用经过验证的 `.tgz`，不要在仓库根目录直接执行 `npm publish`（根 `package.json` 是私有的前端开发项目）。npm 可能要求维护者在浏览器中完成二次验证。
-
-成功后用 `npm view leanflip version` 检查。后续如需 GitHub Actions 自动发布，可在 npm 包设置中配置对应仓库与工作流的 Trusted Publisher；当前未配置这一权限，也未保存发布令牌。
+不要在仓库根目录直接执行 `npm publish`（根 `package.json` 是私有的前端开发项目）。发布后用 `npm view leanflip version` 检查。
 
 ## 卸载与替换边界
 
