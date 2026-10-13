@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="8 8 84 84">
+  <!-- macOS menu bar template (22 pt @2x): only alpha is used, so the system tints it for light and dark menu bars. Rendered to tray.png. -->
+  <g fill="none" stroke="#000" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M42 30H70V74" stroke-opacity="0.4"/>
+    <path d="M30 26V70H58"/>
+  </g>
+</svg>

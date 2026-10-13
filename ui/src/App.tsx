@@ -18,6 +18,7 @@ import { HomePage, type HomeMode } from "@/pages/HomePage";
 import { ToolPage } from "@/pages/ToolPage";
 import { withViewTransition } from "@/lib/motion";
 import type { SettingsLeaveState } from "@/pages/SettingsPage";
+import { BrandMark } from "@/components/BrandMark";
 
 // 不常用的页面按需加载。
 const CodexAccountsPage = lazy(() => import("@/pages/CodexAccountsPage").then((m) => ({ default: m.CodexAccountsPage })));
@@ -190,11 +191,7 @@ export default function App() {
     <div className="flex h-screen overflow-hidden">
       <aside className="flex w-60 shrink-0 flex-col border-r bg-sidebar px-2.5 pb-2.5 pt-3">
         <div className="flex shrink-0 items-center gap-2.5 px-2 pb-4 pt-1">
-          <svg viewBox="0 0 28 28" className="h-7 w-7 shrink-0" aria-hidden="true">
-            <rect width="28" height="28" rx="7" fill="hsl(var(--primary))" />
-            <rect x="6" y="10" width="16" height="8" rx="4" fill="none" stroke="hsl(var(--primary-foreground))" strokeWidth="1.8" />
-            <circle cx="18" cy="14" r="2.3" fill="hsl(var(--primary-foreground))" />
-          </svg>
+          <BrandMark className="h-7 w-7 shrink-0" />
           <div className="min-w-0">
             <p className="text-[15px] font-semibold leading-tight tracking-tight">{t("app.title")}</p>
             <p className="truncate text-[11px] text-muted-foreground">{t("app.subtitle")}</p>
