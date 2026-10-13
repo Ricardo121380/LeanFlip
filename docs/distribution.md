@@ -16,7 +16,7 @@ Homebrew Cask 与 npm 安装器共用 GitHub Release 的原生二进制。它们
 - CLI Cask：`Casks/leanflip.rb`（发布新版本时生成），macOS ARM64 / Linux x64；Linux 需要 Homebrew 7+。
 - 桌面 Cask：`Casks/leanflip-app.rb`（发布新版本时生成），macOS ARM64。
 - npm 包源：`packages/npm`，包名 `leanflip`，命令为 `leanflip` 和 `leanflip-app`。
-- npm 官方仓库：[`leanflip`](https://www.npmjs.com/package/leanflip)，从 0.2.1 起发布；0.2.1 由维护者手动发布，之后由 `npm-publish.yml` 在正式发布 Release 时自动发布。
+- npm 官方仓库：[`leanflip`](https://www.npmjs.com/package/leanflip)，从 0.2.1 起发布；0.2.1 由维护者手动发布；从 0.2.2 起由 `npm-publish.yml` 在正式发布 Release 时自动发布（带来源证明）。
 
 两个 Homebrew 入口都用 `brew install --cask` 安装，避免预编译 CLI 被作为源码配方触发编译工具检查。
 
@@ -72,8 +72,9 @@ npm 端的配置在 [leanflip 的 Access 设置页](https://www.npmjs.com/packag
 | Repository | `LeanFlip` |
 | Workflow filename | `npm-publish.yml` |
 | Environment name | 留空 |
+| Allowed actions | 勾选 **Direct npm publish** |
 
-新建的配置必须在 2 天内完成第一次成功发布，否则会失效，需要删除后重建。因此在准备正式发布某个版本时再添加，然后发布草稿。第一次自动发布成功后，可以在同一页把 Publishing access 改为 “Require two-factor authentication and disallow tokens”，只保留可信发布这条路径。
+新建的配置默认只允许暂存发布（staged publish），不勾选 Direct npm publish 时工作流会得到 `403 OIDC permission denied for this action`。新建的配置必须在 2 天内完成第一次成功发布，否则会失效，需要删除后重建。因此在准备正式发布某个版本时再添加，然后发布草稿。第一次自动发布成功后，可以在同一页把 Publishing access 改为 “Require two-factor authentication and disallow tokens”，只保留可信发布这条路径。
 
 工作流要求 npm 11.5.1 及以上、Node 22.14 及以上（工作流用 Node 24 并固定 npm 11.12.1）。`packages/npm/package.json` 的 `repository.url` 必须指向本仓库。Release 必须由维护者账号发布：用 `GITHUB_TOKEN` 发布的 Release 不会触发其他工作流。
 
