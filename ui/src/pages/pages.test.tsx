@@ -42,7 +42,7 @@ describe("ToolPage (switch tool)", () => {
         paths: ["/tmp/home/.codex/config.toml"],
         providers: [
           { id: "official", name: "OpenAI", category: "official", settingsConfig: { auth: {}, config: "" }, meta: { authBinding: { authProvider: "codex_oauth", accountId: "acc-team" } } },
-          { id: "relay", name: "Relay", settingsConfig: { auth: { OPENAI_API_KEY: "sk" }, config: 'base_url = "https://relay/v1"\n' } },
+          { id: "relay", name: "Relay", settingsConfig: { auth: { OPENAI_API_KEY: "sk" }, config: 'model_provider = "relay"\n[model_providers.relay]\nbase_url = "https://relay/v1"\n' } },
         ],
       }),
       codex_accounts: () => accounts,

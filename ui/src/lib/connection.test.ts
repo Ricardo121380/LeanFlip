@@ -58,6 +58,16 @@ describe("connection fields", () => {
     expect(ready(readConnection("codex", text, false)).values.baseUrl).toBe("https://proxy.example/v1");
   });
 
+  it("does not treat a leftover Codex provider table as the one in use", () => {
+    const config = 'model = "m"\n\n[model_providers.custom]\nbase_url = "https://unused.example/v1"\n';
+    let text = toEditorText("codex", { auth: {}, config });
+    const connection = ready(readConnection("codex", text, false));
+    expect(connection.values.baseUrl).toBe("");
+    expect(connection.fields.find((field) => field.id === "baseUrl")?.hint).toBe("openai_base_url");
+    text = writeConnection("codex", text, "baseUrl", "https://proxy.example/v1");
+    expect(text.toml).toBe('model = "m"\nopenai_base_url = "https://proxy.example/v1"\n\n[model_providers.custom]\nbase_url = "https://unused.example/v1"\n');
+  });
+
   it("writes the Codex key into the nested auth object when extra keys exist", () => {
     let text = toEditorText("codex", { auth: { OPENAI_API_KEY: "" }, config: "", extra: true });
     text = writeConnection("codex", text, "apiKey", "k");

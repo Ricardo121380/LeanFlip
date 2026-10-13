@@ -119,6 +119,23 @@ fn toml_edits_target_the_selected_provider_or_model_and_keep_comments() {
     }
 }
 #[test]
+fn codex_without_model_provider_ignores_a_leftover_provider_table() {
+    // Codex uses its built-in openai provider here, so the table's URL is not the endpoint.
+    let mut provider = card(
+        json!({"auth":{},"config":"model = 'm'\n[model_providers.custom]\nbase_url = 'https://unused.example/v1'\n"}),
+    );
+    let info = connection_info(Tool::Codex, &provider);
+    assert_eq!(info.base_url, None);
+    assert!(!info.editable);
+    assert!(patch(Tool::Codex, &mut provider, update()).is_err());
+    // Grok Build keeps using a lone model table when no default is named.
+    let grok = card(json!({"config":"[model.only]\nbase_url = 'https://grok.example/v1'\n"}));
+    assert_eq!(
+        connection_info(Tool::GrokBuild, &grok).base_url.as_deref(),
+        Some("https://grok.example/v1")
+    );
+}
+#[test]
 fn summaries_redact_url_credentials_and_official_login_is_not_replaced() {
     let mut provider = card(
         json!({"env":{"ANTHROPIC_BASE_URL":"https://user:secret@api.example/v1?token=private#fragment","ANTHROPIC_AUTH_TOKEN":"private-key"}}),

@@ -2,6 +2,7 @@
 import { parse as parseToml } from "smol-toml";
 import i18n from "@/i18n";
 import type { AccountInfo, Provider, ToolId } from "./api";
+import { tomlBaseUrl } from "./connection";
 
 /** 后端用来替换 ChatGPT 登录凭据的占位符（crates/service/src/redact.rs）。 */
 export const REDACTED = "__leanflip_redacted__";
@@ -25,10 +26,9 @@ export function endpointOf(tool: ToolId, provider: Provider): string | undefined
     case "gemini":
       return str(env.GOOGLE_GEMINI_BASE_URL);
     case "codex":
-    case "grokbuild": {
-      const config = typeof sc.config === "string" ? sc.config : "";
-      return config.match(/^\s*base_url\s*=\s*"([^"]+)"/m)?.[1];
-    }
+    case "grokbuild":
+      // 只认当前选中的那张表；配置里留着没用的表不算。
+      return tomlBaseUrl(tool, typeof sc.config === "string" ? sc.config : "");
     case "opencode":
     case "mcode":
       return str((sc.options as Record<string, unknown> | undefined)?.baseURL) ?? str(sc.baseUrl);

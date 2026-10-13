@@ -805,15 +805,13 @@ fn target(tool: Tool, config: &Value) -> Result<Target, Failure> {
                 .or_else(|| text(config, &["OPENAI_API_KEY"]))
                 .map(String::from);
             let tables = doc.get("model_providers").and_then(Item::as_table_like);
-            let id = match doc.get("model_provider").and_then(Item::as_str) {
-                Some(id) => id.to_string(),
-                None => match tables {
-                    Some(tables) if tables.len() == 1 => {
-                        tables.iter().next().unwrap().0.to_string()
-                    }
-                    _ => "openai".into(),
-                },
-            };
+            // Like Codex: without model_provider the built-in openai provider is used, even
+            // when a [model_providers] table is left over from another provider.
+            let id = doc
+                .get("model_provider")
+                .and_then(Item::as_str)
+                .unwrap_or("openai")
+                .to_string();
             match id.as_str() {
                 "openai" => Ok(plain(
                     Protocol::OpenAiResponses,

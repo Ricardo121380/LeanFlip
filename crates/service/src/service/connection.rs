@@ -110,7 +110,10 @@ fn table_path(tool: Tool, document: &DocumentMut) -> Result<(&'static str, Strin
         .ok_or_else(unsupported)?;
     let name = match selected {
         Some(name) => name.to_owned(),
-        None if tables.len() == 1 => tables.iter().next().unwrap().0.to_owned(),
+        // Codex falls back to its built-in openai provider, so a lone table is only a leftover.
+        None if tool != Tool::Codex && tables.len() == 1 => {
+            tables.iter().next().unwrap().0.to_owned()
+        }
         _ => return Err(unsupported()),
     };
     if tables
