@@ -48,7 +48,7 @@ App 和命令行可以单独使用，也可以一起使用。命令行不需要 
 
 ## 安装
 
-macOS 推荐用 Homebrew 安装；也可以直接下载安装包，或从源码构建。
+macOS 推荐用 Homebrew 安装；已经装了 Node.js 也可以用 npm。还可以直接下载安装包，或从源码构建。
 
 ### 用 Homebrew 安装
 
@@ -61,6 +61,18 @@ brew install --cask ricardo121380/leanflip/leanflip       # 命令行与 TUI（m
 ```
 
 Homebrew 安装的 App 同样没有签名，第一次打开的处理方法见下文的“macOS 首次打开”。命令行如果第一次运行被拦下，执行 `xattr -d com.apple.quarantine "$(brew --prefix)/bin/leanflip"`。
+
+### 用 npm 安装
+
+需要 Node.js 20 或更新版本，支持 macOS Apple Silicon 和 Linux x86_64：
+
+```sh
+npm install -g leanflip
+leanflip --version
+leanflip-app install   # 可选：下载并安装桌面 App
+```
+
+第一次运行 `leanflip` 时会从本项目 Releases 下载对应版本的原生程序，并按包内固定的 SHA256 校验。`leanflip-app install` 在 macOS 上默认装到 `~/Applications`，在 Linux 上调用 `apt` 安装 DEB。更多选项见 [npm 包说明](packages/npm/README.md)。
 
 ### 下载安装包
 
@@ -704,6 +716,7 @@ leanflip recover         # 处理所有工具
 先退出 App 和交互菜单，再升级：
 
 - Homebrew：`brew upgrade --cask ricardo121380/leanflip/leanflip-app ricardo121380/leanflip/leanflip`（只装了其中一个就只写那一个）。
+- npm：`npm install -g leanflip@latest`；用 `leanflip-app` 装的桌面 App 再执行 `leanflip-app install --replace`。
 - 安装包：按[下载安装包](#下载安装包)安装新版本，覆盖原来的 App 或 `leanflip` 文件。
 
 **从 0.1.x 升级：** 0.2.0 起 App 和命令都改用 LeanFlip 的名称，是一个新的 App。安装后旧版 App 和旧命令不会被替换，请手动删除；数据目录会自动迁移，无需手动复制。开机自启需要在新 App 的设置里重新打开。
@@ -720,6 +733,7 @@ cargo build --release --locked --bin leanflip
 卸载 App 或命令行不会自动还原已经写入客户端的配置。若希望回到官方或其他供应商，请在卸载前先完成切换。
 
 - Homebrew：`brew uninstall --cask ricardo121380/leanflip/leanflip-app ricardo121380/leanflip/leanflip`，不再需要时 `brew untap ricardo121380/leanflip`。
+- npm：`npm uninstall -g leanflip` 只移除命令；用 `leanflip-app` 装的 App 按下面 macOS / Linux 的方式删除，下载缓存在 `~/.cache/leanflip/`。
 - 命令行：删除自己安装的 `leanflip` 二进制，例如 `~/.local/bin/leanflip`。
 - macOS App：从“应用程序”中移除 LeanFlip。
 - Linux DEB：执行 `sudo apt remove lean-flip`（软件包名是 `lean-flip`）。

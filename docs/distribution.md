@@ -16,7 +16,7 @@ Homebrew Cask 与 npm 安装器共用 GitHub Release 的原生二进制。它们
 - CLI Cask：`Casks/leanflip.rb`（发布新版本时生成），macOS ARM64 / Linux x64；Linux 需要 Homebrew 7+。
 - 桌面 Cask：`Casks/leanflip-app.rb`（发布新版本时生成），macOS ARM64。
 - npm 包源：`packages/npm`，包名 `leanflip`，命令为 `leanflip` 和 `leanflip-app`。
-- npm 官方仓库尚未发布；不要在用户说明中将 npm 安装写成当前可用命令。
+- npm 官方仓库：[`leanflip`](https://www.npmjs.com/package/leanflip)，从 0.2.1 起发布，由维护者在本机手动发布。
 
 两个 Homebrew 入口都用 `brew install --cask` 安装，避免预编译 CLI 被作为源码配方触发编译工具检查。
 
@@ -60,9 +60,9 @@ npm pack ./packages/npm --ignore-scripts --pack-destination target/npm
 
 发布工作流会在 Release 草稿中附带与同版本原生程序匹配的 npm `.tgz`，并纳入 `SHA256SUMS`。该工作流不调用 `npm publish`。
 
-## 首次发布到 npm 官方仓库
+## 发布到 npm 官方仓库
 
-此步骤需要维护者另行决定发布，并在自己的终端完成 npm 登录。不要将密码、令牌或验证码写入仓库、工作流或聊天记录。
+GitHub Release 正式发布后，由维护者在自己的终端完成 npm 登录并发布同一个 `.tgz`。不要将密码、令牌或验证码写入仓库、工作流或聊天记录。
 
 ```sh
 npm login --registry=https://registry.npmjs.org/
@@ -72,7 +72,7 @@ npm publish ./target/npm/leanflip-VERSION.tgz --access public --registry=https:/
 
 将 `VERSION` 替换为实际发布版本；发布时使用经过验证的 `.tgz`，不要在仓库根目录直接执行 `npm publish`（根 `package.json` 是私有的前端开发项目）。npm 可能要求维护者在浏览器中完成二次验证。
 
-成功后，用 `npm view leanflip version` 检查，再更新 README 中的发布状态，才能将 `npm install -g leanflip` 作为新版用户入口。后续如需 GitHub Actions 自动发布，可在 npm 包设置中配置对应仓库与工作流的 Trusted Publisher；当前未配置这一权限，也未保存发布令牌。
+成功后用 `npm view leanflip version` 检查。后续如需 GitHub Actions 自动发布，可在 npm 包设置中配置对应仓库与工作流的 Trusted Publisher；当前未配置这一权限，也未保存发布令牌。
 
 ## 卸载与替换边界
 
