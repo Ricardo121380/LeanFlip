@@ -13,12 +13,12 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use args::{AccountCommand, Cli, Command, Import, Language, ProviderCommand};
-use ccsl_core::ccswitch_export::{Preview, MAX_EXPORT_BYTES};
-use ccsl_core::{AppError, Env, Provider, Tool};
-use ccsl_service::oauth_http::{Endpoints, HttpTransport};
-use ccsl_service::service::{ApiError, OpResult, PollResult};
-use ccsl_service::Service;
 use clap::{CommandFactory, FromArgMatches};
+use leanflip_core::ccswitch_export::{Preview, MAX_EXPORT_BYTES};
+use leanflip_core::{AppError, Env, Provider, Tool};
+use leanflip_service::oauth_http::{Endpoints, HttpTransport};
+use leanflip_service::service::{ApiError, OpResult, PollResult};
+use leanflip_service::Service;
 use presentation::{clean, table};
 use serde_json::{json, Value};
 
@@ -180,8 +180,8 @@ fn preview_output(preview: Preview, tools: &[Tool], lang: Language) -> Output {
     );
     if items.is_empty() {
         text.push_str(lang.text(
-            "\n没有符合所选工具的卡片。请检查 --tool 筛选条件。",
-            "\nNo cards match the selected tools. Check the --tool filter.",
+            "\n没有符合所选工具的供应商。请检查 --tool 筛选条件。",
+            "\nNo providers match the selected tools. Check the --tool filter.",
         ));
     } else {
         let rows = items
@@ -381,8 +381,8 @@ fn run(cli: Cli) -> Result<Output, CliError> {
                 })
                 .collect::<Vec<_>>();
             let mut text = format!("{}\n\n{}\n\n{}", lang.text("LeanFlip · 工具概览", "LeanFlip · Tool overview"),
-                table(&[lang.text("工具", "TOOL"), lang.text("模式", "MODE"), lang.text("卡片", "CARDS"), lang.text("当前选择 / 启用数", "SELECTION / ENABLED"), lang.text("客户端配置", "CLIENT CONFIG")], &rows),
-                lang.text("切换式状态来自已保存的选择；可用 leanflip list <tool> 查看卡片。", "Switch selections reflect the saved choice. Run leanflip list <tool> to inspect cards."));
+                table(&[lang.text("工具", "TOOL"), lang.text("模式", "MODE"), lang.text("供应商", "PROVIDERS"), lang.text("当前选择 / 启用数", "SELECTION / ENABLED"), lang.text("客户端配置", "CLIENT CONFIG")], &rows),
+                lang.text("切换式状态来自已保存的选择；可用 leanflip list <tool> 查看供应商。", "Switch selections reflect the saved choice. Run leanflip list <tool> to inspect providers."));
             if tools.iter().all(|tool| tool.card_count == 0) {
                 text.push_str(lang.text(
                     "\n还没有供应商。可用 leanflip import live <tool> 导入现有配置。",
@@ -427,7 +427,7 @@ fn run(cli: Cli) -> Result<Output, CliError> {
                     "\n\n{}\n  leanflip import live {}\n  leanflip provider add {} --file provider.json",
                     lang.text(
                         "暂无供应商。可导入客户端配置，或从 JSON 文件新增：",
-                        "No providers yet. Import client settings or add a JSON card:"
+                        "No providers yet. Import client settings or add one from JSON:"
                     ),
                     list.tool,
                     list.tool
@@ -438,7 +438,7 @@ fn run(cli: Cli) -> Result<Output, CliError> {
                     .zip(&list.providers)
                     .map(|(p, provider)| {
                         let connection =
-                            ccsl_service::service::connection_info(list.tool, provider);
+                            leanflip_service::service::connection_info(list.tool, provider);
                         let state = if list.tool.is_coexist() {
                             match p["enabled"].as_bool() {
                                 Some(true) => lang.text("已启用", "Enabled"),
@@ -521,8 +521,8 @@ fn run(cli: Cli) -> Result<Output, CliError> {
         Command::Disable { tool, provider_id } => Ok(Output::operation(
             service.set_in_live(tool.into(), &provider_id, false)?,
             lang,
-            "供应商已停用，卡片已保留。",
-            "Provider disabled; its saved card is retained.",
+            "供应商已停用，配置仍保留在 LeanFlip 中。",
+            "Provider disabled; it remains saved in LeanFlip.",
         )),
         Command::Paths { tool } => {
             let env = service.env();
@@ -535,7 +535,7 @@ fn run(cli: Cli) -> Result<Output, CliError> {
                 .collect::<std::collections::BTreeMap<_, _>>();
             let mut text = format!(
                 "{}\n  {}",
-                lang.text("CC Switch Lite 数据目录", "CC Switch Lite data directory"),
+                lang.text("LeanFlip 数据目录", "LeanFlip data directory"),
                 clean(&env.data_dir.display().to_string())
             );
             for (tool, files) in &paths {
@@ -562,13 +562,13 @@ fn run(cli: Cli) -> Result<Output, CliError> {
         } => {
             let result = service.import_live(tool.into())?;
             let text = if result.created.is_empty() {
-                lang.text("没有新增卡片。当前配置可能已导入，或没有可导入的供应商。", "No cards added. The current configuration may already be imported or contain no providers.").to_string()
+                lang.text("没有新增供应商。当前配置可能已导入，或没有可导入的内容。", "No providers added. The current configuration may already be imported or contain nothing to import.").to_string()
             } else {
                 format!(
                     "{} {} {}",
                     lang.text("已导入", "Imported"),
                     result.created.len(),
-                    lang.text("张供应商卡片。", "provider card(s).")
+                    lang.text("个供应商。", "provider(s).")
                 )
             };
             Ok(Output::new(json!(result), text))
@@ -607,7 +607,7 @@ fn run(cli: Cli) -> Result<Output, CliError> {
                     tools,
                 },
         } => {
-            let options = ccsl_service::service::RestoreOptions {
+            let options = leanflip_service::service::RestoreOptions {
                 tools: if no_providers {
                     vec![]
                 } else if tools.is_empty() {
@@ -654,13 +654,13 @@ fn run(cli: Cli) -> Result<Output, CliError> {
             let report = service.export_apply(selected, duplicate.into())?;
             let text = format!(
                 "{} {} · {} {}\n{}",
-                lang.text("已保存卡片", "Cards saved:"),
+                lang.text("已保存供应商", "Providers saved:"),
                 report.created.len(),
                 lang.text("已跳过", "Skipped:"),
                 report.skipped,
                 lang.text(
                     "可用 leanflip list <tool> 查看，再通过 use 或 enable 应用到客户端。",
-                    "Run leanflip list <tool> to inspect cards, then use use or enable to apply them."
+                    "Run leanflip list <tool> to inspect them, then use use or enable to apply them."
                 )
             );
             Ok(Output::new(json!(report), text))
@@ -699,11 +699,7 @@ fn run(cli: Cli) -> Result<Output, CliError> {
                 )),
                 ProviderCommand::Delete { tool, provider_id } => {
                     service.delete_provider(tool.into(), &provider_id)?;
-                    Ok(Output::done(
-                        lang,
-                        "供应商卡片已删除。",
-                        "Provider card deleted.",
-                    ))
+                    Ok(Output::done(lang, "供应商已删除。", "Provider deleted."))
                 }
             }
         }
@@ -914,7 +910,30 @@ fn main() -> ExitCode {
     execute(cli)
 }
 
+/// Commands that can write LeanFlip data. Only these move a 0.1.x data directory to its new
+/// location; read-only commands keep their promise not to create files.
+fn writes_data(command: &Command) -> bool {
+    match command {
+        Command::Status | Command::List { .. } | Command::Paths { .. } | Command::Export { .. } => {
+            false
+        }
+        Command::Import { source } => match source {
+            Import::Local { apply, .. }
+            | Import::Backup { apply, .. }
+            | Import::File { apply, .. } => *apply,
+            Import::Live { .. } => true,
+        },
+        Command::Accounts { action } => !matches!(action, AccountCommand::List),
+        _ => true,
+    }
+}
+
 fn execute(cli: Cli) -> ExitCode {
+    if writes_data(&cli.command) {
+        let home = cli.home.clone().unwrap_or_else(Env::system_home);
+        // On failure keep using the previous directory; the next write retries the move.
+        let _ = leanflip_core::env::migrate_legacy_data_dir(&home);
+    }
     if matches!(
         &cli.command,
         Command::Provider {

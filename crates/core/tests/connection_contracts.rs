@@ -1,7 +1,7 @@
 //! LeanFlip behavior contracts, built from client configuration interfaces.
 mod common;
-use ccsl_core::{store, switch, Provider, Tool};
 use common::Sandbox;
+use leanflip_core::{store, switch, Provider, Tool};
 use serde_json::{json, Value};
 
 #[test]
@@ -41,7 +41,7 @@ fn codex_auth_sources_remain_separate_from_native_login() {
         ] {
             let sandbox = Sandbox::new();
             sandbox.set_preserve(preserve);
-            let native = json!({"auth_mode":"chatgpt","tokens":{"access_token":"native-fixture","refresh_token":"native-refresh","id_token":ccsl_core::codex::auth::test_codex_id_token("local-user"),"account_id":"workspace-fixture"}});
+            let native = json!({"auth_mode":"chatgpt","tokens":{"access_token":"native-fixture","refresh_token":"native-refresh","id_token":leanflip_core::codex::auth::test_codex_id_token("local-user"),"account_id":"workspace-fixture"}});
             sandbox.write(&sandbox.env.codex_auth_path(), &native.to_string());
             sandbox.write(&sandbox.env.codex_config_path(),"# personal\napproval_policy = 'on-request'\n[mcp_servers.local]\ncommand = 'fixture'\n");
             sandbox.add(

@@ -3,10 +3,10 @@
 
 mod common;
 
-use ccsl_core::import::import_live;
-use ccsl_core::switch;
-use ccsl_core::{Provider, Tool};
 use common::Sandbox;
+use leanflip_core::import::import_live;
+use leanflip_core::switch;
+use leanflip_core::{Provider, Tool};
 use serde_json::{json, Value};
 
 const GEMINI_ENV: &str = "# my gemini env\nGOOGLE_GEMINI_BASE_URL=https://a.example\nGEMINI_API_KEY=ka\nMY_PROXY=http://127.0.0.1:7890\n\n# trailing comment\n";
@@ -170,7 +170,7 @@ fn gemini_import_takes_only_key_fields() {
     let report = import_live(&sb.env, Tool::Gemini).unwrap();
     assert_eq!(report.created, vec!["default", "official"]);
     assert_eq!(report.current.as_deref(), Some("default"));
-    let data = ccsl_core::store::load(&sb.env).unwrap();
+    let data = leanflip_core::store::load(&sb.env).unwrap();
     let card = &data.providers(Tool::Gemini)[0];
     assert_eq!(
         card.settings_config,
@@ -238,7 +238,7 @@ fn grok_doc(sb: &Sandbox) -> toml::Table {
 #[test]
 fn grok_import_takes_the_default_table_only() {
     let sb = grok_sandbox();
-    let data = ccsl_core::store::load(&sb.env).unwrap();
+    let data = leanflip_core::store::load(&sb.env).unwrap();
     let cards = data.providers(Tool::GrokBuild);
     assert_eq!(cards[0].id, "default");
     assert_eq!(sb.current(Tool::GrokBuild).as_deref(), Some("default"));
@@ -326,7 +326,7 @@ fn grok_official_removes_our_table_and_default() {
     switch::switch(&clean.env, Tool::GrokBuild, "official").unwrap();
     let text = clean.read(&clean.env.grok_config_path());
     assert!(
-        ccsl_core::grok_config::is_official_live_config(&text),
+        leanflip_core::grok_config::is_official_live_config(&text),
         "{text:?}"
     );
 }
@@ -346,7 +346,7 @@ fn grok_invalid_card_is_refused_and_nothing_is_written() {
     assert_eq!(sb.read(&sb.env.grok_config_path()), GROK_LIVE);
     assert_eq!(sb.current(Tool::GrokBuild).as_deref(), Some("default"));
     // 编辑时也一样拦下：预检不过，库里的行不变。
-    let data = ccsl_core::store::load(&sb.env).unwrap();
+    let data = leanflip_core::store::load(&sb.env).unwrap();
     let bad = data
         .providers(Tool::GrokBuild)
         .iter()

@@ -1,21 +1,23 @@
 import { useConfirm } from "@/components/ConfirmDialog";
 import { QueryState } from "@/components/QueryState";
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { useIsMutating } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, ArrowRightLeft, Check, ChevronRight, Copy, Download, FileCode2, Loader2, Pencil, Plus, Search, Star, Trash2, UserRound, X } from "lucide-react";
+import { AlertTriangle, ArrowRightLeft, Copy, CopyPlus, Download, Gauge, FileCode2, FolderSearch, Loader2, Pencil, Plus, Search, Trash2, UserRound, X } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 // 编辑器（CodeMirror）按需加载。
 const ProviderEditor = lazy(() => import("@/components/ProviderEditor").then((m) => ({ default: m.ProviderEditor })));
-import { useAccounts, useAction, useLogins, useProviders } from "@/hooks/queries";
-import { api, errorMessage, type AccountInfo, type Provider, type ToolId } from "@/lib/api";
-import { accountLabel, endpointOf, isOfficial } from "@/lib/cards";
+import { useAccounts, useAction, useLogins, useOverview, useProviders, useSwitchProvider } from "@/hooks/queries";
+import { api, errorMessage, type AccountInfo, type ProbeResult, type Provider, type ToolId } from "@/lib/api";
+import { accountLabel, endpointOf, isOfficial, modelOf } from "@/lib/cards";
+import { failureText, latencyTone, providerDetail, settle, toneClass } from "@/lib/probe";
 import { toolMeta } from "@/lib/tools";
+import { Monogram, ToolGlyph } from "@/components/Glyph";
+import { Morph } from "@/components/Morph";
 import { cn } from "@/lib/utils";
 
 function LoginBadge({ provider, accounts }: { provider: Provider; accounts: AccountInfo[] }) {
@@ -37,13 +39,54 @@ function LoginBadge({ provider, accounts }: { provider: Provider; accounts: Acco
   return null;
 }
 
+/** 列表行里的测连通结果：延迟按快慢着色，失败时悬停可看原因。 */
+function LatencyChip({ result }: { result?: ProbeResult | "pending" }) {
+  const { t } = useTranslation();
+  if (!result) return null;
+  if (result === "pending") {
+    return <span role="status" aria-label={t("probe.running_latency")} className="mr-1.5 inline-flex w-14 justify-end text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /></span>;
+  }
+  const detail = [result.ok ? `${t("probe.reachable")} · HTTP ${result.status ?? "?"}` : failureText(t, result, "latency"), providerDetail(result), result.endpoint].filter(Boolean).join("\n");
+  return (
+    <span
+      role="status"
+      title={detail}
+      className={cn("mr-1.5 inline-flex min-w-14 items-center justify-end gap-1.5 text-xs font-medium tabular-nums", result.ok ? toneClass[latencyTone(result.latencyMs)] : "text-destructive")}
+    >
+      <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />
+      {result.ok ? t("probe.ms", { ms: result.latencyMs }) : t("probe.unreachable")}
+    </span>
+  );
+}
+
+function Notice({ title, children, onRetry }: { title: string; children?: ReactNode; onRetry?: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <div role="alert" className="flex min-w-0 items-start gap-3 rounded-lg border border-warning/30 bg-warning/[0.07] px-4 py-3 text-sm">
+      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
+      <div className="min-w-0 flex-1">
+        <p className="font-medium">{title}</p>
+        {children}
+        {onRetry && <Button variant="outline" size="sm" className="mt-2" onClick={onRetry}>{t("common.retry")}</Button>}
+      </div>
+    </div>
+  );
+}
+
 export function ToolPage({ tool }: { tool: ToolId }) {
   const { t } = useTranslation();
   const meta = toolMeta(tool);
   const { data, isLoading, error, refetch } = useProviders(tool);
+  // Only the empty state needs to know whether the client config exists.
+  const summary = useOverview(data?.providers.length === 0).data?.find((s) => s.tool === tool);
   const accounts = useAccounts(tool === "codex").data ?? [];
   const logins = useLogins(tool === "codex").data ?? [];
   const [editing, setEditing] = useState<Provider | null>(null);
+  const [copying, setCopying] = useState<Provider | null>(null);
+  // 测连通结果只在本页保留，切换工具或刷新页面后清空。
+  const [latency, setLatency] = useState<Record<string, ProbeResult | "pending">>({});
+  const [testing, setTesting] = useState(false);
+  const run = useRef(0);
   const [adding, setAdding] = useState(false);
   const [search, setSearch] = useState("");
   const searchInput = useRef<HTMLInputElement>(null);
@@ -53,14 +96,22 @@ export function ToolPage({ tool }: { tool: ToolId }) {
   useEffect(() => {
     setSearch("");
     setEditing(null);
+    setCopying(null);
     setAdding(false);
+    setLatency({});
+    setTesting(false);
+    run.current += 1;
   }, [tool]);
 
-  const switchAction = useAction(
+  const switchAction = useSwitchProvider();
+  const toggleAction = useAction(
+    ({ id, enabled }: { id: string; name: string; enabled: boolean }) => api.setInLive(tool, id, enabled),
+    (_r, { name, enabled }) => toast.success(t(enabled ? "card.enabled" : "card.disabled", { name })),
+  );
+  const defaultAction = useAction(
     ({ id }: { id: string; name: string }) => api.switchProvider(tool, id),
     (_r, { name }) => toast.success(t("card.switched", { name })),
   );
-  const toggleAction = useAction(({ id, enabled }: { id: string; enabled: boolean }) => api.setInLive(tool, id, enabled));
   const deleteAction = useAction((id: string) => api.deleteProvider(tool, id));
   const importAction = useAction(
     () => api.importLive(tool),
@@ -73,8 +124,12 @@ export function ToolPage({ tool }: { tool: ToolId }) {
 
   const coexist = data.kind === "coexist";
   const currentProvider = data.providers.find((p) => p.id === data.current);
+  const enabledCount = data.providers.filter((p) => data.inLive.includes(p.id)).length;
   const query = search.trim().toLocaleLowerCase();
-  const providers = data.providers.filter((p) => [p.name, p.id, endpointOf(tool, p)].some((value) => value?.toLocaleLowerCase().includes(query)));
+  const providers = data.providers.filter((p) =>
+    [p.name, p.id, endpointOf(tool, p), modelOf(tool, p), p.notes].some((value) => typeof value === "string" && value.toLocaleLowerCase().includes(query)),
+  );
+  const detected = summary?.detected ?? true;
   const clearSearch = () => {
     setSearch("");
     searchInput.current?.focus();
@@ -88,176 +143,270 @@ export function ToolPage({ tool }: { tool: ToolId }) {
     });
     if (ok) deleteAction.mutate(p.id);
   };
+  const testAll = async () => {
+    const targets = data.providers.filter((p) => !isOfficial(p));
+    const current = ++run.current;
+    setTesting(true);
+    setLatency(Object.fromEntries(targets.map((p) => [p.id, "pending" as const])));
+    const queue = [...targets];
+    const worker = async () => {
+      for (let next = queue.shift(); next; next = queue.shift()) {
+        const provider = next;
+        const result = await settle(() => api.probeLatency(tool, provider.settingsConfig));
+        if (run.current === current) setLatency((s) => ({ ...s, [provider.id]: result }));
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(4, queue.length) }, worker));
+    if (run.current === current) setTesting(false);
+  };
   const copyPath = async (path: string) => {
     try {
+      if (!navigator.clipboard?.writeText) throw new Error("clipboard unavailable");
       await navigator.clipboard.writeText(path);
       toast.success(t("tool.pathCopied"));
     } catch {
       toast.error(t("tool.pathCopyFailed"));
     }
   };
-  const importButton = (
-    <Button variant="outline" size="sm" onClick={() => importAction.mutate(undefined)} disabled={busy}>
-      {importAction.isPending ? <Loader2 className="animate-spin" /> : <Download />} {t(importAction.isPending ? "tool.importing" : "tool.importLive")}
+  const importButton = (primary = false) => (
+    <Button variant={primary ? "default" : "outline"} size="sm" onClick={() => importAction.mutate(undefined)} disabled={busy}>
+      {importAction.isPending ? <Loader2 className="animate-spin" /> : <Download />} {t(importAction.isPending ? "tool.importing" : primary ? "tool.importFirst" : "tool.importLive")}
     </Button>
   );
-  const addButton = (
-    <Button size="sm" onClick={() => setAdding(true)} disabled={busy}>
-      <Plus /> {t("tool.add")}
+  const addButton = (label = t("tool.add"), variant: "default" | "outline" = "default") => (
+    <Button size="sm" variant={variant} onClick={() => setAdding(true)} disabled={busy}>
+      <Plus /> {label}
     </Button>
+  );
+  const subline = (p: Provider) => {
+    const endpoint = endpointOf(tool, p);
+    const model = modelOf(tool, p);
+    return [coexist ? p.id : endpoint ?? p.id, coexist ? endpoint : undefined, model].filter(Boolean).join(" · ");
+  };
+  const rowActions = (p: Provider, current: boolean) => {
+    const deleting = deleteAction.isPending && deleteAction.variables === p.id;
+    return (
+      <>
+        <Button size="icon" variant="ghost" className="text-muted-foreground opacity-70 group-hover:opacity-100 focus-visible:opacity-100" disabled={busy} onClick={() => setCopying(p)} aria-label={`${t("card.duplicate")} ${p.name}`} title={t("card.duplicate")}>
+          <CopyPlus />
+        </Button>
+        <Button size="icon" variant="ghost" className="text-muted-foreground opacity-70 group-hover:opacity-100 focus-visible:opacity-100" disabled={busy} onClick={() => setEditing(p)} aria-label={`${t("card.edit")} ${p.name}`} title={t("card.edit")}>
+          <Pencil />
+        </Button>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="text-muted-foreground opacity-70 hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100"
+          disabled={current || busy}
+          onClick={() => void confirmDelete(p)}
+          aria-label={deleting ? t("card.deleting", { name: p.name }) : `${t("card.delete")} ${p.name}`}
+          title={current ? t("card.currentDeleteHint") : t("card.delete")}
+        >
+          {deleting ? <Loader2 className="animate-spin" /> : <Trash2 />}
+        </Button>
+      </>
+    );
+  };
+
+  const pathList = (
+    <ul aria-label={t("tool.paths")} className="flex min-w-0 flex-col gap-1">
+      {data.paths.map((path) => (
+        <li key={path} className="group/path flex min-w-0 items-center gap-1.5 text-muted-foreground">
+          <FileCode2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <code className="min-w-0 truncate" title={path}>{path}</code>
+          <button type="button" className="grid h-6 w-6 shrink-0 place-items-center rounded opacity-60 transition hover:bg-accent hover:text-foreground hover:opacity-100 group-hover/path:opacity-100" onClick={() => void copyPath(path)} aria-label={t("tool.copyPath", { path })} title={t("tool.copyPath", { path })}>
+            <Copy className="h-3.5 w-3.5" />
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+  const enabledProviders = data.providers.filter((p) => data.inLive.includes(p.id));
+  // 路由牌：配置文件 ──▶ 当前供应商。整页的视觉重心，切换时名称溶解换字并扫过一道光。
+  const routePlate = (
+    <section aria-label={t("tool.route")} className="route-plate overflow-hidden rounded-2xl border px-5 pb-4 pt-4 shadow-[0_1px_2px_hsl(var(--overlay)/0.04),0_8px_24px_-12px_hsl(var(--overlay)/0.12)]">
+      <div className="flex min-w-0 items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-muted-foreground">
+            {coexist ? t("tool.routeCoexist", { count: data.liveError ? 0 : enabledCount, total: data.providers.length }) : t(currentProvider ? "tool.routeCurrent" : "tool.routeNone")}
+          </p>
+          {!coexist && currentProvider ? (
+            <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-2.5">
+              <Monogram key={currentProvider.id} name={currentProvider.name} size={34} className="pop-in" />
+              <h2 className="min-w-0 text-[24px] font-semibold leading-tight tracking-tight"><Morph text={currentProvider.name} /></h2>
+              {isOfficial(currentProvider) && <Badge variant="outline">{t("card.official")}</Badge>}
+              {tool === "codex" && <LoginBadge provider={currentProvider} accounts={accounts} />}
+            </div>
+          ) : coexist && enabledProviders.length > 0 && !data.liveError ? (
+            <ul className="mt-2 flex flex-wrap gap-1.5">
+              {enabledProviders.map((p) => (
+                <li key={p.id} className="rise-in inline-flex items-center gap-1.5 rounded-lg border bg-card py-1 pl-1 pr-2.5 text-sm font-medium">
+                  <Monogram name={p.name} size={22} />
+                  {p.name}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-1.5 text-[22px] font-semibold leading-tight tracking-tight text-muted-foreground/70">{t(coexist ? "tool.routeEmptyCoexist" : "tool.routeEmpty")}</p>
+          )}
+        </div>
+      </div>
+      <div className="mt-4 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 border-t border-dashed pt-3.5 font-mono text-xs sm:flex-nowrap">
+        <div className="min-w-0 max-w-full shrink">{data.paths.length ? pathList : <span className="text-muted-foreground">{t("tool.noPaths")}</span>}</div>
+        <span aria-hidden="true" className={cn("route-line hidden flex-1 sm:block", !(coexist ? enabledCount : currentProvider) && "route-line-idle")} />
+        <div className="min-w-0 max-w-full shrink truncate text-foreground/80" title={currentProvider ? subline(currentProvider) : undefined}>
+          {coexist
+            ? t("tool.routeEntries", { count: data.liveError ? 0 : enabledCount })
+            : currentProvider
+              ? [endpointOf(tool, currentProvider) ?? t(isOfficial(currentProvider) ? "tool.routeOfficial" : "tool.routeClientDefault"), modelOf(tool, currentProvider)].filter(Boolean).join(" · ")
+              : t("tool.routeNoTarget")}
+        </div>
+      </div>
+    </section>
   );
 
   return (
-    <div className="flex min-w-0 flex-col gap-5 p-5 lg:p-6">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0 flex-1 basis-full lg:basis-72">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: meta.color }} aria-hidden="true" />
-            <h1 className="text-xl font-semibold">{meta.label}</h1>
-            <Badge variant="outline">{t(`kind.${data.kind}`)}</Badge>
+    <div className="mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-6 px-6 py-7 lg:px-8">
+      <header className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <ToolGlyph tool={meta} size={34} />
+            <div className="min-w-0">
+              <h1 className="truncate text-[22px] font-semibold leading-tight tracking-tight">{meta.label}</h1>
+              <p className="mt-0.5 max-w-prose text-xs leading-5 text-muted-foreground">{coexist ? t("tool.coexistHint") : t("tool.switchHint")}</p>
+            </div>
           </div>
-          <p className="mt-1.5 max-w-prose text-sm leading-relaxed text-muted-foreground">{coexist ? t("tool.coexistHint") : t("tool.switchHint")}</p>
+          {data.providers.length > 0 && <div className="flex flex-wrap gap-2">{importButton()}{addButton()}</div>}
         </div>
-        {data.providers.length > 0 && <div className="flex flex-wrap gap-2">{importButton}{addButton}</div>}
+        {data.providers.length === 0 && (data.paths.length === 0 ? <p className="text-xs text-muted-foreground">{t("tool.noPaths")}</p> : <div className="font-mono text-xs">{pathList}</div>)}
       </header>
 
       {error && (
-        <div role="alert" className="flex min-w-0 items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-          <div className="min-w-0 flex-1">
-            <p className="font-medium">{t("tool.refreshError")}</p>
-            <p className="mt-1 text-xs leading-relaxed">{t("tool.refreshErrorHint")}</p>
-            <p className="mt-1 break-words text-xs leading-relaxed [overflow-wrap:anywhere]">{errorMessage(error)}</p>
-            <Button variant="outline" size="sm" className="mt-2 border-amber-300" onClick={() => void refetch()}>{t("common.retry")}</Button>
-          </div>
-        </div>
+        <Notice title={t("tool.refreshError")} onRetry={() => void refetch()}>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{t("tool.refreshErrorHint")}</p>
+          <p className="mt-1 break-words text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">{errorMessage(error)}</p>
+        </Notice>
       )}
-
-      <div className="flex min-w-0 flex-col gap-3 rounded-lg bg-muted/60 px-4 py-3">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm" aria-live="polite">
-          {data.liveError ? <span className="text-amber-800">{t("tool.stateUnknown")}</span> : coexist ? (
-            <><Check className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" /><span>{t("tool.enabledSummary", { count: data.providers.filter((p) => data.inLive.includes(p.id)).length, total: data.providers.length })}</span></>
-          ) : (
-            <><span className="shrink-0 text-muted-foreground">{t("tool.currentConfig")}</span><span className={cn("min-w-0 break-words font-medium [overflow-wrap:anywhere]", currentProvider && "text-primary")}>
-              {currentProvider?.name ?? t("tool.noCurrent")}
-            </span></>
-          )}
-        </div>
-        <details className="group min-w-0 border-t pt-2">
-          <summary className="flex w-fit cursor-pointer list-none items-center gap-1.5 rounded-sm text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
-            <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" aria-hidden="true" />
-            <FileCode2 className="h-3.5 w-3.5" aria-hidden="true" />
-            {t("tool.paths")} <span className="tabular-nums">({data.paths.length})</span>
-          </summary>
-          <div className="mt-2 space-y-1.5">
-            {data.paths.length === 0 ? <p className="text-xs text-muted-foreground">{t("tool.noPaths")}</p> : data.paths.map((path) => (
-              <div key={path} className="flex items-start gap-2">
-                <code className="min-w-0 flex-1 break-all py-1.5 text-xs leading-relaxed text-muted-foreground">{path}</code>
-                <Button variant="ghost" size="icon" className="shrink-0" onClick={() => void copyPath(path)} aria-label={t("tool.copyPath", { path })} title={t("tool.copyPath", { path })}><Copy /></Button>
-              </div>
-            ))}
-          </div>
-        </details>
-      </div>
-
       {data.liveError && (
-        <div role="alert" className="flex min-w-0 items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-          <div className="min-w-0 flex-1">
-            <p className="font-medium">{t("tool.liveErrorTitle")}</p>
-            <p className="mt-1 break-words text-xs leading-relaxed [overflow-wrap:anywhere]">{t("tool.liveError")} {data.liveError}</p>
-            <Button variant="outline" size="sm" className="mt-2 border-amber-300" onClick={() => void refetch()}>{t("common.retry")}</Button>
-          </div>
-        </div>
+        <Notice title={t("tool.liveErrorTitle")} onRetry={() => void refetch()}>
+          <p className="mt-1 break-words text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">{t("tool.liveError")} {data.liveError}</p>
+        </Notice>
       )}
 
       {data.providers.length === 0 ? (
-        <section className="flex flex-col items-start gap-3 rounded-lg border border-dashed px-6 py-8">
-          <h2 className="text-base font-semibold">{t("tool.emptyTitle", { tool: meta.label })}</h2>
-          <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">{t("tool.empty")}</p>
-          <div className="mt-1 flex flex-wrap gap-2">{addButton}{importButton}</div>
+        <section className="flex flex-col items-start gap-3 rounded-2xl border border-dashed px-6 py-7">
+          <div className="grid h-9 w-9 place-items-center rounded-lg bg-muted text-muted-foreground" aria-hidden="true">
+            {detected ? <FileCode2 className="h-[18px] w-[18px]" /> : <FolderSearch className="h-[18px] w-[18px]" />}
+          </div>
+          <h2 className="text-base font-semibold">{detected ? t("tool.emptyTitle", { tool: meta.label }) : t("tool.emptyMissingTitle", { tool: meta.label })}</h2>
+          <p className="max-w-prose break-words text-sm leading-relaxed text-muted-foreground">
+            {detected ? t("tool.emptyDetected", { path: data.paths[0] ?? "" }) : t("tool.emptyMissing", { path: data.paths[0] ?? "" })}
+          </p>
+          <div className="mt-1 flex flex-wrap gap-2">
+            {detected ? (
+              <>{importButton(true)}{addButton(t("tool.addFromPreset"), "outline")}</>
+            ) : (
+              <>
+                <Button size="sm" variant="outline" onClick={() => { window.location.hash = "#settings"; }}><FolderSearch /> {t("tool.pickDir")}</Button>
+                {addButton(t("tool.addFromPreset"), "outline")}
+              </>
+            )}
+          </div>
         </section>
       ) : (
         <>
+        {routePlate}
+        <section className="flex min-w-0 flex-col gap-3" aria-label={t("tool.providerCount", { count: data.providers.length })}>
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-muted-foreground" role="status">{query ? t("tool.searchCount", { count: providers.length, total: data.providers.length }) : t("tool.providerCount", { count: data.providers.length })}</p>
-            <div className="relative w-full max-w-sm">
-              <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" aria-hidden="true" />
-              <Input ref={searchInput} type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("tool.search")} aria-label={t("tool.search")} className="pl-9 pr-9 [&::-webkit-search-cancel-button]:appearance-none" />
-              {search && <Button size="icon" variant="ghost" className="absolute right-0.5 top-0.5 h-8 w-8" aria-label={t("tool.clearSearch")} onClick={clearSearch}><X /></Button>}
+            <div className="flex min-w-0 items-baseline gap-2">
+              <h2 className="text-sm font-semibold tracking-tight">{t("tool.allProviders")}</h2>
+              <p className="text-xs text-muted-foreground" role="status">
+                {query ? t("tool.searchCount", { count: providers.length, total: data.providers.length }) : t("tool.providerCount", { count: data.providers.length })}
+                {coexist && !query && !data.liveError && <span> · {t("tool.enabledSummary", { count: enabledCount, total: data.providers.length })}</span>}
+                {data.liveError && <span className="text-warning"> · {t("tool.stateUnknown")}</span>}
+                {!coexist && !query && !currentProvider && <span> · {t("tool.noCurrent")}</span>}
+              </p>
+            </div>
+            <div className="flex w-full max-w-sm items-center gap-2">
+              <Button size="sm" variant="outline" className="h-9 shrink-0" disabled={testing || busy || data.providers.every(isOfficial)} onClick={() => void testAll()} title={t("probe.latencyAllHint")}>
+                {testing ? <Loader2 className="animate-spin" /> : <Gauge />} {t("probe.latencyAll")}
+              </Button>
+              <div className="relative min-w-0 flex-1">
+                <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                <Input ref={searchInput} type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("tool.search")} aria-label={t("tool.search")} className="h-9 pl-9 pr-9 [&::-webkit-search-cancel-button]:appearance-none" />
+                {search && <Button size="icon" variant="ghost" className="absolute right-0.5 top-0.5" aria-label={t("tool.clearSearch")} onClick={clearSearch}><X /></Button>}
+              </div>
             </div>
           </div>
+
           {providers.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed p-8 text-center">
+            <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed p-8 text-center">
               <h2 className="font-medium">{t("tool.noResults")}</h2>
               <p className="max-w-prose break-words text-sm text-muted-foreground [overflow-wrap:anywhere]">{t("tool.noResultsHint", { query: search.trim() })}</p>
               <Button variant="outline" size="sm" className="mt-2" onClick={clearSearch}>{t("tool.clearSearch")}</Button>
             </div>
-          ) : !coexist ? (
-            <div className="grid items-start gap-3 lg:grid-cols-2">
+          ) : (
+            <ul className="divide-y overflow-hidden rounded-2xl border bg-card">
               {providers.map((p) => {
-                const current = data.current === p.id;
-                const endpoint = endpointOf(tool, p);
-                const switching = switchAction.isPending && switchAction.variables?.id === p.id;
-                const deleting = deleteAction.isPending && deleteAction.variables === p.id;
+                const current = !coexist && data.current === p.id;
+                const inLive = coexist && data.inLive.includes(p.id);
+                const switching = switchAction.isPending && switchAction.variables?.id === p.id && switchAction.variables?.tool === tool;
+                const toggling = toggleAction.isPending && toggleAction.variables?.id === p.id;
+                const settingDefault = defaultAction.isPending && defaultAction.variables?.id === p.id;
                 return (
-                  <Card key={p.id} data-testid={`card-${p.id}`} className={cn("flex min-w-0 flex-col gap-3 p-4 shadow-none", current && "border-primary bg-primary/[0.035]")}>
-                    <div className="min-w-0">
+                  <li
+                    key={p.id}
+                    data-testid={`row-${p.id}`}
+                    className={cn(
+                      "group relative flex min-w-0 items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/40",
+                      (current || inLive) && "before:absolute before:inset-y-3 before:left-0 before:w-[3px] before:rounded-r-full before:bg-primary",
+                    )}
+                  >
+                    <Monogram name={p.name} size={30} />
+                    <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span className="min-w-0 break-words font-medium [overflow-wrap:anywhere]">{p.name}</span>
-                        {current && <Badge>{t("card.current")}</Badge>}
-                        {isOfficial(p) && <Badge variant="success" className="gap-0.5"><Star className="h-3 w-3" aria-hidden="true" /> {t("card.official")}</Badge>}
+                        {current && <Badge>{t("card.active")}</Badge>}
+                        {toggling ? (
+                          <Badge variant="secondary" className="gap-1"><Loader2 className="h-3 w-3 animate-spin" />{t(toggleAction.variables?.enabled ? "card.enabling" : "card.disabling")}</Badge>
+                        ) : inLive && <Badge variant="success">{t("card.inLive")}</Badge>}
+                        {isOfficial(p) && <Badge variant="outline">{t("card.official")}</Badge>}
                         {tool === "codex" && <LoginBadge provider={p} accounts={accounts} />}
                       </div>
-                      <p className="mt-1.5 truncate font-mono text-xs text-muted-foreground" title={endpoint ?? p.id}>{endpoint ?? p.id}</p>
+                      <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground" title={subline(p)}>{subline(p)}</p>
+                      {p.notes && <p className="mt-0.5 truncate text-xs text-muted-foreground" title={p.notes}>{p.notes}</p>}
                     </div>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <Button size="sm" variant={current ? "secondary" : "default"} disabled={current || busy} onClick={() => switchAction.mutate({ id: p.id, name: p.name })} aria-label={current ? t("card.currentSwitch") : undefined}>
-                        {switching ? <Loader2 className="animate-spin" /> : current ? <Check /> : <ArrowRightLeft />} {t(switching ? "card.switching" : current ? "card.active" : "card.switch")}
-                      </Button>
-                      <Button size="sm" variant="ghost" disabled={busy} onClick={() => setEditing(p)} aria-label={`${t("card.edit")} ${p.name}`}><Pencil /> {t("card.edit")}</Button>
-                      <Button size="icon" variant="ghost" className="ml-auto text-muted-foreground hover:text-destructive" disabled={current || busy} onClick={() => void confirmDelete(p)} aria-label={deleting ? t("card.deleting", { name: p.name }) : `${t("card.delete")} ${p.name}`} title={current ? t("card.currentDeleteHint") : t("card.delete")}>
-                        {deleting ? <Loader2 className="animate-spin" /> : <Trash2 />}
-                      </Button>
+                    <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                      {rowActions(p, current)}
                     </div>
-                    {current && <p className="text-xs leading-relaxed text-muted-foreground">{t("card.currentDeleteHint")}</p>}
-                  </Card>
-                );
-              })}
-            </div>
-          ) : (
-            <Card className="min-w-0 divide-y shadow-none">
-              {providers.map((p) => {
-                const inLive = data.inLive.includes(p.id);
-                const toggling = toggleAction.isPending && toggleAction.variables?.id === p.id;
-                const switching = switchAction.isPending && switchAction.variables?.id === p.id;
-                const deleting = deleteAction.isPending && deleteAction.variables === p.id;
-                const endpoint = endpointOf(tool, p);
-                return (
-                  <div key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3" data-testid={`row-${p.id}`}>
-                    <Switch checked={inLive} disabled={Boolean(data.liveError) || busy} onCheckedChange={(enabled) => toggleAction.mutate({ id: p.id, enabled })} aria-label={t("card.toggleInLive", { name: p.name })} />
-                    <div className="min-w-0 flex-1 basis-44">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="min-w-0 break-words font-medium [overflow-wrap:anywhere]">{p.name}</span>
-                        {toggling ? <Badge variant="secondary" className="gap-1"><Loader2 className="h-3 w-3 animate-spin" />{t(toggleAction.variables?.enabled ? "card.enabling" : "card.disabling")}</Badge> : inLive && <Badge variant="success">{t("card.inLive")}</Badge>}
+                    <LatencyChip result={latency[p.id]} />
+                    {coexist ? (
+                      <div className="flex shrink-0 items-center gap-2">
+                        {tool === "hermes" && (
+                          <Button size="sm" variant="ghost" className="text-primary" disabled={Boolean(data.liveError) || busy} onClick={() => defaultAction.mutate({ id: p.id, name: p.name })}>
+                            {settingDefault && <Loader2 className="animate-spin" />}{t(settingDefault ? "card.switching" : "card.setDefaultModel")}
+                          </Button>
+                        )}
+                        <Switch checked={inLive} disabled={Boolean(data.liveError) || busy} onCheckedChange={(enabled) => toggleAction.mutate({ id: p.id, name: p.name, enabled })} aria-label={t("card.toggleInLive", { name: p.name })} />
                       </div>
-                      <p className="mt-1 truncate font-mono text-xs text-muted-foreground" title={endpoint ? `${p.id} · ${endpoint}` : p.id}>{p.id}{endpoint && ` · ${endpoint}`}</p>
-                    </div>
-                    <div className="ml-auto flex shrink-0 items-center gap-1">
-                      {tool === "hermes" && <Button size="sm" variant="outline" disabled={Boolean(data.liveError) || busy} onClick={() => switchAction.mutate({ id: p.id, name: p.name })}>{switching && <Loader2 className="animate-spin" />}{t(switching ? "card.switching" : "card.setDefaultModel")}</Button>}
-                      <Button size="icon" variant="ghost" disabled={busy} onClick={() => setEditing(p)} aria-label={`${t("card.edit")} ${p.name}`} title={t("card.edit")}><Pencil /></Button>
-                      <Button size="icon" variant="ghost" className="text-muted-foreground hover:text-destructive" disabled={busy} onClick={() => void confirmDelete(p)} aria-label={deleting ? t("card.deleting", { name: p.name }) : `${t("card.delete")} ${p.name}`} title={t("card.delete")}>{deleting ? <Loader2 className="animate-spin" /> : <Trash2 />}</Button>
-                    </div>
-                  </div>
+                    ) : !current ? (
+                      <Button size="sm" variant="outline" className="shrink-0 bg-card" disabled={busy} onClick={() => switchAction.mutate({ tool, id: p.id, name: p.name, previous: currentProvider ? { id: currentProvider.id, name: currentProvider.name } : null })} aria-label={switching ? t("card.switching") : t("card.switchTo", { name: p.name })}>
+                        {switching ? <Loader2 className="animate-spin" /> : <ArrowRightLeft />} {t(switching ? "card.switching" : "card.switch")}
+                      </Button>
+                    ) : (
+                      <span className="w-[4.75rem] shrink-0" aria-hidden="true" />
+                    )}
+                  </li>
                 );
               })}
-            </Card>
+            </ul>
           )}
+        </section>
         </>
       )}
-
       <Suspense fallback={<p role="status" className="text-sm text-muted-foreground">{t("tool.loadingEditor")}</p>}>
         {adding && <ProviderEditor tool={tool} open onOpenChange={setAdding} existingIds={data.providers.map((p) => p.id)} accounts={accounts} logins={logins} />}
+        {copying && <ProviderEditor key={`copy-${copying.id}`} tool={tool} open onOpenChange={(open) => !open && setCopying(null)} template={copying} existingIds={data.providers.map((p) => p.id)} accounts={accounts} logins={logins} />}
         {editing && <ProviderEditor key={editing.id} tool={tool} open onOpenChange={(open) => !open && setEditing(null)} provider={editing} existingIds={data.providers.map((p) => p.id)} accounts={accounts} logins={logins} />}
       </Suspense>
       {confirmDialog}

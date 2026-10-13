@@ -241,7 +241,7 @@ export function ExportImport({ onBusyChange, active = true }: { onBusyChange?: (
                   <Badge variant={item.status === "import" ? "default" : "secondary"} className="mr-2">{t(`exportImport.status.${item.targetId && item.status === "duplicate" ? "renamed" : item.status}`)}</Badge>
                   {item.name} <span className="font-mono text-xs text-muted-foreground">{item.sourceId}{item.targetId && item.targetId !== item.sourceId && ` → ${item.targetId}`}</span>
                   {item.reason && <span className="ml-2 text-xs">· {text(item.reason)}</span>}
-                  {item.notes.map((n) => <p key={n.code} className="mt-1 text-xs text-amber-800">{text(n)}</p>)}
+                  {item.notes.map((n) => <p key={n.code} className="mt-1 text-xs text-warning">{text(n)}</p>)}
                 </li>)}
               </ul>
             </Card>;
@@ -256,7 +256,7 @@ export function ExportImport({ onBusyChange, active = true }: { onBusyChange?: (
         </div>
       </>}
       {report && <Card className="flex min-w-0 items-start gap-3 p-4" role="status">
-        <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" aria-hidden="true" />
+        <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-success" aria-hidden="true" />
         <div className="min-w-0 space-y-3 text-sm">
           <p className="font-medium">{t("exportImport.done", { created: report.created.length, skipped: report.skipped })}</p>
           <p className="text-muted-foreground">{t("exportImport.doneHint")}</p>

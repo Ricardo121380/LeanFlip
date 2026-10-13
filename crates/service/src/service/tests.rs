@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use ccsl_core::codex::oauth::testing::{FakeTransport, Identity};
+use leanflip_core::codex::oauth::testing::{FakeTransport, Identity};
 use serde_json::{json, Value};
 
 use super::*;
@@ -85,8 +85,20 @@ fn claude_save_switch_and_import_notices_name_ignored_fields_without_values() {
 }
 
 #[test]
+fn editor_preview_of_ignored_fields_matches_save_warnings() {
+    let sb = Sandbox::new();
+    let service = sb.service();
+    let config = json!({"env":{"ANTHROPIC_BASE_URL":"https://relay.example","API_TIMEOUT_MS":"1"},"permissions":{}});
+    assert_eq!(
+        service.ignored_fields(Tool::Claude, &config),
+        vec!["env.API_TIMEOUT_MS".to_string(), "permissions".to_string()]
+    );
+    assert!(service.ignored_fields(Tool::Gemini, &config).is_empty());
+}
+
+#[test]
 fn a_pending_device_network_poll_does_not_block_other_service_writes() {
-    use ccsl_core::codex::oauth::transport::{
+    use leanflip_core::codex::oauth::transport::{
         DeviceCode, DevicePoll, TokenResponse, TransportError,
     };
     use std::sync::mpsc;
@@ -255,6 +267,48 @@ fn codex_login_tokens_never_reach_the_frontend_and_survive_edits() {
 }
 
 #[test]
+fn switches_and_toggles_are_written_to_the_switch_log() {
+    let sb = Sandbox::new();
+    let env = sb.env();
+    sb.write(
+        &env.opencode_dir.join("opencode.json"),
+        "{\n  \"provider\": {}\n}\n",
+    );
+    let service = sb.service();
+    service
+        .add_provider(Tool::Claude, claude_card("kimi", "https://kimi"), true)
+        .unwrap();
+    service
+        .add_provider(Tool::Claude, claude_card("relay", "https://relay"), false)
+        .unwrap();
+    service.switch_provider(Tool::Claude, "relay").unwrap();
+    let card = Provider::new(
+        "router",
+        "Router",
+        json!({"npm": "@ai-sdk/openai-compatible", "options": {"baseURL": "https://r"}, "models": {"m": {}}}),
+    );
+    service.add_provider(Tool::OpenCode, card, true).unwrap();
+    service
+        .set_in_live(Tool::OpenCode, "router", false)
+        .unwrap();
+
+    let events = service.usage_report().unwrap().events;
+    let seen: Vec<_> = events
+        .iter()
+        .map(|e| (e.tool, e.provider.as_str(), e.enabled))
+        .collect();
+    assert_eq!(
+        seen,
+        [
+            (Tool::Claude, "kimi", true),
+            (Tool::Claude, "relay", true),
+            (Tool::OpenCode, "router", true),
+            (Tool::OpenCode, "router", false),
+        ]
+    );
+}
+
+#[test]
 fn coexist_toggle_writes_and_removes_entries() {
     let sb = Sandbox::new();
     let env = sb.env();
@@ -313,13 +367,14 @@ fn settings_round_trip_and_dir_overrides_apply_immediately() {
     assert_eq!(view.ccswitch_dir, sb.home.join(".cc-switch"));
     assert_eq!(view.dirs["claudeDir"], sb.home.join(".claude"));
     assert_eq!(view.dirs.len(), 10, "one per DirOverrides field");
-    let fields = serde_json::to_value(ccsl_core::env::DirOverrides::default()).unwrap();
+    let fields = serde_json::to_value(leanflip_core::env::DirOverrides::default()).unwrap();
     for key in fields.as_object().unwrap().keys() {
         assert!(view.dirs.contains_key(key), "{key}");
     }
 
     let mut app = view.app.clone();
     app.language = Some("fr".into());
+    app.theme = Some("sepia".into());
     let result = service
         .save_settings(SettingsInput {
             app: app.clone(),
@@ -338,8 +393,10 @@ fn settings_round_trip_and_dir_overrides_apply_immediately() {
         None,
         "unknown language dropped"
     );
+    assert_eq!(service.app_settings().theme, None, "unknown theme dropped");
 
     app.language = Some("en".into());
+    app.theme = Some("dark".into());
     app.dir_overrides.claude_dir = Some(sb.home.join("alt-claude"));
     let result = service
         .save_settings(SettingsInput {
@@ -365,6 +422,7 @@ fn settings_round_trip_and_dir_overrides_apply_immediately() {
         sb.home.join("alt-claude").join("settings.json")
     );
     assert_eq!(restarted.app_settings().language.as_deref(), Some("en"));
+    assert_eq!(restarted.app_settings().theme.as_deref(), Some("dark"));
     assert!(!restarted.settings().unwrap().keep_codex_login);
 }
 
@@ -472,7 +530,7 @@ fn dir_overrides_apply_live_and_keep_the_account_manager_when_codex_dir_is_uncha
 
 #[test]
 fn export_file_is_staged_previewed_and_applied_into_the_store_only() {
-    use ccsl_core::ccswitch_export::{DuplicatePolicy, ItemStatus};
+    use leanflip_core::ccswitch_export::{DuplicatePolicy, ItemStatus};
     let sb = Sandbox::new();
     let service = sb.service();
     service
@@ -533,8 +591,8 @@ fn export_file_is_staged_previewed_and_applied_into_the_store_only() {
 
 /// 发布已开始、但剩余文件被客户端另改：恢复必须保留文件并将路径呈现给用户。
 fn pending_recovery(sb: &Sandbox, path: &Path) {
-    use ccsl_core::live::engine::digest;
-    use ccsl_core::state::{self, Pending, PendingFile, PendingTarget};
+    use leanflip_core::live::engine::digest;
+    use leanflip_core::state::{self, Pending, PendingFile, PendingTarget};
 
     state::set_pending(
         &sb.env().device_store(),
@@ -584,7 +642,7 @@ fn startup_recovery_error_is_visible_without_stopping_service_start() {
     assert!(notices[0].contains("恢复失败"), "{}", notices[0]);
     assert!(notices[0].contains(path.to_str().unwrap()));
     assert!(
-        ccsl_core::state::pending(&sb.env().device_store(), "claude")
+        leanflip_core::state::pending(&sb.env().device_store(), "claude")
             .unwrap()
             .is_some()
     );
@@ -699,7 +757,7 @@ fn a_failed_service_lock_prevents_all_live_writes() {
 
 #[test]
 fn deleting_a_card_settles_its_pending_activation_first() {
-    use ccsl_core::state::{self, Pending, PendingTarget};
+    use leanflip_core::state::{self, Pending, PendingTarget};
     let sb = Sandbox::new();
     let env = sb.env();
     for id in ["a", "b"] {

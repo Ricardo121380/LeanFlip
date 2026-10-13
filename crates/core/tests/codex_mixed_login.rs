@@ -3,9 +3,9 @@
 
 mod common;
 
-use ccsl_core::codex::auth::test_codex_id_token;
-use ccsl_core::{store, switch, Provider, Tool};
 use common::Sandbox;
+use leanflip_core::codex::auth::test_codex_id_token;
+use leanflip_core::{store, switch, Provider, Tool};
 use serde_json::{json, Value};
 
 fn login(user: &str, account: &str) -> Value {
@@ -263,7 +263,7 @@ fn credential_store_modes_decide_requires_openai_auth() {
 fn managed_account_cards_need_the_account_manager() {
     let alice = login("alice", "acc-plus");
     let mut managed = official("managed", json!({}));
-    managed.meta.auth_binding = Some(ccsl_core::provider::AuthBinding {
+    managed.meta.auth_binding = Some(leanflip_core::provider::AuthBinding {
         auth_provider: "codex_oauth".to_string(),
         account_id: Some("acc-x".to_string()),
     });
@@ -275,7 +275,7 @@ fn managed_account_cards_need_the_account_manager() {
     let err = switch::switch(&sb.env, Tool::Codex, "managed").unwrap_err();
     assert!(matches!(
         err,
-        ccsl_core::AppError::Localized {
+        leanflip_core::AppError::Localized {
             key: "codex.oauth.manager_unavailable",
             ..
         }

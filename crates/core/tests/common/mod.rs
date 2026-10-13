@@ -4,8 +4,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use ccsl_core::live::engine::digest;
-use ccsl_core::{store, Env, Provider, Tool};
+use leanflip_core::live::engine::digest;
+use leanflip_core::{store, Env, Provider, Tool};
 use serde_json::Value;
 
 pub struct Sandbox {

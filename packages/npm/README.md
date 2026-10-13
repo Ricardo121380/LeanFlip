@@ -1,8 +1,6 @@
 # LeanFlip 安装器
 
-LeanFlip 是 CC Switch Lite 的新名称。新版 npm 包使用 `leanflip`，只提供 `leanflip` / `leanflip-app` 两个命令。下面示例适用于按新发布资产生成的包。
-
-**历史版本：** 若包内版本为 `0.1.0`，它仍安装旧原生版本：将下面命令中的 `leanflip` / `leanflip-app` 换成 `ccsl` / `ccsl-app`，App 名称为 `CC Switch Lite.app`。这是独立的历史安装包，新版不提供旧命令别名。功能以对应原生发布包为准。
+npm 包 `leanflip` 下载并校验 LeanFlip 的原生程序，功能以对应的原生发布包为准。
 
 一个 npm 包提供两个命令：
 
@@ -13,7 +11,7 @@ LeanFlip 是 CC Switch Lite 的新名称。新版 npm 包使用 `leanflip`，只
 
 ## 安装
 
-npm 官方仓库尚未发布本包。先按[分发维护说明](https://github.com/Ricardo121380/ccswitch-lite/blob/main/docs/distribution.md)为新原生资产生成匹配元数据，再从项目根目录打包；直接对历史 v0.1.0 元数据打包会得到旧安装器：
+npm 官方仓库尚未发布本包。先按[分发维护说明](https://github.com/Ricardo121380/LeanFlip/blob/main/docs/distribution.md)为新原生资产生成匹配元数据，再从项目根目录打包。没有生成 `release.json` 时打出的包无法运行：
 
 ```sh
 mkdir -p target/npm
@@ -43,7 +41,7 @@ leanflip-app open --app-dir /Applications
 
 Linux 使用 `apt install` 安装 DEB，普通用户通过 `sudo` 调用；需要终端确认和系统密码，图形桌面启动 App 时仍使用普通用户。请勿用 sudo 运行 `leanflip` 或桌面 App。该 Linux 包在 Ubuntu 24.04 构建和验证，不适用于所有发行版。
 
-macOS App 和 CLI 均未做 Apple Developer ID 签名和公证。首次运行时可能需要在系统“隐私与安全性”中手动允许，详见[项目安装说明](https://github.com/Ricardo121380/ccswitch-lite#下载与安装)。安装完成后不会自动启动 App。
+macOS App 和 CLI 均未做 Apple Developer ID 签名和公证。首次运行时可能需要在系统“隐私与安全性”中手动允许，详见[项目安装说明](https://github.com/Ricardo121380/LeanFlip#下载与安装)。安装完成后不会自动启动 App。
 
 ## 下载、路径与升级
 
@@ -59,10 +57,10 @@ leanflip-app --help
 leanflip-app install --replace
 ```
 
-macOS 仅允许替换具有相同 bundle identifier 的 App；非本项目应用和符号链接会被拒绝。配置数据位于 `~/.cc-switch-lite/`，与安装文件、下载缓存分开。
+macOS 仅允许替换具有相同 bundle identifier 的 App；非本项目应用和符号链接会被拒绝。配置数据位于 `~/.leanflip/`（旧版本的数据目录会在首次写入时自动迁移），与安装文件、下载缓存分开。
 
-缓存默认位于 `~/.cache/ccswitch-lite/`，也支持绝对路径的 `XDG_CACHE_HOME`。删除缓存后，下次使用会重新下载。卸载 npm 包只会移除命令入口，已安装的桌面 App 与用户数据保留。
+缓存默认位于 `~/.cache/leanflip/`，也支持绝对路径的 `XDG_CACHE_HOME`。删除缓存后，下次使用会重新下载。卸载 npm 包只会移除命令入口，已安装的桌面 App 与用户数据保留。
 
 如果也通过 Homebrew 安装了 CLI，请用 `command -v leanflip` 确认当前实际运行的入口。
 
-完整用法：[用户指南](https://github.com/Ricardo121380/ccswitch-lite#readme) · [原生 CLI 文档](https://github.com/Ricardo121380/ccswitch-lite/blob/main/crates/cli/README.md)
+完整用法：[用户指南](https://github.com/Ricardo121380/LeanFlip#readme) · [原生 CLI 文档](https://github.com/Ricardo121380/LeanFlip/blob/main/crates/cli/README.md)

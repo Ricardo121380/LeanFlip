@@ -3,11 +3,11 @@
 
 mod common;
 
-use ccsl_core::coexist;
-use ccsl_core::import::import_live;
-use ccsl_core::switch;
-use ccsl_core::{store, Provider, Tool};
 use common::Sandbox;
+use leanflip_core::coexist;
+use leanflip_core::import::import_live;
+use leanflip_core::switch;
+use leanflip_core::{store, Provider, Tool};
 use serde_json::{json, Value};
 
 fn card(id: &str, settings: Value) -> Provider {

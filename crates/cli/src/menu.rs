@@ -3,10 +3,10 @@
 use std::io::{self, IsTerminal};
 use std::path::Path;
 
-use ccsl_core::Tool;
-use ccsl_service::service::{ToolProviders, ToolSummary};
 use dialoguer::console::{style, truncate_str, Style, Term};
 use dialoguer::{theme::ColorfulTheme, FuzzySelect};
+use leanflip_core::Tool;
+use leanflip_service::service::{ToolProviders, ToolSummary};
 
 use crate::args::{Cli, Command, Import, Language};
 use crate::presentation::{clean, error};
@@ -14,10 +14,10 @@ use crate::{open_service, run, CliError};
 
 pub(super) fn theme() -> ColorfulTheme {
     ColorfulTheme {
-        active_item_style: Style::new().for_stderr().color256(173).bold(),
-        defaults_style: Style::new().for_stderr().color256(173),
-        prompt_prefix: style("◇".to_owned()).for_stderr().color256(173),
-        fuzzy_match_highlight_style: Style::new().for_stderr().color256(173).underlined(),
+        active_item_style: Style::new().for_stderr().color256(104).bold(),
+        defaults_style: Style::new().for_stderr().color256(104),
+        prompt_prefix: style("◇".to_owned()).for_stderr().color256(104),
+        fuzzy_match_highlight_style: Style::new().for_stderr().color256(104).underlined(),
         ..ColorfulTheme::default()
     }
 }
@@ -69,7 +69,7 @@ fn tool_label(summary: &ToolSummary, lang: Language) -> String {
         "{} · {} {} · {}",
         name(summary.tool),
         summary.card_count,
-        lang.text("张卡", "cards"),
+        lang.text("个供应商", "providers"),
         clean(&state)
     )
 }
@@ -96,31 +96,43 @@ fn provider_items(list: &ToolProviders, lang: Language) -> Vec<Item> {
         .providers
         .iter()
         .map(|provider| {
-            let (state, action) = if list.tool.is_coexist() {
+            // ● 生效 ○ 可用 ? 未知，与 TUI 一致；状态放在末尾，窄屏截断时仍保留圆点。
+            let (glyph, state, action) = if list.tool.is_coexist() {
                 if list.live_error.is_some() {
-                    (lang.text("状态未知", "Unknown"), ProviderAction::Unknown)
+                    (
+                        "?",
+                        lang.text("状态未知", "Unknown"),
+                        ProviderAction::Unknown,
+                    )
                 } else if list.in_live.contains(&provider.id) {
                     (
-                        lang.text("已启用 → 停用", "Enabled → disable"),
+                        "●",
+                        lang.text("已启用 · 回车停用", "Enabled · Enter to disable"),
                         ProviderAction::SetEnabled(provider.id.clone(), false),
                     )
                 } else {
                     (
-                        lang.text("未启用 → 启用", "Disabled → enable"),
+                        "○",
+                        lang.text("未启用 · 回车启用", "Disabled · Enter to enable"),
                         ProviderAction::SetEnabled(provider.id.clone(), true),
                     )
                 }
             } else if list.current.as_deref() == Some(&provider.id) {
-                (lang.text("当前使用", "Current"), ProviderAction::Current)
+                (
+                    "●",
+                    lang.text("当前使用", "Current"),
+                    ProviderAction::Current,
+                )
             } else {
                 (
-                    lang.text("切换到", "Switch to"),
+                    "○",
+                    lang.text("回车切换", "Enter to switch"),
                     ProviderAction::Switch(provider.id.clone()),
                 )
             };
             Item {
                 label: format!(
-                    "[{state}] {} · {}",
+                    "{glyph} {} · {}  [{state}]",
                     clean(&provider.name),
                     clean(&provider.id)
                 ),
@@ -143,8 +155,8 @@ fn provider_items(list: &ToolProviders, lang: Language) -> Vec<Item> {
         Item {
             label: lang
                 .text(
-                    "从当前客户端配置导入卡片",
-                    "Import cards from the current client configuration",
+                    "从当前客户端配置导入供应商",
+                    "Import providers from the current client configuration",
                 )
                 .into(),
             action: ProviderAction::Import,
@@ -278,7 +290,8 @@ impl Menu<'_> {
                 ))?;
                 self.line(&format!(
                     "{} leanflip provider add {} --file provider.json",
-                    self.lang.text("也可从文件新增：", "Or add a JSON card:"),
+                    self.lang
+                        .text("也可从文件新增：", "Or add one from a JSON file:"),
                     tool
                 ))?;
             } else if list.live_error.is_some() && tool.is_coexist() {
@@ -330,8 +343,8 @@ impl Menu<'_> {
         self.line(&format!("\n{}", item.label))?;
         if matches!(item.action, ProviderAction::Import) {
             self.line(self.lang.text(
-                "只保存供应商卡片，不切换当前配置。",
-                "Save provider cards without switching the client configuration.",
+                "只保存供应商，不切换当前配置。",
+                "Save providers without switching the client configuration.",
             ))?;
         } else {
             self.line(self.lang.text(
@@ -378,7 +391,7 @@ pub fn start(home: Option<&Path>, lang: Language, tool: Option<Tool>) -> Result<
         home,
         lang,
     };
-    menu.line(&format!("\n{}", style("LeanFlip").bold().color256(173)))?;
+    menu.line(&format!("\n{}", style("LeanFlip").bold().color256(104)))?;
     menu.line(lang.text(
         "交互菜单 · 输入筛选，↑↓选择，回车确认，Esc 返回或退出",
         "Interactive menu · type to filter, ↑↓ move, Enter confirm, Esc back or exit",
@@ -427,8 +440,8 @@ pub fn start(home: Option<&Path>, lang: Language, tool: Option<Tool>) -> Result<
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ccsl_core::Provider;
-    use ccsl_service::service::ToolKind;
+    use leanflip_core::Provider;
+    use leanflip_service::service::ToolKind;
     use serde_json::json;
 
     fn fixture(tool: Tool) -> ToolProviders {

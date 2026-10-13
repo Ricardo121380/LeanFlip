@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use ccsl_core::{Env, Tool};
+use leanflip_core::{Env, Tool};
 use notify::RecursiveMode;
 use notify_debouncer_mini::{new_debouncer, DebouncedEvent, Debouncer};
 use tauri::{AppHandle, Manager};
@@ -325,7 +325,7 @@ mod tests {
         std::fs::create_dir_all(&alt).unwrap();
         let set = WatchSet::new(env.clone(), Duration::from_millis(100), || {}).unwrap();
         assert!(!set.watched().contains(&alt));
-        let overrides = ccsl_core::env::DirOverrides {
+        let overrides = leanflip_core::env::DirOverrides {
             claude_dir: Some(alt.clone()),
             ..Default::default()
         };
@@ -346,8 +346,8 @@ mod tests {
         })
         .unwrap();
 
-        std::fs::write(&path, r#"{"writer":"ccsl"}"#).unwrap();
-        assert!(wait_for(|| observed.lock().unwrap().contains("ccsl")));
+        std::fs::write(&path, r#"{"writer":"leanflip"}"#).unwrap();
+        assert!(wait_for(|| observed.lock().unwrap().contains("leanflip")));
 
         // 紧接上一次刷新，模拟客户端再次写同一配置；不能当成应用自己的回声丢掉。
         std::fs::write(&path, r#"{"writer":"external-client"}"#).unwrap();

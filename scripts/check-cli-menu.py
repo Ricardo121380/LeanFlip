@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Exercise the real CLI menu in a Unix PTY, using only temporary HOME layouts.
 
-Build first with cargo build -p ccsl-cli, then run this script. No Python packages
+Build first with cargo build -p leanflip-cli, then run this script. No Python packages
 are required. --binary can point to the release binary for a packaging check.
 """
 
@@ -120,7 +120,7 @@ def snapshot(home):
 
 
 def check(binary):
-    with tempfile.TemporaryDirectory(prefix="ccsl-menu-test-") as root:
+    with tempfile.TemporaryDirectory(prefix="leanflip-menu-test-") as root:
         home = Path(root) / "home"
         home.mkdir()
         for ident in ("alpha", "beta"):
@@ -193,7 +193,7 @@ def check(binary):
             if not save:
                 assert snapshot(home) == before
             else:
-                store = json.loads((home / ".cc-switch-lite/providers.json").read_text())
+                store = json.loads((home / ".leanflip/providers.json").read_text())
                 card = next(card for card in store["apps"]["claude"]["providers"] if card["id"] == "alpha")
                 assert card["settingsConfig"]["env"]["ANTHROPIC_AUTH_TOKEN"] == "fixture-new-editor-key"
                 assert command(binary, home, ["list", "claude", "--json"])["providers"][1]["current"]
@@ -202,7 +202,7 @@ def check(binary):
             terminal.send("\x03")
             terminal.expect("\x1b[?25h")
             assert terminal.wait_exit() == 130
-        print("PASS: CLI connection editor hides keys, defaults to cancel, saves only the selected card, and restores terminal modes")
+        print("PASS: CLI connection editor hides keys, defaults to cancel, saves only the selected provider, and restores terminal modes")
 
         # A malformed client configuration must not be mistaken for disabled.
         path = Path(command(binary, home, ["paths", "opencode", "--json"])["tools"]["opencode"][0])
@@ -236,7 +236,7 @@ def check(binary):
             assert terminal.leave() == 0
         assert command(binary, home, ["list", "gemini", "--json"])["providers"]
         assert gemini.read_text() == "GEMINI_API_KEY=fixture-secret-do-not-print\n"
-        print("PASS: empty-state import saves cards without changing the client")
+        print("PASS: empty-state import saves providers without changing the client")
 
         empty = Path(root) / "empty"
         empty.mkdir()

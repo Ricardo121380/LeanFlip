@@ -4,9 +4,9 @@ mod common;
 
 use std::path::{Path, PathBuf};
 
-use ccsl_core::ccswitch_export::{self, DuplicatePolicy, ExportFormat, ItemStatus, Preview};
-use ccsl_core::{store, Provider, Tool};
 use common::Sandbox;
+use leanflip_core::ccswitch_export::{self, DuplicatePolicy, ExportFormat, ItemStatus, Preview};
+use leanflip_core::{store, Provider, Tool};
 use serde_json::json;
 
 fn fixture(name: &str) -> Vec<u8> {
@@ -29,7 +29,7 @@ fn preview_does_not_create_a_store_lock() {
     assert!(!sb.env.data_dir.join("providers.json.lock").exists());
 }
 
-/// HOME 下除 ccswitch-lite 自己的数据目录外的所有文件。
+/// HOME 下除 LeanFlip 自己的数据目录外的所有文件。
 fn files_outside_data_dir(sb: &Sandbox) -> Vec<PathBuf> {
     fn walk(dir: &Path, skip: &Path, out: &mut Vec<PathBuf>) {
         let Ok(entries) = std::fs::read_dir(dir) else {
@@ -279,7 +279,7 @@ fn rejects_malformed_and_hostile_files() {
     let v4 = String::from_utf8(fixture(V4)).unwrap();
     let truncated = &v4[..v4.find("COMMIT;").unwrap()];
     let attach =
-        "-- CC Switch SQLite 导出\nATTACH DATABASE '/tmp/ccsl-should-not-exist.db' AS x;\n";
+        "-- CC Switch SQLite 导出\nATTACH DATABASE '/tmp/leanflip-should-not-exist.db' AS x;\n";
     let pragma = "-- CC Switch SQLite 导出\nPRAGMA writable_schema=ON;\nCREATE TABLE providers(id TEXT, app_type TEXT, name TEXT, settings_config TEXT);\n";
     let no_table = "-- CC Switch SQLite 导出\nBEGIN;\nCREATE TABLE settings (key TEXT, value TEXT);\nCOMMIT;\n";
     let cases: Vec<(&str, Vec<u8>)> = vec![
@@ -303,7 +303,7 @@ fn rejects_malformed_and_hostile_files() {
         assert!(!err.to_string().is_empty(), "{name}");
     }
     assert!(
-        !Path::new("/tmp/ccsl-should-not-exist.db").exists(),
+        !Path::new("/tmp/leanflip-should-not-exist.db").exists(),
         "ATTACH must not create files"
     );
 

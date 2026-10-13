@@ -1,0 +1,283 @@
+// Browser-only stand-in for `@tauri-apps/api/core`, used by `pnpm dev:mock`.
+// Vite aliases the real module to this file only when LEANFLIP_MOCK=1, so it never ships in the app.
+import type { AccountInfo, LoginSummary, Provider, SettingsView, SwitchEvent, ToolId, ToolProviders, ToolSummary, UsageReport, UsageRow } from "@/lib/api";
+
+type Kind = "switch" | "coexist";
+interface MockTool { kind: Kind; paths: string[]; detected: boolean; current: string | null; inLive: string[]; providers: Provider[] }
+
+const home = "/Users/demo";
+const tools: Record<ToolId, MockTool> = {
+  claude: {
+    kind: "switch", detected: true, current: "kimi", inLive: [], paths: [`${home}/.claude/settings.json`],
+    providers: [
+      { id: "kimi", name: "Kimi", settingsConfig: { env: { ANTHROPIC_BASE_URL: "https://api.moonshot.cn/anthropic", ANTHROPIC_AUTH_TOKEN: "sk-demo-kimi", ANTHROPIC_MODEL: "kimi-k2" } } },
+      { id: "deepseek", name: "DeepSeek", settingsConfig: { env: { ANTHROPIC_BASE_URL: "https://api.deepseek.com/anthropic", ANTHROPIC_AUTH_TOKEN: "sk-demo-ds", ANTHROPIC_MODEL: "deepseek-chat" } } },
+      { id: "official", name: "Claude 官方", category: "official", settingsConfig: { env: {} } },
+      { id: "relay", name: "公司网关", settingsConfig: { env: { ANTHROPIC_BASE_URL: "https://gw.internal.example/anthropic", ANTHROPIC_AUTH_TOKEN: "sk-demo-relay", ANTHROPIC_MODEL: "claude-sonnet-4-5" } } },
+    ],
+  },
+  codex: {
+    kind: "switch", detected: true, current: "official", inLive: [], paths: [`${home}/.codex/config.toml`, `${home}/.codex/auth.json`],
+    providers: [
+      { id: "official", name: "Codex 官方", category: "official", settingsConfig: { auth: {}, config: "" }, meta: { authBinding: { authProvider: "codex_oauth", accountId: "acc-work" } } },
+      { id: "openai", name: "OpenAI API", settingsConfig: { auth: { OPENAI_API_KEY: "sk-demo" }, config: 'model = "gpt-5"\nmodel_provider = "openai"\n' } },
+      { id: "gateway", name: "Responses 网关", settingsConfig: { auth: { OPENAI_API_KEY: "sk-demo" }, config: 'model = "gpt-5-mini"\nmodel_provider = "gateway"\n\n[model_providers.gateway]\nbase_url = "https://gw.example.com/v1"\n' } },
+    ],
+  },
+  gemini: {
+    kind: "switch", detected: true, current: "gapi", inLive: [], paths: [`${home}/.gemini/.env`, `${home}/.gemini/settings.json`],
+    providers: [
+      { id: "gapi", name: "Gemini API", settingsConfig: { env: { GEMINI_API_KEY: "demo" }, config: { model: { name: "gemini-2.5-pro" } } } },
+      { id: "ggw", name: "Gemini 网关", settingsConfig: { env: { GOOGLE_GEMINI_BASE_URL: "https://gw.example.com", GEMINI_API_KEY: "demo", GEMINI_MODEL: "gemini-2.5-flash" } } },
+    ],
+  },
+  grokbuild: { kind: "switch", detected: true, current: null, inLive: [], paths: [`${home}/.grok/config.toml`], providers: [] },
+  "claude-desktop": { kind: "switch", detected: false, current: null, inLive: [], paths: [`${home}/Library/Application Support/Claude-3p/claude_desktop_config.json`], providers: [] },
+  opencode: {
+    kind: "coexist", detected: true, current: null, inLive: ["openrouter", "moonshot"], paths: [`${home}/.config/opencode/opencode.json`],
+    providers: [
+      { id: "openrouter", name: "OpenRouter", settingsConfig: { npm: "@ai-sdk/openai-compatible", options: { baseURL: "https://openrouter.ai/api/v1", apiKey: "demo" }, models: { "anthropic/claude-sonnet-4.5": {} } } },
+      { id: "moonshot", name: "Moonshot", settingsConfig: { npm: "@ai-sdk/openai-compatible", options: { baseURL: "https://api.moonshot.cn/v1", apiKey: "demo" }, models: { "kimi-k2": {} } } },
+      { id: "ollama", name: "本地 Ollama", settingsConfig: { npm: "@ai-sdk/openai-compatible", options: { baseURL: "http://localhost:11434/v1" }, models: { "qwen3-coder": {} } } },
+    ],
+  },
+  openclaw: { kind: "coexist", detected: false, current: null, inLive: [], paths: [`${home}/.openclaw/openclaw.json`], providers: [] },
+  hermes: {
+    kind: "coexist", detected: true, current: null, inLive: ["deepseek"], paths: [`${home}/.hermes/config.yaml`],
+    providers: [{ id: "deepseek", name: "DeepSeek", settingsConfig: { base_url: "https://api.deepseek.com/v1", api_key: "demo", models: [{ id: "deepseek-chat" }] } }],
+  },
+  pi: { kind: "coexist", detected: false, current: null, inLive: [], paths: [`${home}/.pi/agent/models.json`], providers: [] },
+  mcode: { kind: "coexist", detected: false, current: null, inLive: [], paths: [`${home}/.minimax/config.yaml`], providers: [] },
+};
+
+let accounts: AccountInfo[] = [
+  { id: "acc-work", email: "dev@studio.example", workspace: "Studio", plan: "team", authenticatedAt: 1791600000, reauthRequired: false, isDefault: true },
+  { id: "acc-home", email: "me@example.com", workspace: null, plan: "plus", authenticatedAt: 1791100000, reauthRequired: true, isDefault: false },
+];
+const logins: LoginSummary[] = [{ identity: "sub:demo|account:personal", email: "me@example.com", workspace: null, plan: "plus", live: true }];
+let app: SettingsView["app"] = { language: null, theme: null, dirOverrides: {}, autostart: false, backgroundRefreshHours: 168, closeToTray: true };
+const ok = { changed: [] as string[], warnings: [] as string[] };
+const wait = (ms = 220) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function list(tool: ToolId): ToolProviders {
+  const t = tools[tool];
+  return { tool, kind: t.kind, providers: structuredClone(t.providers), current: t.current, inLive: [...t.inLive], liveError: null, paths: t.paths };
+}
+function overview(): ToolSummary[] {
+  return (Object.keys(tools) as ToolId[]).map((tool) => {
+    const t = tools[tool];
+    const current = t.providers.find((p) => p.id === t.current);
+    return { tool, kind: t.kind, paths: t.paths, detected: t.detected, cardCount: t.providers.length, current: t.current, currentName: current?.name ?? null, inLive: [...t.inLive], liveReadable: true };
+  });
+}
+
+// 演示用量：180 天的每日汇总和 64 天前开始的切换记录，数字是虚构的。
+function usageDemo(): UsageReport {
+  const DAY = 86_400_000;
+  const now = Date.now();
+  const logStart = now - 64.4 * DAY;
+  let seed = 20261013;
+  const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const key = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const hit: Record<string, number> = { kimi: 0.93, deepseek: 0.88, official: 0.96, relay: 0.41, openai: 0.9, gateway: 0.62, gapi: 0.7, ggw: 0.35, openrouter: 0.55, moonshot: 0.9, ollama: 0, "": 0.9 };
+  const plans: Record<string, [string, number][]> = {
+    claude: [["official", 180], ["kimi", 140], ["deepseek", 96], ["relay", 71], ["kimi", 58], ["deepseek", 33.5], ["kimi", 21], ["relay", 12.2], ["kimi", 4.6]],
+    codex: [["openai", 180], ["official", 122], ["gateway", 61], ["official", 55.3], ["openai", 26], ["official", 9.8]],
+    gemini: [["ggw", 180], ["gapi", 150], ["ggw", 44], ["gapi", 38.6]],
+  };
+  const name = (tool: ToolId, id: string) => tools[tool].providers.find((p) => p.id === id)?.name ?? id;
+  const activeAt = (tool: string, ts: number) => {
+    const plan = plans[tool];
+    let id = plan[0][0];
+    for (const [p, ago] of plan) if (now - ago * DAY <= ts) id = p;
+    return id;
+  };
+  const events: SwitchEvent[] = [];
+  for (const tool of ["claude", "codex", "gemini"] as ToolId[]) {
+    events.push({ ts: logStart, tool, provider: activeAt(tool, logStart), name: name(tool, activeAt(tool, logStart)), enabled: true });
+    for (const [p, ago] of plans[tool]) if (now - ago * DAY > logStart) events.push({ ts: now - ago * DAY, tool, provider: p, name: name(tool, p), enabled: true });
+  }
+  const coexist: [ToolId, string, number, number | null][] = [["opencode", "openrouter", 64.4, null], ["opencode", "moonshot", 61, null], ["opencode", "ollama", 20, 14], ["hermes", "deepseek", 64.4, null]];
+  for (const [tool, p, from, to] of coexist) {
+    events.push({ ts: now - from * DAY, tool, provider: p, name: name(tool, p), enabled: true });
+    if (to !== null) events.push({ ts: now - to * DAY, tool, provider: p, name: name(tool, p), enabled: false });
+  }
+  events.sort((a, b) => a.ts - b.ts);
+  const base: [ToolId, number, number][] = [["claude", 6.2e7, 170], ["codex", 1.5e8, 1150], ["gemini", 9e6, 45], ["grokbuild", 3.2e6, 22], ["opencode", 1.3e7, 70], ["hermes", 4e6, 30]];
+  const rows: UsageRow[] = [];
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  for (let i = 179; i >= 0; i--) {
+    const date = new Date(today);
+    date.setDate(date.getDate() - i);
+    const mid = date.getTime() + DAY / 2;
+    const weekend = date.getDay() === 0 || date.getDay() === 6;
+    for (const [tool, tokens, requests] of base) {
+      const f = (weekend ? 0.42 : 1) * (0.62 + 0.76 * random()) * (0.78 + 0.4 * (179 - i) / 180) * (i === 0 ? (now - today.getTime()) / DAY : 1);
+      const parts: [string, UsageRow["attribution"], number][] =
+        tool === "opencode"
+          ? ([["openrouter", 0.5], ["moonshot", mid > now - 61 * DAY ? 0.35 : 0], ["ollama", mid > now - 20 * DAY && mid < now - 14 * DAY ? 0.15 : 0]] as [string, number][])
+              .filter(([, w]) => w > 0).map(([p, w], _, all) => [p, "exact", w / all.reduce((s, [, x]) => s + x, 0)])
+          : tool === "hermes" ? [["deepseek", "exact", 1]]
+          : tool === "grokbuild" ? [["", "none", 1]]
+          : tool === "codex" ? [[activeAt(tool, mid), "exact", 1]]
+          : mid < logStart ? [["", "none", 1]] : [[activeAt(tool, mid), "time", 1]];
+      for (const [provider, attribution, share] of parts) {
+        const total = tokens * f * share;
+        const output = total * 0.007;
+        const side = total - output;
+        const h = hit[provider] ?? 0.85;
+        rows.push({
+          day: key(date), tool, provider, model: tool === "codex" ? "gpt-5" : tool === "gemini" ? "gemini-2.5-pro" : "default", attribution,
+          input: Math.round(side * (1 - h - 0.02)), cacheRead: Math.round(side * h), cacheWrite: tool === "claude" ? Math.round(side * 0.02) : 0, output: Math.round(output),
+          requests: Math.round(requests * f * share),
+        });
+      }
+    }
+  }
+  const source = (tool: ToolId, state: UsageReport["sources"][number]["state"], path: string | null, extra: Partial<UsageReport["sources"][number]> = {}) => ({ tool, state, tested: true, experimental: false, path, retentionDays: null, detail: null, ...extra });
+  return {
+    rows,
+    events,
+    scannedAt: now,
+    sources: [
+      source("claude", "read", `${home}/.claude/projects`, { retentionDays: 30 }),
+      source("codex", "read", `${home}/.codex/sessions`),
+      source("gemini", "read", `${home}/.gemini/tmp`, { tested: false, retentionDays: 30 }),
+      source("grokbuild", "read", `${home}/.grok/sessions`, { experimental: true }),
+      source("claude-desktop", "unsupported", null),
+      source("opencode", "read", `${home}/.local/share/opencode`),
+      source("openclaw", "missing", `${home}/.openclaw/agents`, { tested: false }),
+      source("hermes", "read", `${home}/.hermes/state.db`, { tested: false }),
+      source("pi", "missing", `${home}/.pi/agent/sessions`, { tested: false }),
+      source("mcode", "unsupported", null),
+    ],
+  };
+}
+
+let demoUsage: UsageReport | null = null;
+/** 演示后端也记切换，统计页的时间线跟着变。 */
+function noteDemo(tool: ToolId, provider: string, enabled: boolean) {
+  const name = tools[tool].providers.find((p) => p.id === provider)?.name ?? provider;
+  demoUsage?.events.push({ ts: Date.now(), tool, provider, name, enabled });
+}
+
+type Args = Record<string, unknown> | undefined;
+const handlers: Record<string, (args: Args) => unknown> = {
+  get_recovery_notices: () => [],
+  get_overview: overview,
+  usage_report: () => {
+    demoUsage ??= usageDemo();
+    demoUsage.scannedAt = Date.now();
+    return demoUsage;
+  },
+  list_providers: (a) => list(a!.tool as ToolId),
+  // 演示用的检测结果：地址里带 fail 的视为不可连通，带 slow 的延迟较高。
+  probe_latency: (a) => {
+    const url = JSON.stringify(a!.settingsConfig);
+    if (url.includes("internal.example")) return { ok: false, status: null, latencyMs: 0, code: "dns", detail: null, endpoint: "https://gw.internal.example/anthropic", model: null, models: null };
+    const ms = url.includes("deepseek") ? 760 : url.includes("openrouter") ? 1320 : 120 + (url.length % 200);
+    return { ok: true, status: 404, latencyMs: ms, code: null, detail: null, endpoint: "https://api.example.com/", model: null, models: null };
+  },
+  probe_models: () => ({
+    ok: true, status: 200, latencyMs: 380, code: null, detail: null, endpoint: "https://api.example.com/v1/models", model: null,
+    models: [
+      { id: "claude-opus-5-5", name: "Claude Opus 5.5", efforts: ["low", "medium", "high", "xhigh", "max"] },
+      { id: "claude-haiku-4-5", name: "Claude Haiku 4.5", efforts: [] },
+      { id: "kimi-k2-turbo-preview", name: "Kimi K2 Turbo" }, { id: "kimi-k2-0905-preview", name: "Kimi K2" }, { id: "kimi-latest" },
+      { id: "moonshot-v1-128k" }, { id: "deepseek-chat", name: "DeepSeek V3" }, { id: "deepseek-reasoner", name: "DeepSeek R1" },
+      { id: "anthropic/claude-sonnet-4.5" }, { id: "openai/gpt-5.5" }, { id: "qwen3-coder-plus" }, { id: "glm-4.6" },
+    ],
+  }),
+  probe_efforts: (a) => {
+    const model = (a!.model as string | null) ?? "kimi-k2";
+    const config = JSON.stringify(a!.settingsConfig);
+    const levels = config.includes("ANTHROPIC") ? ["low", "medium", "high", "xhigh", "max"] : ["minimal", "low", "medium", "high", "xhigh", "max"];
+    const supported = new Set(["low", "medium", "high"]);
+    return {
+      ok: true, status: 200, latencyMs: 2400, code: null, detail: null, endpoint: "https://api.example.com/v1/messages", model, models: null,
+      levels: levels.map((level) => ({ level, supported: supported.has(level), detail: supported.has(level) ? undefined : `Unsupported value: '${level}'` })),
+    };
+  },
+  probe_check: (a) => {
+    const model = (a!.model as string | null) ?? "kimi-k2";
+    const config = JSON.stringify(a!.settingsConfig);
+    if (config.includes("sk-demo-ds")) return { ok: false, status: 401, latencyMs: 410, code: "auth", detail: "Authentication Fails, Your api key: **** is invalid", endpoint: "https://api.deepseek.com/anthropic/v1/messages", model, models: null };
+    return { ok: true, status: 200, latencyMs: 860, code: null, detail: null, endpoint: "https://api.example.com/v1/messages", model, models: null };
+  },
+  // 近似后端的 Claude 字段过滤，只用于演示。
+  ignored_fields: (a) => {
+    if (a!.tool !== "claude") return [];
+    const config = a!.settingsConfig as Record<string, unknown>;
+    const env = Object.keys((config.env ?? {}) as object).filter((k) => !/^(ANTHROPIC_|AWS_|CLAUDE_CODE_)/.test(k)).map((k) => `env.${k}`);
+    const top = Object.keys(config).filter((k) => !["env", "model", "apiKeyHelper", "fallbackModel"].includes(k));
+    return [...top, ...env].sort();
+  },
+  switch_provider: (a) => {
+    const t = tools[a!.tool as ToolId];
+    if (t.kind === "switch") t.current = String(a!.id);
+    noteDemo(a!.tool as ToolId, String(a!.id), true);
+    return { ...ok, changed: t.paths.slice(0, 1) };
+  },
+  set_in_live: (a) => {
+    const t = tools[a!.tool as ToolId];
+    const id = String(a!.id);
+    t.inLive = a!.enabled ? [...new Set([...t.inLive, id])] : t.inLive.filter((x) => x !== id);
+    noteDemo(a!.tool as ToolId, id, Boolean(a!.enabled));
+    return ok;
+  },
+  add_provider: (a) => {
+    const t = tools[a!.tool as ToolId];
+    const provider = a!.provider as Provider;
+    t.providers.push(provider);
+    if (a!.addToLive) {
+      if (t.kind === "switch") t.current = provider.id;
+      else t.inLive.push(provider.id);
+    }
+    return ok;
+  },
+  update_provider: (a) => {
+    const t = tools[a!.tool as ToolId];
+    const provider = a!.provider as Provider;
+    t.providers = t.providers.map((p) => (p.id === provider.id ? provider : p));
+    return ok;
+  },
+  delete_provider: (a) => {
+    const t = tools[a!.tool as ToolId];
+    t.providers = t.providers.filter((p) => p.id !== a!.id);
+    t.inLive = t.inLive.filter((x) => x !== a!.id);
+    return null;
+  },
+  import_live: (a) => {
+    const tool = a!.tool as ToolId;
+    const t = tools[tool];
+    if (t.providers.length || !t.detected) return { created: [] };
+    t.providers.push({ id: "current", name: "当前配置", settingsConfig: { config: '[models]\ndefault = "grok-4"\n\n[model."grok-4"]\nmodel = "grok-4"\nbase_url = "https://api.x.ai/v1"\n' } });
+    if (t.kind === "switch") t.current = "current";
+    return { created: ["current"] };
+  },
+  codex_accounts: () => accounts,
+  codex_logins: () => logins,
+  codex_set_default: (a) => { accounts = accounts.map((x) => ({ ...x, isDefault: x.id === a!.id })); return null; },
+  codex_remove_account: (a) => { accounts = accounts.filter((x) => x.id !== a!.id); return null; },
+  codex_set_login_ref: () => ok,
+  codex_start_login: () => ({ deviceCode: "demo", userCode: "LEAN-FL1P", verificationUri: "https://auth.openai.com/codex/device", expiresIn: 900, interval: 5 }),
+  codex_poll_login: () => ({ status: "pending" }),
+  codex_cancel_login: () => true,
+  get_settings: (): SettingsView => ({
+    app, keepCodexLogin: false, dataDir: `${home}/.leanflip`, home,
+    livePaths: Object.fromEntries((Object.keys(tools) as ToolId[]).map((tool) => [tool, tools[tool].paths])),
+    dirs: {}, ccswitchDir: `${home}/.cc-switch`,
+  }),
+  save_settings: (a) => { app = (a!.input as { app: SettingsView["app"] }).app; return { dirsChanged: false }; },
+  ccswitch_scan: () => ({ directory: `${home}/.cc-switch`, source: null, candidates: [], accounts: 0 }),
+  open_url: () => null,
+};
+
+export async function invoke<T>(cmd: string, args?: Args): Promise<T> {
+  await wait();
+  const handler = handlers[cmd];
+  if (!handler) throw `Demo backend does not implement ${cmd}`;
+  return structuredClone(handler(args)) as T;
+}

@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use ccsl_core::{store::StoreData, switch, Provider, Tool};
+use leanflip_core::{store::StoreData, switch, Provider, Tool};
 use serde_json::Value;
 
 fn presets(tool: &str) -> Vec<Value> {

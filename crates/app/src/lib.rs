@@ -1,7 +1,7 @@
-//! LeanFlip 桌面应用：Tauri 2 外壳，业务都在 `ccsl-core` 和 [`service`] 里。
+//! LeanFlip 桌面应用：Tauri 2 外壳，业务都在 `leanflip-core` 和 [`service`] 里。
 
 pub mod commands;
-pub use ccsl_service::{oauth_http, redact, service, settings};
+pub use leanflip_service::{oauth_http, redact, service, settings};
 mod tray;
 mod watcher;
 
@@ -84,10 +84,21 @@ pub fn run() {
         ))
         .setup(|app| {
             let transport = oauth_http::HttpTransport::new(oauth_http::Endpoints::default())
-                .map(|t| Arc::new(t) as Arc<dyn ccsl_core::codex::oauth::transport::OAuthTransport>)
+                .map(|t| {
+                    Arc::new(t) as Arc<dyn leanflip_core::codex::oauth::transport::OAuthTransport>
+                })
                 .map_err(|e| log::error!("http client: {e}"))
                 .ok();
-            let service = Arc::new(Service::start(ccsl_core::Env::from_system(), transport)?);
+            // 0.1.x kept its data in the previous data directory; move it before reading anything.
+            if let Err(error) =
+                leanflip_core::env::migrate_legacy_data_dir(&leanflip_core::Env::system_home())
+            {
+                log::warn!("data directory migration skipped: {error}");
+            }
+            let service = Arc::new(Service::start(
+                leanflip_core::Env::from_system(),
+                transport,
+            )?);
             app.manage(AppState(service.clone()));
             // 只放占位菜单，读取 Tool::ALL 的配置在托盘后台线程里做，不挡窗口显示。
             tray::create(app.handle())?;
@@ -114,6 +125,12 @@ pub fn run() {
             commands::get_recovery_notices,
             commands::get_overview,
             commands::list_providers,
+            commands::ignored_fields,
+            commands::probe_latency,
+            commands::probe_models,
+            commands::probe_check,
+            commands::probe_efforts,
+            commands::usage_report,
             commands::switch_provider,
             commands::add_provider,
             commands::update_provider,

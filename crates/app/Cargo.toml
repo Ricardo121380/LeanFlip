@@ -1,25 +1,25 @@
 [package]
-name = "ccsl-app"
-description = "LeanFlip desktop app (Tauri 2): thin command layer over ccsl-core"
+name = "leanflip-app"
+description = "LeanFlip desktop app (Tauri 2): thin command layer over leanflip-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 
 [lib]
-name = "ccsl_app"
+name = "leanflip_app"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [[bin]]
-name = "ccswitch-lite"
+name = "leanflip-app"
 path = "src/main.rs"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-ccsl-core = { path = "../core" }
-ccsl-service = { path = "../service" }
+leanflip-core = { path = "../core" }
+leanflip-service = { path = "../service" }
 tauri = { version = "2", features = ["tray-icon", "image-png"] }
 tauri-plugin-autostart = "2"
 tauri-plugin-opener = "2"

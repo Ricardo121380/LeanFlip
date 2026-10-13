@@ -6,12 +6,12 @@ use std::fs::OpenOptions;
 use std::sync::mpsc;
 use std::time::Duration;
 
-use ccsl_core::codex::oauth::{live as managed_live, testing::Identity};
-use ccsl_core::{coexist, state, store, switch, AppError, Env, Provider, Tool};
 use common::Sandbox;
+use leanflip_core::codex::oauth::{live as managed_live, testing::Identity};
+use leanflip_core::{coexist, state, store, switch, AppError, Env, Provider, Tool};
 use serde_json::json;
 
-const CHILD_HOME: &str = "CCSL_TEST_CHILD_HOME";
+const CHILD_HOME: &str = "LEANFLIP_TEST_CHILD_HOME";
 const ROUNDS: usize = 40;
 
 fn add_cards(env: &Env, prefix: &str) {

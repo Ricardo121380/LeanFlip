@@ -1,21 +1,79 @@
-//! 路径解析：用户目录、各工具的配置目录、ccswitch-lite 自己的数据目录。
+//! 路径解析：用户目录、各工具的配置目录、LeanFlip 自己的数据目录。
 //!
-//! 和 cc-switch 不同，这里不用进程级的全局 home（`CC_SWITCH_TEST_HOME` 那一套），
-//! 而是把所有路径收进一个 [`Env`] 值显式传下去：测试各用自己的临时目录，互不干扰，
-//! 也不可能误碰真实的 `~/.claude`、`~/.codex`。
+//! 不用进程级的全局 home，而是把所有路径收进一个 [`Env`] 值显式传下去：测试各用自己的
+//! 临时目录，互不干扰，也不可能误碰真实的 `~/.claude`、`~/.codex`。
 
-use std::path::PathBuf;
+use std::io::ErrorKind;
+use std::path::{Path, PathBuf};
 
+use crate::error::AppError;
 use crate::live::engine::DeviceStore;
 
-/// ccswitch-lite 的数据目录名（和 cc-switch 的 `~/.cc-switch` 分开，两者可以并存）。
-pub const DATA_DIR_NAME: &str = ".cc-switch-lite";
+/// LeanFlip 的数据目录名（和 CC Switch 的 `~/.cc-switch` 分开，两者可以并存）。
+pub const DATA_DIR_NAME: &str = ".leanflip";
+/// 0.1.x 版本使用的数据目录名。没迁移前继续使用；[`migrate_legacy_data_dir`] 把它改名为
+/// [`DATA_DIR_NAME`]，并在原处留一个符号链接。
+pub const LEGACY_DATA_DIR_NAME: &str = ".cc-switch-lite";
+
+/// `home` 下实际使用的数据目录：新目录存在就用它；只有旧目录（还没迁移）时继续用旧目录，
+/// 只读查询因此不需要先迁移；都没有时是新目录。
+pub fn data_dir_in(home: &Path) -> PathBuf {
+    let current = home.join(DATA_DIR_NAME);
+    let legacy = home.join(LEGACY_DATA_DIR_NAME);
+    if std::fs::symlink_metadata(&current).is_err()
+        && std::fs::symlink_metadata(&legacy).is_ok_and(|meta| meta.is_dir())
+    {
+        return legacy;
+    }
+    current
+}
+
+/// 把旧数据目录改名为新目录（同一文件系统内的原子改名，锁、journal 和备份一起搬走），
+/// 然后在旧位置放一个指向新目录的相对符号链接，仍在运行或仍被使用的旧版本继续读写同一份数据。
+/// 新目录已存在、旧目录不存在或旧位置本身是链接时什么都不做；可以重复调用。
+/// 返回是否发生了迁移。
+pub fn migrate_legacy_data_dir(home: &Path) -> Result<bool, AppError> {
+    let current = home.join(DATA_DIR_NAME);
+    let legacy = home.join(LEGACY_DATA_DIR_NAME);
+    match std::fs::symlink_metadata(&current) {
+        Ok(_) => return Ok(false),
+        Err(error) if error.kind() == ErrorKind::NotFound => {}
+        Err(error) => return Err(AppError::io(&current, error)),
+    }
+    match std::fs::symlink_metadata(&legacy) {
+        Ok(meta) if meta.is_dir() => {}
+        Ok(_) => return Ok(false),
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(AppError::io(&legacy, error)),
+    }
+    // Prepare the compatibility link first, so the old path is missing only between two renames.
+    #[cfg(unix)]
+    let link = {
+        let link = home.join(format!("{LEGACY_DATA_DIR_NAME}.leanflip-link"));
+        let _ = std::fs::remove_file(&link);
+        std::os::unix::fs::symlink(DATA_DIR_NAME, &link).map_err(|e| AppError::io(&link, e))?;
+        link
+    };
+    if let Err(error) = std::fs::rename(&legacy, &current) {
+        #[cfg(unix)]
+        let _ = std::fs::remove_file(&link);
+        return Err(AppError::io(&legacy, error));
+    }
+    #[cfg(unix)]
+    if let Err(error) = std::fs::rename(&link, &legacy) {
+        // The data moved; only the convenience link for old versions is missing.
+        let _ = std::fs::remove_file(&link);
+        log::warn!("could not link the previous data directory to the new one: {error}");
+    }
+    log::info!("moved the data directory to {}", current.display());
+    Ok(true)
+}
 
 /// 一台设备上的路径集合。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Env {
     pub home: PathBuf,
-    /// ccswitch-lite 自己的数据（供应商库、`live-state.json`、首写备份、登录暂存）。
+    /// LeanFlip 自己的数据（供应商库、`live-state.json`、首写备份、登录暂存）。
     pub data_dir: PathBuf,
     /// Claude Code 配置目录（默认 `~/.claude`）。
     pub claude_dir: PathBuf,
@@ -46,7 +104,7 @@ impl Env {
     pub fn with_home(home: impl Into<PathBuf>) -> Self {
         let home = home.into();
         Self {
-            data_dir: home.join(DATA_DIR_NAME),
+            data_dir: data_dir_in(&home),
             claude_dir: home.join(".claude"),
             codex_dir: home.join(".codex"),
             gemini_dir: home.join(".gemini"),
@@ -65,14 +123,18 @@ impl Env {
         }
     }
 
-    /// 真实用户环境：`dirs::home_dir()`；`CCSL_HOME` 可以显式覆盖（调试用）。
-    /// Codex 目录遵循 Codex 自己的 `CODEX_HOME`。
-    pub fn from_system() -> Self {
-        let home = std::env::var_os("CCSL_HOME")
+    /// 真实用户的 home：`LEANFLIP_HOME` 可以显式覆盖（调试、演示用），否则是 `dirs::home_dir()`。
+    pub fn system_home() -> PathBuf {
+        std::env::var_os("LEANFLIP_HOME")
+            .filter(|path| !path.is_empty())
             .map(PathBuf::from)
-            .filter(|path| !path.as_os_str().is_empty())
             .or_else(dirs::home_dir)
-            .unwrap_or_else(|| PathBuf::from("."));
+            .unwrap_or_else(|| PathBuf::from("."))
+    }
+
+    /// 真实用户环境（home 见 [`Env::system_home`]）。Codex 目录遵循 Codex 自己的 `CODEX_HOME`。
+    pub fn from_system() -> Self {
+        let home = Self::system_home();
         let mut env = Self::with_home(home);
         if let Some(codex_home) = std::env::var_os("CODEX_HOME").filter(|v| !v.is_empty()) {
             env.codex_dir = PathBuf::from(codex_home);
@@ -289,7 +351,7 @@ mod tests {
     fn layout_and_legacy_claude_file() {
         let dir = tempfile::tempdir().unwrap();
         let env = Env::with_home(dir.path());
-        assert_eq!(env.data_dir, dir.path().join(".cc-switch-lite"));
+        assert_eq!(env.data_dir, dir.path().join(".leanflip"));
         assert_eq!(
             env.claude_settings_path(),
             dir.path().join(".claude/settings.json")
@@ -304,6 +366,69 @@ mod tests {
         assert_eq!(
             env.claude_settings_path(),
             dir.path().join(".claude/settings.json")
+        );
+    }
+
+    #[test]
+    fn an_unmigrated_legacy_directory_stays_in_use_until_it_is_moved() {
+        let dir = tempfile::tempdir().unwrap();
+        let legacy = dir.path().join(LEGACY_DATA_DIR_NAME);
+        std::fs::create_dir_all(legacy.join("backups")).unwrap();
+        std::fs::write(legacy.join("providers.json"), r#"{"version":1}"#).unwrap();
+        assert_eq!(Env::with_home(dir.path()).data_dir, legacy);
+
+        assert!(migrate_legacy_data_dir(dir.path()).unwrap());
+        let current = dir.path().join(DATA_DIR_NAME);
+        assert_eq!(Env::with_home(dir.path()).data_dir, current);
+        assert_eq!(
+            std::fs::read_to_string(current.join("providers.json")).unwrap(),
+            r#"{"version":1}"#
+        );
+        assert!(current.join("backups").is_dir());
+        #[cfg(unix)]
+        {
+            assert!(std::fs::symlink_metadata(&legacy)
+                .unwrap()
+                .file_type()
+                .is_symlink());
+            assert_eq!(
+                std::fs::read_link(&legacy).unwrap(),
+                PathBuf::from(DATA_DIR_NAME)
+            );
+            // Old versions reading the previous path see the same files.
+            assert_eq!(
+                std::fs::read_to_string(legacy.join("providers.json")).unwrap(),
+                r#"{"version":1}"#
+            );
+        }
+        assert!(!migrate_legacy_data_dir(dir.path()).unwrap(), "idempotent");
+    }
+
+    #[test]
+    fn migration_never_replaces_an_existing_new_directory() {
+        let dir = tempfile::tempdir().unwrap();
+        let legacy = dir.path().join(LEGACY_DATA_DIR_NAME);
+        let current = dir.path().join(DATA_DIR_NAME);
+        std::fs::create_dir_all(&legacy).unwrap();
+        std::fs::write(legacy.join("providers.json"), "old").unwrap();
+        std::fs::create_dir_all(&current).unwrap();
+        std::fs::write(current.join("providers.json"), "new").unwrap();
+        assert!(!migrate_legacy_data_dir(dir.path()).unwrap());
+        assert_eq!(
+            std::fs::read_to_string(legacy.join("providers.json")).unwrap(),
+            "old"
+        );
+        assert_eq!(
+            std::fs::read_to_string(current.join("providers.json")).unwrap(),
+            "new"
+        );
+        assert_eq!(Env::with_home(dir.path()).data_dir, current);
+
+        let empty = tempfile::tempdir().unwrap();
+        assert!(!migrate_legacy_data_dir(empty.path()).unwrap());
+        assert!(
+            !empty.path().join(DATA_DIR_NAME).exists(),
+            "nothing is created"
         );
     }
 

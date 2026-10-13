@@ -2,9 +2,9 @@
 
 mod common;
 
-use ccsl_core::import::import_live;
-use ccsl_core::{store, Tool};
 use common::Sandbox;
+use leanflip_core::import::import_live;
+use leanflip_core::{store, Tool};
 use serde_json::json;
 
 #[test]

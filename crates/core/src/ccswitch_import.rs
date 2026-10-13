@@ -4,7 +4,7 @@
 //!   `config.json`（v2：`{ "<app>": { "providers": { id: {...} } } }`）。
 //! - 账号：`codex_oauth_auth.json`（同格式 v2），id 不变，卡上的绑定照样能用。
 //!
-//! 绝不写 cc-switch 的任何文件。不导入「当前供应商」：ccswitch-lite 的指针跟着 live 走。
+//! 绝不写 cc-switch 的任何文件。不导入「当前供应商」：LeanFlip 的指针跟着 live 走。
 //! 需要本地路由的卡（非 Anthropic 格式、Copilot / ChatGPT 反代等）跳过并说明原因；
 //! Codex 卡里从 `auth.json` 抄来的 ChatGPT 登录不导入（登录只认 live 和登录暂存）。
 
@@ -197,8 +197,8 @@ pub fn apply(
 fn duplicate_reason() -> Reason {
     Reason::new(
         "duplicate",
-        "已有同 id 的卡",
-        "A card with this id already exists",
+        "已有同 ID 的供应商",
+        "A provider with this ID already exists",
     )
 }
 
@@ -456,7 +456,7 @@ pub(crate) fn legacy_rows(root: &Value) -> Vec<RawRow> {
     out
 }
 
-/// cc-switch 专用、ccswitch-lite 用不上的 meta：用量脚本（里面可能有 token）、合作伙伴 /
+/// cc-switch 专用、LeanFlip 用不上的 meta：用量脚本（里面可能有 token）、合作伙伴 /
 /// 促销标记、计费 / 限额、测速端点等。
 const DROPPED_META: &[&str] = &[
     "usageScript",

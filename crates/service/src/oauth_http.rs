@@ -1,5 +1,5 @@
 //! OAuth HTTP adapter. Errors contain status codes, never response bodies or tokens.
-use ccsl_core::codex::oauth::transport::{
+use leanflip_core::codex::oauth::transport::{
     endpoints, DeviceCode, DevicePoll, OAuthTransport, TokenResponse, TransportError,
 };
 use reqwest::blocking::{Client, RequestBuilder};

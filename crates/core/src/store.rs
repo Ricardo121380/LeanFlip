@@ -1,4 +1,4 @@
-//! 供应商库：`<data_dir>/providers.json`（默认 `~/.cc-switch-lite/providers.json`）。
+//! 供应商库：`<data_dir>/providers.json`（默认 `~/.leanflip/providers.json`）。
 //!
 //! 为什么用 JSON 文件而不是 SQLite：
 //! - 数据量很小（每个工具十几张卡），整份读写的成本可以忽略；
@@ -133,7 +133,7 @@ pub fn load_readonly(env: &Env) -> Result<StoreData, AppError> {
     load_unlocked(env)
 }
 
-/// 跨进程的库锁：读加共享锁、读改写加排他锁（两个 ccswitch-lite 进程同时改库时，
+/// 跨进程的库锁：读加共享锁、读改写加排他锁（两个 LeanFlip 进程同时改库时，
 /// 后一个等前一个写完再读，不会互相覆盖）。
 fn store_lock_path(env: &Env) -> std::path::PathBuf {
     env.data_dir.join("providers.json.lock")

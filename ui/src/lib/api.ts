@@ -33,6 +33,32 @@ export interface Provider {
   [key: string]: unknown;
 }
 
+export interface RemoteModel {
+  id: string;
+  name?: string;
+  /** 模型列表自带的推理强度档位（Anthropic）。 */
+  efforts?: string[];
+}
+
+export interface LevelResult {
+  level: string;
+  supported: boolean;
+  detail?: string;
+}
+
+/** 测连通 / 获取模型列表 / 检查模型的结果（crates/service/src/probe.rs）。 */
+export interface ProbeResult {
+  ok: boolean;
+  status: number | null;
+  latencyMs: number;
+  code: string | null;
+  detail: string | null;
+  endpoint: string | null;
+  model: string | null;
+  models: RemoteModel[] | null;
+  levels?: LevelResult[] | null;
+}
+
 export interface ToolSummary {
   tool: ToolId;
   kind: ToolKind;
@@ -106,6 +132,7 @@ export type DirOverrides = Partial<
 
 export interface AppSettings {
   language: "zh" | "en" | null;
+  theme?: "light" | "dark" | null;
   dirOverrides: DirOverrides;
   autostart: boolean;
   backgroundRefreshHours: number;
@@ -205,6 +232,50 @@ export interface ExportReport {
   skipped: number;
 }
 
+/** 一天、一个工具、一个供应商、一个模型的用量（crates/service/src/usage.rs）。 */
+export interface UsageRow {
+  day: string;
+  tool: ToolId;
+  /** LeanFlip 的供应商 ID，或客户端自己的供应商名；空字符串表示归不到供应商。 */
+  provider: string;
+  model: string;
+  /** exact：记录里自带供应商；time：按切换记录推算；none：记录开始之前。 */
+  attribution: "exact" | "time" | "none";
+  input: number;
+  cacheRead: number;
+  cacheWrite: number;
+  output: number;
+  requests: number;
+}
+
+/** 切换记录：切换式工具是“当前供应商变成了谁”（provider 为空表示没有选择），并存式是写入 / 移出。 */
+export interface SwitchEvent {
+  ts: number;
+  tool: ToolId;
+  provider: string;
+  name: string;
+  enabled: boolean;
+}
+
+export interface SourceStatus {
+  tool: ToolId;
+  state: "read" | "missing" | "unsupported" | "failed";
+  /** 格式在真实数据上验证过。 */
+  tested: boolean;
+  /** 格式没有公开文档。 */
+  experimental: boolean;
+  path: string | null;
+  retentionDays: number | null;
+  detail: string | null;
+}
+
+export interface UsageReport {
+  rows: UsageRow[];
+  events: SwitchEvent[];
+  sources: SourceStatus[];
+  scannedAt: number;
+}
+
 export const api = {
   backupSave: (password: string) => invoke<string | null>("backup_save", { password }),
   backupLoad: (bytes: Uint8Array, password: string) => invoke<BackupPreview>("backup_load", { bytes: Array.from(bytes), password }),
@@ -213,6 +284,15 @@ export const api = {
   recoveryNotices: () => invoke<string[]>("get_recovery_notices"),
   overview: () => invoke<ToolSummary[]>("get_overview"),
   listProviders: (tool: ToolId) => invoke<ToolProviders>("list_providers", { tool }),
+  /** 配置里不会写入客户端的字段（目前只有 Claude 会过滤）。 */
+  ignoredFields: (tool: ToolId, settingsConfig: Record<string, unknown>) => invoke<string[]>("ignored_fields", { tool, settingsConfig }),
+  // 以下三个会访问供应商，只在用户点击时调用。
+  probeLatency: (tool: ToolId, settingsConfig: Record<string, unknown>) => invoke<ProbeResult>("probe_latency", { tool, settingsConfig }),
+  probeModels: (tool: ToolId, settingsConfig: Record<string, unknown>) => invoke<ProbeResult>("probe_models", { tool, settingsConfig }),
+  probeCheck: (tool: ToolId, settingsConfig: Record<string, unknown>, model?: string) => invoke<ProbeResult>("probe_check", { tool, settingsConfig, model: model ?? null }),
+  probeEfforts: (tool: ToolId, settingsConfig: Record<string, unknown>, model?: string) => invoke<ProbeResult>("probe_efforts", { tool, settingsConfig, model: model ?? null }),
+  /** 扫描各工具新增的会话记录，返回最近 180 天的用量和切换记录。只读数字，不读对话内容。 */
+  usageReport: () => invoke<UsageReport>("usage_report"),
   switchProvider: (tool: ToolId, id: string) => invoke<OpResult>("switch_provider", { tool, id }),
   addProvider: (tool: ToolId, provider: Provider, addToLive: boolean) =>
     invoke<OpResult>("add_provider", { tool, provider, addToLive }),

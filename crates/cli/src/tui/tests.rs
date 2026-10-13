@@ -1,6 +1,6 @@
 use super::*;
-use ccsl_core::Env;
-use ccsl_service::Service;
+use leanflip_core::Env;
+use leanflip_service::Service;
 use ratatui::{backend::TestBackend, Terminal};
 use std::collections::BTreeMap;
 use std::fs;
@@ -47,6 +47,12 @@ fn snapshot(root: &Path) -> BTreeMap<PathBuf, Vec<u8>> {
         }
         for entry in fs::read_dir(path).unwrap() {
             let path = entry.unwrap().path();
+            // Lock files record pid + timestamp on every acquisition; they are not data.
+            if path.is_dir() && path.file_name() == Some("locks".as_ref())
+                || path.extension() == Some("lock".as_ref())
+            {
+                continue;
+            }
             if path.is_dir() {
                 visit(&path, result);
             } else {
@@ -238,7 +244,7 @@ fn responsive_views_and_scrollable_details_do_not_expose_configuration() {
             if width >= 110 {
                 assert!(screen.contains(lang.text("配置路径", "Configuration paths")));
             }
-            if let Ok(output) = std::env::var("CCSL_TUI_SNAPSHOTS") {
+            if let Ok(output) = std::env::var("LEANFLIP_TUI_SNAPSHOTS") {
                 fs::create_dir_all(&output).unwrap();
                 fs::write(
                     Path::new(&output)
@@ -284,7 +290,7 @@ fn data_center_detects_and_migrates_only_after_confirmation() {
     app.key(key(KeyCode::Enter));
     app.key(key(KeyCode::Char('y')));
     assert!(app.data.as_mut().unwrap().run_pending());
-    assert!(render(&mut app, 100, 26).contains("Cards saved 1"));
+    assert!(render(&mut app, 100, 26).contains("Providers saved 1"));
     assert!(!service(dir.path()).env().claude_settings_path().exists());
     assert_eq!(fs::read(file.clone()).unwrap(), before[&file]);
 }
@@ -305,7 +311,7 @@ fn backup_form_masks_secrets_at_every_size_and_cancel_does_not_export() {
         let screen = render(&mut app, width, height);
         assert!(!screen.contains("private-passphrase-fixture"));
         assert!(screen.contains('*'));
-        if std::env::var_os("CCSL_TUI_SNAPSHOTS").is_some() {
+        if std::env::var_os("LEANFLIP_TUI_SNAPSHOTS").is_some() {
             let destination =
                 Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/tui-preview");
             fs::create_dir_all(&destination).unwrap();
@@ -419,7 +425,7 @@ fn connection_editor_rejects_paths_changed_after_review() {
     app.key(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::CONTROL));
     app.key(key(KeyCode::Char('y')));
     fs::write(
-        dir.path().join(".cc-switch-lite/app-settings.json"),
+        dir.path().join(".leanflip/app-settings.json"),
         serde_json::to_vec(&json!({
             "dirOverrides": {"claudeDir": dir.path().join("new-client")}
         }))

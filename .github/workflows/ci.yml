@@ -25,14 +25,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - name: Test CLI without desktop dependencies
-        run: cargo test -p ccsl-cli --locked
+        run: cargo test -p leanflip-cli --locked
       - name: Build standalone binary
-        run: cargo build -p ccsl-cli --release --locked
+        run: cargo build -p leanflip-cli --release --locked
       - name: Smoke test in an isolated home
         run: |
           target/release/leanflip --version
-          target/release/leanflip --home "$RUNNER_TEMP/ccsl-smoke" status --json
-          test ! -e "$RUNNER_TEMP/ccsl-smoke"
+          target/release/leanflip --home "$RUNNER_TEMP/leanflip-smoke" status --json
+          test ! -e "$RUNNER_TEMP/leanflip-smoke"
       - name: Check interactive menu in a pseudo-terminal
         run: python3 scripts/check-cli-menu.py --binary target/release/leanflip
       - name: Check full-screen TUI in a pseudo-terminal

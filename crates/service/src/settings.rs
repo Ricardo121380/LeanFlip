@@ -4,8 +4,8 @@
 
 use std::path::{Path, PathBuf};
 
-use ccsl_core::env::DirOverrides;
-use ccsl_core::AppError;
+use leanflip_core::env::DirOverrides;
+use leanflip_core::AppError;
 use serde::{Deserialize, Serialize};
 
 pub const FILENAME: &str = "app-settings.json";
@@ -15,6 +15,8 @@ pub const FILENAME: &str = "app-settings.json";
 pub struct AppSettings {
     /// `zh` / `en`；`None` 跟随系统。
     pub language: Option<String>,
+    /// 界面外观：`light` / `dark`；`None` 跟随系统。
+    pub theme: Option<String>,
     pub dir_overrides: DirOverrides,
     pub autostart: bool,
     /// 后台刷新托管 ChatGPT 账号：上次取得 token 超过这么多小时就刷新（0 = 关闭）。
@@ -27,11 +29,22 @@ impl Default for AppSettings {
     fn default() -> Self {
         Self {
             language: None,
+            theme: None,
             dir_overrides: DirOverrides::default(),
             autostart: false,
             background_refresh_hours: 24 * 7,
             close_to_tray: true,
         }
+    }
+}
+
+/// 只保留认识的语言和外观值，其余回到跟随系统。
+pub fn normalize(settings: &mut AppSettings) {
+    if !matches!(settings.language.as_deref(), None | Some("zh" | "en")) {
+        settings.language = None;
+    }
+    if !matches!(settings.theme.as_deref(), None | Some("light" | "dark")) {
+        settings.theme = None;
     }
 }
 
@@ -51,5 +64,5 @@ pub fn load(data_dir: &Path) -> Result<AppSettings, AppError> {
 pub fn save(data_dir: &Path, settings: &AppSettings) -> Result<(), AppError> {
     let bytes =
         serde_json::to_vec_pretty(settings).map_err(|source| AppError::JsonSerialize { source })?;
-    ccsl_core::fsutil::atomic_write_private(&path(data_dir), &bytes)
+    leanflip_core::fsutil::atomic_write_private(&path(data_dir), &bytes)
 }

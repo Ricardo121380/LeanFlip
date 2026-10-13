@@ -463,15 +463,38 @@ mod tests {
         let guard = store.lock_app("fixture").unwrap();
         let patch = WholeFile::Write(b"after".to_vec());
         let committed = Cell::new(false);
-        let result = run(&store, &guard, "switch", &[FileChange {
-            file: LiveFile::private(&path), patch: &patch,
-        }], PendingTarget::default(), &|_| { committed.set(true); Ok(()) });
+        let result = run(
+            &store,
+            &guard,
+            "switch",
+            &[FileChange {
+                file: LiveFile::private(&path),
+                patch: &patch,
+            }],
+            PendingTarget::default(),
+            &|_| {
+                committed.set(true);
+                Ok(())
+            },
+        );
         fs::set_permissions(&directory, fs::Permissions::from_mode(0o700)).unwrap();
         assert!(result.is_err());
         assert!(!committed.get());
         assert_eq!(fs::read(&path).unwrap(), b"after");
-        assert!(state::pending(&store, "fixture").unwrap().unwrap().published);
-        assert_eq!(recover(&store, &guard, &|_| { committed.set(true); Ok(()) }).unwrap(), Some(RecoveryOutcome::RolledForward));
+        assert!(
+            state::pending(&store, "fixture")
+                .unwrap()
+                .unwrap()
+                .published
+        );
+        assert_eq!(
+            recover(&store, &guard, &|_| {
+                committed.set(true);
+                Ok(())
+            })
+            .unwrap(),
+            Some(RecoveryOutcome::RolledForward)
+        );
         assert!(committed.get());
         assert!(state::pending(&store, "fixture").unwrap().is_none());
     }

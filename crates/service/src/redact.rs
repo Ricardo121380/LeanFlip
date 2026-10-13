@@ -4,10 +4,10 @@
 //! 粘贴了整份 `auth.json`）。发给前端之前把这些值换成占位符；前端原样带回占位符时，
 //! 用库里的旧值还原。第三方 API Key 是用户自己在卡片里填的，照常显示（和 cc-switch 一样）。
 
-use ccsl_core::{Provider, Tool};
+use leanflip_core::{Provider, Tool};
 use serde_json::Value;
 
-pub const PLACEHOLDER: &str = "__ccsl_redacted__";
+pub const PLACEHOLDER: &str = "__leanflip_redacted__";
 
 /// `auth` 里属于 ChatGPT 登录的键。
 const LOGIN_KEYS: &[&str] = &[

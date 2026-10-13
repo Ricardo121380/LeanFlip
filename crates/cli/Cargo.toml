@@ -1,5 +1,5 @@
 [package]
-name = "ccsl-cli"
+name = "leanflip-cli"
 description = "Command-line and terminal workspace for LeanFlip"
 version.workspace = true
 edition.workspace = true
@@ -11,8 +11,8 @@ name = "leanflip"
 path = "src/main.rs"
 
 [dependencies]
-ccsl-core = { path = "../core" }
-ccsl-service = { path = "../service" }
+leanflip-core = { path = "../core" }
+leanflip-service = { path = "../service" }
 clap = { version = "4.5", features = ["derive"] }
 dialoguer = { version = "0.12", default-features = false, features = ["fuzzy-select", "password"] }
 ctrlc = "3.5"

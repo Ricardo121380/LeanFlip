@@ -1,13 +1,13 @@
 [package]
-name = "ccsl-service"
-description = "Shared desktop and CLI business layer for ccswitch-lite"
+name = "leanflip-service"
+description = "Shared desktop and CLI business layer for LeanFlip"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-ccsl-core = { path = "../core" }
+leanflip-core = { path = "../core" }
 serde.workspace = true
 serde_json.workspace = true
 toml_edit.workspace = true
@@ -15,6 +15,8 @@ log.workspace = true
 zeroize.workspace = true
 age = { version = "0.12.1", default-features = false }
 tempfile.workspace = true
+rusqlite.workspace = true
+chrono.workspace = true
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
 
 [dev-dependencies]

@@ -1,8 +1,8 @@
 //! Keyboard-first data center. Secrets are held only in input fields/service
 //! staging, never included in summaries, errors, or terminal output.
 use super::*;
-use ccsl_core::ccswitch_export::{DuplicatePolicy, MAX_EXPORT_BYTES};
-use ccsl_service::{service::RestoreOptions, Service};
+use leanflip_core::ccswitch_export::{DuplicatePolicy, MAX_EXPORT_BYTES};
+use leanflip_service::{service::RestoreOptions, Service};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum View {
@@ -423,7 +423,7 @@ impl DataPanel {
             .collect();
         self.summary = format!(
             "{} {} · {} {}",
-            self.lang.text("供应商卡片", "Provider cards"),
+            self.lang.text("供应商", "Providers"),
             rows.len(),
             self.lang.text("托管账号", "Managed accounts"),
             accounts
@@ -479,8 +479,8 @@ impl DataPanel {
                 self.message = format!(
                     "{} {skipped}",
                     self.lang.text(
-                        "重复或不兼容卡片跳过：",
-                        "Duplicate or incompatible cards skipped:"
+                        "已跳过重复或不兼容的供应商：",
+                        "Skipped duplicate or incompatible providers:"
                     )
                 );
                 if self.choices.is_empty() {
@@ -520,7 +520,9 @@ impl DataPanel {
                     let rows = preview
                         .items
                         .iter()
-                        .filter(|item| item.status != ccsl_core::ccswitch_export::ItemStatus::Skip)
+                        .filter(|item| {
+                            item.status != leanflip_core::ccswitch_export::ItemStatus::Skip
+                        })
                         .filter_map(|item| item.tool.map(|tool| (tool, clean(&item.name))))
                         .collect();
                     self.prepare(Source::File, rows, 0, false, false);
@@ -550,7 +552,7 @@ impl DataPanel {
                         )?;
                         self.message = format!(
                             "{} {} · {} {}\n{}",
-                            self.lang.text("已保存卡片", "Cards saved"),
+                            self.lang.text("已保存供应商", "Providers saved"),
                             report.created.len(),
                             self.lang.text("新增账号", "Accounts added"),
                             report.accounts_added.len(),
@@ -566,7 +568,7 @@ impl DataPanel {
                             .export_apply(options.tools, options.duplicate)?;
                         self.message = format!(
                             "{} {} · {} {}\n{}",
-                            self.lang.text("已保存卡片", "Cards saved"),
+                            self.lang.text("已保存供应商", "Providers saved"),
                             report.created.len(),
                             self.lang.text("跳过", "Skipped"),
                             report.skipped,
@@ -758,8 +760,10 @@ impl DataPanel {
                     &mut self.selection,
                 );
                 let policy = if matches!(self.source, Some(Source::Local(_))) {
-                    self.lang
-                        .text("重复 ID：保留本机卡片", "Duplicate IDs: keep local cards")
+                    self.lang.text(
+                        "重复 ID：保留本机供应商",
+                        "Duplicate IDs: keep local providers",
+                    )
                 } else if self.duplicate == DuplicatePolicy::Skip {
                     self.lang.text("d  重复 ID：跳过", "d  Duplicate IDs: skip")
                 } else {

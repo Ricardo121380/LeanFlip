@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { X } from "lucide-react";
+import { AlertTriangle, X } from "lucide-react";
 import { useRecoveryNotices } from "@/hooks/queries";
 
 /** 持续显示到用户关闭；之后新发生的恢复仍会显示。读取后端不会清空提示。 */
@@ -12,11 +12,11 @@ export function RecoveryNotices() {
   if (!notices.length && !error) return null;
 
   return (
-    <section role="alert" className="m-6 rounded-md border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
+    <section role="alert" className="mx-6 mt-5 rounded-lg border border-warning/30 bg-warning/[0.07] px-4 py-3 text-sm lg:mx-8">
       <div className="flex items-start justify-between gap-4">
-        <h2 className="font-medium">{t("recovery.title")}</h2>
+        <h2 className="flex items-center gap-2 font-medium"><AlertTriangle className="h-4 w-4 text-warning" aria-hidden="true" />{t("recovery.title")}</h2>
         {!error && (
-          <button type="button" aria-label={t("recovery.dismiss")} onClick={() => setDismissed(data.length)}>
+          <button type="button" aria-label={t("recovery.dismiss")} onClick={() => setDismissed(data.length)} className="-mr-1 grid h-7 w-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
             <X className="h-4 w-4" />
           </button>
         )}

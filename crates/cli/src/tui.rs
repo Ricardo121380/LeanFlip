@@ -7,8 +7,8 @@ use std::sync::{
 };
 use std::time::Duration;
 
-use ccsl_core::{Provider, Tool};
-use ccsl_service::service::{ToolProviders, ToolSummary};
+use leanflip_core::{Provider, Tool};
+use leanflip_service::service::{ToolProviders, ToolSummary};
 use ratatui::crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -134,7 +134,7 @@ impl App {
             .filter(|provider| {
                 clean(&provider.name).to_lowercase().contains(&query)
                     || clean(&provider.id).to_lowercase().contains(&query)
-                    || ccsl_service::service::connection_info(self.tool(), provider)
+                    || leanflip_service::service::connection_info(self.tool(), provider)
                         .base_url
                         .as_deref()
                         .is_some_and(|url| url.to_lowercase().contains(&query))
@@ -267,8 +267,8 @@ impl App {
         };
         let explanation = if import {
             self.lang.text(
-                "只保存卡片，不切换客户端配置。\n读取路径：",
-                "Save cards only; keep the client selection.\nRead from:",
+                "只保存供应商，不切换客户端配置。\n读取路径：",
+                "Save providers only; keep the client selection.\nRead from:",
             )
         } else {
             self.lang
@@ -366,7 +366,7 @@ impl App {
         lines.push(if list.tool.is_coexist() {
             self.lang.text("状态来自客户端配置。", "State is read from the client configuration.")
         } else {
-            self.lang.text("当前选择来自卡片库；不代表客户端文件未经外部修改。", "Selection is stored in the card library; client files may have changed externally.")
+            self.lang.text("当前选择来自 LeanFlip 的记录；客户端文件可能已被外部修改。", "Selection comes from LeanFlip's records; client files may have changed externally.")
         }.into());
         lines.join("\n")
     }
@@ -481,8 +481,8 @@ impl App {
             }
             KeyCode::Char('p' | 'd') => self.dialog = Some(Dialog::info(self.lang.text("详情与路径", "Details and paths"), self.details())),
             KeyCode::Char('?') | KeyCode::F(1) => self.dialog = Some(Dialog::info(self.lang.text("快捷键", "Keyboard shortcuts"), self.lang.text(
-                "Tab / ← →   切换工具与供应商区域\n↑ ↓ / j k   移动选择\nEnter       选择工具 / 预览操作\n/           搜索供应商名称或 ID\nEsc         清除搜索 / 返回 / 取消\ne           编辑名称、Base URL 和 API Key\nb           数据中心：迁移、导入、加密备份\ni           从当前客户端导入卡片\nr           重新读取最新状态\np / d       查看完整详情与路径\n? / F1      打开帮助\nq           关闭面板或退出\nCtrl+C      退出并恢复终端\n\n确认弹窗默认取消；Tab 选择确认后按 Enter，或按 y 执行。\n长内容使用 ↑↓ / PgUp / PgDn 滚动。\n\n浏览、搜索和刷新不会写配置。卡片编辑和账号登录可使用 leanflip --help 中的命令。",
-                "Tab / Left Right  Change focused pane\nUp Down / j k     Move selection\nEnter             Select tool / preview action\n/                 Search provider name or ID\nEsc               Clear filter / back / cancel\ne                 Edit name, Base URL and API Key\nb                 Data center: migrate, import, backup\ni                 Import current client settings\nr                 Reload current state\np / d             Show full details and paths\n? / F1            Show help\nq                 Close a panel or quit\nCtrl+C            Exit and restore the terminal\n\nConfirmation defaults to Cancel. Tab then Enter, or y, applies it.\nScroll long panels with Up/Down or PgUp/PgDn.\n\nBrowsing, search and refresh never write configuration. Use leanflip --help for card editing and account login."
+                "Tab / ← →   切换工具与供应商区域\n↑ ↓ / j k   移动选择\nEnter       选择工具 / 预览操作\n/           搜索供应商名称或 ID\nEsc         清除搜索 / 返回 / 取消\ne           编辑名称、Base URL 和 API Key\nb           数据中心：迁移、导入、加密备份\ni           从当前客户端导入供应商\nr           重新读取最新状态\np / d       查看完整详情与路径\n? / F1      打开帮助\nq           关闭面板或退出\nCtrl+C      退出并恢复终端\n\n确认弹窗默认取消；Tab 选择确认后按 Enter，或按 y 执行。\n长内容使用 ↑↓ / PgUp / PgDn 滚动。\n\n浏览、搜索和刷新不会写配置。完整的供应商编辑和账号登录见 leanflip --help。",
+                "Tab / Left Right  Change focused pane\nUp Down / j k     Move selection\nEnter             Select tool / preview action\n/                 Search provider name or ID\nEsc               Clear filter / back / cancel\ne                 Edit name, Base URL and API Key\nb                 Data center: migrate, import, backup\ni                 Import current client settings\nr                 Reload current state\np / d             Show full details and paths\n? / F1            Show help\nq                 Close a panel or quit\nCtrl+C            Exit and restore the terminal\n\nConfirmation defaults to Cancel. Tab then Enter, or y, applies it.\nScroll long panels with Up/Down or PgUp/PgDn.\n\nBrowsing, search and refresh never write configuration. See leanflip --help for full provider editing and account login."
             ).into())),
             _ => {}
         }
@@ -491,7 +491,6 @@ impl App {
 
     fn render(&mut self, frame: &mut Frame) {
         let area = frame.area();
-        frame.render_widget(Block::default().style(surface()), area);
         if area.width < 44 || area.height < 12 {
             frame.render_widget(
                 Paragraph::new(self.lang.text(
@@ -606,7 +605,7 @@ impl App {
         frame.render_stateful_widget(
             List::new(rows)
                 .block(panel(
-                    self.lang.text("工具 · 卡片数", "Tools · cards"),
+                    self.lang.text("工具 · 供应商数", "Tools · providers"),
                     self.focus == Focus::Tools,
                 ))
                 .highlight_symbol("> ")
@@ -672,7 +671,7 @@ impl App {
         }
         if visible.is_empty() {
             let empty = if self.query.is_empty() {
-                self.lang.text("还没有供应商\n\n按 b 迁入本机 CC Switch 或备份。\n按 i 导入当前客户端配置。\n也可使用 leanflip provider add 添加卡片。", "No providers yet\n\nPress b to migrate CC Switch or a backup.\nPress i to import current client settings,\nor use leanflip provider add to create a card.")
+                self.lang.text("还没有供应商\n\n按 b 迁入本机 CC Switch 或备份。\n按 i 导入当前客户端配置。\n也可使用 leanflip provider add 添加供应商。", "No providers yet\n\nPress b to migrate CC Switch or a backup.\nPress i to import current client settings,\nor use leanflip provider add to create one.")
             } else {
                 self.lang.text(
                     "没有匹配结果\n\n按 / 修改搜索，或 Esc 清除筛选。",
@@ -687,7 +686,7 @@ impl App {
         let items = visible
             .iter()
             .map(|provider| {
-                let connection = ccsl_service::service::connection_info(list.tool, provider);
+                let connection = leanflip_service::service::connection_info(list.tool, provider);
                 let endpoint = connection.base_url.as_deref().unwrap_or(
                     self.lang
                         .text("客户端默认 / 未设置地址", "Client default / URL not set"),
@@ -699,7 +698,14 @@ impl App {
                     )),
                     Line::from(Span::styled(input::fit(&clean(endpoint), width), muted())),
                     Line::from(vec![
-                        Span::styled(state(list, provider, self.lang), accent()),
+                        Span::styled(
+                            format!("{} ", state_glyph(list, provider).0),
+                            state_glyph(list, provider).1,
+                        ),
+                        Span::styled(
+                            state(list, provider, self.lang),
+                            state_glyph(list, provider).1,
+                        ),
                         Span::raw(" · "),
                         Span::styled(
                             input::fit(
@@ -707,7 +713,7 @@ impl App {
                                 width.saturating_sub(
                                     unicode_width::UnicodeWidthStr::width(state(
                                         list, provider, self.lang,
-                                    )) + 3,
+                                    )) + 5,
                                 ),
                             ),
                             muted(),
@@ -743,45 +749,75 @@ fn state(list: &ToolProviders, provider: &Provider, lang: Language) -> &'static 
     }
 }
 
-fn accent() -> Style {
-    let style = Style::default().add_modifier(Modifier::BOLD);
-    if std::env::var_os("NO_COLOR").is_some() {
-        style
+// Slate indigo, matching the App. Mid-tone values stay readable on both light and dark
+// terminal backgrounds; the terminal's own background is never painted over.
+fn plain() -> bool {
+    std::env::var_os("NO_COLOR").is_some()
+}
+
+/// Truecolor only when the terminal says so; otherwise the nearest xterm-256 entry
+/// (Apple Terminal, tmux without RGB, older SSH clients).
+fn color(rgb: (u8, u8, u8), indexed: u8) -> Color {
+    static TRUECOLOR: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    let truecolor = *TRUECOLOR.get_or_init(|| {
+        matches!(
+            std::env::var("COLORTERM").as_deref(),
+            Ok("truecolor" | "24bit")
+        )
+    });
+    if truecolor {
+        Color::Rgb(rgb.0, rgb.1, rgb.2)
     } else {
-        style.fg(Color::Rgb(217, 119, 87))
+        Color::Indexed(indexed)
     }
 }
 
-fn surface() -> Style {
-    if std::env::var_os("NO_COLOR").is_some() {
-        Style::default()
+fn accent() -> Style {
+    let style = Style::default().add_modifier(Modifier::BOLD);
+    if plain() {
+        style
     } else {
-        Style::default()
-            .bg(Color::Rgb(28, 27, 26))
-            .fg(Color::Rgb(235, 231, 224))
+        style.fg(color((124, 134, 204), 104))
     }
 }
 
 fn muted() -> Style {
-    if std::env::var_os("NO_COLOR").is_some() {
+    if plain() {
         Style::default()
     } else {
-        Style::default().fg(Color::Rgb(174, 168, 159))
+        Style::default().fg(color((140, 143, 158), 245))
     }
 }
 
 fn selected_style(focused: bool) -> Style {
     if focused {
-        if std::env::var_os("NO_COLOR").is_some() {
+        if plain() {
             Style::default().add_modifier(Modifier::REVERSED | Modifier::BOLD)
         } else {
             Style::default()
-                .bg(Color::Rgb(62, 47, 40))
-                .fg(Color::Rgb(248, 224, 211))
+                .bg(color((59, 65, 104), 60))
+                .fg(color((240, 241, 250), 255))
                 .add_modifier(Modifier::BOLD)
         }
     } else {
         Style::default().add_modifier(Modifier::BOLD)
+    }
+}
+
+/// ● 生效（当前使用 / 已启用） ○ 可用 ? 状态未知
+fn state_glyph(list: &ToolProviders, provider: &Provider) -> (&'static str, Style) {
+    let active = if list.tool.is_coexist() {
+        if list.live_error.is_some() {
+            return ("?", muted());
+        }
+        list.in_live.contains(&provider.id)
+    } else {
+        list.current.as_deref() == Some(&provider.id)
+    };
+    if active {
+        ("●", accent())
+    } else {
+        ("○", muted())
     }
 }
 
@@ -791,7 +827,6 @@ fn panel(title: &str, focused: bool) -> Block<'static> {
         .borders(Borders::ALL)
         .padding(ratatui::widgets::Padding::horizontal(1))
         .border_type(ratatui::widgets::BorderType::Rounded)
-        .style(surface())
         .border_style(if focused { accent() } else { muted() })
 }
 

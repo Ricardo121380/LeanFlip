@@ -8,9 +8,9 @@
 
 mod common;
 
-use ccsl_core::switch;
-use ccsl_core::{Provider, Tool};
 use common::Sandbox;
+use leanflip_core::switch;
+use leanflip_core::{Provider, Tool};
 use serde_json::json;
 
 const CLAUDE_LIVE: &str = r#"{
@@ -71,7 +71,7 @@ fn claude_settings_round_trip_a_b_a() {
     let inode_before = common::inode(&settings);
     sb.add(Tool::Claude, claude_a());
     sb.add(Tool::Claude, claude_b());
-    ccsl_core::store::set_current(&sb.env, Tool::Claude, "a").unwrap();
+    leanflip_core::store::set_current(&sb.env, Tool::Claude, "a").unwrap();
 
     // A → B
     let report = switch::switch(&sb.env, Tool::Claude, "b").unwrap();
@@ -226,7 +226,7 @@ fn codex_official_to_third_party_and_back_keeps_the_chatgpt_login() {
     let auth = sb.env.codex_auth_path();
     sb.write(&config, CODEX_LIVE);
     sb.write(&auth, OAUTH_LOGIN);
-    let report = ccsl_core::import::import_live(&sb.env, Tool::Codex).unwrap();
+    let report = leanflip_core::import::import_live(&sb.env, Tool::Codex).unwrap();
     assert_eq!(report.current.as_deref(), Some("official"));
     sb.add(
         Tool::Codex,
@@ -329,7 +329,7 @@ fn codex_third_party_a_b_a_is_byte_stable() {
         let auth = sb.env.codex_auth_path();
         sb.write(&config, CODEX_LIVE);
         sb.write(&auth, OAUTH_LOGIN);
-        ccsl_core::import::import_live(&sb.env, Tool::Codex).unwrap();
+        leanflip_core::import::import_live(&sb.env, Tool::Codex).unwrap();
         sb.set_preserve(preserve);
         sb.add(
             Tool::Codex,

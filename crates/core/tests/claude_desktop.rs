@@ -3,10 +3,10 @@
 
 mod common;
 
-use ccsl_core::import::import_live;
-use ccsl_core::switch::{self, claude_desktop};
-use ccsl_core::{Provider, Tool};
 use common::Sandbox;
+use leanflip_core::import::import_live;
+use leanflip_core::switch::{self, claude_desktop};
+use leanflip_core::{Provider, Tool};
 use serde_json::{json, Value};
 
 const NORMAL: &str = r#"{

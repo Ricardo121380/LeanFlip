@@ -28,7 +28,7 @@ pub struct ConnectionUpdate {
 }
 
 fn unsupported() -> AppError {
-    AppError::localized("provider.connection_unsupported", "此卡使用官方登录或高级配置；连接字段请在 App 或原始配置中管理。", "This card uses official login or advanced configuration. Manage its connection in the App or original configuration.")
+    AppError::localized("provider.connection_unsupported", "这个供应商使用官方登录或高级配置；连接字段请在 App 或原始配置中管理。", "This provider uses official login or advanced configuration. Manage its connection in the App or original configuration.")
 }
 fn invalid() -> AppError {
     AppError::localized(
@@ -361,8 +361,8 @@ impl Service {
         if redact::redact(tool, stored) != *expected {
             return Err(self.err(AppError::localized(
                 "conflict",
-                "编辑期间卡片已变更，请重新打开编辑。",
-                "The card changed while editing. Open the editor again.",
+                "编辑期间这个供应商已被修改，请重新打开编辑。",
+                "The provider changed while editing. Open the editor again.",
             )));
         }
         let mut next = stored.clone();

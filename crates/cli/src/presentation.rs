@@ -10,15 +10,13 @@ pub fn human_output(text: &str) -> String {
     {
         return text.into();
     }
+    // Only the first line is emphasised; no banner, so repeated commands stay compact.
     let (heading, rest) = text.split_once('\n').unwrap_or((text, ""));
-    format!(
-        "\n\x1b[1;38;2;217;119;87m  LeanFlip\x1b[0m  \x1b[2m/  CLI\x1b[0m\n\n\x1b[1m{heading}\x1b[0m{}\n",
-        if rest.is_empty() {
-            String::new()
-        } else {
-            format!("\n{rest}")
-        }
-    )
+    if rest.is_empty() {
+        format!("\x1b[1m{heading}\x1b[0m")
+    } else {
+        format!("\x1b[1m{heading}\x1b[0m\n{rest}")
+    }
 }
 
 use unicode_width::UnicodeWidthStr;
@@ -172,24 +170,24 @@ fn localize_help(command: &mut clap::Command, path: &str, lang: Language) {
     let (zh, examples) = match path {
         "" => ("管理 AI 编程工具的供应商配置和 Codex 账号", "leanflip tui\n  leanflip menu\n  leanflip status\n  leanflip list codex\n  leanflip use codex <provider-id>\n  leanflip enable opencode <provider-id>\n  leanflip status --json\n  leanflip --lang en --help"),
         "menu" => ("交互菜单：搜索并选择工具、供应商，回车执行", "leanflip menu\n  leanflip menu codex\n  leanflip menu --lang en"),
-        "tui" => ("全屏终端工作台：浏览工具、搜索供应商、确认切换和查看路径", "leanflip tui\n  leanflip tui codex\n  leanflip tui --lang en\n  leanflip --home /tmp/ccsl-demo tui"),
+        "tui" => ("全屏终端工作台：浏览工具、搜索供应商、确认切换和查看路径", "leanflip tui\n  leanflip tui codex\n  leanflip tui --lang en\n  leanflip --home /tmp/leanflip-demo tui"),
         "status" => ("查看各工具已保存的选择及配置检测状态", "leanflip status\n  leanflip status --json"),
         "list" => ("列出供应商及当前状态，隐藏配置内容和凭据", "leanflip list codex\n  leanflip list opencode --json"),
         "use" => ("切换供应商；仅适用于切换式工具", "leanflip list codex\n  leanflip use codex <provider-id>"),
         "enable" => ("将供应商写入并存式工具的客户端配置", "leanflip enable opencode <provider-id>"),
-        "disable" => ("从客户端配置移出供应商，保留已保存的卡片", "leanflip disable opencode <provider-id>"),
-        "paths" => ("查看实际生效的配置路径，包含 App 目录覆盖", "leanflip paths codex\n  leanflip --home /tmp/ccsl-demo paths"),
+        "disable" => ("从客户端配置移出供应商，供应商本身仍保留", "leanflip disable opencode <provider-id>"),
+        "paths" => ("查看实际生效的配置路径，包含 App 目录覆盖", "leanflip paths codex\n  leanflip --home /tmp/leanflip-demo paths"),
         "export" => ("导出包含供应商、托管账号和设置的密码加密备份", "leanflip export backup.leanflip\n  leanflip export backup.leanflip --password-file private-passphrase.txt"),
         "import local" => ("自动检测本机 CC Switch；默认预览，--apply 才迁入", "leanflip import local\n  leanflip import local --accounts --apply\n  leanflip import local --dir /absolute/path/.cc-switch"),
         "import backup" => ("解密并预览完整备份；--apply 恢复所选内容", "leanflip import backup backup.leanflip\n  leanflip import backup backup.leanflip --apply\n  leanflip import backup backup.leanflip --no-providers --no-settings --apply"),
         "import" => ("导入客户端现有配置或 cc-switch 导出文件", "leanflip import live claude\n  leanflip import file backup.sql\n  leanflip import file backup.sql --apply --tool codex"),
-        "import live" => ("将客户端当前配置导入供应商卡片库", "leanflip import live claude\n  leanflip list claude"),
+        "import live" => ("将客户端当前配置导入为供应商", "leanflip import live claude\n  leanflip list claude"),
         "import file" => ("预览 SQL、SQLite 或旧版 JSON 导出；--apply 才会保存", "leanflip import file backup.sql\n  leanflip import file backup.sql --apply --tool codex\n  leanflip import file backup.sql --apply --duplicate rename"),
         "provider edit" => ("交互编辑名称、Base URL 与 API Key；保存前预览影响范围", "leanflip provider edit claude <provider-id>\n  leanflip provider edit codex <provider-id>"),
-        "provider" => ("新增、更新或删除供应商卡片", "leanflip provider add claude --file provider.json\n  leanflip provider update claude --file provider.json\n  leanflip provider delete claude <provider-id>"),
-        "provider add" => ("保存新卡片；--activate 可同时应用到客户端", "leanflip provider add claude --file provider.json\n  cat provider.json | leanflip provider add claude"),
-        "provider update" => ("按 JSON 中的 id 替换卡片；生效中的配置也会更新", "leanflip provider update claude --file provider.json"),
-        "provider delete" => ("删除卡片；切换式当前供应商需先切换到其他卡片", "leanflip list claude\n  leanflip provider delete claude <provider-id>"),
+        "provider" => ("新增、更新或删除供应商", "leanflip provider add claude --file provider.json\n  leanflip provider update claude --file provider.json\n  leanflip provider delete claude <provider-id>"),
+        "provider add" => ("保存新供应商；--activate 可同时应用到客户端", "leanflip provider add claude --file provider.json\n  cat provider.json | leanflip provider add claude"),
+        "provider update" => ("按 JSON 中的 id 替换供应商；生效中的配置也会更新", "leanflip provider update claude --file provider.json"),
+        "provider delete" => ("删除供应商；正在使用的切换式供应商需先切换走", "leanflip list claude\n  leanflip provider delete claude <provider-id>"),
         "accounts" => ("管理 Codex 的 ChatGPT 托管账号", "leanflip accounts list\n  leanflip accounts login\n  leanflip accounts default <account-id>"),
         "accounts list" => ("列出账号身份和登录状态，隐藏 token", "leanflip accounts list\n  leanflip accounts list --json"),
         "accounts login" => ("通过设备验证码登录；按提示在浏览器中确认", "leanflip accounts login\n  leanflip accounts login --account <account-id> --timeout 600"),
@@ -220,14 +218,14 @@ fn localize_help(command: &mut clap::Command, path: &str, lang: Language) {
                     "password_file" => Some("从私有文件读取密码；省略时隐藏输入，不接受密码值参数"),
                     "accounts" => Some("同时迁入托管 Codex 账号与登录凭据"),
                     "no_accounts" => Some("不恢复托管账号"),
-                    "no_providers" => Some("不恢复供应商卡片"),
+                    "no_providers" => Some("不恢复供应商"),
                     "no_settings" => Some("不恢复应用偏好"),
                     "restore_paths" => Some("同时恢复本机目录覆盖；默认保留目标设备路径"),
-                    "file" => Some("卡片 JSON 文件；- 表示标准输入。不要将密钥放入命令参数"),
+                    "file" => Some("供应商 JSON 文件；- 表示标准输入。不要将密钥放入命令参数"),
                     "preview" => Some("仅预览，不保存（默认行为）"),
                     "apply" => Some("确认写入所选数据，不改变客户端当前配置"),
-                    "duplicate" => Some("同 ID 卡片的处理方式：skip 跳过，rename 改名"),
-                    "activate" => Some("保存卡片后立即应用到客户端"),
+                    "duplicate" => Some("同 ID 供应商的处理方式：skip 跳过，rename 改名"),
+                    "activate" => Some("保存后立即应用到客户端"),
                     "account" => Some("重新认证已有账号"),
                     "timeout" => Some("等待登录的秒数；1–1800，单次网络请求另有超时"),
                     "help" => Some("显示帮助"),
@@ -256,7 +254,7 @@ fn localize_help(command: &mut clap::Command, path: &str, lang: Language) {
 pub fn reason(code: &str, lang: Language) -> &str {
     match code {
         "unsupported_app" => lang.text("暂不支持此工具", "Unsupported tool"),
-        "malformed" => lang.text("卡片缺少 ID 或配置", "Missing ID or settings"),
+        "malformed" => lang.text("缺少 ID 或配置", "Missing ID or settings"),
         "plugin" => lang.text("插件配置，不是供应商", "Plugin configuration"),
         "routing" => lang.text(
             "需要代理或协议转换",
@@ -292,9 +290,9 @@ pub fn error(code: &str, fallback: &str, lang: Language) -> String {
         "terminal_io" => "交互终端无法读写，请重新打开终端，或用 leanflip --help 中的普通命令继续操作。",
         "interrupted" => "已中断。",
         "invalid_tool_mode" => "命令与工具模式不匹配。切换式工具使用 use；并存式工具使用 enable / disable。",
-        "invalid_provider_json" => "卡片 JSON 无效。请检查 id、name、settingsConfig 字段；输入原文已隐藏。",
-        "invalid_input" => "输入或当前操作不适用。请核对卡片 JSON；删除当前卡片前需先切换供应商。",
-        "input_too_large" => "输入文件超过大小限制。卡片 JSON 上限为 1 MiB，导出文件上限为 256 MiB。",
+        "invalid_provider_json" => "供应商 JSON 无效。请检查 id、name、settingsConfig 字段；输入原文已隐藏。",
+        "invalid_input" => "输入或当前操作不适用。请核对供应商 JSON；删除正在使用的供应商前需先切换走。",
+        "input_too_large" => "输入文件超过大小限制。供应商 JSON 上限为 1 MiB，导出文件上限为 256 MiB。",
         "not_found" => "找不到指定项目。用 leanflip list <tool> 核对供应商 ID，或 leanflip accounts list 核对账号 ID。",
         "config" | "json" => "配置无法读取或校验。运行 leanflip paths <tool> 定位文件，检查格式后重试。",
         "io" => "无法访问所需文件。请核对输入文件路径，并用 leanflip paths <tool> 检查配置路径与权限。",

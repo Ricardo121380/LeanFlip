@@ -1,10 +1,10 @@
-// 卡片相关的纯函数（有单元测试）。
+// 供应商相关的纯函数（有单元测试）。
 import { parse as parseToml } from "smol-toml";
 import i18n from "@/i18n";
 import type { AccountInfo, Provider, ToolId } from "./api";
 
-/** 后端用来替换 ChatGPT 登录凭据的占位符（crates/app/src/redact.rs）。 */
-export const REDACTED = "__ccsl_redacted__";
+/** 后端用来替换 ChatGPT 登录凭据的占位符（crates/service/src/redact.rs）。 */
+export const REDACTED = "__leanflip_redacted__";
 
 export function isOfficial(provider: Pick<Provider, "category">): boolean {
   return provider.category === "official";
@@ -14,7 +14,7 @@ function str(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
-/** 卡片上显示的请求地址。 */
+/** 列表里显示的请求地址。 */
 export function endpointOf(tool: ToolId, provider: Provider): string | undefined {
   const sc = provider.settingsConfig ?? {};
   const env = (sc.env ?? {}) as Record<string, unknown>;
@@ -40,7 +40,36 @@ export function endpointOf(tool: ToolId, provider: Provider): string | undefined
   }
 }
 
-/** 预设名 → 卡片 id（并存式工具里也是客户端配置里的条目名）。 */
+/** 列表里显示的模型名；取不到时返回 undefined，不显示。 */
+export function modelOf(tool: ToolId, provider: Provider): string | undefined {
+  const sc = provider.settingsConfig ?? {};
+  const env = (sc.env ?? {}) as Record<string, unknown>;
+  const config = typeof sc.config === "string" ? sc.config : "";
+  switch (tool) {
+    case "claude":
+    case "claude-desktop":
+      return str(env.ANTHROPIC_MODEL);
+    case "gemini": {
+      const settings = (sc.config ?? {}) as { model?: { name?: unknown } };
+      return str(env.GEMINI_MODEL) ?? str(settings.model?.name);
+    }
+    case "codex":
+      return config.match(/^\s*model\s*=\s*"([^"]+)"/m)?.[1];
+    case "grokbuild":
+      return config.match(/^\s*default\s*=\s*"([^"]+)"/m)?.[1] ?? config.match(/^\s*model\s*=\s*"([^"]+)"/m)?.[1];
+    default: {
+      const models = sc.models;
+      if (Array.isArray(models)) {
+        const first = models[0] as Record<string, unknown> | string | undefined;
+        return typeof first === "string" ? str(first) : str(first?.id) ?? str(first?.name);
+      }
+      if (models && typeof models === "object") return Object.keys(models)[0];
+      return undefined;
+    }
+  }
+}
+
+/** 预设名 → 供应商 id（并存式工具里也是客户端配置里的条目名）。 */
 export function slugify(name: string): string {
   const slug = name
     .normalize("NFKD")
@@ -73,7 +102,7 @@ export function accountLabel(account: Pick<AccountInfo, "email" | "workspace" | 
   return account.email ?? account.workspace ?? account.id;
 }
 
-// ---- 卡片编辑器：编辑的是 settingsConfig 的文本，保存时只改动过的部分写回。
+// ---- 供应商编辑器：编辑的是 settingsConfig 的文本，保存时只改动过的部分写回。
 
 export interface EditorText {
   /** Codex / Grok：auth.json 的 JSON 文本；其他工具：整个 settingsConfig。 */
@@ -128,7 +157,7 @@ export function fromEditorText(
   return { ok: true, value };
 }
 
-/** 文本里还留着占位符（只能在原卡上保存，后端会还原）。 */
+/** 文本里还留着占位符（只能在原供应商上保存，后端会还原）。 */
 export function hasRedacted(text: EditorText): boolean {
   return text.json.includes(REDACTED);
 }

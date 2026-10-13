@@ -16,8 +16,38 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  tests:
+    name: Installer tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Test download and installation boundaries
+        run: node --test packages/npm/test/*.test.mjs
+
+  # release.json and the Casks exist only once a release has been generated; until then
+  # there is nothing to download or install.
+  pinned:
+    name: Pinned release
+    runs-on: ubuntu-24.04
+    outputs:
+      present: ${{ steps.check.outputs.present }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: check
+        run: |
+          if [ -f packages/npm/release.json ]; then echo present=true; else echo present=false; fi >> "$GITHUB_OUTPUT"
+
   npm:
     name: npm package (${{ matrix.os }})
+    needs: [tests, pinned]
+    if: needs.pinned.outputs.present == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -30,10 +60,8 @@ jobs:
           node-version: 24
       - name: Isolate the native download cache
         run: |
-          echo "XDG_CACHE_HOME=$RUNNER_TEMP/ccsl-npm-cache" >> "$GITHUB_ENV"
-          node --input-type=module -e "import { cliName } from './packages/npm/lib/distribution.js'; console.log('PACKAGE_CLI=' + cliName); console.log('PACKAGE_APP=' + cliName + '-app')" >> "$GITHUB_ENV"
-      - name: Test download and installation boundaries
-        run: node --test packages/npm/test/*.test.mjs
+          echo "XDG_CACHE_HOME=$RUNNER_TEMP/leanflip-npm-cache" >> "$GITHUB_ENV"
+          node --input-type=module -e "import { cliName, appName, appBinary, bundleId } from './packages/npm/lib/distribution.js'; console.log('PACKAGE_CLI=' + cliName); console.log('PACKAGE_APP=' + cliName + '-app'); console.log('APP_BUNDLE=' + appName); console.log('APP_BINARY=' + appBinary); console.log('BUNDLE_ID=' + bundleId)" >> "$GITHUB_ENV"
       - name: Pack and install without lifecycle scripts
         run: |
           mkdir -p "$RUNNER_TEMP/npm-package"
@@ -43,8 +71,8 @@ jobs:
       - name: Verify the installed native CLI and terminal menu
         run: |
           "$PACKAGE_CLI" --version
-          "$PACKAGE_CLI" --home "$RUNNER_TEMP/ccsl-smoke" status --json
-          test ! -e "$RUNNER_TEMP/ccsl-smoke"
+          "$PACKAGE_CLI" --home "$RUNNER_TEMP/leanflip-smoke" status --json
+          test ! -e "$RUNNER_TEMP/leanflip-smoke"
           "$PACKAGE_APP" --help
           if [ "$PACKAGE_CLI" = leanflip ]; then
             python3 scripts/check-cli-menu.py --binary "$RUNNER_TEMP/npm-prefix/bin/$PACKAGE_CLI"
@@ -56,9 +84,8 @@ jobs:
         run: |
           "$PACKAGE_APP" install --app-dir "$RUNNER_TEMP/Applications"
           "$PACKAGE_APP" install --replace --app-dir "$RUNNER_TEMP/Applications"
-          APP_BUNDLE=$(node --input-type=module -e "import { appName } from './packages/npm/lib/distribution.js'; console.log(appName)")
-          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$RUNNER_TEMP/Applications/$APP_BUNDLE/Contents/Info.plist" | grep -Fx dev.ccswitch.lite
-          file "$RUNNER_TEMP/Applications/$APP_BUNDLE/Contents/MacOS/ccswitch-lite"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$RUNNER_TEMP/Applications/$APP_BUNDLE/Contents/Info.plist" | grep -Fx "$BUNDLE_ID"
+          file "$RUNNER_TEMP/Applications/$APP_BUNDLE/Contents/MacOS/$APP_BINARY"
       - uses: actions/upload-artifact@v4
         with:
           name: npm-package-${{ matrix.os }}
@@ -67,6 +94,8 @@ jobs:
 
   homebrew:
     name: Homebrew (${{ matrix.os }})
+    needs: [pinned]
+    if: needs.pinned.outputs.present == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -79,7 +108,7 @@ jobs:
           node-version: 24
       - name: Select the Casks for the pinned native release
         run: |
-          node --input-type=module -e "import { cliName } from './packages/npm/lib/distribution.js'; console.log('CLI_CASK=' + cliName); console.log('APP_CASK=' + (cliName === 'leanflip' ? 'leanflip-app' : 'ccswitch-lite'))" >> "$GITHUB_ENV"
+          node --input-type=module -e "import { cliName, appCask, appName, bundleId } from './packages/npm/lib/distribution.js'; console.log('CLI_CASK=' + cliName); console.log('APP_CASK=' + appCask); console.log('APP_BUNDLE=' + appName); console.log('BUNDLE_ID=' + bundleId)" >> "$GITHUB_ENV"
       - name: Use the runner's preinstalled Linux Homebrew
         if: runner.os == 'Linux'
         run: |
@@ -89,16 +118,16 @@ jobs:
         env:
           HOMEBREW_NO_AUTO_UPDATE: '1'
         run: |
-          brew tap ricardo121380/ccswitch-lite "$GITHUB_WORKSPACE"
-          brew info --json=v2 --cask "ricardo121380/ccswitch-lite/$CLI_CASK"
+          brew tap ricardo121380/leanflip "$GITHUB_WORKSPACE"
+          brew info --json=v2 --cask "ricardo121380/leanflip/$CLI_CASK"
           if [ "$RUNNER_OS" = macOS ]; then
-            brew info --json=v2 --cask "ricardo121380/ccswitch-lite/$APP_CASK"
+            brew info --json=v2 --cask "ricardo121380/leanflip/$APP_CASK"
           fi
       - name: Install and test CLI
         env:
           HOMEBREW_NO_AUTO_UPDATE: '1'
         run: |
-          brew install --cask "ricardo121380/ccswitch-lite/$CLI_CASK"
+          brew install --cask "ricardo121380/leanflip/$CLI_CASK"
           "$CLI_CASK" --version
           "$CLI_CASK" --home "$RUNNER_TEMP/brew-cli-smoke" status --json
           test ! -e "$RUNNER_TEMP/brew-cli-smoke"
@@ -107,6 +136,5 @@ jobs:
         env:
           HOMEBREW_NO_AUTO_UPDATE: '1'
         run: |
-          brew install --cask --appdir="$RUNNER_TEMP/Applications" "ricardo121380/ccswitch-lite/$APP_CASK"
-          APP_BUNDLE=$(node --input-type=module -e "import { appName } from './packages/npm/lib/distribution.js'; console.log(appName)")
-          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$RUNNER_TEMP/Applications/$APP_BUNDLE/Contents/Info.plist" | grep -Fx dev.ccswitch.lite
+          brew install --cask --appdir="$RUNNER_TEMP/Applications" "ricardo121380/leanflip/$APP_CASK"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$RUNNER_TEMP/Applications/$APP_BUNDLE/Contents/Info.plist" | grep -Fx "$BUNDLE_ID"

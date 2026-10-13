@@ -72,7 +72,7 @@ pub(crate) fn rejected(error: AppError) -> crate::live::patch::LiveWriteError {
 pub(crate) fn key_conflict(tool: Tool, id: &str) -> AppError {
     AppError::localized(
         "coexist.key_conflict",
-        format!("{tool} 的配置里已经有一个叫「{id}」的供应商，内容和这张卡不同。为避免覆盖，没有写入；要接管它请先导入"),
+        format!("{tool} 的配置里已经有一个叫「{id}」的供应商，内容和这个供应商不同。为避免覆盖，没有写入；要接管它请先导入"),
         format!("{tool} config already has a different provider named '{id}'. Nothing was written; import it first to take it over"),
     )
 }
