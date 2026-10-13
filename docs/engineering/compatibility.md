@@ -15,6 +15,6 @@
 | `__leanflip_redacted__` | 前端显示的隐藏凭据占位符，只在内存和前后端传输中出现，从不写盘 |
 | `.cc-switch` / `cc-switch.db` | 源应用 CC Switch 的只读迁移格式，与本应用数据目录不同 |
 
-工作区 Cargo、根 `package.json` 与 Tauri 配置的版本必须一致。`packages/npm/release.json` 和 `Casks/` 只在发布时由 `scripts/prepare-distribution.mjs` 生成。
+工作区 Cargo、根 `package.json` 与 Tauri 配置的版本必须一致。`packages/npm/release.json` 和 `Casks/` 在每次发布后由 `scripts/prepare-distribution.mjs` 从正式附件生成。
 
 core 的高层编辑与 OAuth 操作仍要求调用方按 service → OAuth/tool → state/store 的顺序持锁；App、CLI 与 TUI 由 `Service` 实施该约束。直接 core 切换在工具锁内重新读取 Claude / Grok 的上一供应商，Codex 则在工具锁内拒绝准备期间发生变化的供应商快照，避免用旧所有者清理字段。单独修改卡片库的代码也必须遵守高层锁契约。
