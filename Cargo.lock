@@ -3034,6 +3034,7 @@ dependencies = [
  "dialoguer",
  "leanflip-core",
  "leanflip-service",
+ "libc",
  "ratatui",
  "serde_json",
  "tempfile",

@@ -16,6 +16,7 @@ import select
 import signal
 import struct
 import subprocess
+import sys
 import tempfile
 import termios
 import time
@@ -32,7 +33,9 @@ class Terminal:
             os.environ["NO_COLOR"] = "1"
             os.execv(str(binary), [str(binary), *args])
 
-    def expect(self, text):
+    def expect(self, text, size=65536):
+        # size=1 停在匹配处，其余输出留在终端队列中。
+        # size=1 stops at the match and leaves the rest of the output queued.
         token = text.encode()
         deadline = time.monotonic() + 8
         while token not in self.pending:
@@ -41,7 +44,7 @@ class Terminal:
             if not select.select([self.fd], [], [], 0.1)[0]:
                 continue
             try:
-                chunk = os.read(self.fd, 65536)
+                chunk = os.read(self.fd, size)
             except OSError as error:
                 if error.errno == errno.EIO:
                     raise AssertionError(f"Terminal closed before {text!r}") from error
@@ -72,15 +75,7 @@ class Terminal:
         else:
             self.send("\x03" if ctrl_c else "\x1b")
         self.expect("\x1b[?25h" if ctrl_c else "Menu closed." if english else "已退出菜单。")
-        deadline = time.monotonic() + 5
-        while time.monotonic() < deadline:
-            pid, status = os.waitpid(self.pid, os.WNOHANG)
-            if pid:
-                os.close(self.fd)
-                self.pid = None
-                return os.waitstatus_to_exitcode(status)
-            time.sleep(0.02)
-        raise AssertionError("Menu did not exit")
+        return self.wait_exit()
 
     def wait_exit(self):
         deadline = time.monotonic() + 5
@@ -88,8 +83,8 @@ class Terminal:
             pid, status = os.waitpid(self.pid, os.WNOHANG)
             if pid:
                 flags = termios.tcgetattr(self.fd)[3]
-                assert flags & termios.ECHO and flags & termios.ICANON, "Terminal input modes were not restored"
                 os.close(self.fd); self.pid = None
+                assert flags & termios.ECHO and flags & termios.ICANON, "Terminal input modes were not restored"
                 return os.waitstatus_to_exitcode(status)
             time.sleep(0.02)
         raise AssertionError("Command did not exit")
@@ -203,6 +198,38 @@ def check(binary):
             terminal.expect("\x1b[?25h")
             assert terminal.wait_exit() == 130
         print("PASS: CLI connection editor hides keys, defaults to cancel, saves only the selected provider, and restores terminal modes")
+
+        # Ctrl+C 在 cooked 模式下由终端直接发出 SIGINT：密码输入时 ECHO 已关闭；两次按键之间，
+        # 切换 raw 模式的 TCSADRAIN 在 macOS 上要等这边读完排队的输出。在另一个线程退出会偶尔
+        # 留下 raw 模式，所以重复这个时序敏感的场景。
+        # Ctrl+C in cooked mode makes the tty raise SIGINT itself: password input has
+        # ECHO off, and between key reads the TCSADRAIN switch to raw mode waits (on
+        # macOS) until this side reads the queued output. Exiting from another thread
+        # occasionally left raw mode behind, so repeat the timing-sensitive case.
+        edit = ["--home", str(home), "--lang", "en", "provider", "edit", "claude", "alpha"]
+        with Terminal(binary, edit) as terminal:
+            terminal.expect("Name")
+            terminal.send("\r")
+            terminal.expect("Base URL")
+            terminal.send("\r")
+            terminal.expect("API Key")
+            terminal.send("\x1b[B\r")
+            terminal.expect("New API Key")
+            terminal.wait_secure_input()
+            terminal.send("\x03")
+            terminal.expect("\x1b[?25h")
+            assert terminal.wait_exit() == 130
+        for attempt in range(24):
+            with Terminal(binary, edit) as terminal:
+                terminal.expect("Name", size=1)  # The initial text stays queued.
+                time.sleep(attempt % 4 * 0.01)
+                if sys.platform == "darwin":
+                    flags = termios.tcgetattr(terminal.fd)[3]
+                    assert flags & termios.ICANON, "Ctrl+C would not be sent in cooked mode"
+                terminal.send("\x03")
+                terminal.expect("\x1b[?25h")
+                assert terminal.wait_exit() == 130
+        print("PASS: Ctrl+C during password input and between key reads restores terminal modes and exits with 130")
 
         # A malformed client configuration must not be mistaken for disabled.
         path = Path(command(binary, home, ["paths", "opencode", "--json"])["tools"]["opencode"][0])

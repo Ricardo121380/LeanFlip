@@ -368,9 +368,17 @@ impl Menu<'_> {
     }
 }
 
+/// 在提示线程上、第一个提示之前调用。
+/// Call on the prompt thread before the first prompt.
+#[cfg(unix)]
 pub(super) fn install_interrupt_handler() -> Result<(), CliError> {
-    // console restores input mode before raising SIGINT, but dialoguer has
-    // hidden the cursor. Restore it even when Ctrl+C exits outside Rust drops.
+    interrupt::install().map_err(|_| terminal_error())
+}
+
+#[cfg(not(unix))]
+pub(super) fn install_interrupt_handler() -> Result<(), CliError> {
+    // dialoguer 已隐藏光标；Ctrl+C 不经过 Rust 析构退出时也要恢复。
+    // dialoguer has hidden the cursor. Restore it even when Ctrl+C exits outside Rust drops.
     ctrlc::set_handler(|| {
         let term = Term::stderr();
         let _ = term.show_cursor();
@@ -378,6 +386,85 @@ pub(super) fn install_interrupt_handler() -> Result<(), CliError> {
         std::process::exit(130);
     })
     .map_err(|_| terminal_error())
+}
+
+/// console 每读一个按键才进入 raw 模式，读完即恢复；密码输入只关闭 ECHO。Ctrl+C 落在
+/// 两次按键之间或密码输入中时，由终端直接发出 SIGINT。若在另一个线程上退出，提示线程
+/// 可能在退出完成前又切回 raw 模式，留下无回显的终端。因此在提示线程上恢复第一个提示前
+/// 保存的模式，再显示光标、换行并以 130 退出。
+///
+/// console enters raw mode per key read and leaves it afterwards; password input
+/// only clears ECHO. Ctrl+C between key reads or during password input makes the
+/// tty raise SIGINT itself. Exiting from another thread lets the prompt thread
+/// switch back to raw mode before the exit completes, leaving the terminal without
+/// echo. So the prompt thread restores the mode saved before the first prompt,
+/// shows the cursor, writes a newline and exits with 130.
+#[cfg(unix)]
+mod interrupt {
+    use std::io;
+    use std::mem::{self, MaybeUninit};
+    use std::ptr;
+    use std::sync::OnceLock;
+
+    struct Saved {
+        thread: libc::pthread_t,
+        mode: libc::termios,
+    }
+
+    // SAFETY: 线程句柄只用于比较和发送信号，从不解引用。
+    // The thread handle is only compared and signalled, never dereferenced.
+    unsafe impl Send for Saved {}
+    unsafe impl Sync for Saved {}
+
+    static SAVED: OnceLock<Saved> = OnceLock::new();
+
+    extern "C" fn on_interrupt(_: libc::c_int) {
+        // 只用异步信号安全的调用：被中断的线程可能持有 stderr 锁或分配器锁。
+        // Async-signal-safe calls only: the interrupted thread may hold the stderr
+        // or allocator lock, so neither Term nor std::process::exit is usable here.
+        // SAFETY: plain libc calls on stdin/stderr and a fully initialized termios.
+        unsafe {
+            if let Some(saved) = SAVED.get() {
+                if libc::pthread_equal(libc::pthread_self(), saved.thread) == 0 {
+                    // 只有提示线程会切换终端模式，交给它恢复并退出。
+                    // Only the prompt thread changes terminal modes; let it restore and exit.
+                    libc::pthread_kill(saved.thread, libc::SIGINT);
+                    return;
+                }
+                libc::tcsetattr(libc::STDIN_FILENO, libc::TCSANOW, &saved.mode);
+            }
+            let reset = b"\x1b[?25h\n";
+            libc::write(libc::STDERR_FILENO, reset.as_ptr().cast(), reset.len());
+            libc::_exit(130);
+        }
+    }
+
+    pub(super) fn install() -> io::Result<()> {
+        if SAVED.get().is_some() {
+            return Ok(());
+        }
+        let mut mode = MaybeUninit::uninit();
+        // SAFETY: tcgetattr fully initializes `mode` when it succeeds.
+        if unsafe { libc::tcgetattr(libc::STDIN_FILENO, mode.as_mut_ptr()) } != 0 {
+            return Err(io::Error::last_os_error());
+        }
+        let _ = SAVED.set(Saved {
+            thread: unsafe { libc::pthread_self() },
+            mode: unsafe { mode.assume_init() },
+        });
+        // SAFETY: a zeroed sigaction with an empty mask is valid. SA_RESTART lets
+        // another thread resume its system call after forwarding the signal.
+        unsafe {
+            let mut action: libc::sigaction = mem::zeroed();
+            action.sa_sigaction = on_interrupt as extern "C" fn(libc::c_int) as libc::sighandler_t;
+            action.sa_flags = libc::SA_RESTART;
+            libc::sigemptyset(&mut action.sa_mask);
+            if libc::sigaction(libc::SIGINT, &action, ptr::null_mut()) != 0 {
+                return Err(io::Error::last_os_error());
+            }
+        }
+        Ok(())
+    }
 }
 
 pub fn start(home: Option<&Path>, lang: Language, tool: Option<Tool>) -> Result<(), CliError> {
