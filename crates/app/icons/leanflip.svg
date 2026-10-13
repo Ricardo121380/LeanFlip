@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- LeanFlip app icon: a bright L and the same L flipped and dimmed. `pnpm tauri icon` builds every size from this file. -->
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#4A5288"/>
+  <g transform="translate(100 100) scale(8.24)" fill="none" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M42 30H70V74" stroke="#9AA0D0"/>
+    <path d="M30 26V70H58" stroke="#F3F4FC"/>
+  </g>
+</svg>
