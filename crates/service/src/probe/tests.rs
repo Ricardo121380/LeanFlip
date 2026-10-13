@@ -296,6 +296,10 @@ fn codex_targets_cover_builtin_and_custom_providers() {
         "https://proxy.example/v1/responses"
     );
 
+    // A provider table left over from another card is not used until model_provider selects it.
+    let leftover = target(Tool::Codex, &json!({"auth":{},"config":"model = \"m\"\n[model_providers.custom]\nbase_url = \"https://unused.example/v1\"\n"})).unwrap();
+    assert_eq!(leftover.base.as_str(), "https://api.openai.com/v1");
+
     let custom = target(Tool::Codex, &json!({"auth":{"OPENAI_API_KEY":"k"},"config":"model_provider = \"az\"\n[model_providers.az]\nbase_url = \"https://az.example/openai\"\nquery_params = { api-version = \"2025-04-01\" }\nhttp_headers = { X-Team = \"a\" }\n"})).unwrap();
     assert_eq!(custom.auth, Auth::Bearer("k".into()));
     assert_eq!(

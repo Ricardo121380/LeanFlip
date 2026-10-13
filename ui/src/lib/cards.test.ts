@@ -19,13 +19,22 @@ describe("endpointOf", () => {
     expect(endpointOf("claude", card({ env: { ANTHROPIC_BASE_URL: "https://a" } }))).toBe("https://a");
     expect(endpointOf("gemini", card({ env: { GOOGLE_GEMINI_BASE_URL: "https://g" } }))).toBe("https://g");
     expect(
-      endpointOf("codex", card({ config: 'model = "m"\n[model_providers.x]\nbase_url = "https://c/v1"\n' })),
+      endpointOf("codex", card({ config: 'model = "m"\nmodel_provider = "x"\n[model_providers.x]\nbase_url = "https://c/v1"\n' })),
     ).toBe("https://c/v1");
+    expect(endpointOf("grokbuild", card({ config: '[models]\ndefault = "b"\n[model.a]\nbase_url = "https://a/v1"\n[model.b]\nbase_url = "https://b/v1"\n' }))).toBe("https://b/v1");
     expect(endpointOf("opencode", card({ options: { baseURL: "https://o" } }))).toBe("https://o");
     expect(endpointOf("mcode", card({ options: { baseURL: "https://m" } }))).toBe("https://m");
     expect(endpointOf("openclaw", card({ baseUrl: "https://oc" }))).toBe("https://oc");
     expect(endpointOf("hermes", card({ base_url: "https://h" }))).toBe("https://h");
     expect(endpointOf("claude", card({ env: {} }))).toBeUndefined();
+  });
+
+  it("treats a Codex config without model_provider as the built-in OpenAI provider", () => {
+    // A provider table left over from an earlier switch is not in use until model_provider selects it.
+    const leftover = 'model = "m"\n[model_providers.custom]\nbase_url = "https://unused.example/v1"\n';
+    expect(endpointOf("codex", card({ config: leftover }))).toBeUndefined();
+    expect(endpointOf("codex", card({ config: `openai_base_url = "https://proxy/v1"\n${leftover}` }))).toBe("https://proxy/v1");
+    expect(endpointOf("codex", card({ config: `model_provider = "openai"\n${leftover}` }))).toBeUndefined();
   });
 });
 

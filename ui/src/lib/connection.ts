@@ -152,16 +152,29 @@ function selectedTable(toml: string, group: string, selected: string): string {
 /** Codex 请求地址写在哪里：内置 openai 用顶层 openai_base_url，自定义供应商用自己的表。 */
 type CodexEndpoint = { kind: "openai" } | { kind: "local"; id: string } | { kind: "custom"; id: string };
 function codexEndpoint(toml: string): CodexEndpoint {
-  const selected = asText(getTomlValue(toml, null, "model_provider"));
+  // 和 Codex 一致：没写 model_provider 就是内置 openai；[model_providers] 里的表只有被选中才生效。
+  const selected = asText(getTomlValue(toml, null, "model_provider")) || "openai";
   if (selected === "openai") return { kind: "openai" };
   if (CODEX_LOCAL.includes(selected)) return { kind: "local", id: selected };
-  if (selected) return { kind: "custom", id: selected };
-  const only = selectedTable(toml, "model_providers", "");
-  return only ? { kind: "custom", id: only } : { kind: "openai" };
+  return { kind: "custom", id: selected };
 }
 const codexUrlKey = (endpoint: CodexEndpoint): [string[] | null, string] | null =>
   endpoint.kind === "openai" ? [null, "openai_base_url"] : endpoint.kind === "custom" ? [["model_providers", endpoint.id], "base_url"] : null;
 const grokModel = (toml: string) => selectedTable(toml, "model", asText(getTomlValue(toml, ["models"], "default")));
+
+/** TOML 配置实际请求的地址；用工具默认地址（Codex 官方、内置本地模型）时为 undefined。 */
+export function tomlBaseUrl(tool: "codex" | "grokbuild", toml: string): string | undefined {
+  if (readToml(toml) === null) return undefined;
+  let url = "";
+  if (tool === "codex") {
+    const key = codexUrlKey(codexEndpoint(toml));
+    if (key) url = asText(getTomlValue(toml, key[0], key[1]));
+  } else {
+    const name = grokModel(toml);
+    if (name) url = asText(getTomlValue(toml, ["model", name], "base_url"));
+  }
+  return url || undefined;
+}
 
 /** Codex 的 auth.json 部分：可能是顶层对象，也可能嵌在 `{ auth, ...其他键 }` 里。 */
 function codexAuth(root: Json): Json {

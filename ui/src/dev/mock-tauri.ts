@@ -19,7 +19,8 @@ const tools: Record<ToolId, MockTool> = {
   codex: {
     kind: "switch", detected: true, current: "official", inLive: [], paths: [`${home}/.codex/config.toml`, `${home}/.codex/auth.json`],
     providers: [
-      { id: "official", name: "Codex 官方", category: "official", settingsConfig: { auth: {}, config: "" }, meta: { authBinding: { authProvider: "codex_oauth", accountId: "acc-work" } } },
+      // 官方卡里留着一张没被选中的表（真实配置里常见）：首页仍应显示官方登录。
+      { id: "official", name: "Codex 官方", category: "official", settingsConfig: { auth: {}, config: 'model = "gpt-5"\n\n[model_providers.custom]\nbase_url = "https://gw.example.com/v1"\n' }, meta: { authBinding: { authProvider: "codex_oauth", accountId: "acc-work" } } },
       { id: "openai", name: "OpenAI API", settingsConfig: { auth: { OPENAI_API_KEY: "sk-demo" }, config: 'model = "gpt-5"\nmodel_provider = "openai"\n' } },
       { id: "gateway", name: "Responses 网关", settingsConfig: { auth: { OPENAI_API_KEY: "sk-demo" }, config: 'model = "gpt-5-mini"\nmodel_provider = "gateway"\n\n[model_providers.gateway]\nbase_url = "https://gw.example.com/v1"\n' } },
     ],
