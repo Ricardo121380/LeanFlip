@@ -4,11 +4,15 @@
 
 LeanFlip 把 AI 编程工具的供应商配置保存在本地，需要时写进 Claude Code、Codex、Gemini CLI 等工具实际读取的配置文件。App、命令行 `leanflip` 和 TUI 共用同一份数据：可以先在 App 里添加供应商，再在终端里用方向键切换。
 
-LeanFlip 只管理配置，不提供本地代理、请求转发、负载均衡或用量统计。使用前需要自行安装对应的 AI 工具，并准备该工具支持的账号或 API Key。
+LeanFlip 只管理配置，不提供本地代理、请求转发或负载均衡；“统计”页只读取各工具留在本机的用量记录。使用前需要自行安装对应的 AI 工具，并准备该工具支持的账号或 API Key。
 
-[从源码构建](#安装) · [CLI 完整说明](crates/cli/README.md) · [反馈问题](https://github.com/Ricardo121380/LeanFlip/issues)
+[下载与安装](#安装) · [CLI 完整说明](crates/cli/README.md) · [反馈问题](https://github.com/Ricardo121380/LeanFlip/issues)
 
-> **版本说明：** 当前源码版本为 `0.2.0-dev`，尚未发布预编译安装包，请按下文从源码构建。旧版本的数据目录会在首次使用时自动迁移到 `~/.leanflip/`，供应商、托管账号和设置都会保留。
+![LeanFlip 首页：每个工具一句话，点供应商名即可切换](docs/images/home.png)
+
+<sub>本文截图使用 `pnpm dev:mock` 的演示数据。</sub>
+
+> **版本说明：** 当前版本为 `0.2.0`。从 0.1.x 升级时，旧的数据目录会在首次使用时自动迁移到 `~/.leanflip/`，供应商、托管账号和设置都会保留；旧版的 App 和命令需要手动删除，见[升级与卸载](#升级与卸载)。
 
 ## 目录
 
@@ -44,7 +48,27 @@ App 和命令行可以单独使用，也可以一起使用。命令行不需要 
 
 ## 安装
 
-预编译安装包会随下一个正式版本发布。在此之前，请从源码构建。
+可以下载预编译安装包，也可以从源码构建。
+
+### 下载安装包
+
+在 [Releases](https://github.com/Ricardo121380/LeanFlip/releases/latest) 页面下载对应平台的文件：
+
+| 平台 | 桌面 App | 命令行与 TUI |
+| --- | --- | --- |
+| macOS Apple Silicon（M 系列） | `leanflip_版本_macos-arm64.dmg` | `leanflip_版本_macos-arm64.tar.gz` |
+| Linux x86_64（Ubuntu 24.04 构建） | `leanflip_版本_linux-x64.deb` | `leanflip_版本_linux-x64.tar.gz` |
+
+- **macOS App**：打开 `.dmg`，把 `LeanFlip.app` 拖入“应用程序”。
+- **Linux App**：在下载目录执行 `sudo apt install ./leanflip_版本_linux-x64.deb`，依赖由包管理器安装。其他发行版尚未验证。
+- **命令行**：解压 `.tar.gz` 后得到 `leanflip`，直接运行 `./leanflip`，或按下文放进 `~/.local/bin`。命令行不需要 Node.js 或桌面 App。
+
+同一页面的 `SHA256SUMS` 可用于校验下载：在下载目录执行 `shasum -a 256 -c SHA256SUMS --ignore-missing`（Linux 用 `sha256sum -c SHA256SUMS --ignore-missing`）。
+
+**macOS 首次打开：** App 和命令行目前没有 Apple 签名与公证，第一次运行会被系统拦下。确认文件来自本项目 Releases 页面后：
+
+- App：先打开一次，看到提示后进入“系统设置 → 隐私与安全性”，在页面下方点“仍要打开”。
+- 命令行：在解压目录执行 `xattr -d com.apple.quarantine leanflip`，去掉下载隔离标记后再运行。
 
 ### 构建命令行与 TUI
 
@@ -155,11 +179,15 @@ leanflip menu codex           # 在菜单中选择供应商
 - 右上角的“清单 / 光路”切换视图。光路左边是工具，右边是按地址合并的服务端点，正在使用的路由上有光点流动；点一条暗线即切换到那个供应商。
 - “测连通”逐个访问所有供应商的请求地址，延迟显示在供应商名旁边和光路的端点下方。这一步不发送密钥。
 
+![光路视图：左边是工具，右边是服务端点，正在使用的路由被点亮](docs/images/lightmap.png)
+
 系统开启“减少动态效果”时，界面直接显示结果，不播放动画。
 
 ### 统计
 
 侧栏“统计”显示每天用了多少 token。LeanFlip 不经手请求，数字来自各工具自己写在本机的会话记录：只读取时间、模型、供应商和 token 数，不读对话内容，也不上传。
+
+![统计页：汇总、按供应商着色的时间线和每日用量](docs/images/stats.png)
 
 - 选择最近 7 / 30 / 90 天和工具，汇总、时间线、每日用量和供应商明细一起变化。
 - 时间线显示每段时间用的是哪个供应商。点过去的一段，即切回那个供应商。
@@ -211,6 +239,8 @@ Claude Code 和 Gemini CLI 默认只保留 30 天的会话记录。LeanFlip 把�
 
 - **常用设置**：名称、ID、网站、备注，请求地址与 API Key（默认隐藏，可点眼睛显示），以及各工具的模型字段（如 Claude Code 的默认模型和 Haiku / Sonnet / Opus 模型、Codex 的推理强度、并存式工具的模型列表）。
 - **完整配置**：原始 JSON；Codex 分别展示 `auth.json` 和 `config.toml`。两页实时同步，TOML 只改动对应的行，注释和顺序保持不变。Claude Code 会列出不随切换写入的字段。
+
+![编辑供应商：请求地址、API Key、测连通、检查模型和获取模型列表](docs/images/editor.png)
 
 每一行供应商都可以“复制”，生成一个以它为模板的新供应商（不复制备注和 ChatGPT 登录凭据）。
 
@@ -658,6 +688,10 @@ leanflip recover         # 处理所有工具
 在 [Issues](https://github.com/Ricardo121380/LeanFlip/issues) 中提供：App 或命令行版本、操作系统与架构、使用的工具、复现步骤、预期结果和实际错误码。路径可以脱敏；请勿附上真实 API Key、OAuth 令牌或完整账号库。
 
 ## 升级与卸载
+
+使用安装包时，先退出 App 和交互菜单，再按[下载安装包](#下载安装包)安装新版本，覆盖原来的 App 或 `leanflip` 文件。
+
+**从 0.1.x 升级：** 0.2.0 起 App 和命令都改用 LeanFlip 的名称，是一个新的 App。安装后旧版 App 和旧命令不会被替换，请手动删除；数据目录会自动迁移，无需手动复制。开机自启需要在新 App 的设置里重新打开。
 
 从源码升级时，先退出 App 和交互菜单，然后拉取最新代码并重新构建：
 
