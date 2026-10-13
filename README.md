@@ -48,7 +48,19 @@ App 和命令行可以单独使用，也可以一起使用。命令行不需要 
 
 ## 安装
 
-可以下载预编译安装包，也可以从源码构建。
+macOS 推荐用 Homebrew 安装；也可以直接下载安装包，或从源码构建。
+
+### 用 Homebrew 安装
+
+本仓库自带 Homebrew 配方。先添加一次仓库，再安装需要的部分：
+
+```sh
+brew tap ricardo121380/leanflip https://github.com/Ricardo121380/LeanFlip.git
+brew install --cask ricardo121380/leanflip/leanflip-app   # 桌面 App（macOS Apple Silicon）
+brew install --cask ricardo121380/leanflip/leanflip       # 命令行与 TUI（macOS Apple Silicon、Linux x86_64）
+```
+
+Homebrew 安装的 App 同样没有签名，第一次打开的处理方法见下文的“macOS 首次打开”。命令行如果第一次运行被拦下，执行 `xattr -d com.apple.quarantine "$(brew --prefix)/bin/leanflip"`。
 
 ### 下载安装包
 
@@ -689,7 +701,10 @@ leanflip recover         # 处理所有工具
 
 ## 升级与卸载
 
-使用安装包时，先退出 App 和交互菜单，再按[下载安装包](#下载安装包)安装新版本，覆盖原来的 App 或 `leanflip` 文件。
+先退出 App 和交互菜单，再升级：
+
+- Homebrew：`brew upgrade --cask ricardo121380/leanflip/leanflip-app ricardo121380/leanflip/leanflip`（只装了其中一个就只写那一个）。
+- 安装包：按[下载安装包](#下载安装包)安装新版本，覆盖原来的 App 或 `leanflip` 文件。
 
 **从 0.1.x 升级：** 0.2.0 起 App 和命令都改用 LeanFlip 的名称，是一个新的 App。安装后旧版 App 和旧命令不会被替换，请手动删除；数据目录会自动迁移，无需手动复制。开机自启需要在新 App 的设置里重新打开。
 
@@ -704,9 +719,10 @@ cargo build --release --locked --bin leanflip
 
 卸载 App 或命令行不会自动还原已经写入客户端的配置。若希望回到官方或其他供应商，请在卸载前先完成切换。
 
+- Homebrew：`brew uninstall --cask ricardo121380/leanflip/leanflip-app ricardo121380/leanflip/leanflip`，不再需要时 `brew untap ricardo121380/leanflip`。
 - 命令行：删除自己安装的 `leanflip` 二进制，例如 `~/.local/bin/leanflip`。
 - macOS App：从“应用程序”中移除 LeanFlip。
-- Linux DEB：使用 `apt` 移除安装的 LeanFlip 软件包。
+- Linux DEB：执行 `sudo apt remove lean-flip`（软件包名是 `lean-flip`）。
 
 `~/.leanflip/` 中的供应商、账号和备份由用户自行保留或清理。删除前请确认不再需要其中的登录暂存和备份。
 
@@ -771,6 +787,6 @@ pnpm presets
 | [`crates/cli`](crates/cli) | 命令行 `leanflip`、交互菜单及全屏 TUI |
 | [`ui`](ui) | React、TypeScript、Vite、TanStack Query 前端及中英文界面 |
 | [`scripts`](scripts) | 预设生成、终端伪终端检查及分发元数据生成脚本 |
-| [`packages/npm`](packages/npm) | npm 安装器；Homebrew Cask 与安装器元数据在发布时生成 |
+| [`Casks`](Casks) / [`packages/npm`](packages/npm) | Homebrew Cask 与 npm 安装器；配方和安装器元数据由发布脚本生成 |
 
 当前源码以 [MIT License](LICENSE) 发布。实现依据、兼容边界及核查记录见[独立实现记录](docs/engineering/independent-core.md)，保留的历史标识及原因见[兼容说明](docs/engineering/compatibility.md)。早期 v0.1.0 发布包适用其随附的许可证与通知。第三方依赖适用各自的许可证。

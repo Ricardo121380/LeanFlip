@@ -6,7 +6,7 @@ Homebrew Cask 与 npm 安装器共用 GitHub Release 的原生二进制。它们
 
 发布附件使用 `leanflip_VERSION_PLATFORM` 文件名：CLI 压缩包里是 `leanflip`，桌面包里是 `LeanFlip.app`（主二进制 `leanflip-app`）。`prepare-distribution.mjs` 生成 `leanflip` npm 包（`leanflip` / `leanflip-app` 两个命令）和同名的两个 Homebrew Cask。桌面二进制名称和应用 identifier 直接取自 `crates/app/tauri.conf.json`，安装器和 Cask 不会与实际构建不一致。npm 安装器所需的全部名称都写在 `release.json` 里，代码里没有写死。
 
-两次发布之间，仓库里没有 `packages/npm/release.json` 和 `Casks/`：它们必须与某个已发布的原生版本一一对应，只在发布时生成并提交。在此之前，`Package managers` 工作流只运行安装器单元测试，跳过真实下载和 Homebrew 安装。生成时脚本会删除不属于本次发布的 Cask，`--check` 发现残留会报错；v0.1.0 不能重新生成。
+`packages/npm/release.json` 和 `Casks/` 必须与某个已发布的原生版本一一对应：发布后由脚本从正式附件生成并提交，不要手改。仓库里没有 `release.json` 时，`Package managers` 工作流只运行安装器单元测试，跳过真实下载和 Homebrew 安装。生成时脚本会删除不属于本次发布的 Cask，`--check` 发现残留会报错；v0.1.0 不能重新生成。
 
 发布前需确定新版本号、生成对应发布说明和原生资产，再按下面步骤校验与发布。
 
