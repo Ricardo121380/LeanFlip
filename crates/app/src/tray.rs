@@ -4,7 +4,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 
-use ccsl_core::Tool;
+use leanflip_core::Tool;
 use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Manager, Runtime};
@@ -368,7 +368,7 @@ mod tests {
 
     #[test]
     fn model_reflects_cards_and_is_stable_without_changes() {
-        use ccsl_core::{Env, Provider};
+        use leanflip_core::{Env, Provider};
         use serde_json::json;
 
         let dir = tempfile::tempdir().unwrap();

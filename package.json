@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "pnpm tauri dev",
     "dev:renderer": "vite",
+    "dev:mock": "LEANFLIP_MOCK=1 vite",
     "build:renderer": "vite build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",

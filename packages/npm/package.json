@@ -1,30 +1,29 @@
 {
-  "name": "ccswitch-lite",
-  "version": "0.1.0",
-  "description": "CC Switch Lite native CLI and desktop app installer",
+  "name": "leanflip",
+  "version": "0.2.0-dev",
+  "description": "LeanFlip native CLI, TUI and desktop app installer",
   "type": "module",
   "license": "MIT",
-  "homepage": "https://github.com/Ricardo121380/ccswitch-lite#readme",
+  "homepage": "https://github.com/Ricardo121380/LeanFlip#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Ricardo121380/ccswitch-lite.git",
+    "url": "git+https://github.com/Ricardo121380/LeanFlip.git",
     "directory": "packages/npm"
   },
-  "bugs": "https://github.com/Ricardo121380/ccswitch-lite/issues",
+  "bugs": "https://github.com/Ricardo121380/LeanFlip/issues",
   "engines": {
     "node": ">=20"
   },
   "bin": {
-    "ccsl": "bin/ccsl.js",
-    "ccsl-app": "bin/ccsl-app.js"
+    "leanflip": "bin/leanflip.js",
+    "leanflip-app": "bin/leanflip-app.js"
   },
   "files": [
     "bin",
     "lib",
     "release.json",
     "README.md",
-    "LICENSE",
-    "NOTICE.md"
+    "LICENSE"
   ],
   "scripts": {
     "test": "node --test test/*.test.mjs"

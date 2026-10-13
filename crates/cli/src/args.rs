@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
-use ccsl_core::Tool;
 use clap::{Args, Parser, Subcommand, ValueEnum};
+use leanflip_core::Tool;
 
 #[derive(Parser)]
 #[command(
@@ -38,7 +38,7 @@ pub enum Command {
     Use { tool: ToolArg, provider_id: String },
     /// Write a provider into a coexist-style tool's live configuration.
     Enable { tool: ToolArg, provider_id: String },
-    /// Remove a provider from live configuration, keeping its saved card.
+    /// Remove a provider from live configuration; the saved provider is kept.
     Disable { tool: ToolArg, provider_id: String },
     /// Show effective paths, including App directory overrides.
     Paths { tool: Option<ToolArg> },
@@ -54,7 +54,7 @@ pub enum Command {
         #[command(subcommand)]
         source: Import,
     },
-    /// Add, update, or delete a saved provider card.
+    /// Add, update, or delete a saved provider.
     #[command(alias = "providers")]
     Provider {
         #[command(subcommand)]
@@ -92,7 +92,7 @@ pub enum Import {
         password_file: Option<PathBuf>,
         #[arg(long)]
         no_accounts: bool,
-        /// Restore accounts/settings without any provider cards.
+        /// Restore accounts/settings without any providers.
         #[arg(long, conflicts_with = "tools")]
         no_providers: bool,
         #[arg(long)]
@@ -104,9 +104,9 @@ pub enum Import {
         #[arg(long = "tool", value_delimiter = ',')]
         tools: Vec<ToolArg>,
     },
-    /// Capture a tool's live configuration as saved provider cards.
+    /// Capture a tool's live configuration as saved providers.
     Live { tool: ToolArg },
-    /// Preview a SQL, SQLite, or legacy JSON export; use --apply to save cards.
+    /// Preview a SQL, SQLite, or legacy JSON export; use --apply to save providers.
     File {
         path: PathBuf,
         #[arg(long, conflicts_with = "apply")]
@@ -123,9 +123,9 @@ pub enum Import {
 
 #[derive(Subcommand)]
 pub enum ProviderCommand {
-    /// Edit a card name, Base URL and API Key in an interactive terminal.
+    /// Edit a provider's name, Base URL and API Key in an interactive terminal.
     Edit { tool: ToolArg, provider_id: String },
-    /// Save a new card; does not activate it unless --activate is supplied.
+    /// Save a new provider; does not activate it unless --activate is supplied.
     Add {
         tool: ToolArg,
         #[command(flatten)]
@@ -133,13 +133,13 @@ pub enum ProviderCommand {
         #[arg(long)]
         activate: bool,
     },
-    /// Replace a card using its JSON id; updates live config when active.
+    /// Replace a provider using its JSON id; updates live config when active.
     Update {
         tool: ToolArg,
         #[command(flatten)]
         input: ProviderInput,
     },
-    /// Delete a card; active switch-style cards must be switched away first.
+    /// Delete a provider; an active switch-style provider must be switched away first.
     Delete { tool: ToolArg, provider_id: String },
 }
 
@@ -192,7 +192,7 @@ impl Language {
     }
 }
 
-impl From<Duplicate> for ccsl_core::ccswitch_export::DuplicatePolicy {
+impl From<Duplicate> for leanflip_core::ccswitch_export::DuplicatePolicy {
     fn from(value: Duplicate) -> Self {
         match value {
             Duplicate::Skip => Self::Skip,

@@ -4,6 +4,7 @@ import {
   endpointOf,
   fromEditorText,
   hasRedacted,
+  modelOf,
   planBadge,
   slugify,
   toEditorText,
@@ -25,6 +26,18 @@ describe("endpointOf", () => {
     expect(endpointOf("openclaw", card({ baseUrl: "https://oc" }))).toBe("https://oc");
     expect(endpointOf("hermes", card({ base_url: "https://h" }))).toBe("https://h");
     expect(endpointOf("claude", card({ env: {} }))).toBeUndefined();
+  });
+});
+
+describe("modelOf", () => {
+  it("reads the model each client will use", () => {
+    expect(modelOf("claude", card({ env: { ANTHROPIC_MODEL: "kimi-k2" } }))).toBe("kimi-k2");
+    expect(modelOf("gemini", card({ env: {}, config: { model: { name: "gemini-2.5-pro" } } }))).toBe("gemini-2.5-pro");
+    expect(modelOf("codex", card({ config: 'model = "gpt-5"\nmodel_provider = "x"\n' }))).toBe("gpt-5");
+    expect(modelOf("grokbuild", card({ config: '[models]\ndefault = "grok-4"\n' }))).toBe("grok-4");
+    expect(modelOf("opencode", card({ models: { "qwen3-coder": {} } }))).toBe("qwen3-coder");
+    expect(modelOf("hermes", card({ models: [{ id: "deepseek-chat" }] }))).toBe("deepseek-chat");
+    expect(modelOf("claude", card({ env: {} }))).toBeUndefined();
   });
 });
 

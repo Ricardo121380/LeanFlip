@@ -1,14 +1,14 @@
 //! 开发用：在一个**临时** HOME 里造演示数据（假的客户端配置、几张卡、两个假托管账号），
 //! 给无头冒烟运行 / 截图用。拒绝在系统临时目录以外的地方运行，永远不碰真实 HOME。
 //!
-//!     cargo run -p ccsl-app --example seed_demo -- /tmp/ccsl-demo-XXXX
+//!     cargo run --example seed_demo -- /tmp/leanflip-demo-XXXX
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use ccsl_app::service::{PollResult, Service};
-use ccsl_core::codex::oauth::testing::{FakeTransport, Identity};
-use ccsl_core::{Env, Provider, Tool};
+use leanflip_app::service::{PollResult, Service};
+use leanflip_core::codex::oauth::testing::{FakeTransport, Identity};
+use leanflip_core::{Env, Provider, Tool};
 use serde_json::json;
 
 fn write(path: &Path, text: &str) {
@@ -107,8 +107,8 @@ fn main() {
         json!({"auth": {}, "config": "model = \"gpt-5.5\"\n"}),
     )
     .official();
-    work.meta.auth_binding = Some(ccsl_core::provider::AuthBinding {
-        auth_provider: ccsl_core::provider::AUTH_PROVIDER_CODEX_OAUTH.into(),
+    work.meta.auth_binding = Some(leanflip_core::provider::AuthBinding {
+        auth_provider: leanflip_core::provider::AUTH_PROVIDER_CODEX_OAUTH.into(),
         account_id: Some(team_id),
     });
     service.add_provider(Tool::Codex, work, false).unwrap();
@@ -140,8 +140,8 @@ fn main() {
 
     // 界面语言：中文；再放一份假的 cc-switch 旧版数据给导入向导。
     let mut settings = service.app_settings();
-    settings.language = Some(std::env::var("CCSL_DEMO_LANG").unwrap_or_else(|_| "zh".into()));
-    ccsl_app::settings::save(&env.data_dir, &settings).unwrap();
+    settings.language = Some(std::env::var("LEANFLIP_DEMO_LANG").unwrap_or_else(|_| "zh".into()));
+    leanflip_app::settings::save(&env.data_dir, &settings).unwrap();
     write(
         &home.join(".cc-switch/config.json"),
         &serde_json::to_string_pretty(&json!({

@@ -2,11 +2,11 @@
 
 mod common;
 
-use ccsl_core::ccswitch_import::{self, ACCOUNTS_FILENAME, DB_FILENAME};
-use ccsl_core::codex::oauth::testing::{FakeTransport, Identity};
-use ccsl_core::codex::oauth::CodexOAuthManager;
-use ccsl_core::{store, Provider, Tool};
 use common::Sandbox;
+use leanflip_core::ccswitch_import::{self, ACCOUNTS_FILENAME, DB_FILENAME};
+use leanflip_core::codex::oauth::testing::{FakeTransport, Identity};
+use leanflip_core::codex::oauth::CodexOAuthManager;
+use leanflip_core::{store, Provider, Tool};
 use serde_json::json;
 use std::sync::Arc;
 

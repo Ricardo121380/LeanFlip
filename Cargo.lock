@@ -665,82 +665,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ccsl-app"
-version = "0.2.0-dev"
-dependencies = [
- "ccsl-core",
- "ccsl-service",
- "chrono",
- "log",
- "notify",
- "notify-debouncer-mini",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-autostart",
- "tauri-plugin-dialog",
- "tauri-plugin-opener",
- "tauri-plugin-single-instance",
- "tempfile",
- "thiserror 2.0.21",
- "zeroize",
-]
-
-[[package]]
-name = "ccsl-cli"
-version = "0.2.0-dev"
-dependencies = [
- "ccsl-core",
- "ccsl-service",
- "clap",
- "ctrlc",
- "dialoguer",
- "ratatui",
- "serde_json",
- "tempfile",
- "unicode-width",
- "zeroize",
-]
-
-[[package]]
-name = "ccsl-core"
-version = "0.2.0-dev"
-dependencies = [
- "base64 0.22.1",
- "chrono",
- "dirs 5.0.1",
- "getrandom 0.4.3",
- "indexmap 2.14.2",
- "json5",
- "log",
- "rusqlite",
- "serde",
- "serde_json",
- "serde_yaml",
- "sha2 0.10.9",
- "tempfile",
- "thiserror 2.0.21",
- "toml 0.8.23",
- "toml_edit 0.22.27",
-]
-
-[[package]]
-name = "ccsl-service"
-version = "0.2.0-dev"
-dependencies = [
- "age",
- "ccsl-core",
- "log",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "tempfile",
- "toml_edit 0.22.27",
- "zeroize",
-]
-
-[[package]]
 name = "cesu8"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3077,6 +3001,84 @@ name = "lazy_static"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "20870f649af7073d53e38067b2a84312175d56ea15217e1b15bc83506ec50afb"
+
+[[package]]
+name = "leanflip-app"
+version = "0.2.0-dev"
+dependencies = [
+ "chrono",
+ "leanflip-core",
+ "leanflip-service",
+ "log",
+ "notify",
+ "notify-debouncer-mini",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-autostart",
+ "tauri-plugin-dialog",
+ "tauri-plugin-opener",
+ "tauri-plugin-single-instance",
+ "tempfile",
+ "thiserror 2.0.21",
+ "zeroize",
+]
+
+[[package]]
+name = "leanflip-cli"
+version = "0.2.0-dev"
+dependencies = [
+ "clap",
+ "ctrlc",
+ "dialoguer",
+ "leanflip-core",
+ "leanflip-service",
+ "ratatui",
+ "serde_json",
+ "tempfile",
+ "unicode-width",
+ "zeroize",
+]
+
+[[package]]
+name = "leanflip-core"
+version = "0.2.0-dev"
+dependencies = [
+ "base64 0.22.1",
+ "chrono",
+ "dirs 5.0.1",
+ "getrandom 0.4.3",
+ "indexmap 2.14.2",
+ "json5",
+ "log",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "sha2 0.10.9",
+ "tempfile",
+ "thiserror 2.0.21",
+ "toml 0.8.23",
+ "toml_edit 0.22.27",
+]
+
+[[package]]
+name = "leanflip-service"
+version = "0.2.0-dev"
+dependencies = [
+ "age",
+ "chrono",
+ "leanflip-core",
+ "log",
+ "reqwest 0.12.28",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "toml_edit 0.22.27",
+ "zeroize",
+]
 
 [[package]]
 name = "libappindicator"

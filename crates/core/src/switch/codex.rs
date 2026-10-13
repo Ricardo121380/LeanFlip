@@ -119,8 +119,8 @@ pub fn plan(
     if target.managed_codex_account() == Some("") {
         return Err(AppError::localized(
             "codex.oauth.binding_without_account",
-            "卡片未指定托管账号",
-            "The card has no managed account ID",
+            "这个供应商没有指定托管账号",
+            "This provider has no managed account ID",
         ));
     }
     let selected = projection(target)?;
@@ -483,8 +483,8 @@ pub fn set_login_ref(
     {
         return Err(AppError::localized(
             "codex.login_ref.not_applicable",
-            "这张卡不能引用原生登录",
-            "This card cannot reference a native login",
+            "这个供应商不能引用本机登录",
+            "This provider cannot reference a local login",
         ));
     }
     if let Some(identity) = identity {

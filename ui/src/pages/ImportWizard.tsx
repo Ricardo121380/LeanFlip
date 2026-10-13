@@ -104,16 +104,16 @@ export function ImportWizard({ onBusyChange }: { onBusyChange?: (busy: boolean) 
   const canImport = cardCount > 0 || accountCount > 0;
 
   return (
-    <div className="mx-auto flex min-w-0 max-w-5xl flex-col gap-7 p-6 lg:p-9">
+    <div className="mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-7 px-6 py-6 lg:px-8">
       <header className="border-b pb-6">
-        <h1 className="text-2xl font-semibold tracking-tight">{t("backup.dataTitle")}</h1>
+        <h1 className="text-[22px] font-semibold tracking-tight">{t("backup.dataTitle")}</h1>
         <p className="mt-2 max-w-prose text-sm leading-6 text-muted-foreground">{t("backup.dataHint")}</p>
       </header>
       <Tabs.Root value={source} onValueChange={(next) => !busy && !fileBusy && setSource(next)} className="min-w-0">
         <Tabs.List aria-label={t("wizard.sourceType")} className="mb-7 flex max-w-full flex-wrap gap-1 rounded-xl border bg-muted p-1.5">
-          <Tabs.Trigger value="local" disabled={busy || fileBusy} className="inline-flex min-h-9 items-center gap-2 rounded-md px-3 text-sm font-medium text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground"><FolderSearch className="h-4 w-4" aria-hidden="true" />{t("wizard.localTab")}</Tabs.Trigger>
-          <Tabs.Trigger value="file" disabled={busy || fileBusy} className="inline-flex min-h-9 items-center gap-2 rounded-md px-3 text-sm font-medium text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground"><FileUp className="h-4 w-4" aria-hidden="true" />{t("wizard.fileTab")}</Tabs.Trigger>
-          <Tabs.Trigger value="backup" disabled={busy || fileBusy} className="inline-flex min-h-9 items-center gap-2 rounded-md px-3 text-sm font-medium text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground"><ShieldCheck className="h-4 w-4" aria-hidden="true" />{t("backup.exportTab")}</Tabs.Trigger>
+          <Tabs.Trigger value="local" disabled={busy || fileBusy} className="inline-flex min-h-9 items-center gap-2 rounded-md px-3 text-sm font-medium text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm"><FolderSearch className="h-4 w-4" aria-hidden="true" />{t("wizard.localTab")}</Tabs.Trigger>
+          <Tabs.Trigger value="file" disabled={busy || fileBusy} className="inline-flex min-h-9 items-center gap-2 rounded-md px-3 text-sm font-medium text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm"><FileUp className="h-4 w-4" aria-hidden="true" />{t("wizard.fileTab")}</Tabs.Trigger>
+          <Tabs.Trigger value="backup" disabled={busy || fileBusy} className="inline-flex min-h-9 items-center gap-2 rounded-md px-3 text-sm font-medium text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm"><ShieldCheck className="h-4 w-4" aria-hidden="true" />{t("backup.exportTab")}</Tabs.Trigger>
         </Tabs.List>
         <Tabs.Content value="local" forceMount hidden={source !== "local"} className="min-w-0 space-y-5 focus-visible:outline-none">
           <div className="flex flex-wrap items-start justify-between gap-5 rounded-xl border bg-card p-5">
@@ -171,7 +171,7 @@ export function ImportWizard({ onBusyChange }: { onBusyChange?: (busy: boolean) 
             </div>
           </>}
           {report && <Card className="flex min-w-0 items-start gap-3 p-4" role="status">
-            <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" aria-hidden="true" />
+            <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-success" aria-hidden="true" />
             <div className="min-w-0 space-y-3 text-sm">
               <p className="font-medium">{t("wizard.done", { created: report.created.length, accounts: report.accountsAdded.length, skipped: report.skipped.length })}</p>
               <p className="text-muted-foreground">{t("wizard.doneHint")}</p>

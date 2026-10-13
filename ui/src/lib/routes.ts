@@ -1,6 +1,6 @@
 import type { Provider } from "@/lib/api";
 
-/** Claude Desktop 直连卡的模型菜单：`meta.claudeDesktopModelRoutes`。 */
+/** Claude Desktop 直连供应商的模型菜单：`meta.claudeDesktopModelRoutes`。 */
 export interface RouteRow {
   id: string;
   label: string;

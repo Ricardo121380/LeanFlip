@@ -30,7 +30,7 @@ function settings(): SettingsView {
   return {
     app: { language: "zh", dirOverrides: {}, autostart: false, backgroundRefreshHours: 168, closeToTray: true },
     keepCodexLogin: false,
-    dataDir: "/test/.cc-switch-lite",
+    dataDir: "/test/.leanflip",
     home: "/test",
     livePaths: {},
     dirs: { codexDir: "/test/.codex" },
@@ -154,12 +154,12 @@ describe("Account feedback", () => {
     });
     await screen.findByText("无法读取托管账号");
     expect(screen.getByText("无法读取本机登录")).toBeInTheDocument();
-    expect(screen.queryByText("还没有托管账号。")).not.toBeInTheDocument();
+    expect(screen.queryByText("还没有托管账号")).not.toBeInTheDocument();
     expect(screen.queryByText("没有发现本机登录。")).not.toBeInTheDocument();
     failed = false;
     const accountAlert = screen.getAllByRole("alert").find((alert) => alert.textContent?.includes("account read denied"))!;
     await userEvent.click(within(accountAlert).getByRole("button", { name: "重试" }));
-    expect(await screen.findByText("还没有托管账号。")).toBeInTheDocument();
+    expect(await screen.findByText("还没有托管账号")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "登录新账号" })).toBeEnabled();
     expect(screen.getByText("无法读取本机登录")).toBeInTheDocument();
   });

@@ -1,5 +1,5 @@
 //! 导入 cc-switch 的**导出文件**（另一台机器上「设置 → 数据 → 导出 SQL 备份」得到的
-//! `cc-switch-export-*.sql`），只进 ccswitch-lite 的卡片库，不写任何客户端 live 配置。
+//! `cc-switch-export-*.sql`），只进 LeanFlip 的卡片库，不写任何客户端 live 配置。
 //!
 //! 支持的格式（按内容识别，不看扩展名）：
 //! - **SQL 导出**（cc-switch v3.8+）：以 `-- CC Switch SQLite 导出` 开头的 SQL 文本。在一个
@@ -289,15 +289,15 @@ fn classify(data: &StoreData, row: &RawRow) -> Result<(Tool, Provider, Vec<Reaso
     let Some(tool) = parse_app(&row.app) else {
         return Err(Reason::new(
             "unsupported_app",
-            format!("ccswitch-lite 不支持这个应用（{}）", row.app),
-            format!("ccswitch-lite does not support this app ({})", row.app),
+            format!("LeanFlip 不支持这个应用（{}）", row.app),
+            format!("LeanFlip does not support this app ({})", row.app),
         ));
     };
     let Some(provider) = to_provider(tool, row.value.clone()) else {
         return Err(Reason::new(
             "malformed",
-            "卡片数据不完整（缺 id 或配置）",
-            "Incomplete card (missing id or settings)",
+            "供应商数据不完整（缺少 ID 或配置）",
+            "Incomplete provider (missing ID or settings)",
         ));
     };
     let meta = |key: &str| {
@@ -316,7 +316,7 @@ fn classify(data: &StoreData, row: &RawRow) -> Result<(Tool, Provider, Vec<Reaso
         ));
     }
     if let Some(kind @ ("github_copilot" | "codex_oauth" | "xai_oauth")) = meta("providerType") {
-        // 官方 Codex 卡带 codex_oauth 标记只是 cc-switch 的写法，ccswitch-lite 直接支持。
+        // 官方 Codex 卡带 codex_oauth 标记只是 cc-switch 的写法，LeanFlip 直接支持。
         let official_codex = tool == Tool::Codex && provider.is_official_category();
         if !official_codex {
             return Err(Reason::new(
@@ -421,8 +421,8 @@ fn plan(data: &StoreData, parsed: &ParsedExport, policy: DuplicatePolicy) -> Vec
             item.status = ItemStatus::Duplicate;
             item.reason = Some(Reason::new(
                 "same_config",
-                format!("和已有的卡「{}」配置完全相同", same.name),
-                format!("Same settings as the existing card \"{}\"", same.name),
+                format!("和已有的供应商「{}」配置完全相同", same.name),
+                format!("Same settings as the existing provider \"{}\"", same.name),
             ));
             out.push(Planned {
                 item,
@@ -436,8 +436,8 @@ fn plan(data: &StoreData, parsed: &ParsedExport, policy: DuplicatePolicy) -> Vec
                 DuplicatePolicy::Skip => {
                     item.reason = Some(Reason::new(
                         "same_id",
-                        "已有同 id 的卡，跳过",
-                        "A card with this id already exists; skipped",
+                        "已有同 ID 的供应商，已跳过",
+                        "A provider with this ID already exists; skipped",
                     ));
                     out.push(Planned {
                         item,
@@ -454,8 +454,8 @@ fn plan(data: &StoreData, parsed: &ParsedExport, policy: DuplicatePolicy) -> Vec
                     let new_id = unique_id(&provider.id, &ids);
                     item.reason = Some(Reason::new(
                         "renamed",
-                        format!("已有同 id 的卡，改名为 {new_id} 导入"),
-                        format!("A card with this id exists; imported as {new_id}"),
+                        format!("已有同 ID 的供应商，改名为 {new_id} 导入"),
+                        format!("A provider with this ID exists; imported as {new_id}"),
                     ));
                     provider.id = new_id;
                 }
@@ -490,7 +490,7 @@ pub fn preview(
     })
 }
 
-/// 把 `tools` 范围内能导入的卡写进卡片库。只改 ccswitch-lite 自己的库，不碰 live 配置。
+/// 把 `tools` 范围内能导入的卡写进卡片库。只改 LeanFlip 自己的库，不碰 live 配置。
 pub fn apply(
     env: &Env,
     parsed: &ParsedExport,

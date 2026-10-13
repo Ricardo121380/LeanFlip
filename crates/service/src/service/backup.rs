@@ -7,9 +7,9 @@ use std::path::Path;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use age::secrecy::SecretString;
-use ccsl_core::codex::oauth::AccountData;
-use ccsl_core::env::DirOverrides;
-use ccsl_core::store::StoreData;
+use leanflip_core::codex::oauth::AccountData;
+use leanflip_core::env::DirOverrides;
+use leanflip_core::store::StoreData;
 use zeroize::{Zeroize, Zeroizing};
 
 use super::*;
@@ -525,9 +525,7 @@ impl Service {
             if !options.paths {
                 app.dir_overrides = current.dir_overrides;
             }
-            if !matches!(app.language.as_deref(), None | Some("zh" | "en")) {
-                app.language = None;
-            }
+            settings::normalize(&mut app);
             match settings::save(&rt.env.data_dir, &app) {
                 Ok(()) => {
                     match self.apply_overrides(&app.dir_overrides) {

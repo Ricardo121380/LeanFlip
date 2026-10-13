@@ -4,7 +4,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 
-use ccsl_core::{store, Env, Provider, Tool};
+use leanflip_core::{store, Env, Provider, Tool};
 use serde_json::{json, Value};
 
 struct Sandbox {
@@ -149,9 +149,11 @@ fn read_commands_do_not_recover_pending_operations() {
     }
     let report = sb.ok(&["recover", "claude", "--json"]);
     assert_eq!(report["noticeCount"], 1);
-    assert!(ccsl_core::state::pending(&sb.env.device_store(), "claude")
-        .unwrap()
-        .is_none());
+    assert!(
+        leanflip_core::state::pending(&sb.env.device_store(), "claude")
+            .unwrap()
+            .is_none()
+    );
 }
 
 #[test]

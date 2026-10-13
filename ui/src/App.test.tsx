@@ -7,6 +7,14 @@ const backend = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: (...args: unknown[]) => backend.invoke(...args) }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(async () => () => {}) }));
 vi.mock("@/pages/ToolPage", () => ({ ToolPage: ({ tool }: { tool: string }) => <h1>{tool}</h1> }));
+vi.mock("@/pages/HomePage", () => ({
+  HomePage: ({ mode, onNavigate }: { mode: string; onNavigate: (hash: string, options?: { transition?: boolean }) => void }) => (
+    <>
+      <h1>{`home:${mode}`}</h1>
+      <button type="button" onClick={() => onNavigate(mode === "list" ? "#map" : "#home", { transition: true })}>toggle view</button>
+    </>
+  ),
+}));
 vi.mock("@/pages/SettingsPage", () => ({ SettingsPage: () => <h1>Settings content</h1> }));
 
 import App from "./App";
@@ -22,11 +30,11 @@ beforeEach(() => {
 afterEach(() => window.history.replaceState(null, "", "/"));
 
 describe("App navigation", () => {
-  it("falls back from an unknown tool instead of rendering a broken page", async () => {
+  it("falls back from an unknown tool to the home page instead of rendering a broken page", async () => {
     window.history.replaceState(null, "", "/#tool=unknown");
     renderWithClient(<App />);
-    expect(screen.getByRole("heading", { name: "claude" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Claude Code" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("heading", { name: "home:list" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "首页" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("navigation", { name: "管理" })).toBeInTheDocument();
     await waitFor(() => expect(backend.invoke).toHaveBeenCalledWith("get_overview"));
   });
@@ -59,6 +67,18 @@ describe("App navigation", () => {
     failed = false;
     await userEvent.click(within(alert).getByRole("button", { name: "重试" }));
     await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
-    expect(screen.getByRole("heading", { name: "claude" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "home:list" })).toBeInTheDocument();
+  });
+
+  it("switches between the home list and map through the URL", async () => {
+    renderWithClient(<App />);
+    await userEvent.click(screen.getByRole("button", { name: "toggle view" }));
+    expect(screen.getByRole("heading", { name: "home:map" })).toBeInTheDocument();
+    expect(window.location.hash).toBe("#map");
+    expect(screen.getByRole("link", { name: "首页" })).toHaveAttribute("aria-current", "page");
+    await userEvent.click(screen.getByRole("link", { name: "Codex" }));
+    expect(screen.getByRole("heading", { name: "codex" })).toBeInTheDocument();
+    act(() => window.history.back());
+    expect(await screen.findByRole("heading", { name: "home:map" })).toBeInTheDocument();
   });
 });

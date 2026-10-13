@@ -1,11 +1,11 @@
 //! Shared terminal editing flow. Existing secrets are never put into fields.
 use crate::{args::Language, menu, presentation::clean, CliError, Output};
-use ccsl_core::{Provider, Tool};
-use ccsl_service::{
+use dialoguer::{Confirm, FuzzySelect, Input, Password};
+use leanflip_core::{Provider, Tool};
+use leanflip_service::{
     service::{connection_info, ApiKeyChange, ConnectionInfo, ConnectionUpdate},
     Service,
 };
-use dialoguer::{Confirm, FuzzySelect, Input, Password};
 
 pub(super) struct Draft {
     pub tool: Tool,
@@ -58,7 +58,7 @@ impl Draft {
         let endpoint = safe_url(endpoint);
         format!("{} · {}\nID: {}\n\n{} {}\nBase URL: {}\nAPI Key: {}\n\n{}\n{}", menu::name(self.tool), lang.text("编辑供应商", "Edit provider"), clean(&self.expected.id), lang.text("名称：", "Name:"),clean(&self.name), endpoint,
             if self.clear_key { lang.text("将清空", "will be cleared") } else if self.key.is_empty() { lang.text("保持不变", "keep existing") } else { lang.text("将替换（内容隐藏）", "replace (hidden)") },
-            lang.text("保存卡片；如果正在使用，会同步以下客户端配置。不会激活未使用的卡片。", "Save the card; if currently active, synchronize these client files. Inactive cards are not activated."), paths.iter().map(|path|clean(&path.display().to_string())).collect::<Vec<_>>().join("\n"))
+            lang.text("保存供应商；如果正在使用，会同步以下客户端配置。不会切换到未使用的供应商。", "Save the provider; if it is active, these client files are synchronized. Inactive providers are not activated."), paths.iter().map(|path|clean(&path.display().to_string())).collect::<Vec<_>>().join("\n"))
     }
     pub fn save(&mut self, service: &Service, lang: Language) -> Result<Output, CliError> {
         let update = ConnectionUpdate {

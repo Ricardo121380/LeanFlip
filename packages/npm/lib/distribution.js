@@ -8,11 +8,19 @@ import { pipeline } from 'node:stream/promises';
 import { Readable, Transform } from 'node:stream';
 
 export const manifest = JSON.parse(await readFile(new URL('../release.json', import.meta.url), 'utf8'));
-export const appName = manifest.appName ?? 'CC Switch Lite.app';
+// Names come from the release metadata, so one installer serves every published release.
+function named(key) {
+  const value = manifest[key];
+  if (typeof value !== 'string' || !value) throw new Error(`Invalid release metadata (${key}). Reinstall the npm package.`);
+  return value;
+}
+export const appName = named('appName');
 export const productName = appName.replace(/\.app$/, '');
-export const cliName = manifest.cliName ?? 'ccsl';
+export const cliName = named('cliName');
+export const appBinary = named('appBinary');
+export const appCask = named('appCask');
+export const bundleId = named('bundleId');
 const desktopCommand = `${cliName}-app`;
-const bundleId = 'dev.ccswitch.lite';
 const maxDownload = 128 * 1024 * 1024;
 
 export function selectAsset(kind, platform = process.platform, arch = process.arch) {
@@ -23,7 +31,7 @@ export function selectAsset(kind, platform = process.platform, arch = process.ar
 
 export function cacheRoot() {
   const base = process.env.XDG_CACHE_HOME;
-  return join(base && isAbsolute(base) ? base : join(homedir(), '.cache'), 'ccswitch-lite', manifest.version);
+  return join(base && isAbsolute(base) ? base : join(homedir(), '.cache'), 'leanflip', manifest.version);
 }
 
 export async function sha256(path) {
@@ -138,10 +146,10 @@ function inspectBundle(path) {
 export async function installMacApp(archive, options) {
   const target = macAppPath(options.appDir);
   const hadExisting = await validateExistingApp(target, options.replace, inspectBundle);
-  if (hadExisting && spawnSync('/usr/bin/pgrep', ['-x', 'ccswitch-lite']).status === 0) {
+  if (hadExisting && spawnSync('/usr/bin/pgrep', ['-x', appBinary]).status === 0) {
     throw new Error(`Quit ${productName} before replacing the installed application.`);
   }
-  const work = await mkdtemp(join(tmpdir(), 'ccswitch-lite-mount-'));
+  const work = await mkdtemp(join(tmpdir(), 'leanflip-mount-'));
   const mount = join(work, 'volume');
   await mkdir(mount);
   let mounted = false;
@@ -153,7 +161,7 @@ export async function installMacApp(archive, options) {
     const source = join(mount, appName);
     if (inspectBundle(source) !== bundleId) throw new Error('Unexpected application in the release image.');
     await mkdir(dirname(target), { recursive: true });
-    staging = await mkdtemp(join(dirname(target), '.ccswitch-lite-install-'));
+    staging = await mkdtemp(join(dirname(target), '.leanflip-install-'));
     const prepared = join(staging, appName);
     command('/usr/bin/ditto', [source, prepared]);
     if (inspectBundle(prepared) !== bundleId) throw new Error('Copied application failed validation.');
@@ -205,7 +213,7 @@ App 尚未做 Apple Developer ID 签名及公证。安装不会自动启动 App�
   const asset = selectAsset('app');
   if (process.platform !== 'darwin' && options.appDir) throw new Error('--app-dir is only supported on macOS.');
   if (options.action === 'path') {
-    console.log(process.platform === 'darwin' ? macAppPath(options.appDir) : '/usr/bin/ccswitch-lite');
+    console.log(process.platform === 'darwin' ? macAppPath(options.appDir) : `/usr/bin/${appBinary}`);
     return;
   }
   if (options.action === 'open') {
@@ -214,7 +222,7 @@ App 尚未做 Apple Developer ID 签名及公证。安装不会自动启动 App�
       if (!options.appDir && !await exists(target)) target = join('/Applications', appName);
       if (!await exists(target) || inspectBundle(target) !== bundleId) throw new Error(`App not found. Run ${desktopCommand} install first.`);
       command('/usr/bin/open', [target], { stdio: 'inherit' });
-    } else command('/usr/bin/ccswitch-lite', [], { stdio: 'inherit' });
+    } else command(`/usr/bin/${appBinary}`, [], { stdio: 'inherit' });
     return;
   }
   const directory = options.output ?? join(cacheRoot(), asset.sha256);

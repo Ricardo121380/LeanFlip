@@ -2,11 +2,11 @@
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
-use ccsl_core::{store, Env, Provider, Tool};
-use ccsl_service::Service;
+use leanflip_core::{store, Env, Provider, Tool};
+use leanflip_service::Service;
 use serde_json::json;
 
-const CHILD_HOME: &str = "CCSL_SERVICE_TEST_HOME";
+const CHILD_HOME: &str = "LEANFLIP_SERVICE_TEST_HOME";
 
 #[test]
 fn independent_processes_keep_live_config_and_pointer_consistent() {
@@ -60,7 +60,7 @@ fn independent_processes_keep_live_config_and_pointer_consistent() {
         live["env"]["ANTHROPIC_BASE_URL"],
         format!("https://{}.example", current.id)
     );
-    assert!(ccsl_core::state::pending(&env.device_store(), "claude")
+    assert!(leanflip_core::state::pending(&env.device_store(), "claude")
         .unwrap()
         .is_none());
 }

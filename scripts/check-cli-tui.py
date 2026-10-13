@@ -110,7 +110,7 @@ def start(binary, home, tool=None, width=120):
 
 
 def check(binary):
-    with tempfile.TemporaryDirectory(prefix="ccsl-tui-test-") as root:
+    with tempfile.TemporaryDirectory(prefix="leanflip-tui-test-") as root:
         home = Path(root) / "home"
         home.mkdir()
         for ident in ("alpha", "beta"):
@@ -155,7 +155,7 @@ def check(binary):
             assert finish(terminal, "iyq") == 0
         assert menu.command(binary, home, ["list", "gemini", "--json"])["providers"]
         assert gemini.read_text() == "GEMINI_API_KEY=fixture-tui-hidden-token\n"
-        print("PASS: narrow-screen import saves cards without switching the client")
+        print("PASS: narrow-screen import saves providers without switching the client")
 
         empty = Path(root) / "not-created"
         with start(binary, empty) as terminal:
@@ -183,7 +183,7 @@ def check(binary):
             expect_screen(terminal, "Provider connection saved")
             assert finish(terminal, "q") == 0
             assert b"fixture-edited-private-key" not in terminal.output
-        store = json.loads((home / ".cc-switch-lite/providers.json").read_text())
+        store = json.loads((home / ".leanflip/providers.json").read_text())
         edited = next(card for card in store["apps"]["claude"]["providers"] if card["id"] == "beta")
         assert edited["settingsConfig"]["env"]["ANTHROPIC_BASE_URL"] == "https://edited.example/v1"
         assert edited["settingsConfig"]["env"]["ANTHROPIC_AUTH_TOKEN"] == "fixture-edited-private-key"
@@ -199,7 +199,7 @@ def check(binary):
             terminal.send("\r\r")
             assert menu.snapshot(home) == before
             terminal.send("\ry")
-            expect_screen(terminal, "Cards saved 1")
+            expect_screen(terminal, "Providers saved 1")
             assert finish(terminal, "\rqq") == 0
         print("PASS: local CC Switch detection, preview, cancel and confirmed migration")
 
@@ -214,7 +214,7 @@ def check(binary):
         restored = Path(root) / "restored"
         with start(binary, restored) as terminal:
             terminal.send("bj\r" + str(backup) + "\t" + password + "\r")
-            expect_screen(terminal, "Provider cards", timeout=30)
+            expect_screen(terminal, "Managed accounts", timeout=30)
             assert not restored.exists(), "Decrypt/preview wrote the target home"
             terminal.send("\ry")
             expect_screen(terminal, "Restore complete")

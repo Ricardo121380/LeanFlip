@@ -3,10 +3,10 @@
 
 use std::path::PathBuf;
 
-use ccsl_core::ccswitch_export::{self, DuplicatePolicy};
-use ccsl_core::codex::login::LoginSummary;
-use ccsl_core::codex::oauth::{AccountInfo, DeviceFlow};
-use ccsl_core::{ccswitch_import, Provider, Tool};
+use leanflip_core::ccswitch_export::{self, DuplicatePolicy};
+use leanflip_core::codex::login::LoginSummary;
+use leanflip_core::codex::oauth::{AccountInfo, DeviceFlow};
+use leanflip_core::{ccswitch_import, Provider, Tool};
 use tauri::{AppHandle, State};
 
 use crate::service::{
@@ -48,6 +48,70 @@ pub async fn get_overview(state: State<'_, AppState>) -> ApiResult<Vec<ToolSumma
 #[tauri::command]
 pub async fn list_providers(state: State<'_, AppState>, tool: Tool) -> ApiResult<ToolProviders> {
     blocking(&state, move |s| s.list_providers(tool)).await
+}
+
+#[tauri::command]
+pub async fn ignored_fields(
+    state: State<'_, AppState>,
+    tool: Tool,
+    settings_config: serde_json::Value,
+) -> ApiResult<Vec<String>> {
+    blocking(
+        &state,
+        move |s| Ok(s.ignored_fields(tool, &settings_config)),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn probe_latency(
+    state: State<'_, AppState>,
+    tool: Tool,
+    settings_config: serde_json::Value,
+) -> ApiResult<leanflip_service::probe::ProbeResult> {
+    blocking(&state, move |s| Ok(s.probe_latency(tool, &settings_config))).await
+}
+
+#[tauri::command]
+pub async fn probe_models(
+    state: State<'_, AppState>,
+    tool: Tool,
+    settings_config: serde_json::Value,
+) -> ApiResult<leanflip_service::probe::ProbeResult> {
+    blocking(&state, move |s| Ok(s.probe_models(tool, &settings_config))).await
+}
+
+#[tauri::command]
+pub async fn probe_check(
+    state: State<'_, AppState>,
+    tool: Tool,
+    settings_config: serde_json::Value,
+    model: Option<String>,
+) -> ApiResult<leanflip_service::probe::ProbeResult> {
+    blocking(&state, move |s| {
+        Ok(s.probe_check(tool, &settings_config, model.as_deref()))
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn probe_efforts(
+    state: State<'_, AppState>,
+    tool: Tool,
+    settings_config: serde_json::Value,
+    model: Option<String>,
+) -> ApiResult<leanflip_service::probe::ProbeResult> {
+    blocking(&state, move |s| {
+        Ok(s.probe_efforts(tool, &settings_config, model.as_deref()))
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn usage_report(
+    state: State<'_, AppState>,
+) -> ApiResult<leanflip_service::usage::UsageReport> {
+    blocking(&state, |s| s.usage_report()).await
 }
 
 #[tauri::command]

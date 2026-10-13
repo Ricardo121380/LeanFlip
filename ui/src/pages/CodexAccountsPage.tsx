@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { useAccounts, useAction, useLogins, refreshAll } from "@/hooks/queries";
 import { api, errorMessage, type DeviceFlow } from "@/lib/api";
 import { accountLabel, planBadge } from "@/lib/cards";
+import { Monogram } from "@/components/Glyph";
 
 export function PlanBadge({ plan }: { plan: string | null }) {
   const badge = planBadge(plan);
@@ -140,10 +141,10 @@ export function CodexAccountsPage() {
   const busy = setDefault.isPending || remove.isPending || login !== null;
 
   return (
-    <div className="flex flex-col gap-5 p-6">
+    <div className="mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-5 px-6 py-6 lg:px-8">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="max-w-2xl">
-          <h1 className="text-xl font-semibold">{t("codex.title")}</h1>
+          <h1 className="text-[22px] font-semibold tracking-tight">{t("codex.title")}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{t("codex.hint")}</p>
         </div>
         {(isError || accounts.length > 0) && <Button size="sm" disabled={busy || isError} onClick={() => setLogin({})}>
@@ -165,6 +166,7 @@ export function CodexAccountsPage() {
         <Card className="divide-y" aria-busy={setDefault.isPending || remove.isPending}>
           {accounts.map((a) => (
             <div key={a.id} className="flex flex-wrap items-center gap-3 px-4 py-4" data-testid={`account-${a.id}`}>
+              <Monogram name={accountLabel(a)} size={32} />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="break-all font-medium">{accountLabel(a)}</span>

@@ -2,9 +2,9 @@
 use std::sync::{Arc, Barrier};
 use std::time::{Duration, Instant};
 
-use ccsl_core::codex::oauth::testing::{FakeTransport, Identity, ManualClock};
-use ccsl_core::codex::oauth::{AccountData, CodexOAuthManager};
-use ccsl_core::{store, Env, Provider, Tool};
+use leanflip_core::codex::oauth::testing::{FakeTransport, Identity, ManualClock};
+use leanflip_core::codex::oauth::{AccountData, CodexOAuthManager};
+use leanflip_core::{store, Env, Provider, Tool};
 
 const NOW: i64 = 1_790_000_000_000;
 
@@ -154,7 +154,7 @@ fn wait_for(path: &std::path::Path) {
 
 #[test]
 fn separate_processes_preserve_concurrent_imports_and_removed_accounts() {
-    const CHILD_HOME: &str = "CCSL_OAUTH_TEST_CHILD_HOME";
+    const CHILD_HOME: &str = "LEANFLIP_OAUTH_TEST_CHILD_HOME";
     const ROUNDS: usize = 20;
     if let Some(home) = std::env::var_os(CHILD_HOME) {
         let env = Env::with_home(home);
@@ -193,8 +193,8 @@ fn separate_processes_preserve_concurrent_imports_and_removed_accounts() {
 
 #[test]
 fn prepared_switch_does_not_restore_an_account_removed_by_another_manager() {
-    use ccsl_core::provider::AuthBinding;
-    use ccsl_core::switch::codex;
+    use leanflip_core::provider::AuthBinding;
+    use leanflip_core::switch::codex;
     let home = tempfile::tempdir().unwrap();
     let env = Env::with_home(home.path());
     let transport = Arc::new(FakeTransport::new());
@@ -230,7 +230,7 @@ fn prepared_switch_does_not_restore_an_account_removed_by_another_manager() {
         "switch",
         planned,
         &prepared,
-        ccsl_core::state::PendingTarget::pointer(Some("managed".into())),
+        leanflip_core::state::PendingTarget::pointer(Some("managed".into())),
     )
     .unwrap_err();
     assert!(error.to_string().contains("已更新或删除"));
@@ -242,12 +242,12 @@ fn prepared_switch_does_not_restore_an_account_removed_by_another_manager() {
 /// reuse of a refresh generation exactly like FakeTransport, without networking.
 struct ProcessTransport(std::path::PathBuf);
 
-impl ccsl_core::codex::oauth::transport::OAuthTransport for ProcessTransport {
+impl leanflip_core::codex::oauth::transport::OAuthTransport for ProcessTransport {
     fn request_device_code(
         &self,
     ) -> Result<
-        ccsl_core::codex::oauth::transport::DeviceCode,
-        ccsl_core::codex::oauth::transport::TransportError,
+        leanflip_core::codex::oauth::transport::DeviceCode,
+        leanflip_core::codex::oauth::transport::TransportError,
     > {
         unreachable!("refresh-only fake server")
     }
@@ -257,8 +257,8 @@ impl ccsl_core::codex::oauth::transport::OAuthTransport for ProcessTransport {
         _: &str,
         _: &str,
     ) -> Result<
-        ccsl_core::codex::oauth::transport::DevicePoll,
-        ccsl_core::codex::oauth::transport::TransportError,
+        leanflip_core::codex::oauth::transport::DevicePoll,
+        leanflip_core::codex::oauth::transport::TransportError,
     > {
         unreachable!("refresh-only fake server")
     }
@@ -268,8 +268,8 @@ impl ccsl_core::codex::oauth::transport::OAuthTransport for ProcessTransport {
         _: &str,
         _: &str,
     ) -> Result<
-        ccsl_core::codex::oauth::transport::TokenResponse,
-        ccsl_core::codex::oauth::transport::TransportError,
+        leanflip_core::codex::oauth::transport::TokenResponse,
+        leanflip_core::codex::oauth::transport::TransportError,
     > {
         unreachable!("refresh-only fake server")
     }
@@ -278,10 +278,10 @@ impl ccsl_core::codex::oauth::transport::OAuthTransport for ProcessTransport {
         &self,
         refresh: &str,
     ) -> Result<
-        ccsl_core::codex::oauth::transport::TokenResponse,
-        ccsl_core::codex::oauth::transport::TransportError,
+        leanflip_core::codex::oauth::transport::TokenResponse,
+        leanflip_core::codex::oauth::transport::TransportError,
     > {
-        use ccsl_core::codex::oauth::transport::{TokenResponse, TransportError};
+        use leanflip_core::codex::oauth::transport::{TokenResponse, TransportError};
         let server_lock = std::fs::OpenOptions::new()
             .read(true)
             .write(true)
@@ -312,7 +312,7 @@ impl ccsl_core::codex::oauth::transport::OAuthTransport for ProcessTransport {
 
 #[test]
 fn separate_processes_refresh_a_single_token_chain() {
-    const CHILD_HOME: &str = "CCSL_OAUTH_REFRESH_CHILD_HOME";
+    const CHILD_HOME: &str = "LEANFLIP_OAUTH_REFRESH_CHILD_HOME";
     if let Some(home) = std::env::var_os(CHILD_HOME) {
         let env = Env::with_home(home);
         let manager =
@@ -357,7 +357,7 @@ fn separate_processes_refresh_a_single_token_chain() {
 
 #[test]
 fn failed_live_sync_reports_partial_refresh_and_keeps_the_new_tokens() {
-    use ccsl_core::codex::oauth::live;
+    use leanflip_core::codex::oauth::live;
     let home = tempfile::tempdir().unwrap();
     let env = Env::with_home(home.path());
     let transport = Arc::new(FakeTransport::new());
@@ -386,7 +386,7 @@ fn failed_live_sync_reports_partial_refresh_and_keeps_the_new_tokens() {
     let error = manager.refresh_account(&id).unwrap_err();
     assert!(matches!(
         error,
-        ccsl_core::AppError::Localized {
+        leanflip_core::AppError::Localized {
             key: "codex.oauth.live_sync_failed",
             ..
         }

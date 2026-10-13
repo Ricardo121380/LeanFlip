@@ -185,8 +185,10 @@ pub fn provider_warnings(tool: Tool, provider: &Provider) -> Vec<crate::ccswitch
     let keys = ignored.join(", ");
     vec![crate::ccswitch_export::Reason::new(
         "claude.ignored_fields",
-        format!("卡片中的这些字段不会写入 Claude，客户端原值会保留：{keys}"),
-        format!("These card fields are not written to Claude; existing client values are preserved: {keys}"),
+        format!("这些字段不会写入 Claude，客户端原值保持不变：{keys}"),
+        format!(
+            "These fields are not written to Claude; existing client values are preserved: {keys}"
+        ),
     )]
 }
 

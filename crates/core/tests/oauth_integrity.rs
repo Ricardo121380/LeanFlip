@@ -1,5 +1,5 @@
 //! Regression cases for LeanFlip's credential ownership and device-flow boundaries.
-use ccsl_core::{
+use leanflip_core::{
     codex::oauth::{
         testing::{FakeTransport, Identity},
         transport::{DeviceCode, DevicePoll, OAuthTransport, TokenResponse, TransportError},
@@ -39,7 +39,7 @@ fn refresh_identity_mismatch_preserves_the_account_database() {
     let error = manager.refresh_account(&id).unwrap_err();
     assert!(matches!(
         error,
-        ccsl_core::AppError::Localized {
+        leanflip_core::AppError::Localized {
             key: "codex.oauth.refresh_identity_mismatch",
             ..
         }
@@ -117,7 +117,7 @@ fn duplicate_polls_do_not_redeem_a_code_twice_and_cancellation_wins() {
 
 #[test]
 fn switch_away_does_not_erase_a_login_that_appeared_after_preparation() {
-    use ccsl_core::codex::oauth::{live, SwitchAwayGuard};
+    use leanflip_core::codex::oauth::{live, SwitchAwayGuard};
     let directory = tempfile::tempdir().unwrap();
     let env = Env::with_home(directory.path());
     let issuer = FakeTransport::new();
@@ -133,12 +133,12 @@ fn switch_away_does_not_erase_a_login_that_appeared_after_preparation() {
         tokens.refresh_token.as_deref().unwrap(),
         &live::format_last_refresh(1),
     );
-    ccsl_core::fsutil::atomic_write_private(
+    leanflip_core::fsutil::atomic_write_private(
         &env.codex_auth_path(),
         &serde_json::to_vec(&auth).unwrap(),
     )
     .unwrap();
-    ccsl_core::fsutil::atomic_write_private(
+    leanflip_core::fsutil::atomic_write_private(
         &live::marker_path(&env),
         &live::marker_bytes(&auth, &id).unwrap().unwrap(),
     )

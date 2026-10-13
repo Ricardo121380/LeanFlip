@@ -11,6 +11,7 @@ import { QueryState } from "@/components/QueryState";
 import { useAction, useSettings } from "@/hooks/queries";
 import { api, errorMessage, type AppSettings, type DirOverrides, type SettingsView } from "@/lib/api";
 import { applyLanguage } from "@/i18n";
+import { applyTheme } from "@/lib/theme";
 
 const DIR_FIELDS: { key: keyof DirOverrides; label: string; tool: string }[] = [
   { key: "claudeDir", label: "Claude Code (~/.claude)", tool: "claude" },
@@ -69,6 +70,7 @@ export function SettingsPage({ onLeaveStateChange }: { onLeaveStateChange?: (sta
     (result, submitted) => {
       setForm({ draft: submitted, baseline: submitted });
       applyLanguage(submitted.app.language);
+      applyTheme(submitted.app.theme);
       toast.success(t("settings.saved"));
       if (result.dirsChanged) toast.info(t("settings.dirsApplied"));
     },
@@ -117,8 +119,8 @@ export function SettingsPage({ onLeaveStateChange }: { onLeaveStateChange?: (sta
   };
 
   return (
-    <form className="flex max-w-3xl flex-col gap-6 p-6" onSubmit={(event) => { event.preventDefault(); submit(); }}>
-      <h1 className="text-xl font-semibold">{t("settings.title")}</h1>
+    <form className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-6 lg:px-8" onSubmit={(event) => { event.preventDefault(); submit(); }}>
+      <h1 className="text-[22px] font-semibold tracking-tight">{t("settings.title")}</h1>
 
       {isError && <QueryState state="error" title={t("settings.refreshError")} description={errorMessage(error)} onRetry={() => void refetch()} />}
 
@@ -137,6 +139,19 @@ export function SettingsPage({ onLeaveStateChange }: { onLeaveStateChange?: (sta
                 <option value="">{t("settings.languageSystem")}</option>
                 <option value="zh">中文</option>
                 <option value="en">English</option>
+              </NativeSelect>
+            </Row>
+            <Row id="settings-theme" label={t("settings.appearance")}>
+              <NativeSelect
+                id="settings-theme"
+                aria-label={t("settings.appearance")}
+                className="w-36 shrink-0"
+                value={app.theme ?? ""}
+                onChange={(e) => set({ theme: (e.target.value || null) as AppSettings["theme"] })}
+              >
+                <option value="">{t("settings.themeSystem")}</option>
+                <option value="light">{t("settings.themeLight")}</option>
+                <option value="dark">{t("settings.themeDark")}</option>
               </NativeSelect>
             </Row>
             <Row id="settings-autostart" label={t("settings.autostart")}>

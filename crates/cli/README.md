@@ -1,13 +1,11 @@
 # LeanFlip CLI & TUI
 
-`leanflip` 与桌面 App 共用 `ccsl-service`、供应商库和目录覆盖设置，不需要运行桌面 App 或安装 WebView。
+`leanflip` 与桌面 App 共用同一服务层、供应商库和目录覆盖设置，不需要运行桌面 App 或安装 WebView。
 
-下载 [GitHub Release](https://github.com/Ricardo121380/ccswitch-lite/releases/latest) 中对应平台的
-`ccsl_*.tar.gz`，解压后直接运行 `./ccsl`；需要全局调用时，将二进制放入已有的 PATH 目录。
-预编译版本无需安装 Rust 或 Node.js。公开 v0.1.0 仍使用旧名称，尚无 TUI 和加密备份。本分支源码直接使用 `leanflip`，不再提供旧命令别名。以下命令适用于从源码构建：
+预编译安装包会随下一个正式版本发布，目前请从源码构建（需要 Rust stable，不需要 Node.js 或桌面依赖）。以下命令适用于从源码构建：
 
 ```sh
-cargo build -p ccsl-cli --release
+cargo build --release --locked --bin leanflip
 ./target/release/leanflip
 ./target/release/leanflip menu codex
 ./target/release/leanflip tui
@@ -29,7 +27,7 @@ cargo build -p ccsl-cli --release
 
 ## 全屏 TUI
 
-`leanflip tui [tool]` 是独立的全屏工作台，支持 `--lang en` 和 `--home`。当前已发布的 v0.1.0 二进制尚未包含此功能，请按上面的源码命令构建；直接运行 `leanflip` 的默认菜单保持不变。
+`leanflip tui [tool]` 是独立的全屏工作台，支持 `--lang en` 和 `--home`。直接运行 `leanflip` 的默认菜单保持不变。
 
 - `Tab` / `←` / `→` 切换工具与供应商区域，`↑` / `↓` 或 `j` / `k` 移动。
 - `/` 搜索名称、ID 或 Base URL，`Enter` 完成搜索；再次 `Enter` 预览操作。确认默认取消，`Tab` 后回车或 `y` / `Y` 才执行。
@@ -38,15 +36,15 @@ cargo build -p ccsl-cli --release
 - `Esc` 清除筛选、返回或关闭面板；`q` 退出（弹窗中先关闭）；`Ctrl+C` 退出并恢复终端。正在执行的写入会先完成再响应中断。
 - 宽窗口三栏、普通窗口两栏、窄窗口单栏；面板长内容用 `↑↓` / `PgUp` / `PgDn` 滚动。小于 44×12 时暂停操作并提示扩大窗口。
 
-TUI 不显示配置内容或凭据；浏览不写入，状态需按 `r` 刷新。确认前重新读取卡片和状态，变化时拒绝执行旧确认；并存配置不可读时阻止启用/停用。卡片编辑和账号登录使用普通命令。管道或 `--json` 不启动 TUI。
+TUI 不显示配置内容或凭据；浏览不写入，状态需按 `r` 刷新。确认前重新读取供应商和状态，变化时拒绝执行旧确认；并存配置不可读时阻止启用/停用。供应商编辑和账号登录使用普通命令。管道或 `--json` 不启动 TUI。
 
 `leanflip provider` 等未选择动作的命令组会显示对应帮助，不读取客户端配置。参数填写错误时，终端显示已识别命令的用法、示例和合法工具名，不回显输入原文。人读输出可配合 `head` 等管道工具使用：接收端提前关闭时安静退出，不把截断阅读视为操作失败。
 
 工具名：`claude`、`codex`、`gemini`、`grokbuild`、`claude-desktop`、`opencode`、`openclaw`、`hermes`、`pi`、`mcode`。后五种使用 `enable` / `disable`，其余使用 `use`。
 
-开发时运行 `cargo test -p ccsl-cli --locked`。macOS/Linux 使用 `python3 scripts/check-cli-menu.py --binary target/release/leanflip` 和 `python3 scripts/check-cli-tui.py --binary target/release/leanflip` 在真实伪终端中验证选择、筛选、取消、写入及中断后的终端恢复；这些检查仅使用临时 HOME，不访问实际账号。
+开发时运行 `cargo test --workspace --locked`。macOS/Linux 使用 `python3 scripts/check-cli-menu.py --binary target/release/leanflip` 和 `python3 scripts/check-cli-tui.py --binary target/release/leanflip` 在真实伪终端中验证选择、筛选、取消、写入及中断后的终端恢复；这些检查仅使用临时 HOME，不访问实际账号。
 
-`status` 显示保存在卡片库里的当前选择；它不证明客户端文件未经外部修改。`list` 的 `liveReadable` 为 `false` 时，`enabled` 状态不可用。查询及导入预览不写配置、不执行启动恢复；需要手动恢复中断写入时执行 `leanflip recover [tool]`。修改命令会先处理相应工具的中断写入。
+`status` 显示保存在供应商库里的当前选择；它不证明客户端文件未经外部修改。`list` 的 `liveReadable` 为 `false` 时，`enabled` 状态不可用。查询及导入预览不写配置、不执行启动恢复；需要手动恢复中断写入时执行 `leanflip recover [tool]`。修改命令会先处理相应工具的中断写入。
 
 ## 数据中心与加密备份
 
@@ -64,13 +62,13 @@ leanflip import backup workspace.leanflip --apply
 
 加密使用标准 age/scrypt，口令 10–4096 字符且不保存，遗失后无法恢复。脚本模式或 `--json` 需要 `--password-file FILE`（私有 UTF-8 文件）；不要把密码写入命令参数。已有备份文件不会覆盖，Unix 下新备份权限为 `0600`。完整范围和部分失败处理见[主 README](../../README.md#加密完整备份与恢复)。
 
-## 导入与卡片编辑
+## 导入与供应商编辑
 
 旧版 `.switchleaf` 加密备份可直接导入；新导出建议使用 `.leanflip` 扩展名，三端使用相同备份格式。
 
-常用字段可直接交互编辑：`leanflip provider edit TOOL ID`，或菜单中的“编辑供应商”。TUI 选择卡片后按 `e`。Base URL 和密钥状态会显示在终端列表 / 详情中；已有密钥只显示“已配置”，留空保留，替换时隐藏输入。HTTP(S) 地址中的登录信息、查询参数与片段不会显示，新地址请使用无凭据的 Base URL。
+常用字段可直接交互编辑：`leanflip provider edit TOOL ID`，或菜单中的“编辑供应商”。TUI 选择供应商后按 `e`。Base URL 和密钥状态会显示在终端列表 / 详情中；已有密钥只显示“已配置”，留空保留，替换时隐藏输入。HTTP(S) 地址中的登录信息、查询参数与片段不会显示，新地址请使用无凭据的 Base URL。
 
-TUI 编辑支持左右键、Home/End、单行粘贴、`Tab` 切换字段、`Ctrl+U` 清空字段、`Ctrl+K` 清空密钥及 `Ctrl+S` 检查保存。确认默认取消；修改生效中的卡片会同步客户端文件，未生效的卡片只保存在库里。模型和其他字段保持原样，官方 / 托管登录和云认证等高级配置请在 App 中管理。
+TUI 编辑支持左右键、Home/End、单行粘贴、`Tab` 切换字段、`Ctrl+U` 清空字段、`Ctrl+K` 清空密钥及 `Ctrl+S` 检查保存。确认默认取消；修改生效中的供应商会同步客户端文件，未生效的供应商只保存在库里。模型和其他字段保持原样，官方 / 托管登录和云认证等高级配置请在 App 中管理。
 
 交互编辑需要真实终端，不支持 `--json`。已有 JSON 查询结构保持兼容，脚本编辑继续使用 `provider update --file`。CLI 自动读取实际终端宽度；TUI 使用暖灰与陶土橙色、同步重绘以及按显示宽度处理的输入窗口，`NO_COLOR` 仍有效。
 
@@ -87,9 +85,9 @@ leanflip provider delete claude provider-id
 cat provider.json | leanflip provider add claude          # 默认读 stdin
 ```
 
-导出文件支持 SQL、SQLite 和旧版 JSON，`--apply` 只写卡片库，不激活供应商。`--duplicate rename` 对 ID 相同而配置不同的卡片生成新 ID；配置相同的重复项仍跳过。
+导出文件支持 SQL、SQLite 和旧版 JSON，`--apply` 只写供应商库，不激活供应商。`--duplicate rename` 对 ID 相同而配置不同的供应商生成新 ID；配置相同的重复项仍跳过。
 
-单个卡片输入采用 App 原有的 Provider JSON 格式，至少包含 `id`、`name`、`settingsConfig`，最大 1 MiB。例如 Claude 卡片：
+单个供应商输入采用 App 原有的 Provider JSON 格式，至少包含 `id`、`name`、`settingsConfig`，最大 1 MiB。例如 Claude 供应商：
 
 ```json
 {
@@ -104,7 +102,7 @@ cat provider.json | leanflip provider add claude          # 默认读 stdin
 }
 ```
 
-请通过私有文件或标准输入提供密钥，避免把凭据放进命令参数和 shell 历史。`provider update` 是整张卡片替换，修改生效中的卡片也会同步客户端配置。并存式卡片删除时会同步移出客户端配置；切换式当前卡片需先切换到其他卡片。
+请通过私有文件或标准输入提供密钥，避免把凭据放进命令参数和 shell 历史。`provider update` 是整体替换，修改生效中的供应商也会同步客户端配置。并存式供应商删除时会同步移出客户端配置；切换式当前供应商需先切换到其他供应商。
 
 ## Codex 账号
 
@@ -136,11 +134,11 @@ leanflip list codex --lang en
 
 `--json` 模式没有快速入门旁路：缺少命令仍返回 `invalid_arguments` 和退出码 `2`，输出管道提前关闭仍返回退出码 `1`，保证脚本兼容。
 
-列表仅输出卡片身份、当前选择和启用状态，不输出 `settingsConfig`、扩展字段或 `meta`。导入预览在终端显示固定的原因说明，JSON 保留原因代码；操作警告和恢复结果输出数量，避免解析错误或恢复信息中的配置内容泄漏。数量非零时，请通过 `paths` 定位并检查相关配置。
+列表仅输出供应商身份、当前选择和启用状态，不输出 `settingsConfig`、扩展字段或 `meta`。导入预览在终端显示固定的原因说明，JSON 保留原因代码；操作警告和恢复结果输出数量，避免解析错误或恢复信息中的配置内容泄漏。数量非零时，请通过 `paths` 定位并检查相关配置。
 
 切换式工具使用 `current` 表示库中选择，`enabled` / `inLive` / `liveReadable` 为 `null`；
 并存式工具配置读不出来时，启用状态也为 `null`，不会假报为全部关闭。
 若刷新返回 `codex.oauth.live_sync_failed`，新凭据已经保存在账号库，只有客户端同步失败；
 修复配置路径或权限后再操作，不要用旧 token 覆盖新凭据。
 
-验证：`cargo test -p ccsl-cli`。所有子进程测试均使用独立临时目录，不触碰真实客户端配置或发起外部登录。
+验证：`cargo test --workspace --locked`。所有子进程测试均使用独立临时目录，不触碰真实客户端配置或发起外部登录。

@@ -1,6 +1,6 @@
 [package]
-name = "ccsl-core"
-description = "Config-switching core for ccswitch-lite (no Tauri, no proxy)"
+name = "leanflip-core"
+description = "Config-switching core for LeanFlip (no Tauri, no proxy)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -8,7 +8,7 @@ rust-version.workspace = true
 
 [lib]
 # 包名不能叫 `core`（会和标准库的 `core` 冲突），目录仍叫 crates/core。
-name = "ccsl_core"
+name = "leanflip_core"
 
 [dependencies]
 serde.workspace = true

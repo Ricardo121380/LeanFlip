@@ -6,13 +6,13 @@ mod common;
 
 use std::sync::Arc;
 
-use ccsl_core::codex::oauth::live as managed_live;
-use ccsl_core::codex::oauth::testing::{FakeTransport, Identity, ManualClock};
-use ccsl_core::codex::oauth::{CodexOAuthManager, DeviceFlowPoll, SwitchAwayGuard};
-use ccsl_core::provider::AuthBinding;
-use ccsl_core::switch::{self, Services};
-use ccsl_core::{store, Provider, Tool};
 use common::Sandbox;
+use leanflip_core::codex::oauth::live as managed_live;
+use leanflip_core::codex::oauth::testing::{FakeTransport, Identity, ManualClock};
+use leanflip_core::codex::oauth::{CodexOAuthManager, DeviceFlowPoll, SwitchAwayGuard};
+use leanflip_core::provider::AuthBinding;
+use leanflip_core::switch::{self, Services};
+use leanflip_core::{store, Provider, Tool};
 use serde_json::{json, Value};
 
 const T0: i64 = 1_790_000_000_000;
@@ -53,7 +53,7 @@ impl World {
         self.mgr.add_account_from_tokens(&tokens, None).unwrap().id
     }
 
-    fn go(&self, id: &str) -> ccsl_core::operation::OperationReport {
+    fn go(&self, id: &str) -> leanflip_core::operation::OperationReport {
         switch::switch_with(&self.sb.env, self.services(), Tool::Codex, id)
             .unwrap_or_else(|e| panic!("switch to {id}: {e}"))
     }
@@ -61,7 +61,7 @@ impl World {
     fn try_go(
         &self,
         id: &str,
-    ) -> Result<ccsl_core::operation::OperationReport, ccsl_core::AppError> {
+    ) -> Result<leanflip_core::operation::OperationReport, leanflip_core::AppError> {
         switch::switch_with(&self.sb.env, self.services(), Tool::Codex, id)
     }
 
@@ -122,7 +122,7 @@ impl World {
     }
 
     fn clock_now(&self) -> i64 {
-        use ccsl_core::codex::oauth::transport::Clock;
+        use leanflip_core::codex::oauth::transport::Clock;
         self.clock.now_ms()
     }
 
@@ -239,7 +239,7 @@ fn device_flow_adds_plus_and_team_as_two_accounts_and_rejects_duplicates() {
         .add_account_from_tokens(&w.fake.issue(&bob_team()), None);
     assert!(matches!(
         dup.unwrap_err(),
-        ccsl_core::AppError::Localized {
+        leanflip_core::AppError::Localized {
             key: "codex.oauth.duplicate_account",
             ..
         }
@@ -281,7 +281,7 @@ fn reauth_updates_the_account_in_place_and_refuses_another_user() {
         .unwrap_err();
     assert!(matches!(
         err,
-        ccsl_core::AppError::Localized {
+        leanflip_core::AppError::Localized {
             key: "codex.oauth.reauth_user_mismatch",
             ..
         }
@@ -456,7 +456,7 @@ fn an_ambiguous_generation_refuses_to_switch_away() {
         let err = w.try_go("official").unwrap_err();
         assert!(matches!(
             err,
-            ccsl_core::AppError::Localized {
+            leanflip_core::AppError::Localized {
                 key: "codex.oauth.ambiguous_generation",
                 ..
             }
@@ -613,7 +613,7 @@ fn removing_an_account_clears_its_live_login_and_unbinds_safely() {
     let err = w.try_go("bob-plus").unwrap_err();
     assert!(matches!(
         err,
-        ccsl_core::AppError::Localized {
+        leanflip_core::AppError::Localized {
             key: "codex.oauth.account_not_found",
             ..
         }

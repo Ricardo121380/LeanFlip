@@ -1,13 +1,31 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { after } from 'node:test';
+import { copyFile, mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { linuxInstallCommand, parseDesktopArgs, selectAsset, validateExistingApp, verifiedDownload } from '../lib/distribution.js';
+import { pathToFileURL } from 'node:url';
+
+// release.json is generated per release, so the installer is loaded next to fixture metadata.
+const fixture = await mkdtemp(join(tmpdir(), 'leanflip-npm-fixture-'));
+after(() => rm(fixture, { recursive: true, force: true }));
+await mkdir(join(fixture, 'lib'));
+await copyFile(new URL('../lib/distribution.js', import.meta.url), join(fixture, 'lib/distribution.js'));
+await writeFile(join(fixture, 'package.json'), '{"type":"module"}');
+const fixtureAsset = name => ({ name, sha256: '0'.repeat(64), url: `https://example.invalid/${name}` });
+await writeFile(join(fixture, 'release.json'), JSON.stringify({
+  version: '0.2.0', homepage: 'https://example.invalid',
+  appName: 'LeanFlip.app', cliName: 'leanflip', appBinary: 'leanflip-app', appCask: 'leanflip-app', bundleId: 'dev.leanflip.desktop',
+  platforms: {
+    'darwin-arm64': { cli: fixtureAsset('leanflip_0.2.0_macos-arm64.tar.gz'), app: fixtureAsset('leanflip_0.2.0_macos-arm64.dmg') },
+    'linux-x64': { cli: fixtureAsset('leanflip_0.2.0_linux-x64.tar.gz'), app: fixtureAsset('leanflip_0.2.0_linux-x64.deb') },
+  },
+}));
+const { bundleId, linuxInstallCommand, parseDesktopArgs, selectAsset, validateExistingApp, verifiedDownload } = await import(pathToFileURL(join(fixture, 'lib/distribution.js')));
 
 async function temporary(t) {
-  const dir = await mkdtemp(join(tmpdir(), 'ccsl-distribution-test-'));
+  const dir = await mkdtemp(join(tmpdir(), 'leanflip-distribution-test-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
   return dir;
 }
@@ -79,13 +97,13 @@ test('rejects oversized responses and cleans the temporary download', async t =>
 
 test('app replacement requires an explicit flag and the correct bundle identity', async t => {
   const dir = await temporary(t); const path = join(dir, 'App.app');
-  assert.equal(await validateExistingApp(path, false, () => 'dev.ccswitch.lite'), false);
+  assert.equal(await validateExistingApp(path, false, () => bundleId), false);
   await mkdir(path);
-  await assert.rejects(validateExistingApp(path, false, () => 'dev.ccswitch.lite'), /--replace/);
-  assert.equal(await validateExistingApp(path, true, () => 'dev.ccswitch.lite'), true);
+  await assert.rejects(validateExistingApp(path, false, () => bundleId), /--replace/);
+  assert.equal(await validateExistingApp(path, true, () => bundleId), true);
   await assert.rejects(validateExistingApp(path, true, () => 'other.app'), /unrelated/);
   await symlink(path, join(dir, 'Link.app'));
-  await assert.rejects(validateExistingApp(join(dir, 'Link.app'), true, () => 'dev.ccswitch.lite'), /symlink/);
+  await assert.rejects(validateExistingApp(join(dir, 'Link.app'), true, () => bundleId), /symlink/);
 });
 
 test('desktop arguments reject unknown options and missing directory values', () => {

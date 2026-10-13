@@ -7,17 +7,18 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, RwLock};
 
-use ccsl_core::codex::oauth::transport::OAuthTransport;
-use ccsl_core::codex::oauth::{AccountInfo, CodexOAuthManager, DeviceFlow, DeviceFlowPoll};
-use ccsl_core::operation::{OperationReport, RecoveryOutcome};
-use ccsl_core::switch::{self, Services};
-use ccsl_core::{
+use leanflip_core::codex::oauth::transport::OAuthTransport;
+use leanflip_core::codex::oauth::{AccountInfo, CodexOAuthManager, DeviceFlow, DeviceFlowPoll};
+use leanflip_core::operation::{OperationReport, RecoveryOutcome};
+use leanflip_core::switch::{self, Services};
+use leanflip_core::{
     ccswitch_export, ccswitch_import, coexist, import, store, AppError, Env, Provider, Tool,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::redact;
 use crate::settings::{self, AppSettings};
+use crate::usage;
 
 mod backup;
 mod connection;
@@ -326,7 +327,7 @@ impl Service {
 
     /// 串行整个高层操作（读取当前卡、OAuth 准备、写 live、落库），不只保护最后的 rename。
     /// App 的后台刷新也用同一把跨进程锁。锁顺序：service → OAuth/tool → state/store。
-    fn write_guard(&self) -> ApiResult<ccsl_core::live::engine::AppWriteGuard> {
+    fn write_guard(&self) -> ApiResult<leanflip_core::live::engine::AppWriteGuard> {
         self.env()
             .device_store()
             .lock_app("service")
@@ -352,7 +353,10 @@ impl Service {
 
     /// 套用新的目录覆盖，立即生效。Codex 目录没变时沿用同一个账号管理器（进行中的设备码
     /// 登录不受影响）；变了就新建一个（进行中的登录要重新开始）。返回目录是否有变化。
-    fn apply_overrides(&self, overrides: &ccsl_core::env::DirOverrides) -> Result<bool, AppError> {
+    fn apply_overrides(
+        &self,
+        overrides: &leanflip_core::env::DirOverrides,
+    ) -> Result<bool, AppError> {
         let current = self.runtime();
         let env = self.base.clone().with_overrides(overrides);
         if env == current.env {
@@ -422,6 +426,52 @@ impl Service {
             .into_iter()
             .map(|reason| if self.english() { reason.en } else { reason.zh })
             .collect()
+    }
+
+    /// 编辑器实时提示：这份配置里不会写入客户端的字段。只读计算，不碰磁盘。
+    pub fn ignored_fields(&self, tool: Tool, settings_config: &serde_json::Value) -> Vec<String> {
+        match tool {
+            Tool::Claude => leanflip_core::live::project::claude::ignored_keys(settings_config),
+            _ => Vec::new(),
+        }
+    }
+
+    /// 测连通：只访问请求地址，不带凭据。由用户点击触发。
+    pub fn probe_latency(
+        &self,
+        tool: Tool,
+        settings_config: &serde_json::Value,
+    ) -> crate::probe::ProbeResult {
+        crate::probe::latency(tool, settings_config)
+    }
+
+    /// 获取模型列表：用配置里的密钥请求供应商的 models 接口。
+    pub fn probe_models(
+        &self,
+        tool: Tool,
+        settings_config: &serde_json::Value,
+    ) -> crate::probe::ProbeResult {
+        crate::probe::models(tool, settings_config)
+    }
+
+    /// 检测可用的推理强度：每一档各发一次最短请求。
+    pub fn probe_efforts(
+        &self,
+        tool: Tool,
+        settings_config: &serde_json::Value,
+        model: Option<&str>,
+    ) -> crate::probe::ProbeResult {
+        crate::probe::efforts(tool, settings_config, model)
+    }
+
+    /// 检查模型：发送一次最短的真实请求。
+    pub fn probe_check(
+        &self,
+        tool: Tool,
+        settings_config: &serde_json::Value,
+        model: Option<&str>,
+    ) -> crate::probe::ProbeResult {
+        crate::probe::check(tool, settings_config, model)
     }
 
     pub fn app_settings(&self) -> AppSettings {
@@ -509,13 +559,14 @@ impl Service {
             .provider(tool, id)
             .map(|p| self.provider_notices(tool, p))
             .unwrap_or_default();
-        switch::switch_with(&rt.env, services(&rt), tool, id)
+        let result = switch::switch_with(&rt.env, services(&rt), tool, id)
             .map(|report| {
                 let mut result = self.op_result(report);
                 result.warnings.extend(warnings);
                 result
             })
-            .map_err(|e| self.err(e))
+            .map_err(|e| self.err(e));
+        self.noted(result)
     }
 
     fn check_incoming(&self, provider: &Provider) -> ApiResult<()> {
@@ -528,9 +579,9 @@ impl Service {
         }
         if redact::contains_placeholder(&provider.settings_config) {
             return Err(ApiError::message(if self.english() {
-                "Redacted login values cannot be saved into another card".into()
+                "Redacted login values cannot be saved into another provider".into()
             } else {
-                "隐藏的登录凭据不能保存到别的卡里".into()
+                "隐藏的登录凭据不能保存到其他供应商".into()
             }));
         }
         Ok(())
@@ -548,9 +599,10 @@ impl Service {
         self.settle(&rt, tool)?;
         let warnings = self.provider_notices(tool, &provider);
         if tool.is_coexist() {
-            return coexist::add_provider(&rt.env, tool, provider, add_to_live)
+            let result = coexist::add_provider(&rt.env, tool, provider, add_to_live)
                 .map(|report| self.op_result(report))
                 .map_err(|e| self.err(e));
+            return self.noted(result);
         }
         let run = || -> Result<OpResult, AppError> {
             let data = store::load(&rt.env)?;
@@ -569,7 +621,7 @@ impl Service {
                 ..OpResult::default()
             })
         };
-        run().map_err(|e| self.err(e))
+        self.noted(run().map_err(|e| self.err(e)))
     }
 
     pub fn update_provider(&self, tool: Tool, mut provider: Provider) -> ApiResult<OpResult> {
@@ -599,7 +651,7 @@ impl Service {
         } else {
             store::remove_provider(&rt.env, tool, id)
         };
-        result.map(|_| ()).map_err(|e| self.err(e))
+        self.noted(result.map(|_| ()).map_err(|e| self.err(e)))
     }
 
     /// 并存式工具：写进 / 移出客户端配置。
@@ -612,16 +664,40 @@ impl Service {
         } else {
             coexist::remove_from_live(&rt.env, tool, id).map(|report| self.op_result(report))
         };
-        result.map_err(|e| self.err(e))
+        self.noted(result.map_err(|e| self.err(e)))
     }
 
     pub fn import_live(&self, tool: Tool) -> ApiResult<ImportLiveResult> {
         let _guard = self.write_guard()?;
         let rt = self.runtime();
         self.settle(&rt, tool)?;
-        import::import_live(&rt.env, tool)
+        let result = import::import_live(&rt.env, tool)
             .map(|r| ImportLiveResult { created: r.created })
-            .map_err(|e| self.err(e))
+            .map_err(|e| self.err(e));
+        self.noted(result)
+    }
+
+    /// 操作成功后记下切换记录的变化。记录失败只写日志，不影响刚完成的操作。
+    fn noted<T>(&self, result: ApiResult<T>) -> ApiResult<T> {
+        if result.is_ok() {
+            let rt = self.runtime();
+            let recorded = store::load_readonly(&rt.env).and_then(|data| {
+                usage::record_state(&rt.env, &data, &|tool| self.live_ids(tool).ok())
+            });
+            if let Err(error) = recorded {
+                log::warn!("switch log not updated: {error}");
+            }
+        }
+        result
+    }
+
+    // ---- 用量统计 ----
+
+    /// 扫描各工具新增的会话记录，返回最近 180 天的汇总和切换记录。只读数字，不读对话内容。
+    pub fn usage_report(&self) -> ApiResult<usage::UsageReport> {
+        let rt = self.runtime();
+        let data = store::load_readonly(&rt.env).map_err(|e| self.err(e))?;
+        usage::load(&rt.env, &data, &|tool| self.live_ids(tool).ok()).map_err(|e| self.err(e))
     }
 
     // ---- Codex 托管账号 / 本机登录 ----
@@ -679,7 +755,7 @@ impl Service {
     }
 
     /// 本机 `auth.json` / 登录暂存里的 ChatGPT 登录：只有身份信息，没有 token。
-    pub fn codex_logins(&self) -> ApiResult<Vec<ccsl_core::codex::login::LoginSummary>> {
+    pub fn codex_logins(&self) -> ApiResult<Vec<leanflip_core::codex::login::LoginSummary>> {
         let _guard = self.write_guard()?;
         let rt = self.runtime();
         self.settle(&rt, Tool::Codex)?;
@@ -736,11 +812,7 @@ impl Service {
         let _guard = self.write_guard()?;
         let rt = self.runtime();
         let mut app = input.app;
-        if let Some(lang) = app.language.as_deref() {
-            if lang != "zh" && lang != "en" {
-                app.language = None;
-            }
-        }
+        settings::normalize(&mut app);
         settings::save(&rt.env.data_dir, &app).map_err(|e| self.err(e))?;
         store::update(&rt.env, |data| {
             data.settings.preserve_codex_official_auth_on_switch = input.keep_codex_login;

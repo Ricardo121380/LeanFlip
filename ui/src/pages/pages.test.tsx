@@ -30,7 +30,7 @@ beforeEach(() => {
 });
 
 describe("ToolPage (switch tool)", () => {
-  it("shows cards with the current one marked and switches on click", async () => {
+  it("shows providers with the current one marked and switches on click", async () => {
     let current = "official";
     const fake = use({
       list_providers: () => ({
@@ -54,18 +54,18 @@ describe("ToolPage (switch tool)", () => {
     });
     renderWithClient(<ToolPage tool="codex" />);
 
-    const official = await screen.findByTestId("card-official");
-    expect(within(official).getByText("当前")).toBeInTheDocument();
+    const official = await screen.findByTestId("row-official");
+    expect(within(official).getByText("使用中")).toBeInTheDocument();
     expect(within(official).getByText("官方")).toBeInTheDocument();
     expect(within(official).getByText("me@corp.com")).toBeInTheDocument();
-    const relay = screen.getByTestId("card-relay");
+    const relay = screen.getByTestId("row-relay");
     expect(within(relay).getByText("https://relay/v1")).toBeInTheDocument();
-    expect(within(official).getByRole("button", { name: /切换/ })).toBeDisabled();
+    expect(within(official).queryByRole("button", { name: /切换/ })).not.toBeInTheDocument();
 
     await userEvent.click(within(relay).getByRole("button", { name: /切换/ }));
     await waitFor(() => expect(fake.calls.some((c) => c.cmd === "switch_provider")).toBe(true));
     expect(fake.calls.find((c) => c.cmd === "switch_provider")!.args).toEqual({ tool: "codex", id: "relay" });
-    await waitFor(() => expect(within(screen.getByTestId("card-relay")).getByText("当前")).toBeInTheDocument());
+    await waitFor(() => expect(within(screen.getByTestId("row-relay")).getByText("使用中")).toBeInTheDocument());
   });
 });
 
@@ -122,14 +122,15 @@ describe("ToolPage (coexist tool)", () => {
 });
 
 describe("ProviderEditor via ToolPage", () => {
-  it("adds a card from a preset with a slug id", async () => {
+  it("adds a provider from a preset with a slug id", async () => {
     const fake = use({
       list_providers: () => ({ tool: "claude", kind: "switch", current: null, inLive: [], liveError: null, paths: [], providers: [] }),
+      get_overview: () => [],
       codex_accounts: () => [],
       add_provider: () => ({ changed: [], warnings: [] }),
     });
     renderWithClient(<ToolPage tool="claude" />);
-    await userEvent.click(await screen.findByRole("button", { name: /添加供应商/ }));
+    await userEvent.click(await screen.findByRole("button", { name: /从预设添加/ }));
     await userEvent.type(await screen.findByPlaceholderText("搜索预设…"), "Anthropic Gateway");
     const option = await screen.findByRole("button", { name: "Anthropic Gateway" });
     await userEvent.click(option);
@@ -145,11 +146,13 @@ describe("ProviderEditor via ToolPage", () => {
   it("edits the Claude Desktop model menu visually and blocks invalid ids", async () => {
     const fake = use({
       list_providers: () => ({ tool: "claude-desktop", kind: "switch", current: null, inLive: [], liveError: null, paths: [], providers: [] }),
+      get_overview: () => [],
       codex_accounts: () => [],
       add_provider: () => ({ changed: [], warnings: [] }),
     });
     renderWithClient(<ToolPage tool="claude-desktop" />);
-    await userEvent.click(await screen.findByRole("button", { name: /添加供应商/ }));
+    await userEvent.click(await screen.findByRole("button", { name: /从预设添加/ }));
+    await userEvent.click(await screen.findByRole("button", { name: "空白配置" }));
     await userEvent.click(await screen.findByRole("button", { name: /添加模型/ }));
     const id = screen.getByLabelText("模型名");
     await userEvent.clear(id);
@@ -169,7 +172,7 @@ describe("ProviderEditor via ToolPage", () => {
 });
 
 describe("delete confirmation", () => {
-  it("asks in an in-app alert dialog; cancel and Esc keep the card, confirm deletes", async () => {
+  it("asks in an in-app alert dialog; cancel and Esc keep the provider, confirm deletes", async () => {
     const confirmSpy = vi.spyOn(window, "confirm");
     const fake = use({
       list_providers: () => ({
@@ -219,7 +222,7 @@ describe("delete confirmation", () => {
     renderWithClient(<CodexAccountsPage />);
     await userEvent.click(await screen.findByRole("button", { name: /移除 me@example.com/ }));
     const dialog = await screen.findByRole("alertdialog");
-    expect(within(dialog).getByText(/绑定它的卡将无法切换/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/绑定它的供应商将无法切换/)).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("button", { name: "移除" }));
     await waitFor(() => expect(fake.calls.find((c) => c.cmd === "codex_remove_account")?.args).toEqual({ id: "acc-plus" }));
   });
@@ -291,7 +294,7 @@ describe("ImportWizard", () => {
     expect(screen.getByRole("checkbox", { name: "导入 Claude Code" })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: "导入 Gemini CLI" })).toBeDisabled();
     await userEvent.click(screen.getByRole("button", { name: /导入所选工具/ }));
-    expect(await screen.findByText(/新增 1 张卡/)).toBeInTheDocument();
+    expect(await screen.findByText(/新增 1 个供应商/)).toBeInTheDocument();
     expect(fake.calls.find((c) => c.cmd === "ccswitch_apply")!.args).toEqual({ tools: ["claude", "codex"], dir: null, accounts: true });
   });
 
@@ -324,7 +327,7 @@ describe("SettingsPage", () => {
       get_settings: () => ({
         app: { language: null, dirOverrides: {}, autostart: false, backgroundRefreshHours: 168, closeToTray: true },
         keepCodexLogin: false,
-        dataDir: "/h/.cc-switch-lite",
+        dataDir: "/h/.leanflip",
         home: "/h",
         livePaths: { claude: ["/h/.claude/settings.json"] },
         ccswitchDir: "/h/.cc-switch",
@@ -365,7 +368,7 @@ describe("ExportImport", () => {
         notes: [],
       },
       { app: "codex", tool: "codex", sourceId: "copilot", name: "Copilot", status: "skip", targetId: null, reason: reason("routing", "需要 cc-switch 的本地路由 / 反代（github_copilot）"), notes: [] },
-      { app: "copilot-cli", tool: null, sourceId: "x", name: "X", status: "skip", targetId: null, reason: reason("unsupported_app", "ccswitch-lite 不支持这个应用（copilot-cli）"), notes: [] },
+      { app: "copilot-cli", tool: null, sourceId: "x", name: "X", status: "skip", targetId: null, reason: reason("unsupported_app", "LeanFlip 不支持这个应用（copilot-cli）"), notes: [] },
     ],
   });
 
@@ -388,12 +391,12 @@ describe("ExportImport", () => {
     expect(within(screen.getByTestId("export-item-codex-copilot")).getByText(/本地路由/)).toBeInTheDocument();
     expect(within(screen.getByTestId("export-group-other")).getByText(/不支持这个应用/)).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: "导入 Codex" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "确认导入 1 张卡" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "确认导入 1 个供应商" })).toBeEnabled();
 
-    await userEvent.selectOptions(screen.getByLabelText("同 id 的卡"), "rename");
+    await userEvent.selectOptions(screen.getByLabelText("同 ID 的供应商"), "rename");
     expect(await screen.findByText(/taken → taken-2/)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "确认导入 2 张卡" }));
-    await waitFor(() => expect(screen.getByText(/新增 2 张卡，跳过 2 张/)).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: "确认导入 2 个供应商" }));
+    await waitFor(() => expect(screen.getByText(/新增 2 个供应商，跳过 2 个/)).toBeInTheDocument());
     const apply = fake.calls.find((c) => c.cmd === "ccswitch_export_apply")!.args as { tools: string[]; policy: string };
     expect(apply).toEqual({ tools: ["claude"], policy: "rename" });
   });

@@ -19,7 +19,7 @@ function settings(): SettingsView {
   return {
     app: { language: "zh", dirOverrides: {}, autostart: false, backgroundRefreshHours: 168, closeToTray: true },
     keepCodexLogin: false,
-    dataDir: "/test/.cc-switch-lite",
+    dataDir: "/test/.leanflip",
     home: "/test",
     livePaths: {},
     dirs: { codexDir: "/test/.codex" },

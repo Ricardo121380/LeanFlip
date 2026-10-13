@@ -1,9 +1,9 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "LeanFlip",
-  "mainBinaryName": "ccswitch-lite",
+  "mainBinaryName": "leanflip-app",
   "version": "0.2.0-dev",
-  "identifier": "dev.ccswitch.lite",
+  "identifier": "dev.leanflip.desktop",
   "build": {
     "frontendDist": "../../dist",
     "devUrl": "http://localhost:1420",

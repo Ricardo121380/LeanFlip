@@ -4,12 +4,12 @@ use crate::{
     presentation::{clean, table},
     read_limited, CliError, Output,
 };
-use ccsl_core::{ccswitch_import::Scan, Tool};
-use ccsl_service::{
+use leanflip_core::{ccswitch_import::Scan, Tool};
+use leanflip_service::{
     service::{BackupPreview, RestoreOptions, RestoreReport, MAX_BACKUP_BYTES},
     Service,
 };
-use serde_json::json;
+use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 use zeroize::Zeroizing;
 
@@ -58,32 +58,51 @@ pub(super) fn local_preview(scan: &Scan, tools: &[Tool], accounts: bool, lang: L
     let items = scan.candidates.iter().filter(|candidate| tools.is_empty() || tools.contains(&candidate.tool)).map(|candidate| json!({
         "tool":candidate.tool,"id":candidate.provider.id,"name":candidate.provider.name,
         "canImport":candidate.skip_reason.is_none(),"reasonCode":candidate.skip_reason.as_ref().map(|reason| reason.code),
-        "notes":candidate.notes,
+        "reason":candidate.skip_reason,"notes":candidate.notes,
     })).collect::<Vec<_>>();
+    let bilingual = |value: &Value| {
+        clean(lang.text(
+            value["zh"].as_str().unwrap_or_default(),
+            value["en"].as_str().unwrap_or_default(),
+        ))
+    };
+    let count = |code: Option<&str>| {
+        items
+            .iter()
+            .filter(|item| match code {
+                None => item["canImport"] == true,
+                Some(code) => item["reasonCode"] == code,
+            })
+            .count()
+    };
+    let (ready, existing) = (count(None), count(Some("duplicate")));
     let rows = items
         .iter()
         .map(|item| {
+            // "Already exists" says it all; other skips explain why.
+            let mut hints = Vec::new();
+            if !item["reason"].is_null() && item["reasonCode"] != "duplicate" {
+                hints.push(bilingual(&item["reason"]));
+            }
+            hints.extend(
+                item["notes"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .map(bilingual),
+            );
             vec![
                 item["tool"].as_str().unwrap_or_default().into(),
                 clean(item["name"].as_str().unwrap_or_default()),
                 clean(item["id"].as_str().unwrap_or_default()),
                 if item["canImport"] == true {
                     lang.text("可导入", "Ready").into()
+                } else if item["reasonCode"] == "duplicate" {
+                    lang.text("已存在", "Exists").into()
                 } else {
-                    item["reasonCode"].as_str().unwrap_or("skipped").into()
+                    lang.text("跳过", "Skipped").into()
                 },
-                item["notes"]
-                    .as_array()
-                    .into_iter()
-                    .flatten()
-                    .map(|note| {
-                        clean(lang.text(
-                            note["zh"].as_str().unwrap_or_default(),
-                            note["en"].as_str().unwrap_or_default(),
-                        ))
-                    })
-                    .collect::<Vec<_>>()
-                    .join("; "),
+                hints.join("; "),
             ]
         })
         .collect::<Vec<_>>();
@@ -93,15 +112,18 @@ pub(super) fn local_preview(scan: &Scan, tools: &[Tool], accounts: bool, lang: L
         0
     };
     let text = format!(
-        "{}\n{}\n\n{}\n\n{} {} / {}\n{}",
+        "{}\n{}\n{} {ready} · {} {existing} · {} {}\n\n{}\n\n{} {} / {}\n{}",
         lang.text(
             "本机 CC Switch · 导入预览",
             "Local CC Switch · Import preview"
         ),
         clean(&scan.directory.display().to_string()),
+        lang.text("可导入", "Ready"),
+        lang.text("已存在", "Exist"),
+        lang.text("跳过", "Skipped"),
+        items.len() - ready - existing,
         if rows.is_empty() {
-            lang.text("没有发现供应商卡片。", "No provider cards found.")
-                .into()
+            lang.text("没有发现供应商。", "No providers found.").into()
         } else {
             table(
                 &[
@@ -257,7 +279,7 @@ pub(super) fn local(
         data,
         format!(
             "{} {} · {} {} · {} {}\n{}",
-            lang.text("已保存卡片", "Cards saved"),
+            lang.text("已保存供应商", "Providers saved"),
             report.created.len(),
             lang.text("账号", "Accounts"),
             report.accounts_added.len(),

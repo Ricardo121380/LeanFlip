@@ -69,12 +69,12 @@ jobs:
       - name: Install locked frontend dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Build standalone CLI
-        run: cargo build -p ccsl-cli --release --locked
+        run: cargo build -p leanflip-cli --release --locked
       - name: Verify standalone CLI
         run: |
           test "$(target/release/leanflip --version)" = "leanflip $RELEASE_VERSION"
-          target/release/leanflip --home "$RUNNER_TEMP/ccsl-release-smoke" status --json
-          test ! -e "$RUNNER_TEMP/ccsl-release-smoke"
+          target/release/leanflip --home "$RUNNER_TEMP/leanflip-release-smoke" status --json
+          test ! -e "$RUNNER_TEMP/leanflip-release-smoke"
           python3 scripts/check-cli-menu.py --binary target/release/leanflip
           python3 scripts/check-cli-tui.py --binary target/release/leanflip
       - name: Build optimized desktop packages
@@ -83,10 +83,10 @@ jobs:
         env:
           PLATFORM: ${{ matrix.platform }}
         run: |
-          mkdir -p release-assets "$RUNNER_TEMP/ccsl-package"
-          cp target/release/leanflip LICENSE "$RUNNER_TEMP/ccsl-package/"
-          cp crates/cli/README.md "$RUNNER_TEMP/ccsl-package/README.md"
-          tar -C "$RUNNER_TEMP/ccsl-package" -czf "release-assets/leanflip_${RELEASE_VERSION}_${PLATFORM}.tar.gz" leanflip LICENSE README.md
+          mkdir -p release-assets "$RUNNER_TEMP/leanflip-package"
+          cp target/release/leanflip LICENSE "$RUNNER_TEMP/leanflip-package/"
+          cp crates/cli/README.md "$RUNNER_TEMP/leanflip-package/README.md"
+          tar -C "$RUNNER_TEMP/leanflip-package" -czf "release-assets/leanflip_${RELEASE_VERSION}_${PLATFORM}.tar.gz" leanflip LICENSE README.md
           if [ "$RUNNER_OS" = macOS ]; then
             set -- target/release/bundle/dmg/*.dmg
             test "$#" -eq 1 && test -f "$1"
