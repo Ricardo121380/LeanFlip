@@ -13,6 +13,8 @@ use crate::service::Service;
 use crate::AppState;
 
 const TRAY_ID: &str = "main";
+/// macOS 菜单栏用的单色模板图（icons/tray.svg 渲染而来），由系统按深浅色着色。
+const TRAY_TEMPLATE: &[u8] = include_bytes!("../icons/tray.png");
 
 pub fn tool_label(tool: Tool) -> &'static str {
     match tool {
@@ -267,7 +269,12 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
         .menu(&menu)
         .show_menu_on_left_click(true)
         .on_menu_event(|app, event| on_menu(app, event.id().as_ref()));
-    if let Some(icon) = app.default_window_icon() {
+    if cfg!(target_os = "macos") {
+        builder = builder
+            .icon(tauri::image::Image::from_bytes(TRAY_TEMPLATE)?)
+            .icon_as_template(true);
+    } else if let Some(icon) = app.default_window_icon() {
+        // 其他系统的托盘不会给模板图着色，黑色图形在深色面板上看不见，所以沿用 App 图标。
         builder = builder.icon(icon.clone());
     }
     builder.build(app)?;
