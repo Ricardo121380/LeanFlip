@@ -28,11 +28,15 @@ fn claude_live_with_a_relay_becomes_a_card_plus_official() {
         .unwrap()
         .is_official_category());
     assert_eq!(sb.read(&path), live, "live untouched");
-    // 已经有卡就不再导入。
-    assert!(import_live(&sb.env, Tool::Claude)
-        .unwrap()
-        .created
-        .is_empty());
+    // Repeating the same capture is idempotent.
+    assert_eq!(
+        import_live(&sb.env, Tool::Claude).unwrap().created,
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        store::load(&sb.env).unwrap().providers(Tool::Claude).len(),
+        2
+    );
 }
 
 #[test]
@@ -100,4 +104,26 @@ fn codex_relay_with_legacy_key_in_auth_json_is_imported() {
         .unwrap()
         .providers(Tool::Codex)
         .is_empty());
+}
+
+#[test]
+fn repeated_codex_capture_ignores_common_preferences_and_unused_tables() {
+    let sb = Sandbox::new();
+    let config = "model='test'\nmodel_provider='relay'\n[model_providers.relay]\nname='relay'\nbase_url='https://relay.example/v1'\nexperimental_bearer_token='fake'\n";
+    sb.write(&sb.env.codex_config_path(), config);
+    assert_eq!(import_live(&sb.env, Tool::Codex).unwrap().created.len(), 2);
+    let changed = format!("{config}\n[features]\nshell_snapshot=true\n[model_providers.unused]\nbase_url='https://unused.example'\n");
+    sb.write(&sb.env.codex_config_path(), &changed);
+    let before = sb.read(&sb.env.store_path());
+    let report = import_live(&sb.env, Tool::Codex).unwrap();
+    assert!(report.created.is_empty());
+    assert_eq!(sb.read(&sb.env.store_path()), before);
+    sb.write(
+        &sb.env.codex_config_path(),
+        &changed.replace("model='test'", "model='different'"),
+    );
+    assert_eq!(
+        import_live(&sb.env, Tool::Codex).unwrap().created,
+        vec!["default-2"]
+    );
 }

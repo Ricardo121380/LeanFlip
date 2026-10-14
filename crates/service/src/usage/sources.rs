@@ -263,6 +263,16 @@ fn read_lines(
         return Ok(());
     };
     let mut progress = scan.progress(key).map_err(text)?;
+    let legacy_offset =
+        if matches!(tool, Tool::Claude | Tool::Codex) && progress.state["usageVersion"] != 2 {
+            let old = progress.offset;
+            progress.offset = 0;
+            progress.mtime = 0;
+            progress.state = json!({ "usageVersion": 2 });
+            old
+        } else {
+            0
+        };
     if progress.offset == size && progress.size == size && progress.mtime == mtime {
         return Ok(());
     }
@@ -297,6 +307,7 @@ fn read_lines(
         let Ok(value) = serde_json::from_str::<Value>(line) else {
             continue;
         };
+        batch.seed_only = tool == Tool::Codex && offset <= legacy_offset;
         each(scan, &mut batch, &mut state, &value).map_err(text)?;
     }
     let progress = Progress {
@@ -404,7 +415,7 @@ fn claude(env: &Env, scan: &mut Scan) -> Result<(), String> {
                     output: n(usage, "output_tokens"),
                     requests: 1,
                 };
-                scan.add(batch, key, record(ts, model, Who::Time, counts))
+                scan.add_cumulative(batch, key, record(ts, model, Who::Time, counts))
             },
         )
     })
@@ -446,7 +457,7 @@ impl CodexTotals {
     }
 }
 
-fn codex(env: &Env, scan: &mut Scan) -> Result<(), String> {
+pub(super) fn codex(env: &Env, scan: &mut Scan) -> Result<(), String> {
     // 归档时文件从 sessions 搬到 archived_sessions，按文件名记进度，搬家后不会重读。
     let mut paths = files(&env.codex_dir.join("sessions"), 4, &|p| has_ext(p, "jsonl"));
     let archived = files(&env.codex_dir.join("archived_sessions"), 1, &|p| {
@@ -459,6 +470,12 @@ fn codex(env: &Env, scan: &mut Scan) -> Result<(), String> {
             .into_iter()
             .filter(|p| !active.contains(name_of(p))),
     );
+    // Seed identities from previously scanned files before processing newly copied histories.
+    paths.sort_by_cached_key(|path| {
+        scan.progress(&format!("codex:{}", name_of(path)))
+            .map(|p| p.offset == 0)
+            .unwrap_or(true)
+    });
     each_file(paths, |path| {
         let key = format!("codex:{}", name_of(path));
         read_lines(
@@ -471,6 +488,7 @@ fn codex(env: &Env, scan: &mut Scan) -> Result<(), String> {
                 let payload = &v["payload"];
                 match v["type"].as_str() {
                     Some("session_meta") => {
+                        state["session"] = payload["id"].clone();
                         state["provider"] =
                             json!(payload["model_provider"].as_str().unwrap_or("openai"));
                     }
@@ -512,7 +530,16 @@ fn codex(env: &Env, scan: &mut Scan) -> Result<(), String> {
                         let model = state["model"].as_str().unwrap_or_default().to_string();
                         scan.add(
                             batch,
-                            None,
+                            state["session"].as_str().map(|session| {
+                                format!(
+                                    "x:{session}:{ts}:{}:{}:{}:{}:{}",
+                                    current.input,
+                                    current.cached,
+                                    current.cache_write,
+                                    current.output,
+                                    current.total
+                                )
+                            }),
                             record(ts, &model, Who::Codex(provider), counts),
                         )?;
                     }
@@ -663,7 +690,7 @@ fn grok(env: &Env, scan: &mut Scan) -> Result<(), String> {
                     let key = update["prompt_id"]
                         .as_str()
                         .map(|id| format!("x:{id}:{model}"));
-                    scan.add(batch, key, record(ts, model, Who::Time, counts))?;
+                    scan.add_cumulative(batch, key, record(ts, model, Who::Time, counts))?;
                 }
                 Ok(())
             },

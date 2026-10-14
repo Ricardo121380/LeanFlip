@@ -80,3 +80,32 @@ export function buildMap(rows: Row[]) {
   const order = [...hosts.values()].sort((a, b) => a.sum / a.weight - b.sum / b.weight || a.label.localeCompare(b.label));
   return { rows: shown, edges, hosts: order.map(({ weight: _w, sum: _s, ...host }) => host) };
 }
+
+/** Latency sends an unauthenticated GET to this URL, so cards sharing it need one probe.
+ * Paths and query strings remain distinct; missing endpoints are never merged. */
+export function probeKey(tool: ToolId, provider: Provider): string {
+  const endpoint = endpointOf(tool, provider);
+  if (endpoint) {
+    try {
+      const url = new URL(endpoint);
+      url.hash = "";
+      return url.href;
+    } catch { /* Preserve per-card validation for malformed URLs. */ }
+  }
+  return latencyKey(tool, provider.id);
+}
+
+export function probeGroups(rows: Row[]) {
+  const groups = new Map<string, { tool: ToolId; provider: Provider; keys: string[] }>();
+  for (const row of rows) {
+    if (row.state !== "ready") continue;
+    for (const provider of row.data?.providers ?? []) {
+      if (isOfficial(provider)) continue;
+      const key = probeKey(row.tool.id, provider);
+      const group = groups.get(key) ?? { tool: row.tool.id, provider, keys: [] };
+      group.keys.push(latencyKey(row.tool.id, provider.id));
+      groups.set(key, group);
+    }
+  }
+  return [...groups.values()];
+}

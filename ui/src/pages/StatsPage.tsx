@@ -23,7 +23,6 @@ import {
   tokensOf,
   type Metric,
   type Range,
-  type Segment,
   type Totals,
 } from "@/lib/usage";
 import { cn } from "@/lib/utils";
@@ -155,6 +154,8 @@ export function StatsPage() {
   const daySet = new Set(dayList);
   const prevSet = new Set(prevList);
   const nameOf = (meta: ToolMeta, provider: string) =>
+    meta.id === "codex" && provider.startsWith("codex-route:") ?
+      t(provider === "codex-route:openai" ? "stats.officialRoute" : "stats.clientRoute", { name: provider.slice("codex-route:".length) }) :
     provider ? known.get(meta.id)?.names.get(provider) ?? model.eventName.get(`${meta.id}:${provider}`) ?? provider : t("stats.unattributed");
   const colorOf = (meta: ToolMeta, provider: string) => {
     const index = provider ? (model.order.get(meta.id) ?? []).indexOf(provider) : -1;
@@ -180,12 +181,16 @@ export function StatsPage() {
   const prevSwitches = switchCount(events, prevFrom, from);
   const lastSwitch = [...events].filter((e) => e.ts > (logStart ?? 0)).sort((a, b) => b.ts - a.ts)[0];
 
+  const comparable = selected.filter((meta) => rows.some((r) => r.tool === meta.id)).every((meta) => {
+    const earliest = report.coverageStart?.[meta.id] ?? rows.filter((r) => r.tool === meta.id).map((r) => r.day).sort()[0];
+    return earliest !== undefined && earliest <= prevList[0] && !report.sources.some((s) => s.tool === meta.id && s.state === "failed");
+  }) && rows.length > 0;
   const change = (a: number, b: number) => (b ? ((a - b) / b) * 100 : null);
   const arrow = (v: number) => (v > 0.05 ? "↑" : v < -0.05 ? "↓" : "→");
-  const vsPrev = (v: number | null, unit: string) => (v === null ? t("stats.noPrevious", { count: range }) : t("stats.vsPrevious", { arrow: arrow(v), value: `${Math.abs(v).toFixed(unit === "pp" ? 1 : 0)}${unit === "pp" ? t("stats.points") : "%"}`, count: range }));
+  const vsPrev = (v: number | null, unit: string) => (!comparable ? t("stats.insufficientPrevious", { count: range }) : v === null ? t("stats.noPrevious", { count: range }) : t("stats.vsPrevious", { arrow: arrow(v), value: `${Math.abs(v).toFixed(unit === "pp" ? 1 : 0)}${unit === "pp" ? t("stats.points") : "%"}`, count: range }));
   const hitCur = hitRate(cur);
   const hitPrev = hitRate(prev);
-  const hitDelta = hitCur !== null && hitPrev !== null ? (hitCur - hitPrev) * 100 : null;
+  const hitDelta = comparable && hitCur !== null && hitPrev !== null ? (hitCur - hitPrev) * 100 : null;
   const tokenFormat = (v: number) => compact(v, language);
 
   // 图表：全部工具时按工具着色，只看一个工具时按供应商着色。
@@ -220,15 +225,10 @@ export function StatsPage() {
     const providers = [...map.keys()].filter((p) => map.get(p)!.some((s) => s.end > from)).slice(0, 5);
     return { tool: meta, kind: "coexist", since, rows: providers.map((provider) => ({ provider, segments: map.get(provider)! })), current: names.join("、") || t("stats.noneConnected"), tokens };
   });
-  const segmentTokens = (meta: ToolMeta, segment: Segment) =>
-    model.rows
-      .filter((r) => r.tool === meta.id && r.provider === segment.provider)
-      .reduce((sum, r) => {
-        const start = dayStart(r.day);
-        const overlap = Math.max(0, Math.min(segment.end, start + 86_400_000) - Math.max(segment.start, start));
-        return sum + tokensOf(r) * (overlap / 86_400_000);
-      }, 0);
+  const canRestore = (meta: ToolMeta, provider: string) => Boolean(provider) && (known.get(meta.id)?.ids ?? []).includes(provider)
+    && !providerResults.find((r) => r.data?.tool === meta.id)?.data?.liveError;
   const restore = (meta: ToolMeta, provider: string) => {
+    if (!canRestore(meta, provider) || isCurrent(meta, provider)) return;
     const name = nameOf(meta, provider);
     if (meta.kind === "switch") {
       const before = current(meta)[0];
@@ -372,7 +372,7 @@ export function StatsPage() {
               colorOf={colorOf}
               nameOf={nameOf}
               isCurrent={isCurrent}
-              segmentTokens={segmentTokens}
+              canRestore={canRestore}
               onRestore={restore}
               animate={intro}
             />
@@ -427,7 +427,7 @@ export function StatsPage() {
               <h2>{t("stats.byProvider")}</h2>
               <span className="text-xs text-muted-foreground">{t("stats.hitFormula")}</span>
             </div>
-            <div className="stats-table">
+            <div className="stats-table" role="region" aria-label={t("stats.byProvider")} tabIndex={0}>
               <table className="bk">
                 <thead>
                   <tr>
@@ -448,7 +448,7 @@ export function StatsPage() {
                             <i style={{ background: colorOf(r.meta, r.provider) }} />
                             <span>{r.name}</span>
                             {tool === "all" && <small>{r.meta.label}</small>}
-                            {!r.managed && <small>{t("stats.notManaged")}</small>}
+                            {!r.managed && r.attributionKey !== "route" && <small>{t("stats.notManaged")}</small>}
                             {untested.has(r.meta.id) && <small className="untested">{t("stats.untested")}</small>}
                           </div>
                         </td>

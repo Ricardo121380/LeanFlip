@@ -19,7 +19,7 @@ use chrono::{Local, TimeZone};
 use leanflip_core::store::StoreData;
 use leanflip_core::{AppError, Env, Tool};
 use rusqlite::{params, Connection, OptionalExtension, Transaction};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 pub use sources::source_statuses;
 
@@ -58,6 +58,9 @@ CREATE TABLE IF NOT EXISTS progress (
     offset INTEGER NOT NULL DEFAULT 0,
     state TEXT NOT NULL DEFAULT ''
 );
+CREATE TABLE IF NOT EXISTS message_counts (
+    key TEXT PRIMARY KEY, ts INTEGER NOT NULL, record TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS seen (
     key TEXT PRIMARY KEY,
     ts INTEGER NOT NULL
@@ -90,6 +93,8 @@ pub enum Attribution {
     Exact,
     /// 记录里没有供应商，按切换记录推算当时用的是谁。
     Time,
+    /// 会话明确记录了路由，但没有证据区分使用该路由的多张卡片。
+    Route,
     /// 切换记录开始之前，归不到供应商。
     None,
 }
@@ -100,6 +105,7 @@ impl Attribution {
             Attribution::Exact => "exact",
             Attribution::Time => "time",
             Attribution::None => "none",
+            Attribution::Route => "route",
         }
     }
 
@@ -107,6 +113,7 @@ impl Attribution {
         match text {
             "exact" => Attribution::Exact,
             "time" => Attribution::Time,
+            "route" => Attribution::Route,
             _ => Attribution::None,
         }
     }
@@ -159,10 +166,12 @@ pub struct UsageReport {
     pub events: Vec<SwitchEvent>,
     pub sources: Vec<SourceStatus>,
     pub scanned_at: i64,
+    /// Earliest locally retained usage day per tool, including days outside this report.
+    pub coverage_start: HashMap<Tool, String>,
 }
 
 /// 四项 token 和请求次数。
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct Counts {
     pub input: i64,
     pub cache_read: i64,
@@ -178,7 +187,7 @@ impl Counts {
 }
 
 /// 记录里能看出的供应商线索。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) enum Who {
     /// 记录里自带的供应商名。
     Exact(String),
@@ -190,7 +199,7 @@ pub(crate) enum Who {
     Unknown,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct Record {
     pub ts: i64,
     pub model: String,
@@ -213,6 +222,8 @@ pub(crate) struct Batch {
     pub records: Vec<Record>,
     keys: Vec<(String, i64)>,
     local: HashSet<String>,
+    cumulative: HashMap<String, Record>,
+    pub seed_only: bool,
 }
 
 /// 一次扫描：所有写入在同一个事务里，提交前崩溃不会留下半份进度。
@@ -269,7 +280,61 @@ impl Scan<'_> {
             batch.local.insert(key.clone());
             batch.keys.push((key, record.ts));
         }
-        batch.records.push(record);
+        if !batch.seed_only {
+            batch.records.push(record);
+        }
+        Ok(())
+    }
+
+    /// Streaming message updates contribute only the increase since the last observation.
+    pub(crate) fn add_cumulative(
+        &self,
+        batch: &mut Batch,
+        key: Option<String>,
+        record: Record,
+    ) -> rusqlite::Result<()> {
+        let Some(key) = key else {
+            return self.add(batch, None, record);
+        };
+        let stored = self
+            .tx
+            .prepare_cached("SELECT record FROM message_counts WHERE key = ?1")?
+            .query_row([&key], |r| r.get::<_, String>(0))
+            .optional()?;
+        let previous = batch
+            .cumulative
+            .get(&key)
+            .cloned()
+            .or_else(|| stored.and_then(|s| serde_json::from_str(&s).ok()));
+        let legacy = previous.is_none()
+            && self
+                .tx
+                .prepare_cached("SELECT 1 FROM seen WHERE key = ?1")?
+                .exists([&key])?;
+        let mut next = previous.clone().unwrap_or_else(|| record.clone());
+        let before = previous.as_ref().map(|r| r.counts).unwrap_or_default();
+        let max = |a: i64, b: i64| a.max(b);
+        next.counts = Counts {
+            input: max(before.input, record.counts.input),
+            cache_read: max(before.cache_read, record.counts.cache_read),
+            cache_write: max(before.cache_write, record.counts.cache_write),
+            output: max(before.output, record.counts.output),
+            requests: max(before.requests, record.counts.requests),
+        };
+        let mut delta = next.clone();
+        delta.counts = Counts {
+            input: next.counts.input - before.input,
+            cache_read: next.counts.cache_read - before.cache_read,
+            cache_write: next.counts.cache_write - before.cache_write,
+            output: next.counts.output - before.output,
+            requests: next.counts.requests - before.requests,
+        };
+        // Legacy versions counted the first occurrence. A one-time rescan reconstructs that baseline.
+        if !legacy && !delta.counts.is_empty() {
+            batch.records.push(delta);
+        }
+        batch.keys.push((key.clone(), next.ts));
+        batch.cumulative.insert(key, next);
         Ok(())
     }
 
@@ -301,6 +366,10 @@ impl Scan<'_> {
             .prepare_cached("INSERT OR IGNORE INTO seen (key, ts) VALUES (?1, ?2)")?;
         for (key, ts) in &batch.keys {
             insert.execute(params![key, ts])?;
+        }
+        for (key, record) in &batch.cumulative {
+            self.tx.execute("INSERT INTO message_counts (key, ts, record) VALUES (?1, ?2, ?3) ON CONFLICT(key) DO UPDATE SET record = ?3",
+                params![key, record.ts, serde_json::to_string(record).expect("usage record")])?;
         }
         drop(insert);
         self.records
@@ -460,15 +529,19 @@ fn codex_providers(data: &StoreData) -> HashMap<String, Vec<String>> {
             .get("config")
             .and_then(|v| v.as_str())
             .unwrap_or_default();
-        let id = config
-            .parse::<toml_edit::DocumentMut>()
-            .ok()
-            .and_then(|doc| {
-                doc.get("model_provider")
-                    .and_then(|v| v.as_str())
-                    .map(str::to_string)
-            })
-            .unwrap_or_else(|| "openai".to_string());
+        let id = if provider.is_official_category() {
+            "openai".to_string()
+        } else {
+            config
+                .parse::<toml_edit::DocumentMut>()
+                .ok()
+                .and_then(|doc| {
+                    doc.get("model_provider")
+                        .and_then(|v| v.as_str())
+                        .map(str::to_string)
+                })
+                .unwrap_or_else(|| "openai".to_string())
+        };
         map.entry(id).or_default().push(provider.id.clone());
     }
     map
@@ -492,10 +565,20 @@ fn resolve(
     };
     match &record.who {
         Who::Exact(name) => (name.clone(), Attribution::Exact),
-        Who::Codex(raw) => match codex.get(raw).map(Vec::as_slice) {
-            Some([only]) => (only.clone(), Attribution::Exact),
-            _ => by_time(),
-        },
+        Who::Codex(raw) => {
+            let candidates = codex.get(raw).map(Vec::as_slice).unwrap_or_default();
+            if let [only] = candidates {
+                return (only.clone(), Attribution::Exact);
+            }
+            let (selected, _) = by_time();
+            if candidates.contains(&selected) {
+                (selected, Attribution::Time)
+            } else {
+                // The route is known even before LeanFlip started recording switches.
+                // Do not assign it to an arbitrary card or a conflicting current route.
+                (format!("codex-route:{raw}"), Attribution::Route)
+            }
+        }
         Who::Time => by_time(),
         Who::Unknown => (String::new(), Attribution::None),
     }
@@ -571,9 +654,16 @@ pub fn load(
                     .map_err(fail)?;
             }
             scan.tx
+                .execute(
+                    "DELETE FROM message_counts WHERE ts < ?1",
+                    [now - SEEN_TTL_MS],
+                )
+                .map_err(fail)?;
+            scan.tx
                 .execute("DELETE FROM seen WHERE ts < ?1", [now - SEEN_TTL_MS])
                 .map_err(fail)?;
         }
+        reconcile_codex_routes(env, &scan.tx, &events, &codex).map_err(fail)?;
         scan.tx.commit().map_err(fail)?;
         found
     };
@@ -614,10 +704,96 @@ pub fn load(
             })
         })
         .collect();
+    let coverage_start = conn
+        .prepare("SELECT tool, MIN(day) FROM usage_daily GROUP BY tool")
+        .map_err(fail)?
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })
+        .map_err(fail)?
+        .collect::<rusqlite::Result<Vec<_>>>()
+        .map_err(fail)?
+        .into_iter()
+        .filter_map(|(tool, day)| tool.parse().ok().map(|tool| (tool, day)))
+        .collect();
     Ok(UsageReport {
+        coverage_start,
         rows,
         events,
         sources,
         scanned_at: now,
     })
+}
+
+// Reattribute legacy Codex totals only when available source records account for
+// ALL five counters of a day/model exactly. Incomplete/deleted history stays intact.
+// This one-time replay never changes totals or resets the incremental scanner.
+fn reconcile_codex_routes(
+    env: &Env,
+    tx: &Transaction<'_>,
+    events: &[SwitchEvent],
+    codex: &HashMap<String, Vec<String>>,
+) -> rusqlite::Result<()> {
+    const MARKER: &str = "migration:codex-routes-v1";
+    if tx
+        .query_row(
+            "SELECT 1 FROM progress WHERE key = ?1",
+            [MARKER],
+            |_| Ok(()),
+        )
+        .optional()?
+        .is_some()
+    {
+        return Ok(());
+    }
+    let mut scratch = Connection::open_in_memory()?;
+    scratch.execute_batch(SCHEMA)?;
+    let mut replay = Scan {
+        tx: scratch.transaction()?,
+        records: vec![],
+    };
+    if sources::codex(env, &mut replay).is_err() {
+        return Ok(());
+    }
+    let mut days: HashMap<(String, String), HashMap<(String, Attribution), Counts>> =
+        HashMap::new();
+    for (_, record) in replay.records {
+        let who = resolve(Tool::Codex, &record, events, codex);
+        let count = days
+            .entry((local_day(record.ts), record.model))
+            .or_default()
+            .entry(who)
+            .or_default();
+        count.input += record.counts.input;
+        count.cache_read += record.counts.cache_read;
+        count.cache_write += record.counts.cache_write;
+        count.output += record.counts.output;
+        count.requests += record.counts.requests;
+    }
+    for ((day, model), groups) in days {
+        let found = tx.query_row("SELECT COALESCE(SUM(input),0), COALESCE(SUM(cache_read),0), COALESCE(SUM(cache_write),0), COALESCE(SUM(output),0), COALESCE(SUM(requests),0) FROM usage_daily WHERE tool='codex' AND day=?1 AND model=?2", params![day, model], |r| Ok(Counts { input: r.get(0)?, cache_read:r.get(1)?,cache_write:r.get(2)?,output:r.get(3)?,requests:r.get(4)? }))?;
+        let mut total = Counts::default();
+        for count in groups.values() {
+            total.input += count.input;
+            total.cache_read += count.cache_read;
+            total.cache_write += count.cache_write;
+            total.output += count.output;
+            total.requests += count.requests;
+        }
+        if total != found {
+            continue;
+        }
+        tx.execute(
+            "DELETE FROM usage_daily WHERE tool='codex' AND day=?1 AND model=?2",
+            params![day, model],
+        )?;
+        for ((provider, attribution), count) in groups {
+            tx.execute("INSERT INTO usage_daily (day,tool,provider,model,attribution,input,cache_read,cache_write,output,requests) VALUES (?1,'codex',?2,?3,?4,?5,?6,?7,?8,?9)", params![day,provider,model,attribution.as_str(),count.input,count.cache_read,count.cache_write,count.output,count.requests])?;
+        }
+    }
+    tx.execute(
+        "INSERT INTO progress (key,state) VALUES (?1,'done')",
+        [MARKER],
+    )?;
+    Ok(())
 }

@@ -35,7 +35,7 @@ fn invalid(field: &str) -> AppError {
     )
 }
 
-fn http_address(address: &str) -> bool {
+pub(crate) fn http_address(address: &str) -> bool {
     let Some(authority) = address
         .strip_prefix("https://")
         .or_else(|| address.strip_prefix("http://"))

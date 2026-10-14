@@ -188,7 +188,7 @@ fn codex_model_provider_is_exact_only_when_it_names_one_provider() {
     );
     assert_eq!(
         resolve(Tool::Codex, &rec("openai"), &[], &codex),
-        (String::new(), Attribution::None)
+        ("codex-route:openai".into(), Attribution::Route)
     );
 }
 
@@ -416,4 +416,132 @@ fn a_broken_source_does_not_stop_the_others() {
         .unwrap();
     assert_eq!(hermes.state, SourceState::Failed);
     assert!(hermes.detail.is_some());
+}
+
+#[test]
+fn claude_streaming_updates_share_one_request_and_original_attribution() {
+    let (_root, env) = env();
+    let path = env.claude_dir.join("projects/test/stream.jsonl");
+    let time = now_ms();
+    append(
+        &path,
+        &[
+            claude_line(time, "stream", "r", 100, 1),
+            claude_line(time + 1000, "stream", "r", 100, 20),
+        ],
+    );
+    let data = StoreData::default();
+    let first = load(&env, &data, &no_live).unwrap();
+    assert_eq!(sum(&first, Tool::Claude), (100, 1000, 50, 20, 1));
+    let copy = env.claude_dir.join("projects/test/copy.jsonl");
+    fs::copy(&path, copy).unwrap();
+    append(&path, &[claude_line(time, "stream", "r", 100, 1)]);
+    assert_eq!(
+        sum(&load(&env, &data, &no_live).unwrap(), Tool::Claude),
+        (100, 1000, 50, 20, 1)
+    );
+}
+
+#[test]
+fn legacy_claude_first_seen_baseline_is_upgraded_without_double_counting() {
+    let (_root, env) = env();
+    let path = env.claude_dir.join("projects/test/stream.jsonl");
+    let time = now_ms();
+    append(&path, &[claude_line(time, "legacy-stream", "r", 100, 1)]);
+    let data = StoreData::default();
+    load(&env, &data, &no_live).unwrap();
+    let db = open(&env).unwrap();
+    db.execute("DELETE FROM message_counts", []).unwrap();
+    db.execute(
+        "UPDATE progress SET state='{}' WHERE key LIKE 'claude:%'",
+        [],
+    )
+    .unwrap();
+    drop(db);
+    append(
+        &path,
+        &[claude_line(time + 1000, "legacy-stream", "r", 100, 20)],
+    );
+    assert_eq!(
+        sum(&load(&env, &data, &no_live).unwrap(), Tool::Claude),
+        (100, 1000, 50, 20, 1)
+    );
+}
+
+#[test]
+fn duplicate_official_routes_recover_complete_history_without_changing_totals() {
+    let (_dir, env) = env();
+    let mut data = StoreData::default();
+    for id in ["official-one", "official-two"] {
+        data.app_mut(Tool::Codex)
+            .providers
+            .push(provider(id, json!({"config":""})).official());
+    }
+    let now = now_ms();
+    let complete = env.codex_dir.join("sessions/complete.jsonl");
+    let incomplete = env.codex_dir.join("sessions/incomplete.jsonl");
+    for (index, path) in [&complete, &incomplete].into_iter().enumerate() {
+        append(
+            path,
+            &[
+                json!({"type":"session_meta", "payload":{"id":format!("session-{index}"), "model_provider":"openai"}}),
+                codex_count(now - DAY * (index as i64 + 1), [100, 20, 10], [100, 20, 10]),
+            ],
+        );
+    }
+    let before = load(&env, &data, &no_live).unwrap();
+    assert!(rows(&before, Tool::Codex)
+        .iter()
+        .all(|r| r.provider == "codex-route:openai" && r.attribution == Attribution::Route));
+    // Model the old database and a source file that has since expired.
+    let conn = open(&env).unwrap();
+    conn.execute(
+        "UPDATE usage_daily SET provider='', attribution='none' WHERE tool='codex'",
+        [],
+    )
+    .unwrap();
+    conn.execute(
+        "DELETE FROM progress WHERE key='migration:codex-routes-v1'",
+        [],
+    )
+    .unwrap();
+    fs::remove_file(incomplete).unwrap();
+    let after = load(&env, &data, &no_live).unwrap();
+    assert_eq!(sum(&before, Tool::Codex), sum(&after, Tool::Codex));
+    let repaired = after
+        .rows
+        .iter()
+        .find(|r| r.day == local_day(now - DAY))
+        .unwrap();
+    assert_eq!(repaired.provider, "codex-route:openai");
+    let retained = after
+        .rows
+        .iter()
+        .find(|r| r.day == local_day(now - DAY * 2))
+        .unwrap();
+    assert!(retained.provider.is_empty());
+    assert_eq!(after.rows, load(&env, &data, &no_live).unwrap().rows);
+    assert_eq!(after.coverage_start[&Tool::Codex], local_day(now - DAY * 2));
+}
+
+#[test]
+fn a_recorded_route_cannot_be_overridden_by_a_conflicting_switch_log() {
+    let codex = HashMap::from([("openai".into(), vec!["one".into(), "two".into()])]);
+    let record = Record {
+        ts: 10,
+        model: "m".into(),
+        who: Who::Codex("openai".into()),
+        counts: Counts::default(),
+    };
+    let events = [SwitchEvent {
+        ts: 5,
+        tool: Tool::Codex,
+        provider: "third-party".into(),
+        name: "".into(),
+        enabled: true,
+    }];
+    assert_eq!(
+        resolve(Tool::Codex, &record, &events, &codex),
+        ("codex-route:openai".into(), Attribution::Route)
+    );
 }

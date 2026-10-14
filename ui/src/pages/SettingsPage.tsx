@@ -1,3 +1,4 @@
+import { version } from "../../../package.json";
 import { useEffect, useState } from "react";
 import { Loader2, RotateCcw, Save } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -203,6 +204,7 @@ export function SettingsPage({ onLeaveStateChange }: { onLeaveStateChange?: (sta
           <p className="break-all font-mono text-xs text-muted-foreground">{t("settings.dataDir", { path: data.dataDir })}</p>
         </section>
       </fieldset>
+      <p className="text-xs text-muted-foreground" aria-label={t("settings.version")}>LeanFlip v{version}</p>
 
       <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t bg-background py-4">
         <p role="status" className="text-sm text-muted-foreground">{t(save.isPending ? "settings.saving" : dirty ? "settings.unsaved" : "settings.unchanged")}</p>

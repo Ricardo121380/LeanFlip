@@ -54,9 +54,14 @@ export function modelOf(tool: ToolId, provider: Provider): string | undefined {
       return str(env.GEMINI_MODEL) ?? str(settings.model?.name);
     }
     case "codex":
-      return config.match(/^\s*model\s*=\s*"([^"]+)"/m)?.[1];
-    case "grokbuild":
-      return config.match(/^\s*default\s*=\s*"([^"]+)"/m)?.[1] ?? config.match(/^\s*model\s*=\s*"([^"]+)"/m)?.[1];
+    case "grokbuild": {
+      try {
+        const root = parseToml(config) as Record<string, unknown>;
+        if (tool === "grokbuild") return str((root.models as Record<string, unknown> | undefined)?.default) ?? str(root.model);
+        const profile = typeof root.profile === "string" ? (root.profiles as Record<string, Record<string, unknown>> | undefined)?.[root.profile] : undefined;
+        return str(profile?.model) ?? str(root.model);
+      } catch { return undefined; }
+    }
     default: {
       const models = sc.models;
       if (Array.isArray(models)) {

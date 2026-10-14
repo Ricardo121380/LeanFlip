@@ -29,7 +29,7 @@ export function Morph({ text, className }: { text: string; className?: string })
         layer.leaving ? (
           <span key={layer.key} className="morph-out" aria-hidden="true">{layer.text}</span>
         ) : (
-          <span key={layer.key} className={cn(layer.key > 0 && "morph-in")} data-text={layer.text}>{layer.text}</span>
+          <span key={layer.key} className={cn(layer.key > 0 && "morph-in")} >{layer.text}{layer.key > 0 && <span className="morph-shine" aria-hidden="true">{layer.text}</span>}</span>
         ),
       )}
     </span>

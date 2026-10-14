@@ -66,6 +66,7 @@ export interface ToolSummary {
   detected: boolean;
   cardCount: number;
   current: string | null;
+  selected?: string | null;
   currentName: string | null;
   inLive: string[];
   liveReadable?: boolean;
@@ -76,10 +77,12 @@ export interface ToolProviders {
   kind: ToolKind;
   providers: Provider[];
   current: string | null;
+  selected?: string | null;
   inLive: string[];
   liveError: string | null;
   paths: string[];
 }
+
 
 export interface OpResult {
   changed: string[];
@@ -240,7 +243,7 @@ export interface UsageRow {
   provider: string;
   model: string;
   /** exact：记录里自带供应商；time：按切换记录推算；none：记录开始之前。 */
-  attribution: "exact" | "time" | "none";
+  attribution: "exact" | "time" | "route" | "none";
   input: number;
   cacheRead: number;
   cacheWrite: number;
@@ -274,6 +277,7 @@ export interface UsageReport {
   events: SwitchEvent[];
   sources: SourceStatus[];
   scannedAt: number;
+  coverageStart?: Partial<Record<ToolId, string>>;
 }
 
 export const api = {

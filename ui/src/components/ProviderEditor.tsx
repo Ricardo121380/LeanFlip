@@ -1,3 +1,4 @@
+import { useEditorNavigation } from "@/lib/navigation";
 import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import * as Tabs from "@radix-ui/react-tabs";
@@ -85,6 +86,7 @@ export function applyLoginSource(provider: Provider, source: string): Provider {
     const accountId = source.slice("managed:".length);
     meta.authBinding = accountId ? { authProvider: "codex_oauth", accountId } : { authProvider: "codex_oauth" };
   }
+  if (source.startsWith("ref:")) meta.codexLoginRef = source.slice(4);
   const next: Provider = { ...provider, meta };
   if (Object.keys(meta).length === 0) delete next.meta;
   return next;
@@ -192,6 +194,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
   const [initialSignature] = useState(signature);
   const [presetSignature, setPresetSignature] = useState(signature);
   const dirty = signature !== initialSignature;
+  useEditorNavigation({ dirty: open && dirty, saving: open && saving, discard: () => onOpenChange(false) });
 
   const presetList = useQuery({
     queryKey: ["presets", tool],
@@ -340,15 +343,12 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
       if (notes.trim()) next.notes = notes.trim();
       else delete next.notes;
       if (showRoutes) next = applyRoutes(next, routes);
-      if (showLogin) next = applyLoginSource(next, loginSource.startsWith("ref:") ? "native" : loginSource);
+      if (showLogin) next = applyLoginSource(next, loginSource);
 
       const result = editing
         ? await api.updateProvider(tool, next)
         : await api.addProvider(tool, next, apply);
       showWarnings(result);
-      if (showLogin && loginSource.startsWith("ref:")) {
-        showWarnings(await api.codexSetLoginRef(next.id, loginSource.slice(4)));
-      }
       toast.success(t("editor.saved"));
       onOpenChange(false);
     } catch (error) {

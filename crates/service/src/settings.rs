@@ -66,3 +66,20 @@ pub fn save(data_dir: &Path, settings: &AppSettings) -> Result<(), AppError> {
         serde_json::to_vec_pretty(settings).map_err(|source| AppError::JsonSerialize { source })?;
     leanflip_core::fsutil::atomic_write_private(&path(data_dir), &bytes)
 }
+
+/// Reject directory values that the runtime cannot apply.
+pub fn validate(settings: &AppSettings) -> Result<(), AppError> {
+    let dirs = serde_json::to_value(&settings.dir_overrides)
+        .map_err(|source| AppError::JsonSerialize { source })?;
+    for (field, value) in dirs.as_object().expect("directory object") {
+        if let Some(value) = value.as_str() {
+            let path = Path::new(value);
+            if !path.is_absolute() || (path.exists() && !path.is_dir()) {
+                return Err(AppError::InvalidInput(format!(
+                    "{field}: 请填写绝对目录路径 / Enter an absolute directory path"
+                )));
+            }
+        }
+    }
+    Ok(())
+}

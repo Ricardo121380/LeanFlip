@@ -20,11 +20,11 @@ interface Item {
   tool?: ToolMeta;
   icon?: ReactNode;
   search: string;
-  run: () => void;
+  run: () => unknown;
 }
 
 /** ⌘K / Ctrl+K：搜索供应商直接切换或启用，也可以跳到任意工具和页面。 */
-export function CommandPalette({ open, onOpenChange, onNavigate }: { open: boolean; onOpenChange: (open: boolean) => void; onNavigate: (hash: string) => void }) {
+export function CommandPalette({ open, onOpenChange, onNavigate }: { open: boolean; onOpenChange: (open: boolean) => void; onNavigate: (hash: string) => boolean | void | Promise<boolean> }) {
   const { t } = useTranslation();
   const go = onNavigate;
   const [query, setQuery] = useState("");
@@ -65,8 +65,8 @@ export function CommandPalette({ open, onOpenChange, onNavigate }: { open: boole
             hint: isCurrent ? t("palette.current") : t("palette.switch"),
             tool,
             search,
-            run: () => {
-              go(`#tool=${tool.id}`);
+            run: async () => {
+              if (await go(`#tool=${tool.id}`) === false) return;
               if (!isCurrent) switchAction.mutate({ tool: tool.id, id: p.id, name: p.name, previous: current ? { id: current.id, name: current.name } : null });
             },
           });
@@ -80,8 +80,8 @@ export function CommandPalette({ open, onOpenChange, onNavigate }: { open: boole
             hint: enabled ? t("palette.disable") : t("palette.enable"),
             tool,
             search,
-            run: () => {
-              go(`#tool=${tool.id}`);
+            run: async () => {
+              if (await go(`#tool=${tool.id}`) === false) return;
               if (!data.liveError) toggleAction.mutate({ tool: tool.id, id: p.id, name: p.name, enabled: !enabled });
             },
           });
@@ -102,7 +102,7 @@ export function CommandPalette({ open, onOpenChange, onNavigate }: { open: boole
     return out;
     // `results` is a new array each render; the data references inside it are stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [t, ...results.map((r) => r.data)]);
+  }, [t, go, ...results.map((r) => r.data)]);
 
   const needle = query.trim().toLocaleLowerCase();
   const filtered = needle ? items.filter((item) => needle.split(/\s+/).every((word) => item.search.includes(word))) : items;
