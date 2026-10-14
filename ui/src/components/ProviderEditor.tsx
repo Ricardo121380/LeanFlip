@@ -1,3 +1,7 @@
+import { CommonConfigEditor } from "./CommonConfigEditor";
+import { ConfigOptions } from "./ConfigOptions";
+import { providerOptions, applyOption } from "@/lib/config-options";
+import { readToml, setTomlValue } from "@/lib/toml-edit";
 import { useEditorNavigation } from "@/lib/navigation";
 import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -170,6 +174,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
   // 新建时先选一个起点（预设或空白），再进入表单。
   const [step, setStep] = useState<"start" | "form">(editing || copying ? "form" : "start");
   const [chosen, setChosen] = useState(false);
+  const [commonOpen, setCommonOpen] = useState(false);
   const [tab, setTab] = useState<"form" | "config">("form");
   const [query, setQuery] = useState("");
   const [preset, setPreset] = useState<Preset | null>(null);
@@ -446,23 +451,6 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
             }} />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="pe-id">{t("editor.id")}</Label>
-            <Input
-              id="pe-id"
-              value={id}
-              disabled={editing}
-              aria-invalid={idTaken}
-              aria-describedby={idTaken ? "pe-id-error" : undefined}
-              className={cn("font-mono text-[13px]", idTaken && "border-destructive")}
-              onChange={(e) => {
-                setIdTouched(true);
-                setId(e.target.value);
-              }}
-            />
-            {idTaken && <p id="pe-id-error" role="alert" className="text-xs text-destructive">{t("editor.idTaken")}</p>}
-            {!editing && !idTaken && meta.kind === "coexist" && <p className="text-xs text-muted-foreground">{t("editor.idHint")}</p>}
-          </div>
-          <div className="flex flex-col gap-1.5">
             <Label htmlFor="pe-web">{t("editor.website")}</Label>
             <Input id="pe-web" type="url" placeholder="https://" value={website} onChange={(e) => setWebsite(e.target.value)} />
           </div>
@@ -543,7 +531,37 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
 
   const configTab = (
     <div className="flex min-w-0 flex-col gap-3 px-6 py-5">
-      <p className="text-xs leading-5 text-muted-foreground">{t(tool === "claude" ? "editor.claudeFieldsHint" : "editor.configHint")}</p>
+      <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="text-sm font-semibold">{t("config.providerTitle")}</h3><Button type="button" size="sm" variant="outline" disabled={saving} onClick={() => setCommonOpen(true)}>{t("config.editCommon")}</Button></div>
+      <p className="text-xs leading-5 text-muted-foreground">{t("config.providerHint")}</p>
+      <ConfigOptions options={providerOptions[tool] ?? []} value={(meta.editor === "codex" ? readToml(text.toml ?? "") : parsed.ok ? parsed.value : null) ?? {}} disabled={saving || !parsed.ok} onChange={(option, state) => {
+        if (!parsed.ok) return;
+        if (meta.editor === "codex") {
+          const value = state === "default" ? undefined : state ? option.on : option.off;
+          setText((s) => ({ ...s, toml: setTomlValue(s.toml ?? "", null, option.key, value as string | boolean | undefined) }));
+        } else {
+          try { setText({ json: JSON.stringify(applyOption(parsed.value, option, state), null, 2) }); setSaveError(null); }
+          catch (e) { setSaveError(errorMessage(e)); }
+        }
+      }} />
+      <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">{t("editor.identifierDetails")}</summary>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="pe-id">{t("editor.id")}</Label>
+            <Input
+              id="pe-id"
+              value={id}
+              disabled={editing}
+              aria-invalid={idTaken}
+              aria-describedby={idTaken ? "pe-id-error" : undefined}
+              className={cn("font-mono text-[13px]", idTaken && "border-destructive")}
+              onChange={(e) => {
+                setIdTouched(true);
+                setId(e.target.value);
+              }}
+            />
+            {idTaken && <p id="pe-id-error" role="alert" className="text-xs text-destructive">{t("editor.idTaken")}</p>}
+            {!editing && !idTaken && meta.kind === "coexist" && <p className="text-xs text-muted-foreground">{t("editor.idHint")}</p>}
+          </div>
+      </details>
       {copying && hasRedacted(toEditorText(meta.editor, template!.settingsConfig ?? {})) && <Note>{t("editor.copyRedactedNote")}</Note>}
       {editing && hasRedacted(text) && <Note tone="warning">{t("editor.redactedNote")}</Note>}
       {meta.editor === "codex" ? (
@@ -646,6 +664,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    {commonOpen && <CommonConfigEditor tool={tool} onClose={() => setCommonOpen(false)} />}
     {confirmDialog}
     </>
   );

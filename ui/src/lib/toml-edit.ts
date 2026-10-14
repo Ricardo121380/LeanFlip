@@ -40,8 +40,8 @@ function tableHeader(table: string[]) {
   return `[${table.map(keyLiteral).join(".")}]`;
 }
 
-export function valueLiteral(value: string | number) {
-  return typeof value === "number" ? String(value) : JSON.stringify(value);
+export function valueLiteral(value: string | number | boolean) {
+  return typeof value === "string" ? JSON.stringify(value) : String(value);
 }
 
 /** 解析整段文本；格式有误时返回 null。 */
@@ -64,7 +64,7 @@ export function getTomlValue(text: string, table: TablePath, key: string): unkno
 }
 
 /** 设置或删除（value 为空字符串 / undefined）一个键，返回新文本。 */
-export function setTomlValue(text: string, table: TablePath, key: string, value: string | number | undefined): string {
+export function setTomlValue(text: string, table: TablePath, key: string, value: string | number | boolean | undefined): string {
   const lines = text.split("\n");
   const remove = value === undefined || value === "";
   // Locate the table's line range [start, end).

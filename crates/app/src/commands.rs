@@ -448,3 +448,24 @@ pub async fn open_url(app: AppHandle, url: String) -> ApiResult<()> {
         .open_url(url, None::<&str>)
         .map_err(|e| ApiError::message(e.to_string()))
 }
+
+#[tauri::command]
+pub async fn get_common_config(
+    state: State<'_, AppState>,
+    tool: Tool,
+) -> ApiResult<leanflip_core::common_config::CommonConfig> {
+    blocking(&state, move |s| s.common_config(tool)).await
+}
+#[tauri::command]
+pub async fn save_common_config(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    tool: Tool,
+    revision: String,
+    config: serde_json::Value,
+) -> ApiResult<OpResult> {
+    mutating(&app, &state, move |s| {
+        s.save_common_config(tool, &revision, config)
+    })
+    .await
+}

@@ -1,6 +1,41 @@
 import type { Messages } from "./zh";
 
 const en: Messages = {
+  config: {
+  "commonTitle": "Common configuration",
+  "commonHint": "Shared preferences for every provider of this agent. Saving writes them to the client configuration.",
+  "providerTitle": "Provider configuration",
+  "providerHint": "Connection, authentication and model settings follow this provider. Edit shared preferences in Common configuration.",
+  "editCommon": "Edit common configuration",
+  "quickOptions": "Quick settings",
+  "default": "Default",
+  "reset": "Reset",
+  "resetOption": "Reset {{name}} to default",
+  "json": "Configuration JSON",
+  "format": "Format",
+  "writesTo": "Write to client {{format}} configuration:",
+  "restartHint": "Some options require restarting the client. Project settings or startup arguments may override them.",
+  "reload": "Reload",
+  "apply": "Save and apply",
+  "saved": "Common configuration saved",
+  "options": {
+    "hideAttribution": "Hide AI attribution",
+    "agentTeams": "Agent teams",
+    "disableUpdates": "Disable auto updates",
+    "multiAgent": "Multi-agent collaboration",
+    "shellSnapshot": "Shell snapshot",
+    "notifications": "Terminal notifications",
+    "autoUpdates": "Auto updates",
+    "vimMode": "Vim mode",
+    "checkpointing": "Checkpoint recovery",
+    "disableSharing": "Disable sharing",
+    "toolSearch": "Enable Tool Search",
+    "effort": "Enable effort controls",
+    "disableArtifact": "Disable Artifact tools",
+    "disableStorage": "Disable response storage",
+    "webSearch": "Live web search"
+  }
+},
   backup: {
     exportTitle: "Take your workspace with you",
     exportHint: "One encrypted file preserves provider configurations, managed accounts and application preferences. Your passphrase unlocks it.",
@@ -282,6 +317,7 @@ const en: Messages = {
     model: "Model {{model}}",
   },
   editor: {
+    identifierDetails: "Internal identifier (advanced)",
     addHint: "Start from a preset or a blank configuration. Nothing changes in the client until you save.",
     editHint: "Edit this provider. If it is active, saving also updates the client configuration.",
     presetsError: "Presets could not load. You can still use a custom configuration.",

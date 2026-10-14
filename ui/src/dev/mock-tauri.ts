@@ -165,6 +165,7 @@ function noteDemo(tool: ToolId, provider: string, enabled: boolean) {
 }
 
 type Args = Record<string, unknown> | undefined;
+const commonConfigs: Partial<Record<ToolId, { config: Record<string, unknown>; version: number }>> = {};
 const handlers: Record<string, (args: Args) => unknown> = {
   get_recovery_notices: () => [],
   get_overview: overview,
@@ -271,6 +272,8 @@ const handlers: Record<string, (args: Args) => unknown> = {
     livePaths: Object.fromEntries((Object.keys(tools) as ToolId[]).map((tool) => [tool, tools[tool].paths])),
     dirs: {}, ccswitchDir: `${home}/.cc-switch`,
   }),
+  get_common_config: (a) => { const tool = a!.tool as ToolId; const state = commonConfigs[tool] ?? { config: {}, version: 0 }; return { ...state, revision: String(state.version), paths: tools[tool].paths.slice(0, 1), format: ["codex", "grokbuild"].includes(tool) ? "TOML" : "JSON" }; },
+  save_common_config: (a) => { const tool = a!.tool as ToolId; const state = commonConfigs[tool] ?? { config: {}, version: 0 }; if (String(state.version) !== a!.revision) throw new Error("Configuration changed"); commonConfigs[tool] = { config: a!.config as Record<string, unknown>, version: state.version + 1 }; return ok; },
   save_settings: (a) => { app = (a!.input as { app: SettingsView["app"] }).app; return { dirsChanged: false }; },
   ccswitch_scan: () => ({ directory: `${home}/.cc-switch`, source: null, candidates: [], accounts: 0 }),
   open_url: () => null,

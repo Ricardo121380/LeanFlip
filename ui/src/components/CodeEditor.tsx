@@ -3,7 +3,7 @@ import { Compartment, EditorState } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { json } from "@codemirror/lang-json";
-import { StreamLanguage, syntaxHighlighting, defaultHighlightStyle, bracketMatching, HighlightStyle } from "@codemirror/language";
+import { foldGutter, foldKeymap, StreamLanguage, syntaxHighlighting, defaultHighlightStyle, bracketMatching, HighlightStyle } from "@codemirror/language";
 import { toml } from "@codemirror/legacy-modes/mode/toml";
 
 // Reuse CodeMirror's tag selection, but take colors from theme variables so both themes stay legible.
@@ -47,9 +47,10 @@ export function CodeEditor({ value, onChange, language, minHeight = 160, ariaLab
       extensions: [
         editability.of([EditorState.readOnly.of(readOnly), EditorView.editable.of(!readOnly)]),
         lineNumbers(),
+        foldGutter(),
         history(),
         bracketMatching(),
-        keymap.of([...defaultKeymap, ...historyKeymap]),
+        keymap.of([...defaultKeymap, ...historyKeymap, ...foldKeymap]),
         syntaxHighlighting(themedHighlight),
         language === "json" ? json() : StreamLanguage.define(toml),
         EditorView.lineWrapping,
