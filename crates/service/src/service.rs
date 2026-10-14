@@ -845,6 +845,26 @@ impl Service {
             .collect())
     }
 
+    pub fn common_config(
+        &self,
+        tool: Tool,
+    ) -> ApiResult<leanflip_core::common_config::CommonConfig> {
+        leanflip_core::common_config::read(&self.runtime().env, tool).map_err(|e| self.err(e))
+    }
+    pub fn save_common_config(
+        &self,
+        tool: Tool,
+        revision: &str,
+        config: serde_json::Value,
+    ) -> ApiResult<OpResult> {
+        let _guard = self.write_guard()?;
+        let rt = self.runtime();
+        self.settle(&rt, tool)?;
+        leanflip_core::common_config::save(&rt.env, tool, revision, config)
+            .map(|r| self.op_result(r))
+            .map_err(|e| self.err(e))
+    }
+
     // ---- 设置 ----
 
     pub fn settings(&self) -> ApiResult<SettingsView> {

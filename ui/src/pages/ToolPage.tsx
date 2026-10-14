@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 // 编辑器（CodeMirror）按需加载。
+const CommonConfigEditor = lazy(() => import("@/components/CommonConfigEditor").then((m) => ({ default: m.CommonConfigEditor })));
 const ProviderEditor = lazy(() => import("@/components/ProviderEditor").then((m) => ({ default: m.ProviderEditor })));
 import { useAccounts, useAction, useLogins, useOverview, useProviders, useSwitchProvider } from "@/hooks/queries";
 import { api, errorMessage, type AccountInfo, type ProbeResult, type Provider, type ToolId } from "@/lib/api";
@@ -87,6 +88,7 @@ export function ToolPage({ tool }: { tool: ToolId }) {
   const [latency, setLatency] = useState<Record<string, ProbeResult | "pending">>({});
   const [testing, setTesting] = useState(false);
   const run = useRef(0);
+  const [commonOpen, setCommonOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [search, setSearch] = useState("");
   const searchInput = useRef<HTMLInputElement>(null);
@@ -276,7 +278,7 @@ export function ToolPage({ tool }: { tool: ToolId }) {
               <p className="mt-0.5 max-w-prose text-xs leading-5 text-muted-foreground">{coexist ? t("tool.coexistHint") : t("tool.switchHint")}</p>
             </div>
           </div>
-          {data.providers.length > 0 && <div className="flex flex-wrap gap-2">{importButton()}{addButton()}</div>}
+          <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" disabled={busy} onClick={() => setCommonOpen(true)}>{t("config.commonTitle")}</Button>{data.providers.length > 0 && <>{importButton()}{addButton()}</>}</div>
         </div>
         {data.providers.length === 0 && (data.paths.length === 0 ? <p className="text-xs text-muted-foreground">{t("tool.noPaths")}</p> : <div className="font-mono text-xs">{pathList}</div>)}
       </header>
@@ -412,6 +414,7 @@ export function ToolPage({ tool }: { tool: ToolId }) {
         {copying && <ProviderEditor key={`copy-${copying.id}`} tool={tool} open onOpenChange={(open) => !open && setCopying(null)} template={copying} existingIds={data.providers.map((p) => p.id)} accounts={accounts} logins={logins} />}
         {editing && <ProviderEditor key={editing.id} tool={tool} open onOpenChange={(open) => !open && setEditing(null)} provider={editing} existingIds={data.providers.map((p) => p.id)} accounts={accounts} logins={logins} />}
       </Suspense>
+      {commonOpen && <Suspense fallback={<p role="status">{t("common.loading")}</p>}><CommonConfigEditor tool={tool} onClose={() => setCommonOpen(false)} /></Suspense>}
       {confirmDialog}
     </div>
   );

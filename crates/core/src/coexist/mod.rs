@@ -5,7 +5,7 @@ pub mod mcode;
 pub mod openclaw;
 pub mod opencode;
 pub mod pi;
-mod yaml_sections;
+pub(crate) mod yaml_sections;
 
 use serde_json::{Map, Value};
 

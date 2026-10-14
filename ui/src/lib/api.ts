@@ -83,6 +83,7 @@ export interface ToolProviders {
   paths: string[];
 }
 
+export interface CommonConfig { config: Record<string, unknown>; paths: string[]; revision: string; format: string }
 
 export interface OpResult {
   changed: string[];
@@ -281,6 +282,8 @@ export interface UsageReport {
 }
 
 export const api = {
+  getCommonConfig: (tool: ToolId) => invoke<CommonConfig>("get_common_config", { tool }),
+  saveCommonConfig: (tool: ToolId, revision: string, config: Record<string, unknown>) => invoke<OpResult>("save_common_config", { tool, revision, config }),
   backupSave: (password: string) => invoke<string | null>("backup_save", { password }),
   backupLoad: (bytes: Uint8Array, password: string) => invoke<BackupPreview>("backup_load", { bytes: Array.from(bytes), password }),
   backupApply: (options: RestoreOptions) => invoke<RestoreReport>("backup_apply", { options }),

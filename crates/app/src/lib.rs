@@ -124,6 +124,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_recovery_notices,
             commands::get_overview,
+            commands::get_common_config,
+            commands::save_common_config,
             commands::list_providers,
             commands::ignored_fields,
             commands::probe_latency,

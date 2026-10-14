@@ -5,6 +5,7 @@ pub mod ccswitch_export;
 pub mod ccswitch_import;
 pub mod codex;
 pub mod coexist;
+pub mod common_config;
 pub mod env;
 pub mod error;
 pub mod fsutil;

@@ -1,4 +1,39 @@
 const zh = {
+  config: {
+  "commonTitle": "通用配置",
+  "commonHint": "同一 Agent 的所有供应商共享这些设置。保存后直接写入客户端配置，切换供应商时保留。",
+  "providerTitle": "供应商配置",
+  "providerHint": "连接、鉴权和模型设置随供应商切换。偏好、功能开关等公共设置请在「通用配置」中编辑。",
+  "editCommon": "编辑通用配置",
+  "quickOptions": "快捷设置",
+  "default": "默认",
+  "reset": "重置",
+  "resetOption": "将 {{name}} 恢复默认",
+  "json": "配置 JSON",
+  "format": "格式化",
+  "writesTo": "保存为客户端 {{format}} 配置：",
+  "restartHint": "客户端将在重新载入配置后使用新设置；部分选项需重启客户端，项目配置或启动参数可能覆盖它们。",
+  "reload": "重新载入",
+  "apply": "保存并应用",
+  "saved": "通用配置已写入客户端",
+  "options": {
+    "hideAttribution": "隐藏 AI 署名",
+    "agentTeams": "Teammates 模式",
+    "disableUpdates": "禁用自动升级",
+    "multiAgent": "多 Agent 协作",
+    "shellSnapshot": "Shell 快照",
+    "notifications": "终端通知",
+    "autoUpdates": "自动升级",
+    "vimMode": "Vim 模式",
+    "checkpointing": "检查点恢复",
+    "disableSharing": "禁用分享",
+    "toolSearch": "启用 Tool Search",
+    "effort": "启用思考强度选项",
+    "disableArtifact": "禁用 Artifact 工具",
+    "disableStorage": "禁用响应存储",
+    "webSearch": "实时联网搜索"
+  }
+},
   backup: {
     exportTitle: "把工作环境带到下一台设备",
     exportHint: "一份加密文件，保留完整的供应商配置、托管账号和应用偏好。只有密码可以解锁。",
@@ -284,6 +319,7 @@ const zh = {
     model: "模型 {{model}}",
   },
   editor: {
+    identifierDetails: "内部标识（高级）",
     addHint: "从预设或空白配置开始填写；保存前不会改动客户端。",
     editHint: "修改这个供应商。如果它正在使用，保存后会同步更新客户端配置。",
     presetsError: "预设加载失败，仍可使用自定义配置。",

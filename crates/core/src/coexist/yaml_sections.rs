@@ -87,6 +87,22 @@ impl<'a> Document<'a> {
             sections,
         })
     }
+    pub fn replace_all(&self, desired: &Value) -> Result<String, AppError> {
+        let mut source = self.source.to_string();
+        for (key, span) in self.sections.iter().rev() {
+            if desired.get(key).is_none() {
+                source.replace_range(span.clone(), "");
+            }
+        }
+        let doc = Document::parse(&source)?;
+        let changes: Vec<_> = desired
+            .as_object()
+            .ok_or_else(invalid)?
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.clone()))
+            .collect();
+        doc.replace(&changes)
+    }
     pub fn replace(&self, changes: &[(&str, Value)]) -> Result<String, AppError> {
         let mut desired = self.value.clone();
         let mut edits = Vec::new();

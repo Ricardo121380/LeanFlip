@@ -134,7 +134,7 @@ describe("ProviderEditor via ToolPage", () => {
     await userEvent.type(await screen.findByPlaceholderText("搜索预设…"), "Anthropic Gateway");
     const option = await screen.findByRole("button", { name: "Anthropic Gateway" });
     await userEvent.click(option);
-    expect((screen.getByLabelText("ID") as HTMLInputElement).value).toMatch(/^anthropic-gateway/);
+    expect(screen.queryByLabelText("ID")).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "保存" }));
     await waitFor(() => expect(fake.calls.some((c) => c.cmd === "add_provider")).toBe(true));
     const args = fake.calls.find((c) => c.cmd === "add_provider")!.args as { provider: { id: string; settingsConfig: { env: Record<string, string> } }; addToLive: boolean };
@@ -163,7 +163,7 @@ describe("ProviderEditor via ToolPage", () => {
     await userEvent.type(id, "claude-sonnet-4-5");
     await userEvent.type(screen.getByLabelText("显示名（可选）"), "Sonnet");
     await userEvent.click(screen.getByRole("checkbox", { name: "支持 1M 上下文" }));
-    await userEvent.type(screen.getByLabelText("ID"), "x");
+    await userEvent.type(screen.getByLabelText("名称"), "Desktop gateway");
     await userEvent.click(screen.getByRole("button", { name: "保存" }));
     await waitFor(() => expect(fake.calls.some((c) => c.cmd === "add_provider")).toBe(true));
     const args = fake.calls.find((c) => c.cmd === "add_provider")!.args as { provider: { meta?: Record<string, unknown> } };

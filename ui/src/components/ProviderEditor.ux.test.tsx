@@ -97,6 +97,8 @@ describe("Provider editor workflow", () => {
     await userEvent.click(screen.getByRole("button", { name: "重试" }));
     expect(await screen.findByRole("button", { name: "First" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "空白配置" }));
+    await openTab("完整配置");
+    await userEvent.click(screen.getByText("内部标识（高级）"));
     fireEvent.change(screen.getByLabelText("ID"), { target: { value: "existing" } });
     expect(screen.getByRole("alert")).toHaveTextContent("这个 ID 已存在");
     expect(screen.getByRole("button", { name: "保存" })).toBeDisabled();
@@ -139,7 +141,7 @@ describe("Provider editor workflow", () => {
     expect(screen.getByRole("dialog")).toHaveAccessibleName("复制供应商 · Claude Code");
     expect(screen.queryByRole("group", { name: "预设" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("名称")).toHaveValue("Existing 副本");
-    expect(screen.getByLabelText("ID")).toHaveValue("existing-copy");
+    expect(screen.queryByLabelText("ID")).not.toBeInTheDocument();
     expect(screen.getByLabelText("备注")).toHaveValue("");
     await userEvent.click(screen.getByRole("button", { name: "保存" }));
     await screen.findByText("Editor closed");
