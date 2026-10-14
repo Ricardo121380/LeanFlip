@@ -125,9 +125,11 @@ export function HomePage({ mode, onNavigate }: { mode: HomeMode; onNavigate: (ha
               </button>
             ))}
           </div>
-          <Button size="sm" variant="outline" className="h-8" disabled={testing || !testable} onClick={() => void testAll()} title={t("probe.latencyAllHint")}>
-            {testing ? <Loader2 className="animate-spin" /> : <Gauge />} {t(testing ? "home.testing" : "probe.latencyAll")}
-          </Button>
+          {mode === "map" && (
+            <Button size="sm" variant="outline" className="h-8" disabled={testing || !testable} onClick={() => void testAll()} title={t("probe.latencyAllHint")}>
+              {testing ? <Loader2 className="animate-spin" /> : <Gauge />} {t(testing ? "home.testing" : "probe.latencyAll")}
+            </Button>
+          )}
         </div>
       </header>
 

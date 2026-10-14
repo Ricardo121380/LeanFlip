@@ -94,17 +94,22 @@ describe("Home list", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "OpenCode 接入 OpenRouter" })).toBeInTheDocument());
   });
 
-  it("tests every provider that has an address and shows the result next to the one in use", async () => {
-    const { fake } = start();
+  it("keeps connectivity testing out of the list view", async () => {
+    start();
     await screen.findByRole("button", { name: "Claude Code 正在用 Kimi，点击换一个" });
-    await userEvent.click(screen.getByRole("button", { name: "测连通" }));
-    await waitFor(() => expect(fake.calls.filter((c) => c.cmd === "probe_latency")).toHaveLength(4));
-    const current = screen.getByRole("button", { name: "Claude Code 正在用 Kimi，点击换一个" });
-    await waitFor(() => expect(current).toHaveTextContent("252 ms"), { timeout: 2000 });
+    expect(screen.queryByRole("button", { name: "测连通" })).not.toBeInTheDocument();
   });
 });
 
 describe("Home map", () => {
+  it("tests every provider that has an address and displays the results", async () => {
+    const { fake } = start("map");
+    await screen.findByRole("button", { name: "Claude Code 正在用 Kimi" });
+    await userEvent.click(screen.getByRole("button", { name: "测连通" }));
+    await waitFor(() => expect(fake.calls.filter((c) => c.cmd === "probe_latency")).toHaveLength(4));
+    await waitFor(() => expect(screen.getAllByText("252 ms")).toHaveLength(4), { timeout: 2000 });
+  });
+
   it("draws one route per provider and switches when a faint route is clicked", async () => {
     const { fake } = start("map");
     const route = await screen.findByRole("button", { name: "Claude Code 切换到 DeepSeek" });
