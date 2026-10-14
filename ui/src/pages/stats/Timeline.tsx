@@ -1,5 +1,6 @@
 // 时间线：每个工具一条泳道，每段是这段时间用的供应商。点过去的一段，光点沿泳道跑到“现在”，切回那个供应商。
-import { useState, type CSSProperties, type MouseEvent } from "react";
+import { useRef, useState, type CSSProperties, type MouseEvent, type ReactElement, type ReactNode } from "react";
+import * as Tooltip from "@radix-ui/react-tooltip";
 import { useTranslation } from "react-i18next";
 import { ToolGlyph } from "@/components/Glyph";
 import type { ToolMeta } from "@/lib/tools";
@@ -35,6 +36,23 @@ interface Props {
 const LANE = 26;
 const THIN = 14;
 
+function SegmentTip({ children, content }: { children: ReactElement; content: ReactNode }) {
+  const trigger = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+  return (
+    <Tooltip.Root open={open} onOpenChange={(next) => {
+      // Keyboard focus can scroll a narrow timeline. Keep its description open
+      // while Popper follows the anchor; blur, Escape and activation still close it.
+      if (next || document.activeElement !== trigger.current) setOpen(next);
+    }}>
+      <Tooltip.Trigger asChild ref={trigger} onBlur={() => setOpen(false)} onClick={() => setOpen(false)}>{children}</Tooltip.Trigger>
+      <Tooltip.Portal>
+        <Tooltip.Content className="chart-tip tl-tip" side="top" sideOffset={8} collisionPadding={12} onEscapeKeyDown={() => setOpen(false)}>{content}</Tooltip.Content>
+      </Tooltip.Portal>
+    </Tooltip.Root>
+  );
+}
+
 function when(ts: number, language: string) {
   return new Date(ts).toLocaleString(language, { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
@@ -51,31 +69,13 @@ function lasted(ms: number, t: (k: string, o?: Record<string, unknown>) => strin
 
 export function Timeline({ lanes, days, now, hover, colorOf, nameOf, isCurrent, canRestore, onRestore, animate }: Props) {
   const { t, i18n } = useTranslation();
-  const [tip, setTip] = useState<{ x: number; y: number; lines: string[]; title: string } | null>(null);
   const start = dayStart(days[0]);
   const x = (ts: number) => ((Math.min(Math.max(ts, start), now) - start) / (now - start)) * 100;
   const today = days[days.length - 1];
   const ticks = tickDays(days).map((day) => ({ day, left: x(dayStart(day)) })).filter((tick) => tick.left <= 94);
   const hair = hover ? x(dayStart(hover) + 43_200_000) : null;
 
-  const showTip = (event: MouseEvent<HTMLElement>, tool: ToolMeta, segment: Segment, shownStart: number) => {
-    const host = event.currentTarget.closest(".timeline")!.getBoundingClientRect();
-    const rect = event.currentTarget.getBoundingClientRect();
-    const current = isCurrent(tool, segment.provider);
-    setTip({
-      x: rect.left - host.left + rect.width / 2,
-      y: rect.top - host.top,
-      title: `${tool.label} · ${nameOf(tool, segment.provider)}`,
-      lines: [
-        t("stats.segmentUsageUnavailable"),
-        `${when(shownStart, i18n.language)} – ${segment.live ? t("stats.now") : when(segment.end, i18n.language)} · ${lasted(segment.end - shownStart, t)}`,
-        current ? t("stats.inUse") : canRestore(tool, segment.provider) ? t("stats.clickToRestore") : t("stats.unavailableProvider"),
-      ],
-    });
-  };
-
   const restore = (event: MouseEvent<HTMLButtonElement>, tool: ToolMeta, segment: Segment, color: string) => {
-    setTip(null);
     if (isCurrent(tool, segment.provider) || !canRestore(tool, segment.provider)) return;
     const button = event.currentTarget;
     const track = button.parentElement;
@@ -110,8 +110,9 @@ export function Timeline({ lanes, days, now, hover, colorOf, nameOf, isCurrent, 
   };
 
   return (
+    <Tooltip.Provider delayDuration={150}>
     <div className="tl-scroll">
-      <div className={cn("timeline", animate && "intro")} onPointerLeave={() => setTip(null)}>
+      <div className={cn("timeline", animate && "intro")}>
         <div className="tl-row tl-axis">
           <div />
           <div className="tl-track">
@@ -157,20 +158,23 @@ export function Timeline({ lanes, days, now, hover, colorOf, nameOf, isCurrent, 
                       const name = nameOf(lane.tool, segment.provider);
                       const current = isCurrent(lane.tool, segment.provider);
                       return (
+                        <SegmentTip key={`${row.provider}-${segment.start}`} content={<>
+                          <div className="tip-head">{lane.tool.label} · {name}</div>
+                          <div className="tip-total">{t("stats.segmentUsageUnavailable")}</div>
+                          <div className="tip-note">{when(shownStart, i18n.language)} – {segment.live ? t("stats.now") : when(segment.end, i18n.language)} · {lasted(segment.end - shownStart, t)}</div>
+                          <div className="tip-note">{current ? t("stats.inUse") : canRestore(lane.tool, segment.provider) ? t("stats.clickToRestore") : t("stats.unavailableProvider")}</div>
+                        </>}>
                         <button
-                          key={`${row.provider}-${segment.start}`}
                           type="button"
                           aria-disabled={!current && !canRestore(lane.tool, segment.provider)}
                           className={cn("tl-seg", segment.live && "live", thin && "thin")}
                           style={{ left: `${left}%`, width: `${Math.max(0, width)}%`, top: r * (laneH + 3), height: thin ? laneH : height, "--c": color } as CSSProperties}
                           aria-label={`${lane.tool.label}：${name}，${when(shownStart, i18n.language)} – ${segment.live ? t("stats.now") : when(segment.end, i18n.language)}${current ? "" : `，${t(canRestore(lane.tool, segment.provider) ? "stats.clickToRestore" : "stats.unavailableProvider")}`}`}
-                          onPointerEnter={(e) => showTip(e, lane.tool, segment, shownStart)}
-                          onFocus={(e) => showTip(e as unknown as MouseEvent<HTMLElement>, lane.tool, segment, shownStart)}
-                          onBlur={() => setTip(null)}
                           onClick={(e) => restore(e, lane.tool, segment, color)}
                         >
                           {width > (thin ? 9 : 7) && <span>{name}</span>}
                         </button>
+                        </SegmentTip>
                       );
                     }),
                 )}
@@ -205,15 +209,8 @@ export function Timeline({ lanes, days, now, hover, colorOf, nameOf, isCurrent, 
             </div>
           );
         })}
-        {tip && (
-          <div className="chart-tip tl-tip" role="tooltip" style={{ left: tip.x, top: tip.y }}>
-            <div className="tip-head">{tip.title}</div>
-            {tip.lines.map((line, i) => (
-              <div key={i} className={i === 0 ? "tip-total" : "tip-note"}>{line}</div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
+    </Tooltip.Provider>
   );
 }

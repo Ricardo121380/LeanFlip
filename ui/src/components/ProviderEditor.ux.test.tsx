@@ -89,19 +89,23 @@ describe("Provider editor workflow", () => {
     expect(screen.getByLabelText("名称")).toHaveValue("Existing draft");
   });
 
-  it("offers preset retry and explains duplicate IDs without disabling custom editing", async () => {
+  it("offers preset retry and generates a unique ID without exposing it in either tab", async () => {
     mock.loadPresets.mockRejectedValue(new Error("offline"));
-    mount(null);
+    const { backend } = mount(null, { add_provider: () => ({ changed: [], warnings: [] }) });
     expect(await screen.findByRole("alert")).toHaveTextContent("预设加载失败");
     mock.loadPresets.mockResolvedValue(presets);
     await userEvent.click(screen.getByRole("button", { name: "重试" }));
     expect(await screen.findByRole("button", { name: "First" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "空白配置" }));
+    fireEvent.change(screen.getByLabelText("名称"), { target: { value: "Existing" } });
+    expect(screen.queryByLabelText("ID")).not.toBeInTheDocument();
     await openTab("完整配置");
-    await userEvent.click(screen.getByText("内部标识（高级）"));
-    fireEvent.change(screen.getByLabelText("ID"), { target: { value: "existing" } });
-    expect(screen.getByRole("alert")).toHaveTextContent("这个 ID 已存在");
-    expect(screen.getByRole("button", { name: "保存" })).toBeDisabled();
+    expect(screen.queryByLabelText("ID")).not.toBeInTheDocument();
+    expect(screen.queryByText("内部标识（高级）")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "保存" }));
+    const created = backend.calls.find((call) => call.cmd === "add_provider")?.args?.provider as Provider;
+    expect(created.id).toBe("existing-2");
+    expect(created.name).toBe("Existing");
   });
 
   it("keeps structured fields and the full configuration in sync", async () => {

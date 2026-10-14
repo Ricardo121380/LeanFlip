@@ -1,6 +1,6 @@
 // Audit-only reproductions. Tauri commands are mocked; no real config or account is touched.
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
-import { cleanup, screen, within, fireEvent, waitFor } from '@testing-library/react';
+import { act, cleanup, screen, within, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { fakeBackend, renderWithClient } from '@/test/utils';
 import i18n from '@/i18n';
@@ -79,10 +79,16 @@ it('Regression: timeline must not divide one hour provider usage by 24',async()=
   start({usage_report:()=>({rows:[{day:'2026-10-14',tool:'claude',provider:'a',model:'audit',attribution:'time',input:24000,cacheRead:0,cacheWrite:0,output:0,requests:1}],events:[{tool:'claude',provider:'a',name:'Audit A',ts:now-3600000,enabled:true}],sources:[],scannedAt:now})});
   renderWithClient(<StatsPage/>);
   const segment=await screen.findByRole('button',{name:/Claude Code：Audit A/});
-  fireEvent.focus(segment);
+  act(()=>segment.focus());
   const tip=await screen.findByRole('tooltip');
+  expect(tip.closest('.tl-scroll')).toBeNull();
+  expect(segment).toHaveAttribute('aria-describedby',tip.id);
   expect(tip.textContent).toContain('无法准确计算此时段用量');
   expect(tip.textContent).not.toContain('1,000');
+  fireEvent.scroll(segment.closest('.tl-scroll')!);
+  expect(screen.getByRole('tooltip')).toBeInTheDocument();
+  await userEvent.keyboard('{Escape}');
+  await waitFor(()=>expect(screen.queryByRole('tooltip')).not.toBeInTheDocument());
 });
 
 it('Regression: login reference is validated with the provider in one save',async()=>{

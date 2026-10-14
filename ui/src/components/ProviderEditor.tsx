@@ -180,7 +180,6 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
   const [preset, setPreset] = useState<Preset | null>(null);
   const [name, setName] = useState(provider?.name ?? (template ? t("editor.copyName", { name: template.name }) : ""));
   const [id, setId] = useState(provider?.id ?? (template ? uniqueId(`${template.id}-copy`, existingIds) : ""));
-  const [idTouched, setIdTouched] = useState(copying);
   const [website, setWebsite] = useState((source?.websiteUrl as string | undefined) ?? "");
   const [notes, setNotes] = useState((provider?.notes as string | undefined) ?? "");
   const [category, setCategory] = useState<string | undefined>(source?.category);
@@ -297,7 +296,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
     if (signature !== presetSignature && !(await confirm({ title: t("editor.replaceTitle"), description: t("editor.replaceHint"), confirmLabel: t("editor.replaceAction") }))) return;
     setPreset(p);
     const nextName = p?.name ?? "";
-    const nextId = idTouched ? id : uniqueId(slugify(nextName || "custom"), existingIds);
+    const nextId = copying ? id : uniqueId(slugify(nextName || "custom"), existingIds);
     const nextWebsite = p?.websiteUrl ?? "";
     const nextCategory = p?.isOfficial ? "official" : p?.category;
     const nextText = toEditorText(meta.editor, p?.settingsConfig ?? customTemplate(tool));
@@ -339,7 +338,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
       } else {
         // 复制时保留模板上的其他字段（图标、扩展信息等），排序和备注不带过来。
         const { sortIndex: _sort, notes: _notes, ...rest } = template ?? ({} as Partial<Provider>);
-        next = { ...rest, id: id.trim(), name: name.trim() || id.trim(), settingsConfig: parsed.value, createdAt: Date.now() };
+        next = { ...rest, id: uniqueId(id.trim(), existingIds), name: name.trim() || id.trim(), settingsConfig: parsed.value, createdAt: Date.now() };
         if (category) next.category = category;
         else delete next.category;
       }
@@ -364,8 +363,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
     }
   }
 
-  const idTaken = !editing && existingIds.includes(id.trim());
-  const canSave = step === "form" && parsed.ok && routesOk && (editing ? dirty : (id.trim() !== "" && !idTaken)) && !saving;
+  const canSave = step === "form" && parsed.ok && routesOk && (editing ? dirty : id.trim() !== "") && !saving;
   const keyUrl = preset?.apiKeyUrl;
   const keyAction = keyUrl ? (
     <button type="button" className="inline-flex items-center gap-1 text-xs text-primary hover:underline" onClick={() => void openKeyPage(keyUrl)}>
@@ -447,7 +445,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
             <Input id="pe-name" value={name} onChange={(e) => {
               const next = e.target.value;
               setName(next);
-              if (!editing && !idTouched) setId(next.trim() ? uniqueId(slugify(next), existingIds) : "");
+              if (!editing && !copying) setId(next.trim() ? uniqueId(slugify(next), existingIds) : "");
             }} />
           </div>
           <div className="flex flex-col gap-1.5">
@@ -543,25 +541,6 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
           catch (e) { setSaveError(errorMessage(e)); }
         }
       }} />
-      <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">{t("editor.identifierDetails")}</summary>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="pe-id">{t("editor.id")}</Label>
-            <Input
-              id="pe-id"
-              value={id}
-              disabled={editing}
-              aria-invalid={idTaken}
-              aria-describedby={idTaken ? "pe-id-error" : undefined}
-              className={cn("font-mono text-[13px]", idTaken && "border-destructive")}
-              onChange={(e) => {
-                setIdTouched(true);
-                setId(e.target.value);
-              }}
-            />
-            {idTaken && <p id="pe-id-error" role="alert" className="text-xs text-destructive">{t("editor.idTaken")}</p>}
-            {!editing && !idTaken && meta.kind === "coexist" && <p className="text-xs text-muted-foreground">{t("editor.idHint")}</p>}
-          </div>
-      </details>
       {copying && hasRedacted(toEditorText(meta.editor, template!.settingsConfig ?? {})) && <Note>{t("editor.copyRedactedNote")}</Note>}
       {editing && hasRedacted(text) && <Note tone="warning">{t("editor.redactedNote")}</Note>}
       {meta.editor === "codex" ? (
