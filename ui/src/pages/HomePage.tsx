@@ -12,7 +12,7 @@ import { settle } from "@/lib/probe";
 import { prefersReducedMotion } from "@/lib/motion";
 import { TOOLS } from "@/lib/tools";
 import { cn } from "@/lib/utils";
-import { buildRows, latencyKey, type Latency, type Row } from "./home/model";
+import { buildRows, probeGroups, type Latency, type Row } from "./home/model";
 import { LightMap } from "./home/LightMap";
 import { Sentences } from "./home/Sentences";
 
@@ -80,17 +80,17 @@ export function HomePage({ mode, onNavigate }: { mode: HomeMode; onNavigate: (ha
   const onRetry = (row: Row) => void results[TOOLS.indexOf(row.tool)]?.refetch();
 
   const testAll = async () => {
-    const targets = rows.flatMap((row) => (row.state === "ready" && row.data ? row.data.providers.filter((p) => !isOfficial(p)).map((p) => ({ tool: row.tool.id, provider: p })) : []));
+    const targets = probeGroups(rows);
     if (targets.length === 0) return;
     const current = ++run.current;
     setTesting(true);
-    setLatency(Object.fromEntries(targets.map(({ tool, provider }) => [latencyKey(tool, provider.id), "pending" as const])));
+    setLatency(Object.fromEntries(targets.flatMap(({ keys }) => keys.map((key) => [key, "pending" as const]))));
     const queue = [...targets];
     const worker = async () => {
       for (let next = queue.shift(); next; next = queue.shift()) {
-        const { tool, provider } = next;
+        const { tool, provider, keys } = next;
         const result = await settle(() => api.probeLatency(tool, provider.settingsConfig));
-        if (run.current === current) setLatency((s) => ({ ...s, [latencyKey(tool, provider.id)]: result }));
+        if (run.current === current) setLatency((s) => ({ ...s, ...Object.fromEntries(keys.map((key) => [key, result])) }));
       }
     };
     await Promise.all(Array.from({ length: Math.min(4, queue.length) }, worker));

@@ -103,6 +103,7 @@ pub struct ToolSummary {
     pub detected: bool,
     pub card_count: usize,
     pub current: Option<String>,
+    pub selected: Option<String>,
     pub current_name: Option<String>,
     pub in_live: Vec<String>,
     /// false 表示并存配置无法读取，不能把空列表当作全部停用。
@@ -116,6 +117,7 @@ pub struct ToolProviders {
     pub kind: ToolKind,
     pub providers: Vec<Provider>,
     pub current: Option<String>,
+    pub selected: Option<String>,
     pub in_live: Vec<String>,
     /// 客户端配置读不了（格式坏了等）时的说明；开关状态这时不可信。
     pub live_error: Option<String>,
@@ -492,7 +494,17 @@ impl Service {
     fn live_ids(&self, tool: Tool) -> Result<Vec<String>, AppError> {
         let rt = self.runtime();
         if !tool.is_coexist() {
-            return Ok(Vec::new());
+            let data = store::load_readonly(&rt.env)?;
+            let Some(provider) = data.current(tool) else {
+                return Ok(Vec::new());
+            };
+            return Ok(
+                if switch::status::matches_live(&rt.env, &data, tool, provider)? {
+                    vec![provider.id.clone()]
+                } else {
+                    Vec::new()
+                },
+            );
         }
         Ok(coexist::live_entries(&rt.env, tool)?
             .keys()
@@ -509,14 +521,17 @@ impl Service {
             .iter()
             .map(|&tool| {
                 let paths = rt.env.live_paths(tool);
-                let current = data.current(tool);
+                let selected = data.current(tool);
                 let live_ids = self.live_ids(tool);
+                let current =
+                    selected.filter(|p| live_ids.as_ref().is_ok_and(|ids| ids.contains(&p.id)));
                 ToolSummary {
                     tool,
                     kind: kind(tool),
                     detected: paths.iter().any(|p| p.exists()),
                     paths,
                     card_count: data.providers(tool).len(),
+                    selected: selected.map(|p| p.id.clone()),
                     current: current.map(|p| p.id.clone()),
                     current_name: current.map(|p| p.name.clone()),
                     live_readable: live_ids.is_ok(),
@@ -541,7 +556,11 @@ impl Service {
                 .iter()
                 .map(|p| redact::redact(tool, p))
                 .collect(),
-            current: data.current(tool).map(|p| p.id.clone()),
+            selected: data.current(tool).map(|p| p.id.clone()),
+            current: data
+                .current(tool)
+                .filter(|p| tool.is_coexist() || in_live.contains(&p.id))
+                .map(|p| p.id.clone()),
             in_live,
             live_error,
             paths: rt.env.live_paths(tool),
@@ -596,6 +615,9 @@ impl Service {
         let _guard = self.write_guard()?;
         let rt = self.runtime();
         self.check_incoming(&provider)?;
+        if tool == Tool::Codex {
+            switch::codex::validate_login_ref(&rt.env, &provider).map_err(|e| self.err(e))?;
+        }
         self.settle(&rt, tool)?;
         let warnings = self.provider_notices(tool, &provider);
         if tool.is_coexist() {
@@ -610,11 +632,23 @@ impl Service {
             let id = provider.id.clone();
             store::add_provider(&rt.env, tool, provider)?;
             if add_to_live {
-                return switch::switch_with(&rt.env, services(&rt), tool, &id).map(|report| {
-                    let mut result = self.op_result(report);
-                    result.warnings.extend(warnings);
-                    result
-                });
+                return match switch::switch_with(&rt.env, services(&rt), tool, &id) {
+                    Ok(report) => {
+                        let mut result = self.op_result(report);
+                        result.warnings.extend(warnings);
+                        Ok(result)
+                    }
+                    Err(error) => {
+                        if leanflip_core::operation::pending_published(
+                            &rt.env.device_store(),
+                            tool.as_str(),
+                        )? != Some(true)
+                        {
+                            store::remove_provider(&rt.env, tool, &id)?;
+                        }
+                        Err(error)
+                    }
+                };
             }
             Ok(OpResult {
                 warnings,
@@ -632,6 +666,9 @@ impl Service {
         let stored = data.provider(tool, &provider.id).cloned();
         redact::restore(tool, &mut provider, stored.as_ref());
         self.check_incoming(&provider)?;
+        if tool == Tool::Codex {
+            switch::codex::validate_login_ref(&rt.env, &provider).map_err(|e| self.err(e))?;
+        }
         let warnings = self.provider_notices(tool, &provider);
         switch::update_provider_with(&rt.env, services(&rt), tool, provider)
             .map(|report| {
@@ -677,12 +714,28 @@ impl Service {
         self.noted(result)
     }
 
+    fn observed_usage_data(&self, mut data: store::StoreData) -> store::StoreData {
+        for tool in Tool::ALL {
+            if !tool.is_coexist()
+                && data.current(tool).is_some()
+                && self
+                    .live_ids(tool)
+                    .is_ok_and(|ids| !data.current(tool).is_some_and(|p| ids.contains(&p.id)))
+            {
+                data.app_mut(tool).current = None;
+            }
+        }
+        data
+    }
+
     /// 操作成功后记下切换记录的变化。记录失败只写日志，不影响刚完成的操作。
     fn noted<T>(&self, result: ApiResult<T>) -> ApiResult<T> {
         if result.is_ok() {
             let rt = self.runtime();
             let recorded = store::load_readonly(&rt.env).and_then(|data| {
-                usage::record_state(&rt.env, &data, &|tool| self.live_ids(tool).ok())
+                usage::record_state(&rt.env, &self.observed_usage_data(data), &|tool| {
+                    self.live_ids(tool).ok()
+                })
             });
             if let Err(error) = recorded {
                 log::warn!("switch log not updated: {error}");
@@ -697,7 +750,10 @@ impl Service {
     pub fn usage_report(&self) -> ApiResult<usage::UsageReport> {
         let rt = self.runtime();
         let data = store::load_readonly(&rt.env).map_err(|e| self.err(e))?;
-        usage::load(&rt.env, &data, &|tool| self.live_ids(tool).ok()).map_err(|e| self.err(e))
+        usage::load(&rt.env, &self.observed_usage_data(data), &|tool| {
+            self.live_ids(tool).ok()
+        })
+        .map_err(|e| self.err(e))
     }
 
     // ---- Codex 托管账号 / 本机登录 ----
@@ -813,15 +869,52 @@ impl Service {
         let rt = self.runtime();
         let mut app = input.app;
         settings::normalize(&mut app);
+        settings::validate(&app).map_err(|e| self.err(e))?;
+        // Prepare everything that can fail before changing either persisted setting.
+        let previous = store::load_readonly(&rt.env).map_err(|e| self.err(e))?;
+        let next_env = self.base.clone().with_overrides(&app.dir_overrides);
+        let dirs_changed = next_env != rt.env;
+        let oauth = if next_env.codex_dir == rt.env.codex_dir {
+            rt.oauth.clone()
+        } else {
+            Arc::new(
+                CodexOAuthManager::new(&next_env, self.transport.clone())
+                    .map_err(|e| self.err(e))?,
+            )
+        };
+        let settings_path = settings::path(&rt.env.data_dir);
+        let before = leanflip_core::live::engine::read_current(&settings_path)
+            .map_err(|e| self.err(e.into()))?;
         settings::save(&rt.env.data_dir, &app).map_err(|e| self.err(e))?;
-        store::update(&rt.env, |data| {
+        if let Err(error) = store::update(&rt.env, |data| {
+            if data != &previous {
+                return Err(AppError::Config(
+                    "Settings changed; retry / 设置已变化，请重试".into(),
+                ));
+            }
             data.settings.preserve_codex_official_auth_on_switch = input.keep_codex_login;
             Ok(())
-        })
-        .map_err(|e| self.err(e))?;
-        let dirs_changed = self
-            .apply_overrides(&app.dir_overrides)
-            .map_err(|e| self.err(e))?;
+        }) {
+            let rollback = match before {
+                Some(bytes) => leanflip_core::fsutil::atomic_write_private(&settings_path, &bytes),
+                None => std::fs::remove_file(&settings_path)
+                    .map_err(|e| AppError::io(&settings_path, e)),
+            };
+            rollback.map_err(|e| {
+                ApiError::message(format!("设置回滚失败 / Settings rollback failed: {e}"))
+            })?;
+            return Err(self.err(error));
+        }
+        if dirs_changed {
+            self.recovery
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .extend(recover(&next_env, self.english()));
+            *self.runtime.write().unwrap_or_else(|e| e.into_inner()) = Arc::new(Runtime {
+                env: next_env,
+                oauth,
+            });
+        }
         *self.settings.lock().unwrap_or_else(|e| e.into_inner()) = app;
         Ok(SaveSettingsResult { dirs_changed })
     }

@@ -1,6 +1,6 @@
-//! 首次运行：把客户端现在的配置导入成一张卡，并补一张官方卡。
+//! 捕获客户端当前配置；首次导入时补一张官方卡。
 //!
-//! 只在这个工具还没有任何卡时做，不写任何客户端文件，只写供应商库：
+//! 相同配置已存在时不新增、不改变当前选择；不同配置保存为新卡，不改写客户端文件：
 //! - Claude：`settings.json` 里有关键字段（地址、Key、模型……）就导入成「当前配置」卡
 //!   （只存关键字段和独有字段），另补一张空的官方卡；没有就只建官方卡；
 //! - Codex：`config.toml` 没有第三方路由就导入成官方卡（只投影关键字段，其余设置留在 live）；
@@ -36,25 +36,19 @@ pub const OFFICIAL_ID: &str = "official";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImportReport {
-    /// 新建的卡的 id（空表示这个工具已经有卡，什么都没做）。
+    /// 新建的卡的 id。
     pub created: Vec<String>,
     /// 当前指针。
     pub current: Option<String>,
 }
 
-/// 这个工具还没有卡时，按 live 导入。
+/// Capture the current client configuration without modifying client files.
 pub fn import_live(env: &Env, tool: Tool) -> Result<ImportReport, AppError> {
     if tool.is_coexist() {
         // 并存式工具：live 里每个条目一张卡，可以重复调用（只补缺的）。
         return crate::coexist::import_live(env, tool);
     }
     crate::switch::settle(env, tool)?;
-    if !store::load(env)?.providers(tool).is_empty() {
-        return Ok(ImportReport {
-            created: Vec::new(),
-            current: None,
-        });
-    }
     let (cards, current) = match tool {
         Tool::Claude => claude_cards(env)?,
         Tool::Codex => codex_cards(env)?,
@@ -70,11 +64,38 @@ pub fn import_live(env: &Env, tool: Tool) -> Result<ImportReport, AppError> {
         Tool::OpenCode | Tool::OpenClaw | Tool::Hermes | Tool::Pi | Tool::Mcode => unreachable!(),
     };
     store::update(env, |data| {
+        let captured = cards.iter().find(|p| p.id == current).expect("live card");
+        if data.providers(tool).iter().any(|saved| {
+            equivalent_capture(tool, saved, captured).unwrap_or(false)
+                && (saved.codex_login_ref().is_none() && saved.managed_codex_account().is_none()
+                    || crate::switch::status::matches_live(env, data, tool, saved).unwrap_or(false))
+        }) {
+            return Ok(ImportReport {
+                created: vec![],
+                current: data.app(tool).and_then(|app| app.current.clone()),
+            });
+        }
         let app = data.app_mut(tool);
         if !app.providers.is_empty() {
+            // A different configuration is a new snapshot; existing cards stay intact.
+            let mut card = cards
+                .iter()
+                .find(|p| p.id == current)
+                .cloned()
+                .expect("live card");
+            let base = card.id.clone();
+            let mut n = 2;
+            while app.providers.iter().any(|p| p.id == card.id) {
+                card.id = format!("{base}-{n}");
+                n += 1;
+            }
+            card.sort_index = Some(app.providers.len() as i64);
+            let id = card.id.clone();
+            app.providers.push(card);
+            app.current = Some(id.clone());
             return Ok(ImportReport {
-                created: Vec::new(),
-                current: app.current.clone(),
+                created: vec![id.clone()],
+                current: Some(id),
             });
         }
         let created = cards.iter().map(|card| card.id.clone()).collect();
@@ -88,6 +109,66 @@ pub fn import_live(env: &Env, tool: Tool) -> Result<ImportReport, AppError> {
             current: Some(current),
         })
     })
+}
+
+// Compare only what a captured card can restore. Ignore names/IDs, formatting,
+// unrelated client preferences, and unused provider tables.
+fn equivalent_capture(tool: Tool, saved: &Provider, captured: &Provider) -> Result<bool, AppError> {
+    use crate::live::patch::LivePatch;
+    use crate::live::project::codex::{CodexConfigPatch, RouteWrite};
+    let value = |card: &Provider| -> Result<Value, AppError> {
+        let config = &card.settings_config;
+        Ok(match tool {
+            Tool::Claude => {
+                let p = ClaudeProjection::of(config);
+                json!({"top": p.top, "env": p.env, "exclusive": p.exclusive})
+            }
+            Tool::Codex => {
+                let p = CodexProjection::of(&RowInput {
+                    settings: config,
+                    official: card.is_official_category(),
+                })?;
+                let route = match p.route {
+                    Route::Official => RouteWrite::Official,
+                    Route::Custom { table, .. } => RouteWrite::Custom(table),
+                    Route::BuiltIn { id, table } => RouteWrite::BuiltIn { id, table },
+                    Route::Default => RouteWrite::Default,
+                };
+                let patch = CodexConfigPatch {
+                    route,
+                    top: p.top,
+                    nested: p.nested,
+                    exclusive: p.exclusive,
+                    outgoing: vec![],
+                    retired: vec![],
+                };
+                let bytes = patch.apply(std::path::Path::new("config.toml"), Some(b""))?;
+                let parsed: toml::Value = std::str::from_utf8(&bytes)
+                    .expect("TOML output")
+                    .parse()
+                    .expect("TOML output");
+                json!({"config": parsed, "officialKey": if card.is_official_category() { config.pointer("/auth/OPENAI_API_KEY") } else { None }})
+            }
+            Tool::Gemini => {
+                let p = GeminiProjection::of(config, card.is_official_category());
+                json!({"env": p.env.into_iter().collect::<std::collections::BTreeMap<_, _>>(), "auth": p.selected_type, "model": p.model_name})
+            }
+            Tool::GrokBuild => {
+                let p = GrokProjection::of(config, card.is_official_category())?;
+                match p.table {
+                    Some((name, table)) => json!(normalized_text(&name, &table)
+                        .parse::<toml::Value>()
+                        .expect("TOML output")),
+                    None => json!({}),
+                }
+            }
+            Tool::ClaudeDesktop => {
+                json!({"env": config.get("env").filter(|v| v.as_object().is_some_and(|v| !v.is_empty())), "routes": card.meta.extra.get("claudeDesktopModelRoutes")})
+            }
+            _ => unreachable!(),
+        })
+    };
+    Ok(value(saved)? == value(captured)?)
 }
 
 fn read_text(path: &std::path::Path) -> Result<Option<String>, AppError> {

@@ -18,6 +18,7 @@ import { HomePage, type HomeMode } from "@/pages/HomePage";
 import { ToolPage } from "@/pages/ToolPage";
 import { withViewTransition } from "@/lib/motion";
 import type { SettingsLeaveState } from "@/pages/SettingsPage";
+import { EditorNavigationContext, type EditorLeaveState } from "@/lib/navigation";
 import { BrandMark } from "@/components/BrandMark";
 
 // 不常用的页面按需加载。
@@ -60,7 +61,8 @@ export default function App() {
   const main = useRef<HTMLElement>(null);
   const accepted = useRef<NavigationEntry>({ hash: window.location.hash, index: historyIndex() ?? 0, managed: true });
   const observed = useRef(accepted.current);
-  const pending = useRef<NavigationRequest | null>(null);
+  const pending = useRef<{ request: NavigationRequest; resolve: (allowed: boolean) => void } | null>(null);
+  const editorGuards = useRef(new Set<{ current: EditorLeaveState }>());
   const restoring = useRef(false);
   const settingsLeave = useRef<SettingsLeaveState>({ dirty: false, saving: false });
   const importBusy = useRef(false);
@@ -93,43 +95,48 @@ export default function App() {
     }
   }, []);
 
-  const requestNavigation = useCallback(async (request: NavigationRequest) => {
-    if (restoring.current) return;
-    if (request.kind === "link" && request.hash === accepted.current.hash && !pending.current) return;
-    // One confirmation covers the latest destination if history changes while it is open.
-    const alreadyPending = pending.current !== null;
-    pending.current = request;
-    if (alreadyPending) return;
-
-    let allowed = true;
-    if (settingsLeave.current.saving || importBusy.current) {
-      toast.info(t("nav.waitForOperation"), { id: "pending-operation-navigation" });
-      allowed = false;
-    } else if (settingsLeave.current.dirty) {
-      allowed = await confirm({
-        title: t("settings.leaveTitle"),
-        description: t("settings.leaveHint"),
-        confirmLabel: t("settings.leaveAction"),
-        destructive: true,
-      });
-    }
-
-    const next = pending.current;
-    pending.current = null;
-    if (!allowed || settingsLeave.current.saving || importBusy.current) {
-      restoreAccepted();
-      return;
-    }
-    if (next?.kind === "link") {
-      if (next.hash === window.location.hash) acceptNavigation(observed.current);
-      else {
-        const index = observed.current.index + 1;
-        window.history.pushState({ ...window.history.state, [HISTORY_INDEX]: index }, "", next.hash);
-        acceptNavigation({ hash: next.hash, index, managed: true });
-      }
-    } else {
-      acceptNavigation(observed.current);
-    }
+  const requestNavigation = useCallback((request: NavigationRequest): Promise<boolean> => {
+    if (restoring.current) return Promise.resolve(false);
+    return new Promise<boolean>((resolve) => {
+      const alreadyPending = pending.current !== null;
+      pending.current?.resolve(false);
+      pending.current = { request, resolve };
+      if (alreadyPending) return;
+      void (async () => {
+        const busy = () => settingsLeave.current.saving || importBusy.current || [...editorGuards.current].some((g) => g.current.saving);
+        const editorDirty = [...editorGuards.current].some((g) => g.current.dirty);
+        let allowed = true;
+        if (busy()) {
+          toast.info(t("nav.waitForOperation"), { id: "pending-operation-navigation" });
+          allowed = false;
+        } else if (settingsLeave.current.dirty || editorDirty) {
+          allowed = await confirm({
+            title: t(editorDirty ? "editor.discardTitle" : "settings.leaveTitle"),
+            description: t(editorDirty ? "editor.discardHint" : "settings.leaveHint"),
+            confirmLabel: t(editorDirty ? "editor.discardAction" : "settings.leaveAction"),
+            destructive: true,
+          });
+        }
+        const next = pending.current;
+        pending.current = null;
+        if (!allowed || busy()) {
+          restoreAccepted();
+          next?.resolve(false);
+          return;
+        }
+        for (const guard of editorGuards.current) guard.current.discard();
+        if (next?.request.kind === "link") {
+          const hash = next.request.hash;
+          if (hash === window.location.hash) acceptNavigation(observed.current);
+          else {
+            const index = observed.current.index + 1;
+            window.history.pushState({ ...window.history.state, [HISTORY_INDEX]: index }, "", hash);
+            acceptNavigation({ hash, index, managed: true });
+          }
+        } else acceptNavigation(observed.current);
+        next?.resolve(true);
+      })();
+    });
   }, [acceptNavigation, confirm, restoreAccepted, t]);
 
   useEffect(() => {
@@ -188,6 +195,7 @@ export default function App() {
     );
 
   return (
+    <EditorNavigationContext.Provider value={editorGuards.current}>
     <div className="flex h-screen overflow-hidden">
       <aside className="flex w-60 shrink-0 flex-col border-r bg-sidebar px-2.5 pb-2.5 pt-3">
         <div className="flex shrink-0 items-center gap-2.5 px-2 pb-4 pt-1">
@@ -298,8 +306,9 @@ export default function App() {
           {view.type === "settings" && <SettingsPage onLeaveStateChange={onSettingsLeaveState} />}
         </Suspense>
       </main>
-      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} onNavigate={(hash) => void requestNavigation({ kind: "link", hash })} />
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} onNavigate={(hash) => requestNavigation({ kind: "link", hash })} />
       {confirmDialog}
     </div>
+    </EditorNavigationContext.Provider>
   );
 }

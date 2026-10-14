@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
   AlertDialog,
@@ -29,6 +29,8 @@ export function useConfirm(): [(options: ConfirmOptions) => Promise<boolean>, Re
   const { t } = useTranslation();
   const [options, setOptions] = useState<ConfirmOptions | null>(null);
   const resolver = useRef<((ok: boolean) => void) | null>(null);
+
+  useEffect(() => () => { resolver.current?.(false); resolver.current = null; }, []);
 
   const confirm = useCallback((next: ConfirmOptions) => {
     resolver.current?.(false);

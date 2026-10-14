@@ -197,10 +197,10 @@ export function ToolPage({ tool }: { tool: ToolId }) {
           size="icon"
           variant="ghost"
           className="text-muted-foreground opacity-70 hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100"
-          disabled={current || busy}
+          disabled={current || p.id === data.selected || busy}
           onClick={() => void confirmDelete(p)}
           aria-label={deleting ? t("card.deleting", { name: p.name }) : `${t("card.delete")} ${p.name}`}
-          title={current ? t("card.currentDeleteHint") : t("card.delete")}
+          title={current ? t("card.currentDeleteHint") : p.id === data.selected ? t("card.selectedDeleteHint") : t("card.delete")}
         >
           {deleting ? <Loader2 className="animate-spin" /> : <Trash2 />}
         </Button>
@@ -286,6 +286,9 @@ export function ToolPage({ tool }: { tool: ToolId }) {
           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{t("tool.refreshErrorHint")}</p>
           <p className="mt-1 break-words text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">{errorMessage(error)}</p>
         </Notice>
+      )}
+      {!coexist && data.selected && data.current !== data.selected && !data.liveError && (
+        <Notice title={t("tool.driftTitle")} onRetry={() => void refetch()}><p className="text-xs text-muted-foreground">{t("tool.driftHint")}</p></Notice>
       )}
       {data.liveError && (
         <Notice title={t("tool.liveErrorTitle")} onRetry={() => void refetch()}>

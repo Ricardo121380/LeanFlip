@@ -27,7 +27,7 @@ interface Props {
   colorOf: (tool: ToolMeta, provider: string) => string;
   nameOf: (tool: ToolMeta, provider: string) => string;
   isCurrent: (tool: ToolMeta, provider: string) => boolean;
-  segmentTokens: (tool: ToolMeta, segment: Segment) => number;
+  canRestore: (tool: ToolMeta, provider: string) => boolean;
   onRestore: (tool: ToolMeta, provider: string) => void;
   animate: boolean;
 }
@@ -36,10 +36,12 @@ const LANE = 26;
 const THIN = 14;
 
 function when(ts: number, language: string) {
-  return new Date(ts).toLocaleString(language, { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  return new Date(ts).toLocaleString(language, { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
 function lasted(ms: number, t: (k: string, o?: Record<string, unknown>) => string) {
+  if (ms < 60_000) return t("stats.durationSeconds", { count: Math.max(1, Math.ceil(ms / 1000)) });
+  if (ms < 3_600_000) return t("stats.durationMinutes", { count: Math.ceil(ms / 60_000) });
   const hours = ms / 3_600_000;
   const days = Math.floor(hours / 24);
   const rest = Math.round(hours - days * 24);
@@ -47,7 +49,7 @@ function lasted(ms: number, t: (k: string, o?: Record<string, unknown>) => strin
   return t("stats.durationHours", { count: Math.max(1, Math.round(hours)) });
 }
 
-export function Timeline({ lanes, days, now, hover, colorOf, nameOf, isCurrent, segmentTokens, onRestore, animate }: Props) {
+export function Timeline({ lanes, days, now, hover, colorOf, nameOf, isCurrent, canRestore, onRestore, animate }: Props) {
   const { t, i18n } = useTranslation();
   const [tip, setTip] = useState<{ x: number; y: number; lines: string[]; title: string } | null>(null);
   const start = dayStart(days[0]);
@@ -65,16 +67,16 @@ export function Timeline({ lanes, days, now, hover, colorOf, nameOf, isCurrent, 
       y: rect.top - host.top,
       title: `${tool.label} · ${nameOf(tool, segment.provider)}`,
       lines: [
-        t("stats.segmentTokens", { value: formatCompact(segmentTokens(tool, segment), i18n.language) }),
+        t("stats.segmentUsageUnavailable"),
         `${when(shownStart, i18n.language)} – ${segment.live ? t("stats.now") : when(segment.end, i18n.language)} · ${lasted(segment.end - shownStart, t)}`,
-        current ? t("stats.inUse") : t("stats.clickToRestore"),
+        current ? t("stats.inUse") : canRestore(tool, segment.provider) ? t("stats.clickToRestore") : t("stats.unavailableProvider"),
       ],
     });
   };
 
   const restore = (event: MouseEvent<HTMLButtonElement>, tool: ToolMeta, segment: Segment, color: string) => {
     setTip(null);
-    if (isCurrent(tool, segment.provider)) return;
+    if (isCurrent(tool, segment.provider) || !canRestore(tool, segment.provider)) return;
     const button = event.currentTarget;
     const track = button.parentElement;
     if (!canAnimate() || !track) {
@@ -158,9 +160,10 @@ export function Timeline({ lanes, days, now, hover, colorOf, nameOf, isCurrent, 
                         <button
                           key={`${row.provider}-${segment.start}`}
                           type="button"
+                          aria-disabled={!current && !canRestore(lane.tool, segment.provider)}
                           className={cn("tl-seg", segment.live && "live", thin && "thin")}
-                          style={{ left: `calc(${left}% + 1px)`, width: `max(3px, calc(${width}% - ${segment.live ? 1 : 2}px))`, top: r * (laneH + 3), height: thin ? laneH : height, "--c": color } as CSSProperties}
-                          aria-label={`${lane.tool.label}：${name}，${when(shownStart, i18n.language)} – ${segment.live ? t("stats.now") : when(segment.end, i18n.language)}${current ? "" : `，${t("stats.clickToRestore")}`}`}
+                          style={{ left: `${left}%`, width: `${Math.max(0, width)}%`, top: r * (laneH + 3), height: thin ? laneH : height, "--c": color } as CSSProperties}
+                          aria-label={`${lane.tool.label}：${name}，${when(shownStart, i18n.language)} – ${segment.live ? t("stats.now") : when(segment.end, i18n.language)}${current ? "" : `，${t(canRestore(lane.tool, segment.provider) ? "stats.clickToRestore" : "stats.unavailableProvider")}`}`}
                           onPointerEnter={(e) => showTip(e, lane.tool, segment, shownStart)}
                           onFocus={(e) => showTip(e as unknown as MouseEvent<HTMLElement>, lane.tool, segment, shownStart)}
                           onBlur={() => setTip(null)}
@@ -189,6 +192,15 @@ export function Timeline({ lanes, days, now, hover, colorOf, nameOf, isCurrent, 
               <div className="tl-info">
                 <span className="tl-name">{lane.current}</span>
                 <span className="tl-sub">{t("stats.laneTokens", { count: days.length, value: formatCompact(lane.tokens, i18n.language) })}</span>
+                <details className="text-xs"><summary className="cursor-pointer text-primary">{t("stats.segmentHistory")}</summary>
+                  <ul className="max-h-48 overflow-auto space-y-1 py-2">
+                    {lane.rows.flatMap((row) => row.segments).filter((s) => s.end > start).sort((a, b) => b.start - a.start).map((s) => (
+                      <li key={`${s.provider}-${s.start}`}><button type="button" className="w-full rounded border p-2 text-left disabled:opacity-60" disabled={isCurrent(lane.tool, s.provider) || !canRestore(lane.tool, s.provider)} onClick={() => onRestore(lane.tool, s.provider)}>
+                        {nameOf(lane.tool, s.provider)} · {when(s.start, i18n.language)} – {s.live ? t("stats.now") : when(s.end, i18n.language)}
+                      </button></li>
+                    ))}
+                  </ul>
+                </details>
               </div>
             </div>
           );

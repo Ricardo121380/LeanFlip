@@ -107,6 +107,21 @@ pub struct Planned {
     previous: Option<Provider>,
 }
 impl Planned {
+    pub(super) fn use_login_state(&mut self, source: &str, preserve: bool, login_on_disk: bool) {
+        let login = match codex_config_auth_store_mode(source) {
+            CodexAuthStoreMode::File => login_on_disk,
+            CodexAuthStoreMode::Ephemeral => false,
+            _ => is_official(&self.target) || preserve,
+        };
+        if let (Some(auth), RouteWrite::Custom(table)) = (self.stamp, &mut self.config.route) {
+            if matches!(auth, RouteAuth::Bearer | RouteAuth::EnvKey) {
+                table.insert(
+                    "requires_openai_auth",
+                    toml_edit::value(requires_openai_auth(auth, login)),
+                );
+            }
+        }
+    }
     pub fn config(&self) -> &CodexConfigPatch {
         &self.config
     }
@@ -359,19 +374,7 @@ pub fn run(
     let config_source = read_current(&env.codex_config_path())?
         .map(|b| String::from_utf8_lossy(&b).into_owned())
         .unwrap_or_default();
-    let login = match codex_config_auth_store_mode(&config_source) {
-        CodexAuthStoreMode::File => decision.login_on_disk,
-        CodexAuthStoreMode::Ephemeral => false,
-        _ => is_official(&planned.target) || preserve,
-    };
-    if let (Some(auth), RouteWrite::Custom(table)) = (planned.stamp, &mut planned.config.route) {
-        if matches!(auth, RouteAuth::Bearer | RouteAuth::EnvKey) {
-            table.insert(
-                "requires_openai_auth",
-                toml_edit::value(requires_openai_auth(auth, login)),
-            );
-        }
-    }
+    planned.use_login_state(&config_source, preserve, decision.login_on_disk);
     let mut credentials: Vec<(LiveFile, Guarded)> = Vec::new();
     if readable {
         if let Some(next) = &decision.auth {
@@ -465,6 +468,29 @@ pub fn available_logins(env: &Env) -> Result<Vec<login::LoginSummary>, AppError>
         }
     }
     Ok(summaries)
+}
+/// Validate the binding in the same operation as the provider write.
+pub fn validate_login_ref(env: &Env, provider: &Provider) -> Result<(), AppError> {
+    let Some(identity) = provider.codex_login_ref() else {
+        return Ok(());
+    };
+    if !provider.is_official_category()
+        || provider.managed_codex_account().is_some()
+        || codex_live_auth_is_stale_third_party_residue(&auth_of(provider))
+    {
+        return Err(AppError::Config(
+            "This provider cannot reference a local login / 此供应商不能引用本机登录".into(),
+        ));
+    }
+    if !available_logins(env)?
+        .iter()
+        .any(|s| s.identity == identity)
+    {
+        return Err(AppError::Config(
+            "Referenced login was not found / 未找到引用的登录".into(),
+        ));
+    }
+    Ok(())
 }
 pub fn set_login_ref(
     env: &Env,

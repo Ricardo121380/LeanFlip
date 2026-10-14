@@ -13,6 +13,7 @@ pub mod claude_desktop;
 pub mod codex;
 pub mod gemini;
 pub mod grok;
+pub mod status;
 
 use crate::codex::oauth::CodexOAuthManager;
 use crate::env::Env;
@@ -161,7 +162,7 @@ pub fn update_provider_with(
 /// 只校验、不写：目标行能不能投影。
 pub fn preflight(data: &store::StoreData, tool: Tool, provider: &Provider) -> Result<(), AppError> {
     match tool {
-        Tool::Claude => Ok(()),
+        Tool::Claude => claude::validate(provider),
         Tool::Codex => codex::plan(data, None, provider).map(|_| ()),
         Tool::Gemini => gemini::projection(provider).map(|_| ()),
         Tool::GrokBuild => grok::projection(provider).map(|_| ()),

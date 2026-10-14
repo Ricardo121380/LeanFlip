@@ -268,25 +268,40 @@ pub async fn save_settings(
     state: State<'_, AppState>,
     input: SettingsInput,
 ) -> ApiResult<SaveSettingsResult> {
+    leanflip_service::settings::validate(&input.app)
+        .map_err(|e| ApiError::message(e.to_string()))?;
     let autostart = input.app.autostart;
-    let result = mutating(&app, &state, move |s| s.save_settings(input)).await?;
-    if result.dirs_changed {
-        crate::watcher::reconfigure(&app, state.0.env());
-    }
-    {
-        use tauri_plugin_autostart::ManagerExt;
-        let launcher = app.autolaunch();
+    let previous = state.0.app_settings().autostart;
+    use tauri_plugin_autostart::ManagerExt;
+    let launcher = app.autolaunch();
+    if autostart != previous {
         let applied = if autostart {
             launcher.enable()
-        } else if launcher.is_enabled().unwrap_or(false) {
-            launcher.disable()
         } else {
-            Ok(())
+            launcher.disable()
         };
-        if let Err(err) = applied {
-            log::warn!("autostart: {err}");
-            return Err(ApiError::message(format!("autostart: {err}")));
+        applied.map_err(|e| ApiError::message(format!("autostart: {e}")))?;
+    }
+    let result = match mutating(&app, &state, move |s| s.save_settings(input)).await {
+        Ok(result) => result,
+        Err(error) => {
+            if autostart != previous {
+                let rollback = if previous {
+                    launcher.enable()
+                } else {
+                    launcher.disable()
+                };
+                if let Err(rollback) = rollback {
+                    return Err(ApiError::message(format!(
+                        "{error}; autostart rollback failed: {rollback}"
+                    )));
+                }
+            }
+            return Err(error);
         }
+    };
+    if result.dirs_changed {
+        crate::watcher::reconfigure(&app, state.0.env());
     }
     Ok(result)
 }

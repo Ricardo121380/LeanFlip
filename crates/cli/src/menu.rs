@@ -533,6 +533,7 @@ mod tests {
 
     fn fixture(tool: Tool) -> ToolProviders {
         ToolProviders {
+            selected: None,
             tool,
             kind: if tool.is_coexist() {
                 ToolKind::Coexist

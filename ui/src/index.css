@@ -278,8 +278,7 @@
     position: relative;
     animation: morph-in 320ms cubic-bezier(0.2, 0.8, 0.2, 1) 110ms both;
   }
-  .morph-in::after {
-    content: attr(data-text);
+  .morph-shine {
     position: absolute;
     inset: 0;
     overflow: hidden;
@@ -729,6 +728,8 @@
 @layer components {
   /* Usage page */
   .stats-panel {
+    min-width: 0;
+    max-width: 100%;
     border: 1px solid hsl(var(--border));
     border-radius: 1rem;
     background: hsl(var(--card));
@@ -858,6 +859,8 @@
     }
   }
   .stats-section {
+    min-width: 0;
+    max-width: 100%;
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -975,7 +978,8 @@
     display: flex;
     align-items: center;
     overflow: hidden;
-    padding: 0 7px;
+    padding: 0;
+    min-width: 0;
     border-radius: 6px;
     font-size: 11.5px;
     font-weight: 600;
@@ -1231,6 +1235,8 @@
 
   /* Tables */
   .stats-table {
+    min-width: 0;
+    max-width: 100%;
     overflow: auto;
     border: 1px solid hsl(var(--border));
     border-radius: 12px;
@@ -1418,3 +1424,5 @@
     color: hsl(var(--muted-foreground));
   }
 }
+
+.tl-seg > span { padding: 0 7px; }

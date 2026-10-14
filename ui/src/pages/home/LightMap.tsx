@@ -1,5 +1,5 @@
 // 光路：左边是工具，右边是按地址合并的服务端点。正在用的路由上有光点流动，延迟越低流得越快。
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Provider, ToolId } from "@/lib/api";
 import { isOfficial } from "@/lib/cards";
@@ -8,7 +8,7 @@ import { canAnimate } from "@/lib/motion";
 import { Morph } from "@/components/Morph";
 import { ToolGlyph } from "@/components/Glyph";
 import { cn } from "@/lib/utils";
-import { buildMap, type Edge, type Host, type Latency, type Row } from "./model";
+import { buildMap, probeKey, type Edge, type Host, type Latency, type Row } from "./model";
 
 interface Props {
   rows: Row[];
@@ -361,11 +361,6 @@ export function LightMap({ rows, latency, onSwitch, onToggle }: Props) {
       if (!edge.active) onSwitch(edge.row, edge.provider);
     } else if (!edge.row.data?.liveError) onToggle(edge.row, edge.provider, !edge.active);
   };
-  const onKey = (event: KeyboardEvent, edge: Edge) => {
-    if (event.key !== "Enter" && event.key !== " ") return;
-    event.preventDefault();
-    press(edge);
-  };
   const edgeLabel = (edge: Edge) => {
     const tool = edge.row.tool.label;
     const name = edge.provider.name;
@@ -403,16 +398,7 @@ export function LightMap({ rows, latency, onSwitch, onToggle }: Props) {
                   <g className="lm-parts">
                     {Array.from({ length: 6 }, (_, k) => <circle key={k} className="lm-dot" r={2.4} />)}
                   </g>
-                  <path
-                    className="lm-hit"
-                    d={d}
-                    role="button"
-                    tabIndex={0}
-                    aria-pressed={edge.active}
-                    aria-label={edgeLabel(edge)}
-                    onClick={() => press(edge)}
-                    onKeyDown={(e) => onKey(e, edge)}
-                  />
+
                 </g>
               );
             })}
@@ -440,19 +426,41 @@ export function LightMap({ rows, latency, onSwitch, onToggle }: Props) {
         {map.hosts.map((host) => {
           const into = map.edges.filter((e) => e.host.key === host.key);
           const on = into.some((e) => e.active);
+          const labels = new Map<string, Edge[]>();
+          const probes = new Map<string, Edge>();
+          for (const edge of into) {
+            const label = edge.provider.name;
+            labels.set(label, [...(labels.get(label) ?? []), edge]);
+            if (!isOfficial(edge.provider)) probes.set(probeKey(edge.row.tool.id, edge.provider), edge);
+          }
           return (
             <li key={host.key} className={cn(focus && !into.some((e) => e.row.tool.id === focus) && "dim")}>
               <span className={cn("lm-host", on && "on")} ref={(el) => { if (el) hostNodes.current.set(host.key, el); else hostNodes.current.delete(host.key); }} />
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-mono text-[12px]">{hostLabel(host)}</span>
-                <span className="block truncate text-[11px] text-muted-foreground">
-                  {into.map((edge, i) => (
-                    <span key={edge.key}>
-                      {i > 0 && " · "}
-                      <span className={cn(edge.active && "font-medium text-foreground")}>{edge.provider.name}</span>
-                      {resultText(edge) && <> {resultText(edge)}</>}
-                    </span>
-                  ))}
+                <span className="flex flex-wrap text-[11px] text-muted-foreground">
+                  {[...labels].map(([label, edges]) => {
+                    const sameTool = edges.every((e) => e.row.tool.id === edges[0].row.tool.id);
+                    return <span key={label} className="mr-2 inline-flex items-center gap-1">
+                      {edges.length > 1 && <span>{sameTool ? `${edges[0].row.tool.label} · ${label}` : label}</span>}
+                      {edges.map((edge, index) => {
+                        const siblings = edges.filter((e) => e.row.tool.id === edge.row.tool.id);
+                        const number = siblings.length > 1 ? ` ${siblings.indexOf(edge) + 1}` : "";
+                        const text = edges.length === 1 ? `${edge.row.tool.label} · ${label}` : sameTool ? index + 1 : `${edge.row.tool.label}${number}`;
+                        return <button key={edge.key} type="button" aria-pressed={edge.active}
+                          aria-label={`${edgeLabel(edge)}${edges.length > 1 ? ` (${index + 1}/${edges.length})` : ""}`}
+                          onClick={() => press(edge)}
+                          className={cn("rounded px-1 py-1 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring", edge.active && "font-medium text-foreground")}>
+                          {text}
+                        </button>;
+                      })}
+                    </span>;
+                  })}
+                  {[...probes].map(([key, edge]) => {
+                    const result = resultText(edge);
+                    if (!result) return null;
+                    return <span key={key} className="mr-2">{probes.size > 1 && <span className="font-mono">{key.startsWith("http") ? new URL(key).pathname : edge.provider.name} · </span>}{result}</span>;
+                  })}
                 </span>
               </span>
             </li>

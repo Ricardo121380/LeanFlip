@@ -39,7 +39,7 @@ pub fn identity(auth: &Value) -> String {
         parts.join("|")
     }
 }
-fn login_id(auth: &Value) -> Option<String> {
+pub(crate) fn login_id(auth: &Value) -> Option<String> {
     codex_auth_has_credential_login_material(auth).then(|| identity(auth))
 }
 fn static_key(auth: &Value) -> bool {
