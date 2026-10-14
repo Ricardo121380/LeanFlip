@@ -33,23 +33,13 @@ export function setPath(value: Record<string, unknown>, path: string, next: unkn
   else result[key] = next;
   return result;
 }
-export function optionValue(value: unknown, option: ConfigOption): boolean {
-  return Object.is(atPath(value, option.key), option.on) && (option.also ?? []).every((v) => Object.is(atPath(value, v.key), v.on));
+export function optionState(value: unknown, option: ConfigOption): "default" | "on" | "off" | "custom" {
+  const entries = [option, ...(option.also ?? [])];
+  if (entries.every((entry) => atPath(value, entry.key) === undefined)) return "default";
+  if (entries.every((entry) => Object.is(atPath(value, entry.key), entry.on))) return "on";
+  if (entries.every((entry) => Object.is(atPath(value, entry.key), entry.off))) return "off";
+  return "custom";
 }
 export function applyOption(value: Record<string, unknown>, option: ConfigOption, checked: boolean | "default"): Record<string, unknown> {
   return [option, ...(option.also ?? [])].reduce((v, entry) => setPath(v, entry.key, checked === "default" ? undefined : checked ? entry.on : entry.off), value);
-}
-/** Existing boolean preferences are always editable, even when no documented shortcut exists. */
-export function existingOptions(value: Record<string, unknown>, known: ConfigOption[]): ConfigOption[] {
-  const result: ConfigOption[] = [];
-  const walk = (object: Record<string, unknown>, parent: string, depth: number) => {
-    for (const [key, value] of Object.entries(object)) {
-      if (key.includes(".")) continue;
-      const path = parent ? `${parent}.${key}` : key;
-      if (typeof value === "boolean" && !known.some((o) => o.key === path)) result.push(flag(path, path));
-      else if (depth < 2 && value && typeof value === "object" && !Array.isArray(value)) walk(value as Record<string, unknown>, path, depth + 1);
-    }
-  };
-  walk(value, "", 0);
-  return result;
 }

@@ -1,5 +1,5 @@
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
-import { cleanup, screen, fireEvent, waitFor } from "@testing-library/react";
+import { cleanup, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { fakeBackend, renderWithClient } from "@/test/utils";
 import i18n from "@/i18n";
@@ -9,6 +9,7 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: v
 vi.mock("./CodeEditor", () => ({ CodeEditor: ({ value, onChange, ariaLabel, readOnly }: any) => <textarea aria-label={ariaLabel} value={value} readOnly={readOnly} onChange={(e) => onChange(e.target.value)} /> }));
 import { CommonConfigEditor } from "./CommonConfigEditor";
 import { ProviderEditor } from "./ProviderEditor";
+import { TOOLS } from "@/lib/tools";
 
 beforeEach(async () => { vi.clearAllMocks(); await i18n.changeLanguage("zh"); });
 afterEach(cleanup);
@@ -38,9 +39,15 @@ it("retains invalid and conflicting drafts; cancelling does not write", async ()
   await userEvent.click(await screen.findByRole("checkbox", { name: "Shell 快照" }));
   await userEvent.click(screen.getByRole("button", { name: "保存并应用" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("Client configuration changed");
+  expect(within(screen.getByTestId("common-config-footer")).getByRole("alert")).toHaveTextContent("Client configuration changed");
   expect(screen.getByRole("checkbox", { name: "Shell 快照" })).toBeChecked();
   fireEvent.change(screen.getByLabelText("配置 JSON"), { target: { value: "{" } });
+  expect(screen.queryByText("Client configuration changed")).not.toBeInTheDocument();
+  expect(within(screen.getByTestId("common-config-footer")).getByRole("alert")).toHaveTextContent("尚未保存");
+  expect(screen.getByRole("alert")).not.toHaveTextContent("顶层必须是对象");
   expect(screen.getByRole("button", { name: "保存并应用" })).toBeDisabled();
+  fireEvent.change(screen.getByLabelText("配置 JSON"), { target: { value: "[]" } });
+  expect(screen.getByRole("alert")).toHaveTextContent("顶层必须是对象");
   await userEvent.click(screen.getByRole("button", { name: "取消" }));
   expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
   expect(close).not.toHaveBeenCalled();
@@ -51,9 +58,31 @@ it("Codex provider shortcuts write typed TOML without exposing ID in common sett
   renderWithClient(<ProviderEditor tool="codex" open onOpenChange={() => {}} provider={{ id: "official", name: "Official", category: "official", settingsConfig: { auth: {}, config: "# retain comment\nmodel = 'test-model'\n" } }} existingIds={["official"]} />);
   expect(screen.queryByLabelText("ID")).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("tab", { name: /^完整配置/ }));
+  expect(screen.queryByLabelText("ID")).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("checkbox", { name: "禁用响应存储" }));
   const config = (screen.getByLabelText(/config.toml/) as HTMLTextAreaElement).value;
   expect(config).toContain("disable_response_storage = true"); expect(config).toContain("# retain comment");
   await userEvent.click(screen.getByRole("button", { name: "保存" }));
   await waitFor(() => expect(fake.calls.some((c) => c.cmd === "update_provider")).toBe(true));
+});
+
+it.each(TOOLS)("keeps unrecognized preferences in JSON, without raw-field switches for $label", async ({ id }) => {
+  const config = { plugin: { enabled: true }, skipDangerousModePermissionPrompt: true, verbose: false };
+  const fake = fakeBackend({ get_common_config: () => ({ config, revision: "r1", format: "JSON", paths: ["/isolated/config"] }) });
+  backend.invoke = fake.invoke;
+  renderWithClient(<CommonConfigEditor tool={id} onClose={() => {}} />);
+  const editor = await screen.findByLabelText("配置 JSON");
+  expect(JSON.parse((editor as HTMLTextAreaElement).value)).toEqual(config);
+  expect(screen.queryByRole("checkbox", { name: /plugin|skipDangerous|verbose/ })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "保存并应用" })).toBeDisabled();
+});
+
+it("marks a Codex notification allowlist as custom and preserves it when editing another shortcut", async () => {
+  const config = { tui: { notifications: ["agent-turn-complete"] } };
+  backend.invoke = fakeBackend({ get_common_config: () => ({ config, revision: "r1", format: "TOML", paths: ["/isolated/config.toml"] }) }).invoke;
+  renderWithClient(<CommonConfigEditor tool="codex" onClose={() => {}} />);
+  expect(await screen.findByRole("checkbox", { name: "终端通知" })).toBePartiallyChecked();
+  expect(screen.getByText("自定义")).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("checkbox", { name: "Shell 快照" }));
+  expect(JSON.parse((screen.getByLabelText("配置 JSON") as HTMLTextAreaElement).value).tui.notifications).toEqual(["agent-turn-complete"]);
 });

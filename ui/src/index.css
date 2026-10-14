@@ -1186,7 +1186,11 @@
     pointer-events: none;
   }
   .tl-tip {
-    transform: translate(-50%, calc(-100% - 8px));
+    position: relative;
+    min-width: 0;
+    max-width: min(280px, var(--radix-tooltip-content-available-width));
+    overflow-wrap: anywhere;
+    pointer-events: auto;
   }
   .tip-head {
     margin-bottom: 6px;
