@@ -618,6 +618,8 @@ fn run(cli: Cli) -> Result<Output, CliError> {
                 accounts: !no_accounts,
                 settings: !no_settings,
                 paths: restore_paths,
+                // Scenes point at cards, so they travel with the providers.
+                scenes: !no_providers,
                 duplicate: duplicate.into(),
             };
             data::restore(

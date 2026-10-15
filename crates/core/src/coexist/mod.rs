@@ -115,6 +115,22 @@ pub fn live_entries(env: &Env, tool: Tool) -> Result<Map<String, Value>, AppErro
     })
 }
 
+/// 客户端配置里「默认」的那一家。只有 Hermes 有（顶层 `model.provider`），其他工具是 `None`。
+pub fn active_entry(env: &Env, tool: Tool) -> Result<Option<String>, AppError> {
+    ensure_coexist(tool)?;
+    if tool != Tool::Hermes {
+        return Ok(None);
+    }
+    let path = live_path(env, tool);
+    let bytes = crate::live::engine::read_current(&path).map_err(AppError::from)?;
+    let text = match &bytes {
+        Some(bytes) => std::str::from_utf8(bytes)
+            .map_err(|_| AppError::Config(format!("{} 不是 UTF-8 文本", path.display())))?,
+        None => "",
+    };
+    hermes::active(text)
+}
+
 /// 只校验、不写：这张卡能不能写进客户端配置。
 pub fn validate(tool: Tool, provider: &Provider) -> Result<(), AppError> {
     ensure_coexist(tool)?;

@@ -79,6 +79,17 @@ pub(crate) fn entries(text: &str) -> Result<Map<String, Value>, AppError> {
     }
     Ok(result)
 }
+/// 顶层 `model.provider` 指向的那一家（没有设置时是 `None`）。
+pub(crate) fn active(text: &str) -> Result<Option<String>, AppError> {
+    let doc = Document::parse(text)?;
+    Ok(doc
+        .value
+        .get("model")
+        .and_then(|model| model.get("provider"))
+        .and_then(Value::as_str)
+        .filter(|name| !name.is_empty())
+        .map(str::to_string))
+}
 pub(crate) fn validate(provider: &Provider) -> Result<(), AppError> {
     if provider.id.trim().is_empty() || !provider.settings_config.is_object() {
         Err(AppError::localized(

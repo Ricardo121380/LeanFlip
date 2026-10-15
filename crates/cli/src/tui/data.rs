@@ -126,13 +126,16 @@ impl DataPanel {
         };
     }
     fn options(&self) -> RestoreOptions {
+        let tools: Vec<_> = self
+            .choices
+            .iter()
+            .filter(|choice| choice.checked)
+            .filter_map(|choice| choice.tool)
+            .collect();
         RestoreOptions {
-            tools: self
-                .choices
-                .iter()
-                .filter(|choice| choice.checked)
-                .filter_map(|choice| choice.tool)
-                .collect(),
+            // Scenes point at cards, so they travel with the providers.
+            scenes: !tools.is_empty(),
+            tools,
             accounts: self.accounts,
             settings: self.settings,
             paths: self.paths,

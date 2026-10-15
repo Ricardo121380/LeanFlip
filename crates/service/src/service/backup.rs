@@ -9,6 +9,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use age::secrecy::SecretString;
 use leanflip_core::codex::oauth::AccountData;
 use leanflip_core::env::DirOverrides;
+use leanflip_core::scene::{self, Scene};
 use leanflip_core::store::StoreData;
 use zeroize::{Zeroize, Zeroizing};
 
@@ -108,6 +109,7 @@ pub struct BackupPreview {
     pub existing_accounts: usize,
     pub has_settings: bool,
     pub has_paths: bool,
+    pub scenes: usize,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -117,6 +119,7 @@ pub struct RestoreOptions {
     pub accounts: bool,
     pub settings: bool,
     pub paths: bool,
+    pub scenes: bool,
     pub duplicate: ccswitch_export::DuplicatePolicy,
 }
 
@@ -127,6 +130,7 @@ impl Default for RestoreOptions {
             accounts: true,
             settings: true,
             paths: false,
+            scenes: true,
             duplicate: ccswitch_export::DuplicatePolicy::Skip,
         }
     }
@@ -140,6 +144,8 @@ pub struct RestoreReport {
     pub accounts_added: usize,
     pub settings_restored: bool,
     pub dirs_changed: bool,
+    pub scenes_added: usize,
+    pub scenes_skipped: usize,
     /// Stable stage/error codes only; never parser contents or credentials.
     pub failures: Vec<String>,
 }
@@ -204,6 +210,43 @@ fn validate(payload: &Payload) -> Result<(), AppError> {
         return Err(invalid());
     }
     Ok(())
+}
+
+/// Merges backed-up scenes. Scenes whose id or name already exists are skipped;
+/// card references follow cards that were restored under a suffixed id. The
+/// last-applied scene is a device record and is never restored.
+fn restore_scenes(
+    data: &mut StoreData,
+    scenes: &[Scene],
+    renamed: &HashMap<(Tool, String), String>,
+) -> (usize, usize) {
+    let (mut added, mut skipped) = (0, 0);
+    for scene in scenes {
+        let same = |other: &Scene| {
+            other.id == scene.id
+                || other.name.trim().to_lowercase() == scene.name.trim().to_lowercase()
+        };
+        if scene::validate(scene).is_err() || data.scenes.iter().any(same) {
+            skipped += 1;
+            continue;
+        }
+        let mut next = scene.clone();
+        for (key, entry) in next.tools.iter_mut() {
+            let Ok(tool) = key.parse::<Tool>() else {
+                continue;
+            };
+            let map = |id: &mut String| {
+                if let Some(local) = renamed.get(&(tool, id.clone())) {
+                    *id = local.clone();
+                }
+            };
+            entry.current.iter_mut().for_each(map);
+            entry.enabled.iter_mut().flatten().for_each(map);
+        }
+        data.scenes.push(next);
+        added += 1;
+    }
+    (added, skipped)
 }
 
 fn encrypt(payload: &Payload, password: &str) -> Result<Vec<u8>, AppError> {
@@ -350,6 +393,7 @@ impl Service {
                 .count(),
             has_settings: true,
             has_paths: payload.app.dir_overrides != DirOverrides::default(),
+            scenes: payload.providers.scenes.len(),
         };
         {
             let mut cache = self.staged_backup.lock().unwrap_or_else(|e| e.into_inner());
@@ -394,7 +438,7 @@ impl Service {
     }
 
     pub fn backup_apply(&self, options: RestoreOptions) -> ApiResult<RestoreReport> {
-        if options.tools.is_empty() && !options.accounts && !options.settings {
+        if options.tools.is_empty() && !options.accounts && !options.settings && !options.scenes {
             return Err(self.err(AppError::InvalidInput(
                 "Choose at least one restore scope".into(),
             )));
@@ -456,12 +500,14 @@ impl Service {
                 }
             }
         }
-        let result = if options.tools.is_empty() && !options.settings {
-            Ok((0, 0))
+        let result = if options.tools.is_empty() && !options.settings && !options.scenes {
+            Ok((0, 0, (0, 0)))
         } else {
             store::update(&rt.env, |data| {
                 let mut added = 0;
                 let mut skipped = 0;
+                // Suffixed cards: (tool, backup id) -> local id, for scene references.
+                let mut renamed = HashMap::new();
                 for &tool in &options.tools {
                     for provider in payload.providers.providers(tool) {
                         let mut next = provider.clone();
@@ -482,6 +528,7 @@ impl Service {
                                     None => break,
                                 }
                             }
+                            renamed.insert((tool, provider.id.clone()), next.id.clone());
                             if data.provider(tool, &next.id).is_some() {
                                 skipped += 1;
                                 continue;
@@ -501,13 +548,20 @@ impl Service {
                             .or_insert_with(|| value.clone());
                     }
                 }
-                Ok((added, skipped))
+                let scenes = if options.scenes {
+                    restore_scenes(data, &payload.providers.scenes, &renamed)
+                } else {
+                    (0, 0)
+                };
+                Ok((added, skipped, scenes))
             })
         };
         match result {
-            Ok((added, skipped)) => {
+            Ok((added, skipped, (scenes_added, scenes_skipped))) => {
                 report.providers_added = added;
                 report.providers_skipped = skipped;
+                report.scenes_added = scenes_added;
+                report.scenes_skipped = scenes_skipped;
             }
             Err(problem) => {
                 report
