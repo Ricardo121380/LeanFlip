@@ -1,6 +1,6 @@
 // Browser-only stand-in for `@tauri-apps/api/core`, used by `pnpm dev:mock`.
 // Vite aliases the real module to this file only when LEANFLIP_MOCK=1, so it never ships in the app.
-import type { AccountInfo, LoginSummary, Provider, QuotaView, SettingsView, SwitchEvent, ToolId, ToolProviders, ToolSummary, UsageReport, UsageRow } from "@/lib/api";
+import type { AccountInfo, LoginSummary, Provider, QuotaDetect, QuotaSnapshot, QuotaSource, QuotaView, SettingsView, SwitchEvent, ToolId, ToolProviders, ToolSummary, UsageReport, UsageRow } from "@/lib/api";
 
 type Kind = "switch" | "coexist";
 interface MockTool { kind: Kind; paths: string[]; detected: boolean; current: string | null; inLive: string[]; providers: Provider[] }
@@ -86,8 +86,34 @@ function quotaView(): QuotaView {
         },
         error: { code: "reauth", at: quotaCheckedAt },
       },
+      ...relaySources(now),
     ],
   };
+}
+
+// 中转站：卡片设置了平台类型才算一个来源，数字是示例。
+function relaySnapshot(now: number): QuotaSnapshot {
+  return {
+    windows: [{ minutes: 300, usedPercent: 84, resetsAt: Math.floor(now / 1000) + 2 * 3600, reset: false, usedAmount: 4.2, limitAmount: 5 }],
+    balance: { unit: "USD", remaining: 31.4, limit: 58, used: 26.6, unlimited: false, accountRemaining: 120 },
+    plan: "work", fetchedAt: now - 3 * 60_000, origin: "network", level: "warn", usedFraction: 0.84, limitReached: false,
+  };
+}
+function relaySources(now: number): QuotaSource[] {
+  const sources: QuotaSource[] = [];
+  for (const tool of Object.keys(tools) as ToolId[]) {
+    const t = tools[tool];
+    for (const p of t.providers) {
+      const adapter = (p.meta?.leanflipQuota as { adapter?: string } | undefined)?.adapter;
+      if (adapter !== "sub2api" && adapter !== "newapi") continue;
+      const active = t.kind === "switch" ? t.current === p.id : t.inLive.includes(p.id);
+      sources.push({
+        key: `relay:demo:${tool}:${p.id}`, kind: "relay", label: "gw.example.com", adapter,
+        users: [{ tool, providerId: p.id, providerName: p.name, active }], snapshot: relaySnapshot(now),
+      });
+    }
+  }
+  return sources;
 }
 let app: SettingsView["app"] = { language: null, theme: null, dirOverrides: {}, autostart: false, backgroundRefreshHours: 168, closeToTray: true };
 const ok = { changed: [] as string[], warnings: [] as string[] };
@@ -296,6 +322,24 @@ const handlers: Record<string, (args: Args) => unknown> = {
   codex_logins: () => logins,
   quota_overview: () => quotaView(),
   quota_refresh: () => { quotaCheckedAt = Date.now(); return quotaView(); },
+  quota_detect: (): QuotaDetect => ({
+    steps: [
+      { adapter: "sub2api", url: "https://gw.example.com/v1/usage", outcome: "miss", status: 200, code: "format" },
+      { adapter: "newapi", url: "https://gw.example.com/api/usage/token", outcome: "hit", status: 200 },
+    ],
+    adapter: "newapi",
+    snapshot: relaySnapshot(Date.now() + 3 * 60_000),
+    key: "relay:demo",
+  }),
+  quota_configure: (a) => {
+    const provider = tools[a!.tool as ToolId].providers.find((p) => p.id === a!.id);
+    if (!provider) throw "Provider not found";
+    const meta = { ...(provider.meta ?? {}) };
+    if (a!.settings) meta.leanflipQuota = a!.settings;
+    else delete meta.leanflipQuota;
+    provider.meta = meta;
+    return null;
+  },
   codex_set_default: (a) => { accounts = accounts.map((x) => ({ ...x, isDefault: x.id === a!.id })); return null; },
   codex_remove_account: (a) => { accounts = accounts.filter((x) => x.id !== a!.id); return null; },
   codex_set_login_ref: () => ok,

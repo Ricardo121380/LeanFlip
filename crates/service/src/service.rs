@@ -767,7 +767,8 @@ impl Service {
 
     // ---- 额度 ----
 
-    /// Codex 官方登录的限额窗口和 credits：本机会话记录加上次联网查询的缓存，不联网。
+    /// 额度总览：Codex 官方登录的窗口和 credits（本机会话记录加缓存），以及设置了平台类型
+    /// 的中转卡的余额（缓存）。不联网。
     pub fn quota_overview(&self) -> ApiResult<quota::QuotaView> {
         let rt = self.runtime();
         let data = store::load_readonly(&rt.env).map_err(|e| self.err(e))?;
@@ -786,44 +787,90 @@ impl Service {
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .clone();
-        Ok(quota::build_view(holders, cards, seen, &errors, now))
+        let mut view = quota::build_view(holders, cards, seen, &errors, now);
+        let relays = self.relay_cards(&data);
+        view.sources.extend(quota::relay::relay_sources(
+            &relays,
+            &quota::cache::load_relays(&rt.env),
+            &errors,
+        ));
+        view.busiest = quota::busiest(&view.sources);
+        Ok(view)
     }
 
-    /// 联网查询托管账号的额度（`accounts` 为空时查全部），然后返回最新的总览。
-    /// 同一个账号一分钟内只查一次；需要重新登录的账号不查。
-    pub fn quota_refresh(&self, accounts: Option<Vec<String>>) -> ApiResult<quota::QuotaView> {
+    /// 设置了平台类型的中转卡。切换式工具看当前指针，并存式工具看是否写进了客户端。
+    fn relay_cards(&self, data: &store::StoreData) -> Vec<quota::relay::RelayCard> {
+        let coexist: HashMap<Tool, Vec<String>> = Tool::ALL
+            .into_iter()
+            .filter(|tool| tool.is_coexist())
+            .map(|tool| (tool, self.live_ids(tool).unwrap_or_default()))
+            .collect();
+        let providers: Vec<(Tool, &Provider)> = Tool::ALL
+            .into_iter()
+            .flat_map(|tool| data.providers(tool).iter().map(move |p| (tool, p)))
+            .collect();
+        let active = |tool: Tool, id: &str| match coexist.get(&tool) {
+            Some(live) => live.iter().any(|x| x == id),
+            None => data.current(tool).is_some_and(|p| p.id == id),
+        };
+        quota::relay::relay_cards(&providers, &active)
+    }
+
+    /// 同一来源一分钟内只联网查一次。
+    fn quota_attempt(&self, key: &str) -> bool {
         const MIN_INTERVAL_MS: i64 = 60_000;
+        let now = quota::now_ms();
+        let mut attempts = self
+            .quota_attempts
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        if attempts
+            .get(key)
+            .is_some_and(|last| now - last < MIN_INTERVAL_MS)
+        {
+            return false;
+        }
+        attempts.insert(key.to_string(), now);
+        true
+    }
+
+    fn quota_outcome(&self, key: String, outcome: Result<(), quota::QuotaError>) {
+        let mut errors = self.quota_errors.lock().unwrap_or_else(|e| e.into_inner());
+        match outcome {
+            Ok(()) => {
+                errors.remove(&key);
+            }
+            Err(error) => {
+                log::info!("quota: {key} refresh failed: {}", error.code);
+                errors.insert(key, error);
+            }
+        }
+    }
+
+    /// 联网查询托管账号和已设置平台的中转卡（`keys` 为空时查全部，否则只查这些来源），
+    /// 然后返回最新的总览。需要重新登录的账号不查。
+    pub fn quota_refresh(&self, keys: Option<Vec<String>>) -> ApiResult<quota::QuotaView> {
         let rt = self.runtime();
-        let infos = rt.oauth.try_list_accounts().map_err(|e| self.err(e))?;
+        let wanted = |key: &str| {
+            keys.as_ref()
+                .is_none_or(|keys| keys.iter().any(|k| k == key))
+        };
+        let failure = |code: &str, status: Option<u16>| quota::QuotaError {
+            code: code.to_string(),
+            status,
+            at: quota::now_ms(),
+        };
         let client = quota::codex_remote::client().ok();
         let mut fresh = Vec::new();
+        let infos = rt.oauth.try_list_accounts().map_err(|e| self.err(e))?;
         for info in infos {
-            if accounts.as_ref().is_some_and(|ids| !ids.contains(&info.id)) {
-                continue;
-            }
             let Some(identity) = quota::account_identity(&rt.oauth, &info.id) else {
                 continue;
             };
             let key = identity.key();
-            let now = quota::now_ms();
-            {
-                let mut attempts = self
-                    .quota_attempts
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner());
-                if attempts
-                    .get(&info.id)
-                    .is_some_and(|last| now - last < MIN_INTERVAL_MS)
-                {
-                    continue;
-                }
-                attempts.insert(info.id.clone(), now);
+            if !wanted(&key) || !self.quota_attempt(&key) {
+                continue;
             }
-            let failure = |code: &str, status: Option<u16>| quota::QuotaError {
-                code: code.to_string(),
-                status,
-                at: quota::now_ms(),
-            };
             let outcome = if info.reauth_required {
                 Err(failure("reauth", None))
             } else {
@@ -847,22 +894,133 @@ impl Service {
                     .map_err(|f| failure(f.code, f.status)),
                 }
             };
-            let mut errors = self.quota_errors.lock().unwrap_or_else(|e| e.into_inner());
-            match outcome {
-                Ok(snapshot) => {
-                    errors.remove(&key);
-                    fresh.push(quota::Observation { identity, snapshot });
-                }
-                Err(error) => {
-                    log::info!("quota: {key} refresh failed: {}", error.code);
-                    errors.insert(key, error);
-                }
-            }
+            self.quota_outcome(
+                key,
+                outcome.map(|snapshot| fresh.push(quota::Observation { identity, snapshot })),
+            );
         }
-        if let Err(err) = quota::cache::save(&rt.env, fresh, quota::now_ms()) {
+
+        let data = store::load_readonly(&rt.env).map_err(|e| self.err(e))?;
+        let mut relays: Vec<quota::cache::RelayEntry> = Vec::new();
+        let mut done: Vec<String> = Vec::new();
+        for card in self.relay_cards(&data) {
+            if done.contains(&card.key) || !wanted(&card.key) {
+                continue;
+            }
+            done.push(card.key.clone());
+            if !self.quota_attempt(&card.key) {
+                continue;
+            }
+            let outcome = match client.as_ref() {
+                None => Err(failure("network", None)),
+                Some(client) => quota::relay::fetch(
+                    client,
+                    card.adapter,
+                    &card.origin,
+                    &card.secret,
+                    card.per_usd,
+                    quota::now_ms(),
+                )
+                .map_err(|f| failure(f.code, f.status)),
+            };
+            let key = card.key.clone();
+            self.quota_outcome(
+                key.clone(),
+                outcome.map(|snapshot| relays.push(quota::cache::RelayEntry { key, snapshot })),
+            );
+        }
+        if let Err(err) = quota::cache::save(&rt.env, fresh, relays, quota::now_ms()) {
             log::warn!("quota: cache not saved: {err}");
         }
         self.quota_overview()
+    }
+
+    /// 识别中转站的平台：用这份配置里的地址和 Key 依次试各平台的额度接口。认出来时把结果
+    /// 存进缓存，但不改卡片设置（保存时再写）。只在用户点击时调用。
+    pub fn quota_detect(
+        &self,
+        tool: Tool,
+        settings_config: &serde_json::Value,
+        quota_per_usd: Option<f64>,
+    ) -> ApiResult<quota::relay::QuotaDetect> {
+        let Some((address, secret)) = crate::probe::address_and_key(tool, settings_config) else {
+            return Ok(quota::relay::QuotaDetect {
+                steps: Vec::new(),
+                adapter: None,
+                snapshot: None,
+                key: None,
+                error: Some("noEndpoint".into()),
+            });
+        };
+        let origin = quota::relay::origin(&address);
+        let key = quota::relay::source_key(&origin, &secret);
+        let per_usd = quota::relay::QuotaSettings {
+            quota_per_usd,
+            ..Default::default()
+        }
+        .per_usd();
+        let client =
+            quota::codex_remote::client().map_err(|_| ApiError::message("network".into()))?;
+        let (steps, found) =
+            quota::relay::detect(&client, &origin, &secret, per_usd, quota::now_ms());
+        if let Some((_, snapshot)) = &found {
+            let entry = quota::cache::RelayEntry {
+                key: key.clone(),
+                snapshot: snapshot.clone(),
+            };
+            if let Err(err) =
+                quota::cache::save(&self.env(), Vec::new(), vec![entry], quota::now_ms())
+            {
+                log::warn!("quota: cache not saved: {err}");
+            }
+            self.quota_outcome(key.clone(), Ok(()));
+        }
+        Ok(quota::relay::QuotaDetect {
+            steps,
+            adapter: found.as_ref().map(|(adapter, _)| *adapter),
+            snapshot: found.map(|(_, snapshot)| snapshot),
+            key: Some(key),
+            error: None,
+        })
+    }
+
+    /// 改一张卡的额度设置（`None` 清除）。只改 `meta.leanflipQuota`，不动客户端配置。
+    pub fn quota_configure(
+        &self,
+        tool: Tool,
+        id: &str,
+        settings: Option<quota::relay::QuotaSettings>,
+    ) -> ApiResult<()> {
+        if let Some(settings) = &settings {
+            settings.validate().map_err(ApiError::message)?;
+        }
+        let _guard = self.write_guard()?;
+        let rt = self.runtime();
+        store::update(&rt.env, |data| {
+            let provider = data
+                .app_mut(tool)
+                .providers
+                .iter_mut()
+                .find(|p| p.id == id)
+                .ok_or_else(|| {
+                    AppError::InvalidInput(format!("未找到供应商 / Provider not found: {id}"))
+                })?;
+            match &settings {
+                Some(settings) => {
+                    let value = serde_json::to_value(settings)
+                        .map_err(|source| AppError::JsonSerialize { source })?;
+                    provider
+                        .meta
+                        .extra
+                        .insert(quota::relay::META_QUOTA.into(), value);
+                }
+                None => {
+                    provider.meta.extra.remove(quota::relay::META_QUOTA);
+                }
+            }
+            Ok(())
+        })
+        .map_err(|e| self.err(e))
     }
 
     #[cfg(test)]

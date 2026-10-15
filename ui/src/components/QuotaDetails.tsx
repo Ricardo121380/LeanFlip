@@ -1,8 +1,10 @@
-// 一个 ChatGPT 账号的额度：每个窗口一行（已用比例、重置时间），credits，数据来源和时间。
+// 一个额度来源的明细：每个窗口一行（已用比例、重置时间），余额、credits，数据来源和时间。
+// ChatGPT 账号和中转站共用：中转站的窗口是金额窗口，另有余额和账户余额。
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, Loader2, RefreshCw } from "lucide-react";
 import type { QuotaSource } from "@/lib/api";
-import { agoText, creditsText, errorText, meterWidth, percentText, resetText, windowLabel, windowLevel } from "@/lib/quota";
+import { agoText, creditsText, errorText, meterWidth, moneyText, percentText, resetText, windowLabel, windowLevel } from "@/lib/quota";
 import { cn } from "@/lib/utils";
 
 /** 进度条：越满用得越多；80% 以上变黄，用完变红。 */
@@ -14,6 +16,17 @@ export function QuotaMeter({ usedPercent, reset, className }: { usedPercent: num
   );
 }
 
+function Row({ name, meter, value, level = "ok", note }: { name: string; meter?: ReactNode; value: string; level?: "ok" | "warn" | "out"; note?: string | null }) {
+  return (
+    <div className="contents">
+      <span className="text-muted-foreground">{name}</span>
+      {meter ?? <span />}
+      <span className={cn("text-right font-mono font-semibold tabular-nums", level === "warn" && "text-warning", level === "out" && "text-destructive")}>{value}</span>
+      <span className="min-w-0 break-words text-muted-foreground">{note}</span>
+    </div>
+  );
+}
+
 export function QuotaDetails({
   source,
   label,
@@ -22,53 +35,59 @@ export function QuotaDetails({
   refreshing = false,
   onRefresh,
   showError = true,
+  emptyText,
 }: {
   source: QuotaSource | undefined;
-  /** 账号名，用在读屏标签里。 */
+  /** 来源名，用在读屏标签里。 */
   label: string;
   now: number;
-  /** 托管账号可以联网查询；本机登录只有本机记录。 */
+  /** 托管账号和中转站可以联网查询；本机登录只有本机记录。 */
   canRefresh: boolean;
   refreshing?: boolean;
   onRefresh?: () => void;
   /** 联网查询失败的说明。本机登录那一节不显示：那是托管账号的事。 */
   showError?: boolean;
+  /** 还没有数据时的说明，默认按 ChatGPT 账号写。 */
+  emptyText?: string;
 }) {
   const { t, i18n } = useTranslation();
+  const language = i18n.language;
   const snap = source?.snapshot;
-  const credits = snap ? creditsText(snap, i18n.language, t) : null;
+  const credits = snap ? creditsText(snap, language, t) : null;
+  const balance = snap?.balance;
+  const money = (amount: number) => moneyText(amount, balance?.unit ?? "USD", language);
+  const balanceUsed = balance && !balance.unlimited && balance.used !== undefined && balance.limit ? (balance.used / balance.limit) * 100 : undefined;
+  const balanceOut = balance && !balance.unlimited && balance.remaining !== undefined && balance.remaining <= 0;
+  const rows = snap && (snap.windows.length > 0 || credits || balance);
 
   return (
     <div className="mt-2.5 flex flex-col gap-1.5 text-xs" role="group" aria-label={t("quota.windowsLabel", { label })}>
-      {snap && (snap.windows.length > 0 || credits) && (
+      {rows && (
         <div className="grid grid-cols-[auto_minmax(4rem,10rem)_auto_minmax(0,1fr)] items-center gap-x-2.5 gap-y-1.5">
-          {snap.windows.map((w) => {
-            const level = windowLevel(w.usedPercent, w.reset);
-            return (
-              <div key={w.minutes} className="contents">
-                <span className="text-muted-foreground">{windowLabel(w.minutes, t)}</span>
-                <QuotaMeter usedPercent={w.usedPercent} reset={w.reset} className="w-full" />
-                <span
-                  className={cn(
-                    "text-right font-mono font-semibold tabular-nums",
-                    level === "warn" && "text-warning",
-                    level === "out" && "text-destructive",
-                  )}
-                >
-                  {w.reset ? "—" : percentText(w.usedPercent)}
-                </span>
-                <span className="min-w-0 truncate text-muted-foreground">{w.reset ? t("quota.resetDone") : resetText(w.resetsAt, now, t)}</span>
-              </div>
-            );
-          })}
-          {credits && (
-            <div className="contents">
-              <span className="text-muted-foreground">{t("quota.credits")}</span>
-              <span />
-              <span className="text-right font-mono font-semibold tabular-nums">{credits}</span>
-              <span />
-            </div>
+          {balance && (
+            <Row
+              name={t("quota.balance")}
+              meter={balanceUsed !== undefined ? <QuotaMeter usedPercent={balanceUsed} reset={false} className="w-full" /> : undefined}
+              value={balance.unlimited ? t("quota.unlimited") : balance.remaining !== undefined ? money(balance.remaining) : "—"}
+              level={balanceOut ? "out" : balanceUsed !== undefined ? windowLevel(balanceUsed, false) : "ok"}
+              note={balance.limit !== undefined && !balance.unlimited ? t("quota.ofTotal", { total: money(balance.limit) }) : null}
+            />
           )}
+          {snap.windows.map((w) => (
+            <Row
+              key={w.minutes}
+              name={windowLabel(w.minutes, t)}
+              meter={<QuotaMeter usedPercent={w.usedPercent} reset={w.reset} className="w-full" />}
+              value={w.reset ? "—" : percentText(w.usedPercent)}
+              level={windowLevel(w.usedPercent, w.reset)}
+              note={[
+                w.usedAmount !== undefined && w.limitAmount !== undefined ? `${money(w.usedAmount)} / ${money(w.limitAmount)}` : null,
+                w.reset ? t("quota.resetDone") : resetText(w.resetsAt, now, t),
+              ].filter(Boolean).join(" · ")}
+            />
+          ))}
+          {balance?.accountRemaining !== undefined && <Row name={t("quota.accountBalance")} value={money(balance.accountRemaining)} />}
+          {credits && <Row name={t("quota.credits")} value={credits} />}
         </div>
       )}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground">
@@ -77,8 +96,9 @@ export function QuotaDetails({
             {t(snap.origin === "local" ? "quota.local" : "quota.network")} · {agoText(snap.fetchedAt, now, t)}
           </span>
         ) : (
-          <span>{t(canRefresh ? "quota.noData" : "quota.noDataLocal")}</span>
+          <span>{emptyText ?? t(canRefresh ? "quota.noData" : "quota.noDataLocal")}</span>
         )}
+        {balance?.expiresAt && <span>{t("quota.expiresOn", { date: new Date(balance.expiresAt * 1000).toLocaleDateString(language) })}</span>}
         {snap?.limitReached && <span className="font-medium text-destructive">{t("quota.limitReached")}</span>}
         {canRefresh && onRefresh && (
           <button

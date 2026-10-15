@@ -144,7 +144,7 @@ export function CodexAccountsPage() {
   const quota = useQuota();
   const refreshQuota = useQuotaRefresh();
   const now = Date.now();
-  const refreshingAccount = (id: string) => refreshQuota.isPending && (!refreshQuota.variables || refreshQuota.variables.includes(id));
+  const refreshing = (key: string | undefined) => refreshQuota.isPending && (!refreshQuota.variables || (key !== undefined && refreshQuota.variables.includes(key)));
   const lastOnline = Math.max(0, ...(quota.data?.sources ?? []).filter((s) => s.accountId && s.snapshot?.origin === "network").map((s) => s.snapshot!.fetchedAt));
 
   return (
@@ -201,16 +201,19 @@ export function CodexAccountsPage() {
                   {a.workspace && a.email ? `${a.workspace} · ` : ""}
                   {t("codex.authenticatedAt", { time: new Date(a.authenticatedAt * 1000).toLocaleString(i18n.language) })}
                 </p>
-                {quota.data && (
-                  <QuotaDetails
-                    source={sourceFor(quota.data, { accountId: a.id })}
-                    label={accountLabel(a)}
-                    now={now}
-                    canRefresh={!a.reauthRequired}
-                    refreshing={refreshingAccount(a.id)}
-                    onRefresh={() => refreshQuota.mutate([a.id])}
-                  />
-                )}
+                {quota.data && (() => {
+                  const source = sourceFor(quota.data, { accountId: a.id });
+                  return (
+                    <QuotaDetails
+                      source={source}
+                      label={accountLabel(a)}
+                      now={now}
+                      canRefresh={!a.reauthRequired && source !== undefined}
+                      refreshing={refreshing(source?.key)}
+                      onRefresh={() => source && refreshQuota.mutate([source.key])}
+                    />
+                  );
+                })()}
               </div>
               <div className="flex flex-wrap items-center gap-1">
                 {!a.isDefault && (

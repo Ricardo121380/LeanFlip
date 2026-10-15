@@ -124,9 +124,36 @@ pub async fn quota_overview(
 #[tauri::command]
 pub async fn quota_refresh(
     state: State<'_, AppState>,
-    accounts: Option<Vec<String>>,
+    keys: Option<Vec<String>>,
 ) -> ApiResult<leanflip_service::quota::QuotaView> {
-    blocking(&state, move |s| s.quota_refresh(accounts)).await
+    blocking(&state, move |s| s.quota_refresh(keys)).await
+}
+
+#[tauri::command]
+pub async fn quota_detect(
+    state: State<'_, AppState>,
+    tool: Tool,
+    settings_config: serde_json::Value,
+    quota_per_usd: Option<f64>,
+) -> ApiResult<leanflip_service::quota::relay::QuotaDetect> {
+    blocking(&state, move |s| {
+        s.quota_detect(tool, &settings_config, quota_per_usd)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn quota_configure(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    tool: Tool,
+    id: String,
+    settings: Option<leanflip_service::quota::relay::QuotaSettings>,
+) -> ApiResult<()> {
+    mutating(&app, &state, move |s| {
+        s.quota_configure(tool, &id, settings)
+    })
+    .await
 }
 
 #[tauri::command]

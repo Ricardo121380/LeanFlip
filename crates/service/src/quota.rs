@@ -1,7 +1,8 @@
-//! 额度：订阅窗口的已用百分比和 credits。
+//! 额度：订阅窗口的已用百分比、credits 和中转站余额。
 //!
-//! 两个来源：Codex 本机会话记录里的 `rate_limits`（不联网），以及托管 ChatGPT 账号的
-//! `wham/usage` 查询（只在用户点刷新时联网，结果缓存在 `quota-cache.json`）。
+//! 三个来源：Codex 本机会话记录里的 `rate_limits`（不联网）；托管 ChatGPT 账号的
+//! `wham/usage` 查询；中转站（sub2api、NewAPI）按卡片里的 Key 查询（见 [`relay`]）。
+//! 联网查询只在用户点刷新或识别时发生，结果缓存在 `quota-cache.json`。
 //!
 //! 数据按 ChatGPT 身份（工作区 + `chatgpt_user_id`）归档。身份的持有者是托管账号和本机登录
 //! （原生登录、登录暂存）；Codex 官方卡再对到持有者：绑定托管账号的卡用该账号，引用登录的卡
@@ -10,6 +11,9 @@
 pub(crate) mod cache;
 pub(crate) mod codex_log;
 pub(crate) mod codex_remote;
+pub mod relay;
+#[cfg(test)]
+mod test_server;
 #[cfg(test)]
 mod tests;
 
@@ -48,6 +52,11 @@ pub struct QuotaWindow {
     /// 记录之后已经过了重置时间，`used_percent` 不再可信，等下一条记录更新。
     #[serde(default)]
     pub reset: bool,
+    /// 中转站的金额窗口：已用和上限（和余额同一单位）。订阅窗口没有。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub used_amount: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit_amount: Option<f64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -57,6 +66,29 @@ pub struct QuotaCredits {
     pub unlimited: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub balance: Option<f64>,
+}
+
+/// 中转站的余额。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QuotaBalance {
+    /// 目前都是 `USD`。
+    pub unit: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub remaining: Option<f64>,
+    /// 总额度；钱包和订阅没有。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub used: Option<f64>,
+    #[serde(default)]
+    pub unlimited: bool,
+    /// Key 的过期时间，Unix 秒。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<i64>,
+    /// 账户余额（NewAPI 允许时随 Key 返回的 `user_quota`）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub account_remaining: Option<f64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -85,12 +117,14 @@ pub struct QuotaSnapshot {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub credits: Option<QuotaCredits>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub balance: Option<QuotaBalance>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub plan: Option<String>,
     /// 数据对应的时间，毫秒。本机记录是那次请求的时间，联网查询是查询时间。
     pub fetched_at: i64,
     pub origin: QuotaOrigin,
     pub level: QuotaLevel,
-    /// 未重置窗口里最高的已用比例（0–1），用来挑“最紧张”的一项。
+    /// 未重置窗口和有总额的余额里最高的已用比例（0–1），用来挑“最紧张”的一项。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub used_fraction: Option<f64>,
     #[serde(default)]
@@ -107,27 +141,50 @@ impl QuotaSnapshot {
         limit_reached: bool,
     ) -> Self {
         windows.sort_by_key(|w| w.minutes);
-        let used_fraction = windows
+        let mut snapshot = Self {
+            windows,
+            credits,
+            balance: None,
+            plan,
+            fetched_at,
+            origin,
+            level: QuotaLevel::Ok,
+            used_fraction: None,
+            limit_reached,
+        };
+        snapshot.assess();
+        snapshot
+    }
+
+    pub(crate) fn with_balance(mut self, balance: Option<QuotaBalance>) -> Self {
+        self.balance = balance;
+        self.assess();
+        self
+    }
+
+    fn assess(&mut self) {
+        let balance = self.balance.as_ref().filter(|b| !b.unlimited);
+        let balance_fraction = balance.and_then(|b| match (b.used, b.limit) {
+            (Some(used), Some(limit)) if limit > 0.0 => Some(used / limit),
+            _ => None,
+        });
+        self.used_fraction = self
+            .windows
             .iter()
             .filter(|w| !w.reset)
-            .map(|w| (w.used_percent / 100.0).clamp(0.0, 1.0))
+            .map(|w| w.used_percent / 100.0)
+            .chain(balance_fraction)
+            .map(|f| f.clamp(0.0, 1.0))
             .reduce(f64::max);
-        let level = match used_fraction {
-            _ if limit_reached => QuotaLevel::Out,
+        let empty = balance
+            .and_then(|b| b.remaining)
+            .is_some_and(|left| left <= 0.0);
+        self.level = match self.used_fraction {
+            _ if self.limit_reached || empty => QuotaLevel::Out,
             Some(f) if f >= 1.0 => QuotaLevel::Out,
             Some(f) if f >= WARN_FRACTION => QuotaLevel::Warn,
             _ => QuotaLevel::Ok,
         };
-        Self {
-            windows,
-            credits,
-            plan,
-            fetched_at,
-            origin,
-            level,
-            used_fraction,
-            limit_reached,
-        }
     }
 }
 
@@ -167,6 +224,8 @@ pub struct QuotaError {
 pub enum QuotaKind {
     /// Codex 官方登录的订阅窗口。
     Codex,
+    /// 中转站：按 Key 查的余额和限额。
+    Relay,
 }
 
 /// 用这个来源的一张卡。
@@ -195,6 +254,9 @@ pub struct QuotaSource {
     /// 对应的本机登录（`LoginSummary::identity`）。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub login: Option<String>,
+    /// 中转站的平台类型。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub adapter: Option<relay::RelayAdapter>,
     pub users: Vec<QuotaUser>,
     /// 还没有数据时为空（最近 8 天没在本机用过，也没联网查过）。
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -375,6 +437,7 @@ pub(crate) fn build_view(
         label,
         account_id: None,
         login: None,
+        adapter: None,
         users: Vec::new(),
         snapshot: None,
         error: None,
@@ -420,18 +483,26 @@ pub(crate) fn build_view(
             source
         })
         .collect();
-    let busiest = sources
-        .iter()
-        .filter(|s| s.users.iter().any(|u| u.active))
-        .filter_map(|s| {
-            let snap = s.snapshot.as_ref()?;
-            Some((s, snap.used_fraction?, snap.level))
-        })
-        .max_by(|a, b| a.2.cmp(&b.2).then(a.1.total_cmp(&b.1)))
-        .map(|(s, _, _)| s.key.clone());
+    let busiest = busiest(&sources);
     QuotaView {
         sources,
         busiest,
         checked_at: now_ms,
     }
+}
+
+/// 正在用的来源里最紧张的一个：先比等级，再比已用比例。
+pub(crate) fn busiest(sources: &[QuotaSource]) -> Option<String> {
+    sources
+        .iter()
+        .filter(|s| s.users.iter().any(|u| u.active))
+        .filter_map(|s| {
+            let snap = s.snapshot.as_ref()?;
+            let fraction = snap
+                .used_fraction
+                .or((snap.level == QuotaLevel::Out).then_some(1.0))?;
+            Some((s, fraction, snap.level))
+        })
+        .max_by(|a, b| a.2.cmp(&b.2).then(a.1.total_cmp(&b.1)))
+        .map(|(s, _, _)| s.key.clone())
 }

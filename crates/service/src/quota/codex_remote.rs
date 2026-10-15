@@ -140,5 +140,7 @@ fn window(value: &Value, now_ms: i64) -> Option<QuotaWindow> {
         used_percent,
         resets_at,
         reset: resets_at.is_some_and(|at| at.saturating_mul(1000) <= now_ms),
+        used_amount: None,
+        limit_amount: None,
     })
 }

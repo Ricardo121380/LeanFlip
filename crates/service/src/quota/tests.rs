@@ -1,8 +1,6 @@
 use std::fs;
-use std::io::{BufRead, BufReader, Write};
 use std::net::TcpListener;
 use std::path::Path;
-use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
 
 use leanflip_core::codex::auth::test_id_token_with_claims;
@@ -324,38 +322,9 @@ fn usage_response_accepts_camel_case_and_relative_resets() {
     assert!(codex_remote::parse(&json!({"rate_limit": null}), NOW).is_none());
 }
 
-/// 每个连接回一份固定内容，记下请求行和请求头。
-fn serve(replies: Vec<(u16, &'static str, String)>) -> (String, Arc<Mutex<Vec<Vec<String>>>>) {
-    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-    let url = format!(
-        "http://{}/backend-api/wham/usage",
-        listener.local_addr().unwrap()
-    );
-    let seen = Arc::new(Mutex::new(Vec::new()));
-    let log = seen.clone();
-    std::thread::spawn(move || {
-        for (status, extra, body) in replies {
-            let Ok((mut stream, _)) = listener.accept() else {
-                return;
-            };
-            let mut reader = BufReader::new(stream.try_clone().unwrap());
-            let mut lines = Vec::new();
-            loop {
-                let mut line = String::new();
-                if reader.read_line(&mut line).unwrap_or(0) == 0 || line.trim_end().is_empty() {
-                    break;
-                }
-                lines.push(line.trim_end().to_string());
-            }
-            log.lock().unwrap().push(lines);
-            let reply = format!(
-                "HTTP/1.1 {status} X\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n{extra}\r\n{body}",
-                body.len()
-            );
-            let _ = stream.write_all(reply.as_bytes());
-        }
-    });
-    (url, seen)
+fn serve(replies: Vec<(u16, &'static str, String)>) -> (String, test_server::Seen) {
+    let (origin, seen) = test_server::serve(replies);
+    (format!("{origin}/backend-api/wham/usage"), seen)
 }
 
 fn usage_body(used: f64) -> String {
@@ -387,15 +356,7 @@ fn fetch_sends_the_workspace_header_and_maps_failures() {
     assert_eq!(snap.windows[0].minutes, 300);
     let request = seen.lock().unwrap()[0].clone();
     assert!(request[0].starts_with("GET /backend-api/wham/usage "));
-    let header = |name: &str| {
-        request
-            .iter()
-            .find_map(|l| {
-                l.split_once(':')
-                    .filter(|(k, _)| k.eq_ignore_ascii_case(name))
-            })
-            .map(|(_, v)| v.trim().to_string())
-    };
+    let header = |name: &str| test_server::header(&request, name);
     assert_eq!(header("authorization").as_deref(), Some("Bearer at-secret"));
     assert_eq!(header("chatgpt-account-id").as_deref(), Some("ws-team"));
 
@@ -452,6 +413,7 @@ fn cache_replaces_the_same_identity_and_drops_old_entries() {
                 snapshot: snap(20.0, NOW - 1000),
             },
         ],
+        Vec::new(),
         NOW - 40 * 86_400_000,
     )
     .unwrap();
@@ -461,6 +423,7 @@ fn cache_replaces_the_same_identity_and_drops_old_entries() {
             identity: b.clone(),
             snapshot: snap(30.0, NOW),
         }],
+        Vec::new(),
         NOW,
     )
     .unwrap();
@@ -828,7 +791,7 @@ fn refresh_queries_managed_accounts_caches_results_and_throttles() {
 
     // 一分钟内再点不会再发请求。
     service
-        .quota_refresh(Some(vec![account.id.clone()]))
+        .quota_refresh(Some(vec!["codex:ws-team:user-team".into()]))
         .unwrap();
     assert_eq!(seen.lock().unwrap().len(), 1);
 

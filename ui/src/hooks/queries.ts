@@ -53,11 +53,11 @@ export function useQuota(enabled = true) {
   return useQuery({ queryKey: keys.quota, queryFn: api.quotaOverview, enabled, staleTime: 30_000 });
 }
 
-/** 联网查询托管账号的额度，结果直接替换总览。 */
+/** 联网查询额度（不传来源时查全部），结果直接替换总览。 */
 export function useQuotaRefresh() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (accounts?: string[]) => api.quotaRefresh(accounts),
+    mutationFn: (keys?: string[]) => api.quotaRefresh(keys),
     onSuccess: (view) => client.setQueryData(keys.quota, view),
     onError: (error) => toast.error(errorMessage(error)),
   });

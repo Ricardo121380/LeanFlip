@@ -1,7 +1,26 @@
 import { describe, expect, it } from "vitest";
 import i18n from "@/i18n";
-import type { QuotaSnapshot, QuotaView } from "./api";
-import { agoText, creditsText, errorText, meterWidth, resetText, sourceFor, windowLabel, windowLevel } from "./quota";
+import type { Provider, QuotaSnapshot, QuotaView } from "./api";
+import { agoText, applyQuotaSettings, creditsText, errorText, meterWidth, moneyText, quotaSettingsOf, resetText, sourceFor, windowLabel, windowLevel } from "./quota";
+
+describe("relay quota helpers", () => {
+  it("formats dollars as currency and other units after the number", () => {
+    expect(moneyText(31.4, "USD", "en")).toBe("$31.40");
+    expect(moneyText(0, "USD", "zh")).toBe("$0.00");
+    expect(moneyText(1234.5, "CNY", "en")).toBe("1,234.5 CNY");
+  });
+
+  it("reads and writes the card setting without touching other meta", () => {
+    const card: Provider = { id: "r", name: "R", settingsConfig: {}, meta: { codexLoginRef: "x", leanflipQuota: { adapter: "newapi", refreshMinutes: 15, quotaPerUsd: 1e6 } } };
+    expect(quotaSettingsOf(card)).toEqual({ adapter: "newapi", refreshMinutes: 15, quotaPerUsd: 1e6 });
+    expect(quotaSettingsOf({ ...card, meta: { leanflipQuota: { adapter: "js", quotaPerUsd: -1 } } })).toEqual({ refreshMinutes: 0 });
+    expect(quotaSettingsOf({ id: "r", name: "R", settingsConfig: {} })).toBeNull();
+
+    expect(applyQuotaSettings(card, { adapter: "sub2api", refreshMinutes: 0 }).meta).toEqual({ codexLoginRef: "x", leanflipQuota: { adapter: "sub2api", refreshMinutes: 0 } });
+    expect(applyQuotaSettings(card, { refreshMinutes: 0 }).meta).toEqual({ codexLoginRef: "x" });
+    expect(applyQuotaSettings({ ...card, meta: { leanflipQuota: {} } }, null).meta).toBeUndefined();
+  });
+});
 
 const zh = i18n.getFixedT("zh");
 const en = i18n.getFixedT("en");

@@ -249,7 +249,7 @@ describe("Account quota", () => {
     expect(calls.some((c) => c.cmd === "quota_refresh")).toBe(false);
     await userEvent.click(await screen.findByRole("button", { name: "刷新 me@example.com 的额度" }));
     expect(await screen.findByText("登录已失效（401），重新登录后再查")).toBeInTheDocument();
-    expect(calls.find((c) => c.cmd === "quota_refresh")?.args).toEqual({ accounts: ["account-1"] });
+    expect(calls.find((c) => c.cmd === "quota_refresh")?.args).toEqual({ keys: ["codex:ws:user"] });
     expect(screen.getByText("51%")).toBeInTheDocument();
   });
 
@@ -264,7 +264,7 @@ describe("Account quota", () => {
     expect(calls.some((c) => c.cmd === "quota_refresh")).toBe(false);
     await userEvent.click(screen.getByRole("button", { name: "刷新额度" }));
     expect(await screen.findByText("92%")).toHaveClass("text-warning");
-    expect(calls.find((c) => c.cmd === "quota_refresh")?.args).toEqual({ accounts: null });
+    expect(calls.find((c) => c.cmd === "quota_refresh")?.args).toEqual({ keys: null });
     expect(screen.getByRole("button", { name: "额度 · 刚刚" })).toBeEnabled();
   });
 });

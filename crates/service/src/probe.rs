@@ -142,6 +142,17 @@ fn finish(endpoint: Option<&Url>, result: Result<ProbeResult, Failure>) -> Probe
     result
 }
 
+/// 额度查询用：卡片的请求地址和密钥（不论哪种认证方式）。没有地址或密钥时为空。
+pub(crate) fn address_and_key(tool: Tool, config: &Value) -> Option<(Url, String)> {
+    let target = target(tool, config).ok()?;
+    match target.auth {
+        Auth::Bearer(key) | Auth::ApiKey(key) | Auth::Google(key) if !key.trim().is_empty() => {
+            Some((target.base, key))
+        }
+        _ => None,
+    }
+}
+
 /// 测连通：GET 请求地址本身，不带凭据。超时重试一次。
 pub fn latency(tool: Tool, config: &Value) -> ProbeResult {
     match (target(tool, config), client(LATENCY_TIMEOUT)) {

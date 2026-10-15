@@ -126,6 +126,23 @@ export interface QuotaWindow {
   resetsAt?: number;
   /** 记录之后已过重置时间，用量要等下一条记录更新。 */
   reset: boolean;
+  /** 中转站的金额窗口：已用和上限，和余额同一单位。 */
+  usedAmount?: number;
+  limitAmount?: number;
+}
+
+/** 中转站的余额。 */
+export interface QuotaBalance {
+  unit: string;
+  remaining?: number;
+  /** 总额度；钱包和订阅没有。 */
+  limit?: number;
+  used?: number;
+  unlimited: boolean;
+  /** Key 的过期时间，Unix 秒。 */
+  expiresAt?: number;
+  /** 账户余额（NewAPI 允许时随 Key 返回）。 */
+  accountRemaining?: number;
 }
 
 export interface QuotaCredits {
@@ -139,6 +156,7 @@ export type QuotaLevel = "ok" | "warn" | "out";
 export interface QuotaSnapshot {
   windows: QuotaWindow[];
   credits?: QuotaCredits;
+  balance?: QuotaBalance;
   plan?: string;
   /** 毫秒。本机记录是那次请求的时间。 */
   fetchedAt: number;
@@ -161,14 +179,18 @@ export interface QuotaUser {
   active: boolean;
 }
 
+export type RelayAdapter = "sub2api" | "newapi";
+
 export interface QuotaSource {
   key: string;
-  kind: "codex";
+  kind: "codex" | "relay";
   label?: string;
   /** 托管账号 id：有它才能联网查询。 */
   accountId?: string;
   /** 本机登录（`LoginSummary.identity`）。 */
   login?: string;
+  /** 中转站的平台类型。 */
+  adapter?: RelayAdapter;
   users: QuotaUser[];
   snapshot?: QuotaSnapshot;
   error?: QuotaError;
@@ -178,6 +200,34 @@ export interface QuotaView {
   sources: QuotaSource[];
   busiest?: string;
   checkedAt: number;
+}
+
+/** 卡片上的额度设置（`meta.leanflipQuota`）。 */
+export interface QuotaSettings {
+  /** 没有时表示还没识别过；`off` 表示不查。 */
+  adapter?: RelayAdapter | "off";
+  /** 自动刷新间隔（分钟），0 表示只在点刷新时查。 */
+  refreshMinutes: number;
+  /** NewAPI 多少额度算 $1，默认 500000。 */
+  quotaPerUsd?: number;
+}
+
+export interface DetectStep {
+  adapter: RelayAdapter;
+  /** 不含 Key。 */
+  url: string;
+  outcome: "hit" | "miss" | "error" | "skipped";
+  status?: number;
+  code?: string;
+}
+
+export interface QuotaDetect {
+  steps: DetectStep[];
+  adapter?: RelayAdapter;
+  snapshot?: QuotaSnapshot;
+  key?: string;
+  /** `noEndpoint`：卡片里没有地址或 Key。 */
+  error?: string;
 }
 
 export type DirOverrides = Partial<
@@ -379,7 +429,11 @@ export const api = {
   codexLogins: () => invoke<LoginSummary[]>("codex_logins"),
   quotaOverview: () => invoke<QuotaView>("quota_overview"),
   /** 联网查询托管账号的额度；不传 `accounts` 查全部。 */
-  quotaRefresh: (accounts?: string[]) => invoke<QuotaView>("quota_refresh", { accounts: accounts ?? null }),
+  quotaRefresh: (keys?: string[]) => invoke<QuotaView>("quota_refresh", { keys: keys ?? null }),
+  /** 用这份配置里的地址和 Key 识别中转站平台（联网，只在用户点击时调用）。 */
+  quotaDetect: (tool: ToolId, settingsConfig: Record<string, unknown>, quotaPerUsd?: number) =>
+    invoke<QuotaDetect>("quota_detect", { tool, settingsConfig, quotaPerUsd: quotaPerUsd ?? null }),
+  quotaConfigure: (tool: ToolId, id: string, settings: QuotaSettings | null) => invoke<null>("quota_configure", { tool, id, settings }),
   codexSetLoginRef: (id: string, identity: string | null) =>
     invoke<OpResult>("codex_set_login_ref", { id, identity }),
   getSettings: () => invoke<SettingsView>("get_settings"),

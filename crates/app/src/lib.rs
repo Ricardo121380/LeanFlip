@@ -135,6 +135,8 @@ pub fn run() {
             commands::usage_report,
             commands::quota_overview,
             commands::quota_refresh,
+            commands::quota_detect,
+            commands::quota_configure,
             commands::switch_provider,
             commands::add_provider,
             commands::update_provider,
