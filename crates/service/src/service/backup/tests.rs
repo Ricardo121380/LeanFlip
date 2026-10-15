@@ -230,7 +230,7 @@ fn scopes_and_duplicate_merges_preserve_existing_credentials() {
 #[test]
 fn private_export_never_overwrites_files_or_follows_destination_symlinks() {
     let (dir, service, _) = fixture();
-    let path = dir.path().join("backup.switchleaf");
+    let path = dir.path().join("backup.leanflip");
     service.backup_export_file(&path, PASSWORD).unwrap();
     let original = fs::read(&path).unwrap();
     assert_eq!(
@@ -248,7 +248,7 @@ fn private_export_never_overwrites_files_or_follows_destination_symlinks() {
             fs::metadata(&path).unwrap().permissions().mode() & 0o777,
             0o600
         );
-        let link = dir.path().join("link.switchleaf");
+        let link = dir.path().join("link.leanflip");
         symlink(&path, &link).unwrap();
         assert_eq!(
             service

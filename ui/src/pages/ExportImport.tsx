@@ -110,7 +110,7 @@ export function ExportImport({ onBusyChange, active = true }: { onBusyChange?: (
     setFileName(next.name);
     setBackupBytes(null);
     try {
-      const isBackupName = /\.(leanflip|switchleaf|age)$/i.test(next.name);
+      const isBackupName = /\.(leanflip|age)$/i.test(next.name);
       if (isBackupName && next.size > 32 * 1024 * 1024) throw new Error(t("backup.tooLarge"));
       const bytes = await readBytes(next);
       if (isBackupName || new TextDecoder().decode(bytes.subarray(0, 22)).startsWith("age-encryption.org/")) {
@@ -201,7 +201,7 @@ export function ExportImport({ onBusyChange, active = true }: { onBusyChange?: (
       <ol aria-label={t("wizard.progress")} className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
         {[1, 2, 3].map((n) => <li key={n} aria-current={step === n ? "step" : undefined} className={cn("text-muted-foreground", step === n && "font-semibold text-foreground")}>{t(`exportImport.step${n}`)}</li>)}
       </ol>
-      <input ref={input} type="file" accept=".leanflip,.switchleaf,.age,.sql,.db,.json,application/sql,application/json" className="hidden" aria-label={t("exportImport.file")} data-testid="export-file" disabled={busy} onChange={(e) => void pick(e.target.files?.[0])} />
+      <input ref={input} type="file" accept=".leanflip,.age,.sql,.db,.json,application/sql,application/json" className="hidden" aria-label={t("exportImport.file")} data-testid="export-file" disabled={busy} onChange={(e) => void pick(e.target.files?.[0])} />
       {!report && <div className="flex min-w-0 flex-wrap items-end gap-3">
         <Button variant="outline" onClick={() => input.current?.click()} disabled={busy}><FileUp />{t("exportImport.choose")}</Button>
         <div className="flex min-w-0 flex-col gap-1.5">

@@ -499,7 +499,6 @@ impl DataPanel {
                 let bytes = crate::read_limited(&self.input_path(), MAX_EXPORT_BYTES, false)?;
                 if bytes.starts_with(b"age-encryption.org/")
                     || self.path.ends_with(".leanflip")
-                    || self.path.ends_with(".switchleaf")
                     || self.path.ends_with(".age")
                 {
                     let preview = self.service.backup_load(&bytes, &self.password)?;
