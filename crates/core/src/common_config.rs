@@ -24,6 +24,9 @@ pub struct CommonConfig {
     pub paths: Vec<PathBuf>,
     pub revision: String,
     pub format: String,
+    /// Detected file schema, not a claim about the installed executable version.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub variant: Option<String>,
 }
 fn paths(env: &Env, tool: Tool) -> Vec<PathBuf> {
     match tool {
@@ -92,13 +95,25 @@ fn protected(tool: Tool, keys: &[String]) -> bool {
         Tool::ClaudeDesktop => {
             keys.len() == 1 && ["deploymentMode", "enterpriseConfig"].contains(&key)
         }
-        Tool::OpenCode => keys.len() == 1 && key == "provider",
+        Tool::OpenCode => keys.len() == 1 && ["provider", "providers"].contains(&key),
         Tool::OpenClaw => at(&["models", "providers"]),
         Tool::Hermes => {
             keys.len() == 1 && ["model", "custom_providers", "providers"].contains(&key)
         }
         Tool::Pi => keys.len() == 1 && ["defaultProvider", "defaultModel"].contains(&key),
-        Tool::Mcode => keys.len() == 1 && ["custom_provider", "model", "provider"].contains(&key),
+        Tool::Mcode => {
+            (keys.len() == 1
+                && [
+                    "custom_provider",
+                    "model",
+                    "provider",
+                    "defaultModel",
+                    "defaultLightModel",
+                ]
+                .contains(&key))
+                || at(&["memory", "captureModel"])
+                || at(&["memory", "consolidationModel"])
+        }
     }
 }
 fn preferences(tool: Tool, value: &Value) -> Value {
@@ -144,13 +159,26 @@ pub fn read(env: &Env, tool: Tool) -> Result<CommonConfig, AppError> {
         .map(|b| parse(tool, b.as_deref().unwrap_or_default()))
         .collect::<Result<Vec<_>, _>>()?;
     // Desktop normal and enterprise configurations share changes, but unique existing fields remain intact.
-    let config = preferences(tool, &parsed.remove(0));
+    let root = parsed.remove(0);
+    let variant = (tool == Tool::OpenCode
+        && (root.get("providers").is_some()
+            || root.get("permissions").is_some()
+            || root.get("update").is_some()
+            || root.pointer("/compaction/buffer").is_some()
+            || root.pointer("/compaction/keep").is_some()
+            || root
+                .get("$schema")
+                .and_then(Value::as_str)
+                .is_some_and(|s| s.contains("/v2/"))))
+    .then(|| "opencode-v2".to_string());
+    let config = preferences(tool, &root);
     let revision = revision(&paths, &contents);
     Ok(CommonConfig {
         config,
         paths,
         revision,
         format: format(tool).into(),
+        variant,
     })
 }
 fn diff(
@@ -234,7 +262,17 @@ fn merge_common(
         after.cloned()
     }
 }
-fn validate_options(tool: Tool, config: &Value) -> Result<(), AppError> {
+fn validate_options(tool: Tool, config: &Value, before: &Value) -> Result<(), AppError> {
+    if tool == Tool::Codex
+        && config.get("tool_output_token_limit") != before.get("tool_output_token_limit")
+        && config
+            .get("tool_output_token_limit")
+            .is_some_and(|v| !v.is_u64())
+    {
+        return Err(AppError::Config(
+            "工具输出预算必须是非负整数 / Tool output budget must be a non-negative integer".into(),
+        ));
+    }
     let booleans: &[&str] = match tool {
         Tool::Codex => &["/features/multi_agent", "/features/shell_snapshot"],
         Tool::Gemini => &[
@@ -245,6 +283,9 @@ fn validate_options(tool: Tool, config: &Value) -> Result<(), AppError> {
         _ => &[],
     };
     for path in booleans {
+        if config.pointer(path) == before.pointer(path) {
+            continue;
+        }
         let mut prefix = String::new();
         for key in path.trim_start_matches('/').split('/') {
             if config.pointer(&prefix).is_some_and(|v| !v.is_object()) {
@@ -275,15 +316,17 @@ fn validate_options(tool: Tool, config: &Value) -> Result<(), AppError> {
         return Err(invalid());
     }
     if tool == Tool::OpenCode {
-        if config
-            .get("autoupdate")
-            .is_some_and(|v| !v.is_boolean() && v.as_str() != Some("notify"))
+        if config.get("autoupdate") != before.get("autoupdate")
+            && config
+                .get("autoupdate")
+                .is_some_and(|v| !v.is_boolean() && v.as_str() != Some("notify"))
         {
             return Err(invalid());
         }
-        if config
-            .get("share")
-            .is_some_and(|v| !matches!(v.as_str(), Some("auto" | "manual" | "disabled")))
+        if config.get("share") != before.get("share")
+            && config
+                .get("share")
+                .is_some_and(|v| !matches!(v.as_str(), Some("auto" | "manual" | "disabled")))
         {
             return Err(invalid());
         }
@@ -317,7 +360,6 @@ pub fn save(
         Ok(())
     }
     validate(tool, &config, &mut Vec::new())?;
-    validate_options(tool, &config)?;
     if tool == Tool::Claude {
         crate::switch::claude::validate(&crate::Provider::new("common", "Common", config.clone()))?;
     }
@@ -337,6 +379,8 @@ pub fn save(
                 .into(),
         ));
     }
+    validate_options(tool, &config, &current.config)?;
+    crate::config_shortcuts::common(tool, &current.config, &config)?;
     let mut patches = Vec::new();
     for path in &current.paths {
         let before = read_current(path)?;

@@ -53,6 +53,36 @@ pub fn validate(provider: &Provider) -> Result<(), AppError> {
     }
     Ok(())
 }
+// Validate options being written, separately from live provider identity checks.
+pub(super) fn validate_capacity(provider: &Provider) -> Result<(), AppError> {
+    for key in [
+        "CLAUDE_CODE_MAX_CONTEXT_TOKENS",
+        "CLAUDE_CODE_AUTO_COMPACT_WINDOW",
+        "CLAUDE_CODE_MAX_OUTPUT_TOKENS",
+    ] {
+        if let Some(value) = provider
+            .settings_config
+            .get("env")
+            .and_then(|env| env.get(key))
+        {
+            if !value.as_str().is_some_and(|s| {
+                !s.is_empty()
+                    && s.bytes().all(|c| c.is_ascii_digit())
+                    && s.parse::<u64>().is_ok_and(|n| {
+                        n > 0
+                            && n <= 9_007_199_254_740_991
+                            && (key != "CLAUDE_CODE_AUTO_COMPACT_WINDOW"
+                                || (100_000..=1_000_000).contains(&n))
+                    })
+            }) {
+                return Err(AppError::Config(format!(
+                    "Claude 配置字段无效 / Invalid Claude field: env.{key}"
+                )));
+            }
+        }
+    }
+    Ok(())
+}
 fn validate_url(value: &str) -> Result<(), ()> {
     if value.is_empty() {
         return Ok(());
@@ -78,6 +108,7 @@ pub fn write(
     pending: PendingTarget,
 ) -> Result<OperationReport, AppError> {
     validate(target)?;
+    validate_capacity(target)?;
     let commit = |target: &PendingTarget| super::commit_target(env, Tool::Claude, target);
     let transaction = AppWrite::begin(env.device_store(), Tool::Claude.as_str(), &commit)?;
     // A direct core caller may have waited behind another switch. Read the
