@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { applyLanguage } from "@/i18n";
 import { applyTheme } from "@/lib/theme";
 import { CommandPalette } from "@/components/CommandPalette";
+import { ScenesProvider } from "@/components/Scenes";
 import { ToolGlyph } from "@/components/Glyph";
 import { Morph } from "@/components/Morph";
 import { RecoveryNotices } from "@/components/RecoveryNotices";
@@ -196,6 +197,7 @@ export default function App() {
 
   return (
     <EditorNavigationContext.Provider value={editorGuards.current}>
+    <ScenesProvider>
     <div className="flex h-screen overflow-hidden">
       <aside className="flex w-60 shrink-0 flex-col border-r bg-sidebar px-2.5 pb-2.5 pt-3">
         <div className="flex shrink-0 items-center gap-2.5 px-2 pb-4 pt-1">
@@ -309,6 +311,7 @@ export default function App() {
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} onNavigate={(hash) => requestNavigation({ kind: "link", hash })} />
       {confirmDialog}
     </div>
+    </ScenesProvider>
     </EditorNavigationContext.Provider>
   );
 }

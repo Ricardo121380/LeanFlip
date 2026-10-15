@@ -290,6 +290,8 @@ export interface BackupPreview {
   existingAccounts: number;
   hasSettings: boolean;
   hasPaths: boolean;
+  /** 备份里的场景个数。 */
+  scenes?: number;
 }
 
 export interface RestoreOptions {
@@ -306,6 +308,8 @@ export interface RestoreReport {
   accountsAdded: number;
   settingsRestored: boolean;
   dirsChanged: boolean;
+  scenesAdded?: number;
+  scenesSkipped?: number;
   failures: string[];
 }
 
@@ -316,6 +320,79 @@ export interface ImportReport {
 }
 
 export type DuplicatePolicy = "skip" | "rename";
+
+/** 场景里一个工具的选择：单选式工具用 `current`，并存式工具用 `enabled`（Hermes 还可以有 `current`）。 */
+export interface SceneTool {
+  current?: string;
+  enabled?: string[];
+  [key: string]: unknown;
+}
+
+/** 场景（crates/core/src/scene.rs）。`tools` 的键是工具 id。 */
+export interface Scene {
+  id: string;
+  name: string;
+  tools: Record<string, SceneTool>;
+  [key: string]: unknown;
+}
+
+export type SceneStatus = "active" | "drifted" | "idle";
+
+export interface SceneView extends Scene {
+  status: SceneStatus;
+  /** 和场景不一致的工具。 */
+  pending: ToolId[];
+  /** 场景引用、但已经被删掉的卡。 */
+  missing: { tool: ToolId; id: string }[];
+}
+
+export interface SceneList {
+  scenes: SceneView[];
+  /** 最近一次应用的场景 id。 */
+  last: string | null;
+}
+
+export type SceneAction = { kind: "switch" | "enable" | "disable" | "activate"; id: string };
+
+export interface SceneStep {
+  action: SceneAction;
+  name: string;
+}
+
+export interface ToolPreview {
+  tool: ToolId;
+  kind: ToolKind;
+  /** 单选式工具现在用的卡（名字）。 */
+  from: string | null;
+  steps: SceneStep[];
+  missing: string[];
+  error: string | null;
+}
+
+export interface ScenePreview {
+  scene: Scene;
+  tools: ToolPreview[];
+}
+
+export interface ToolOutcome {
+  tool: ToolId;
+  outcome: "applied" | "unchanged" | "failed";
+  changed: string[];
+  warnings: string[];
+  missing: string[];
+  error: string | null;
+}
+
+/** 应用前的状态，撤销时原样交回去。 */
+export interface SceneUndo {
+  tools: Record<string, SceneTool>;
+  last: string | null;
+}
+
+export interface SceneReport {
+  results: ToolOutcome[];
+  undo: SceneUndo;
+}
 
 /** 后端给的中英双语说明。 */
 export interface Reason {
@@ -424,6 +501,15 @@ export const api = {
   setInLive: (tool: ToolId, id: string, enabled: boolean) =>
     invoke<OpResult>("set_in_live", { tool, id, enabled }),
   importLive: (tool: ToolId) => invoke<{ created: string[] }>("import_live", { tool }),
+  listScenes: () => invoke<SceneList>("list_scenes"),
+  /** 把现在的状态记成一个还没保存的场景；不传 `tools` 时取所有有卡的工具。 */
+  captureScene: (tools?: ToolId[]) => invoke<Scene>("capture_scene", { tools: tools ?? null }),
+  saveScene: (scene: Scene) => invoke<Scene>("save_scene", { scene }),
+  deleteScene: (id: string) => invoke<void>("delete_scene", { id }),
+  previewScene: (id: string) => invoke<ScenePreview>("preview_scene", { id }),
+  /** 按 id 或名字应用场景；给了 `tools` 时只应用其中的工具。 */
+  applyScene: (id: string, tools?: ToolId[]) => invoke<SceneReport>("apply_scene", { id, tools: tools ?? null }),
+  undoScene: (undo: SceneUndo) => invoke<SceneReport>("undo_scene", { undo }),
   codexAccounts: () => invoke<AccountInfo[]>("codex_accounts"),
   codexStartLogin: (target?: string) => invoke<DeviceFlow>("codex_start_login", { target: target ?? null }),
   codexPollLogin: (deviceCode: string) => invoke<PollResult>("codex_poll_login", { deviceCode }),

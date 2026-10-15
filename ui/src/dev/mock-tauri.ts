@@ -1,6 +1,6 @@
 // Browser-only stand-in for `@tauri-apps/api/core`, used by `pnpm dev:mock`.
 // Vite aliases the real module to this file only when LEANFLIP_MOCK=1, so it never ships in the app.
-import type { AccountInfo, LoginSummary, Provider, QuotaDetect, QuotaSnapshot, QuotaSource, QuotaView, SettingsView, SwitchEvent, ToolId, ToolProviders, ToolSummary, UsageReport, UsageRow } from "@/lib/api";
+import type { AccountInfo, LoginSummary, Provider, QuotaDetect, QuotaSnapshot, QuotaSource, QuotaView, Scene, SceneStep, SceneTool, SceneUndo, SettingsView, SwitchEvent, ToolId, ToolOutcome, ToolProviders, ToolSummary, UsageReport, UsageRow } from "@/lib/api";
 
 type Kind = "switch" | "coexist";
 interface MockTool { kind: Kind; paths: string[]; detected: boolean; current: string | null; inLive: string[]; providers: Provider[] }
@@ -223,6 +223,69 @@ function noteDemo(tool: ToolId, provider: string, enabled: boolean) {
   demoUsage?.events.push({ ts: Date.now(), tool, provider, name, enabled });
 }
 
+// 场景：「个人」和现在的状态一致，「公司」要切 Claude、Codex 和 OpenCode。
+let scenes: Scene[] = [
+  { id: "scene-home", name: "个人", tools: { claude: { current: "kimi" }, codex: { current: "official" }, opencode: { enabled: ["openrouter", "moonshot"] } } },
+  { id: "scene-work", name: "公司", tools: { claude: { current: "relay" }, codex: { current: "gateway" }, opencode: { enabled: ["openrouter"] }, hermes: { enabled: [] } } },
+];
+let lastScene: string | null = "scene-home";
+
+function scenePlan(tool: ToolId, entry: SceneTool): { steps: SceneStep[]; missing: string[] } {
+  const t = tools[tool];
+  const name = (id: string) => t.providers.find((p) => p.id === id)?.name ?? id;
+  const ids = [...(entry.current ? [entry.current] : []), ...(entry.enabled ?? [])];
+  const missing = [...new Set(ids.filter((id) => !t.providers.some((p) => p.id === id)))];
+  const steps: SceneStep[] = [];
+  if (t.kind === "switch") {
+    if (entry.current && !missing.includes(entry.current) && t.current !== entry.current) steps.push({ action: { kind: "switch", id: entry.current }, name: name(entry.current) });
+  } else {
+    for (const p of t.providers) {
+      const want = entry.enabled?.includes(p.id) ?? false;
+      const have = t.inLive.includes(p.id);
+      if (want && !have) steps.push({ action: { kind: "enable", id: p.id }, name: p.name });
+      if (!want && have) steps.push({ action: { kind: "disable", id: p.id }, name: p.name });
+    }
+  }
+  return { steps, missing };
+}
+
+function sceneEntries(scene: { tools: Record<string, SceneTool> }) {
+  return (Object.keys(tools) as ToolId[]).flatMap((tool) => (scene.tools[tool] ? [[tool, scene.tools[tool]] as const] : []));
+}
+
+function captureTool(tool: ToolId): SceneTool | null {
+  const t = tools[tool];
+  if (t.kind === "switch") return t.current ? { current: t.current } : null;
+  return t.providers.length ? { enabled: t.providers.filter((p) => t.inLive.includes(p.id)).map((p) => p.id) } : null;
+}
+
+function findScene(key: string) {
+  const scene = scenes.find((s) => s.id === key) ?? scenes.find((s) => s.name.toLowerCase() === key.trim().toLowerCase());
+  if (!scene) throw `找不到场景 ${key}`;
+  return scene;
+}
+
+function runScene(entries: (readonly [ToolId, SceneTool])[], last: string | null) {
+  const undo: SceneUndo = { tools: {}, last: lastScene };
+  for (const [tool] of entries) {
+    const entry = captureTool(tool);
+    if (entry) undo.tools[tool] = entry;
+  }
+  const results: ToolOutcome[] = entries.map(([tool, entry]) => {
+    const t = tools[tool];
+    const { steps, missing } = scenePlan(tool, entry);
+    for (const { action } of steps) {
+      if (action.kind === "switch") t.current = action.id;
+      else if (action.kind === "enable") t.inLive = [...t.inLive, action.id];
+      else if (action.kind === "disable") t.inLive = t.inLive.filter((id) => id !== action.id);
+      noteDemo(tool, action.id, action.kind !== "disable");
+    }
+    return { tool, outcome: steps.length ? "applied" : "unchanged", changed: steps.length ? t.paths.slice(0, 1) : [], warnings: [], missing, error: null };
+  });
+  lastScene = last && scenes.some((s) => s.id === last) ? last : null;
+  return { results, undo };
+}
+
 type Args = Record<string, unknown> | undefined;
 const commonConfigs: Partial<Record<ToolId, { config: Record<string, unknown>; version: number }>> = {};
 const handlers: Record<string, (args: Args) => unknown> = {
@@ -317,6 +380,64 @@ const handlers: Record<string, (args: Args) => unknown> = {
     t.providers.push({ id: "current", name: "当前配置", settingsConfig: { config: '[models]\ndefault = "grok-4"\n\n[model."grok-4"]\nmodel = "grok-4"\nbase_url = "https://api.x.ai/v1"\n' } });
     if (t.kind === "switch") t.current = "current";
     return { created: ["current"] };
+  },
+  list_scenes: () => ({
+    last: lastScene,
+    scenes: scenes.map((scene) => {
+      const plans = sceneEntries(scene).map(([tool, entry]) => ({ tool, ...scenePlan(tool, entry) }));
+      const pending = plans.filter((p) => p.steps.length || p.missing.length).map((p) => p.tool);
+      return {
+        ...scene,
+        status: pending.length === 0 ? "active" : scene.id === lastScene ? "drifted" : "idle",
+        pending,
+        missing: plans.flatMap((p) => p.missing.map((id) => ({ tool: p.tool, id }))),
+      };
+    }),
+  }),
+  capture_scene: (a) => {
+    const wanted = (a?.tools as ToolId[] | null) ?? (Object.keys(tools) as ToolId[]);
+    const out: Record<string, SceneTool> = {};
+    for (const tool of wanted) {
+      const entry = captureTool(tool);
+      if (entry) out[tool] = entry;
+    }
+    return { id: "", name: "", tools: out };
+  },
+  save_scene: (a) => {
+    const scene = { ...(a!.scene as Scene) };
+    scene.name = scene.name.trim();
+    if (!scene.name) throw "场景名不能为空";
+    if (scenes.some((s) => s.id !== scene.id && s.name.toLowerCase() === scene.name.toLowerCase())) throw `已经有一个叫「${scene.name}」的场景`;
+    if (sceneEntries(scene).length === 0) throw "场景至少要包含一个工具";
+    if (!scene.id) {
+      scene.id = `scene-${Math.random().toString(16).slice(2, 10)}`;
+      scenes.push(scene);
+    } else scenes = scenes.map((s) => (s.id === scene.id ? scene : s));
+    return scene;
+  },
+  delete_scene: (a) => {
+    scenes = scenes.filter((s) => s.id !== a!.id);
+    if (lastScene === a!.id) lastScene = null;
+    return null;
+  },
+  preview_scene: (a) => {
+    const scene = findScene(String(a!.id));
+    return {
+      scene,
+      tools: sceneEntries(scene).map(([tool, entry]) => {
+        const t = tools[tool];
+        return { tool, kind: t.kind, from: t.kind === "switch" ? (t.providers.find((p) => p.id === t.current)?.name ?? null) : null, ...scenePlan(tool, entry), error: null };
+      }),
+    };
+  },
+  apply_scene: (a) => {
+    const scene = findScene(String(a!.id));
+    const only = a!.tools as ToolId[] | null;
+    return runScene(sceneEntries(scene).filter(([tool]) => !only || only.includes(tool)), scene.id);
+  },
+  undo_scene: (a) => {
+    const undo = a!.undo as SceneUndo;
+    return runScene(sceneEntries(undo), undo.last);
   },
   codex_accounts: () => accounts,
   codex_logins: () => logins,

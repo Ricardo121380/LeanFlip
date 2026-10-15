@@ -14,6 +14,7 @@ export const keys = {
   settings: ["settings"] as const,
   usage: ["usage"] as const,
   quota: ["quota"] as const,
+  scenes: ["scenes"] as const,
 };
 
 export function useRecoveryNotices() {
@@ -61,6 +62,11 @@ export function useQuotaRefresh() {
     onSuccess: (view) => client.setQueryData(keys.quota, view),
     onError: (error) => toast.error(errorMessage(error)),
   });
+}
+
+/** 场景和各自的状态（是否和现在的配置一致）。只读。 */
+export function useScenes(enabled = true) {
+  return useQuery({ queryKey: keys.scenes, queryFn: api.listScenes, enabled });
 }
 
 export function useSettings() {
