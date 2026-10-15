@@ -235,6 +235,15 @@ fn merge_common(
     }
 }
 fn validate_options(tool: Tool, config: &Value) -> Result<(), AppError> {
+    if tool == Tool::Codex
+        && config
+            .get("tool_output_token_limit")
+            .is_some_and(|v| !v.is_u64())
+    {
+        return Err(AppError::Config(
+            "工具输出预算必须是非负整数 / Tool output budget must be a non-negative integer".into(),
+        ));
+    }
     let booleans: &[&str] = match tool {
         Tool::Codex => &["/features/multi_agent", "/features/shell_snapshot"],
         Tool::Gemini => &[

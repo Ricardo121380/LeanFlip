@@ -6,6 +6,30 @@
 
 保存位置按需展开。JSON 格式错误、外部文件冲突和保存失败显示在固定操作区，正文滚动不影响错误可见性；失败保留草稿。重新载入仍需先确认丢弃未保存修改。
 
+## 配置快捷项扩展（未发布）
+
+新增的数值与下拉控件复用现有草稿、JSON/TOML 编辑器和保存事务。修改控件只改草稿，保存后才写入配置；重置只删除该字段，不清空同级设置。未知枚举值、Codex 细分审批对象继续显示为“自定义”，原样保留。
+
+| 范围 | 快捷项 | 写入字段 |
+|---|---|---|
+| Codex 供应商 | 上下文窗口、自动压缩阈值、1M/900K 预设 | `model_context_window`、`model_auto_compact_token_limit`，TOML 整数 |
+| Codex 供应商 | 搜索模式、输出详细程度 | `web_search`、`model_verbosity` |
+| Codex 通用 | 命令审批、沙箱、工具输出预算 | `approval_policy`、`sandbox_mode`、`tool_output_token_limit` |
+| Claude Code 供应商 | 第三方模型容量、压缩工作窗口、最大输出 | `env.CLAUDE_CODE_MAX_CONTEXT_TOKENS`、`env.CLAUDE_CODE_AUTO_COMPACT_WINDOW`、`env.CLAUDE_CODE_MAX_OUTPUT_TOKENS`，环境变量保持字符串 |
+| Claude Code 通用 | 权限模式（含 Bypass） | `permissions.defaultMode`，保留 `allow`、`ask`、`deny` 等规则 |
+| Claude Code 通用 | 主会话与子 Agent 缓存时长 | `promptCacheTtl`、`subagentPromptCacheTtl` |
+
+数值输入不会通过 `parseInt` 截断非法后缀。错误显示在固定底栏并阻止保存；Codex 压缩阈值不可高于明确设置的上下文窗口。模型容量及输出仍受客户端和服务端上限限制。现有 `disableBypassPermissionsMode` 不会被解除；缓存环境变量覆盖已设置时，相关快捷项禁用并显示覆盖字段。项目级配置、启动环境和组织策略仍可能优先于这些用户级文件。
+
+参考代码按 2026-10-15 的 GitHub 版本审阅，独立实现，没有复制参考项目代码：
+
+- [CC Switch 的 Codex 配置控件](https://github.com/farion1231/cc-switch/blob/51ac86f1c59abfefabadebd05ec5a5415b8ad72c/src/components/providers/forms/CodexConfigSections.tsx)：上下文窗口和压缩阈值的直接配置入口。
+- [Magpie 的原生配置调节](https://github.com/yetone/magpie/blob/1fd73a3fceb584d9e72aba4db8e519e9bb9f0655/internal/agent/tune.go)：压缩、缓存时长及环境变量覆盖处理。
+- [Magpie 的 Claude 模型容量字段](https://github.com/yetone/magpie/blob/1fd73a3fceb584d9e72aba4db8e519e9bb9f0655/internal/agent/claude.go)：第三方模型上下文、工作窗口和输出容量。
+- [Codex 配置 schema](https://github.com/openai/codex/blob/main/codex-rs/core/config.schema.json)、[Claude Code 权限模式](https://code.claude.com/docs/en/permissions)：独立核对字段类型与权限模式语义。
+
+没有纳入代理 Header/Body 重写、协议转换和通过供应商名称诱导远程压缩等选项：它们需要额外网关或服务端能力，不能仅靠本项目写入配置保证生效。其他 Agent 保留已经提供的快捷开关与 JSON 编辑，不为凑齐控件而增加缺少明确依据的字段。
+
 ## 配置写入范围
 
 路径均遵循应用中的目录设置，下表为默认目录内的文件。

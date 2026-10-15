@@ -14,7 +14,7 @@ export const commonOptions: Partial<Record<ToolId, ConfigOption[]>> = {
 };
 export const providerOptions: Partial<Record<ToolId, ConfigOption[]>> = {
   claude: [flag("env.ENABLE_TOOL_SEARCH", "toolSearch", "true", "false"), flag("env.CLAUDE_CODE_ALWAYS_ENABLE_EFFORT", "effort", "1", "0"), flag("env.CLAUDE_CODE_DISABLE_ARTIFACT", "disableArtifact", "1", "0")],
-  codex: [flag("disable_response_storage", "disableStorage"), flag("web_search", "webSearch", "live", "disabled")],
+  codex: [flag("disable_response_storage", "disableStorage")],
 };
 export function atPath(value: unknown, path: string): unknown {
   return path.split(".").reduce<unknown>((v, key) => v && typeof v === "object" ? (v as Record<string, unknown>)[key] : undefined, value);

@@ -1,6 +1,8 @@
 import { CommonConfigEditor } from "./CommonConfigEditor";
 import { ConfigOptions } from "./ConfigOptions";
-import { providerOptions, applyOption } from "@/lib/config-options";
+import { providerOptions, applyOption, setPath } from "@/lib/config-options";
+import { providerFields, configFieldsIssue } from "@/lib/config-fields";
+import { ConfigFields, useFieldError } from "./ConfigFields";
 import { readToml, setTomlValue } from "@/lib/toml-edit";
 import { useEditorNavigation } from "@/lib/navigation";
 import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
@@ -208,6 +210,23 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
   });
   const presets = useMemo(() => filterPresets(presetList.data ?? [], query), [presetList.data, query]);
   const parsed = fromEditorText(meta.editor, text, source?.settingsConfig);
+  const shortcutValue = meta.editor === "codex" ? readToml(text.toml ?? "") : parsed.ok ? parsed.value : null;
+  const fieldError = useFieldError(shortcutValue ? configFieldsIssue(tool, "provider", shortcutValue) : null);
+  const shortcuts = providerFields[tool] ?? [];
+  const changeFields = (changes: [string, string | number | undefined][]) => {
+    if (!parsed.ok || !shortcutValue) return;
+    try {
+      if (meta.editor === "codex") {
+        let toml = text.toml ?? "";
+        for (const [key, value] of changes) toml = setTomlValue(toml, null, key, value);
+        setText((s) => ({ ...s, toml }));
+      } else {
+        const next = changes.reduce((value, [key, next]) => setPath(value, key, next), shortcutValue);
+        setText({ json: JSON.stringify(next, null, 2) });
+      }
+      setSaveError(null);
+    } catch (e) { setSaveError(errorMessage(e)); }
+  };
   const settingsKey = parsed.ok ? JSON.stringify(parsed.value) : null;
   const official = isOfficial({ category });
   const showLogin = tool === "codex" && official;
@@ -363,7 +382,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
     }
   }
 
-  const canSave = step === "form" && parsed.ok && routesOk && (editing ? dirty : id.trim() !== "") && !saving;
+  const canSave = step === "form" && parsed.ok && !fieldError && routesOk && (editing ? dirty : id.trim() !== "") && !saving;
   const keyUrl = preset?.apiKeyUrl;
   const keyAction = keyUrl ? (
     <button type="button" className="inline-flex items-center gap-1 text-xs text-primary hover:underline" onClick={() => void openKeyPage(keyUrl)}>
@@ -429,6 +448,10 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
       )}
     </div>
   );
+
+  const fieldControls = shortcuts.length > 0 && <Section title={t("config.quickOptions")} aside={tool === "codex" && <Button type="button" variant="outline" size="sm" disabled={saving || !parsed.ok} onClick={() => changeFields([["model_context_window", 1000000], ["model_auto_compact_token_limit", 900000]])}>{t("config.fields.contextPreset")}</Button>}>
+    <ConfigFields fields={shortcuts} value={shortcutValue ?? {}} disabled={saving || !parsed.ok} onChange={(key, value) => changeFields([[key, value]])} />
+  </Section>;
 
   const formTab = (
     <div className="flex min-w-0 flex-col gap-7 px-6 py-5">
@@ -518,6 +541,8 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
         </Section>
       )}
 
+      {fieldControls}
+
       {ignoredFields.length > 0 && (
         <Note tone="warning">
           {t("editor.ignoredSummary", { count: ignoredFields.length })}{" "}
@@ -541,6 +566,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
           catch (e) { setSaveError(errorMessage(e)); }
         }
       }} />
+      {fieldControls}
       {copying && hasRedacted(toEditorText(meta.editor, template!.settingsConfig ?? {})) && <Note>{t("editor.copyRedactedNote")}</Note>}
       {editing && hasRedacted(text) && <Note tone="warning">{t("editor.redactedNote")}</Note>}
       {meta.editor === "codex" ? (
@@ -626,8 +652,8 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
                 {meta.kind === "coexist" ? t("editor.addToLive") : t("editor.switchAfterAdd")}
               </label>
             )}
-            {saveError ? (
-              <p role="alert" className="break-words text-destructive">{t("editor.saveError")} {saveError}</p>
+            {fieldError || saveError ? (
+              <p role="alert" className="break-words text-destructive">{fieldError ?? `${t("editor.saveError")} ${saveError}`}</p>
             ) : editing ? (
               <p role="status">{t(saving ? "editor.saving" : dirty ? "editor.saveHint" : "editor.unchanged")}</p>
             ) : null}

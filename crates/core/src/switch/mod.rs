@@ -162,7 +162,9 @@ pub fn update_provider_with(
 /// 只校验、不写：目标行能不能投影。
 pub fn preflight(data: &store::StoreData, tool: Tool, provider: &Provider) -> Result<(), AppError> {
     match tool {
-        Tool::Claude => claude::validate(provider),
+        Tool::Claude => {
+            claude::validate(provider).and_then(|_| claude::validate_capacity(provider))
+        }
         Tool::Codex => codex::plan(data, None, provider).map(|_| ()),
         Tool::Gemini => gemini::projection(provider).map(|_| ()),
         Tool::GrokBuild => grok::projection(provider).map(|_| ()),

@@ -4,7 +4,9 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { api, errorMessage, type CommonConfig, type ToolId } from "@/lib/api";
 import { toolMeta } from "@/lib/tools";
-import { commonOptions, applyOption } from "@/lib/config-options";
+import { commonOptions, applyOption, setPath } from "@/lib/config-options";
+import { commonFields, configFieldsIssue } from "@/lib/config-fields";
+import { ConfigFields, useFieldError } from "./ConfigFields";
 import { useEditorNavigation } from "@/lib/navigation";
 import { refreshAll, showWarnings } from "@/hooks/queries";
 import { CodeEditor } from "./CodeEditor";
@@ -45,11 +47,13 @@ function Loaded({ tool, initial, onClose }: { tool: ToolId; initial: CommonConfi
     else parseError = t("editor.notObject");
   } catch (e) { parseError = `${t("editor.invalid")}: ${errorMessage(e)}`; }
   const options = commonOptions[tool] ?? [];
-  const problem = parseError ?? error;
+  const fields = commonFields[tool] ?? [];
+  const fieldError = useFieldError(parsed ? configFieldsIssue(tool, "common", parsed) : null);
+  const problem = parseError ?? fieldError ?? error;
   const discard = async () => !dirty || await confirm({ title: t("editor.discardTitle"), description: t("editor.discardHint"), confirmLabel: t("editor.discardAction") });
   const close = async () => { if (!saving && await discard()) onClose(); };
   const save = async () => {
-    if (!parsed || saving) return;
+    if (!parsed || fieldError || saving) return;
     setSaving(true); setError(null);
     try {
       showWarnings(await api.saveCommonConfig(tool, source.revision, parsed));
@@ -61,9 +65,10 @@ function Loaded({ tool, initial, onClose }: { tool: ToolId; initial: CommonConfi
   return <><Dialog open onOpenChange={(v) => !v && void close()}><DialogContent className="flex max-w-[52rem] max-h-[90vh] flex-col overflow-hidden" closeDisabled={saving} onEscapeKeyDown={(e) => { if (saving) e.preventDefault(); }}>
     <DialogHeader className="shrink-0"><DialogTitle>{toolMeta(tool).label} · {t("config.commonTitle")}</DialogTitle><DialogDescription>{t("config.commonHint")}</DialogDescription></DialogHeader>
     <div className="min-h-0 flex-1 space-y-4 overflow-y-auto py-2">
-      {options.length > 0 && <section className="space-y-3" aria-label={t("config.quickOptions")}>
+      {(options.length > 0 || fields.length > 0) && <section className="space-y-3" aria-label={t("config.quickOptions")}>
         <h3 className="text-sm font-medium">{t("config.quickOptions")}</h3>
         <ConfigOptions options={options} value={parsed ?? {}} disabled={!parsed || saving} onChange={(option, state) => { try { setText(JSON.stringify(applyOption(parsed!, option, state), null, 2)); setError(null); } catch (e) { setError(errorMessage(e)); } }} />
+        <ConfigFields fields={fields} value={parsed ?? {}} disabled={!parsed || saving} onChange={(key, value) => { try { setText(JSON.stringify(setPath(parsed!, key, value), null, 2)); setError(null); } catch (e) { setError(errorMessage(e)); } }} />
         <p className="text-xs leading-5 text-muted-foreground">{t("config.quickHint")}</p>
       </section>}
       <div className="space-y-1">
@@ -81,7 +86,7 @@ function Loaded({ tool, initial, onClose }: { tool: ToolId; initial: CommonConfi
       try { const next = await api.getCommonConfig(tool); setSource(next); setText(JSON.stringify(next.config, null, 2)); setError(null); }
       catch (e) { setError(errorMessage(e)); }
       finally { setSaving(false); }
-    } }}>{t("config.reload")}</Button><Button variant="outline" disabled={saving} onClick={() => void close()}>{t("common.cancel")}</Button><Button disabled={!dirty || !parsed || saving} onClick={() => void save()}>{t(saving ? "editor.saving" : "config.apply")}</Button></DialogFooter>
+    } }}>{t("config.reload")}</Button><Button variant="outline" disabled={saving} onClick={() => void close()}>{t("common.cancel")}</Button><Button disabled={!dirty || !parsed || Boolean(fieldError) || saving} onClick={() => void save()}>{t(saving ? "editor.saving" : "config.apply")}</Button></DialogFooter>
     </div>
   </DialogContent></Dialog>{confirmDialog}</>;
 }

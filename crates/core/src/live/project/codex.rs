@@ -126,6 +126,28 @@ impl CodexProjection {
         let parsed = config
             .parse::<toml::Value>()
             .map_err(|_| invalid("TOML syntax"))?;
+        for key in ["model_context_window", "model_auto_compact_token_limit"] {
+            if parsed
+                .get(key)
+                .is_some_and(|v| !v.as_integer().is_some_and(|n| n > 0))
+            {
+                return Err(invalid(&format!("{key}: expected a positive integer")));
+            }
+        }
+        if let (Some(window), Some(limit)) = (
+            parsed
+                .get("model_context_window")
+                .and_then(toml::Value::as_integer),
+            parsed
+                .get("model_auto_compact_token_limit")
+                .and_then(toml::Value::as_integer),
+        ) {
+            if limit > window {
+                return Err(invalid(
+                    "model_auto_compact_token_limit exceeds model_context_window",
+                ));
+            }
+        }
         let mut result = Self {
             route: Route::Default,
             top: atoms(
