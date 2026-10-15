@@ -161,6 +161,9 @@ export function SettingsPage({ onLeaveStateChange }: { onLeaveStateChange?: (sta
             <Row id="settings-close-to-tray" label={t("settings.closeToTray")}>
               <Switch id="settings-close-to-tray" aria-label={t("settings.closeToTray")} checked={app.closeToTray} onCheckedChange={(v) => set({ closeToTray: v })} />
             </Row>
+            <Row id="settings-tray-quota" label={t("settings.trayQuotaTitle")} hint={t("settings.trayQuotaTitleHint")}>
+              <Switch id="settings-tray-quota" aria-describedby="settings-tray-quota-hint" aria-label={t("settings.trayQuotaTitle")} checked={app.trayQuotaTitle ?? false} onCheckedChange={(v) => set({ trayQuotaTitle: v })} />
+            </Row>
             <Row id="settings-keep-login" label={t("settings.keepCodexLogin")} hint={t("settings.keepCodexLoginHint")}>
               <Switch id="settings-keep-login" aria-describedby="settings-keep-login-hint" aria-label={t("settings.keepCodexLogin")} checked={keep} onCheckedChange={(keep) => setDraft({ ...draft, keep })} />
             </Row>

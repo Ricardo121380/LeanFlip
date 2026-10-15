@@ -191,6 +191,8 @@ export interface QuotaSource {
   login?: string;
   /** 中转站的平台类型。 */
   adapter?: RelayAdapter;
+  /** 中转站的自动刷新间隔（分钟）；不自动刷新时为空。 */
+  refreshMinutes?: number;
   users: QuotaUser[];
   snapshot?: QuotaSnapshot;
   error?: QuotaError;
@@ -253,6 +255,8 @@ export interface AppSettings {
   autostart: boolean;
   backgroundRefreshHours: number;
   closeToTray: boolean;
+  /** 在状态栏图标旁显示最紧张的额度，默认关闭。 */
+  trayQuotaTitle?: boolean;
 }
 
 export interface SettingsView {

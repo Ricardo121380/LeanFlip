@@ -68,7 +68,7 @@ it('Regression: model display must not use a nested profile model as the active 
 it('Regression: timeline should not offer switching to a deleted provider',async()=>{
   const now=new Date(2026,9,14,12).getTime();
   const fake=start({usage_report:()=>({rows:[],events:[{tool:'claude',provider:'deleted',name:'Deleted audit',ts:now-7200000,enabled:true},{tool:'claude',provider:'a',name:'Audit A',ts:now-3600000,enabled:true}],sources:[],scannedAt:now})});
-  renderWithClient(<StatsPage/>);
+  renderWithClient(<StatsPage initialTab="usage"/>);
   const deleted=await screen.findByRole('button',{name:/Claude Code：Deleted audit/});
   await userEvent.click(deleted);
   expect(fake.calls.filter(c=>c.cmd==='switch_provider')).toHaveLength(0);
@@ -77,7 +77,7 @@ it('Regression: timeline should not offer switching to a deleted provider',async
 it('Regression: timeline must not divide one hour provider usage by 24',async()=>{
   const now=new Date(2026,9,14,12).getTime();
   start({usage_report:()=>({rows:[{day:'2026-10-14',tool:'claude',provider:'a',model:'audit',attribution:'time',input:24000,cacheRead:0,cacheWrite:0,output:0,requests:1}],events:[{tool:'claude',provider:'a',name:'Audit A',ts:now-3600000,enabled:true}],sources:[],scannedAt:now})});
-  renderWithClient(<StatsPage/>);
+  renderWithClient(<StatsPage initialTab="usage"/>);
   const segment=await screen.findByRole('button',{name:/Claude Code：Audit A/});
   act(()=>segment.focus());
   const tip=await screen.findByRole('tooltip');
@@ -105,7 +105,7 @@ it('Regression: login reference is validated with the provider in one save',asyn
 it('Regression: partial previous periods do not show growth percentages', async () => {
   const row = (day: string, input: number) => ({ day, input, tool:'claude', provider:'a', model:'m', attribution:'time', cacheRead:0,cacheWrite:0,output:0,requests:1 });
   start({ usage_report:()=>({rows:[row('2026-10-14',1000),row('2026-09-14',10)],events:[],sources:[],scannedAt:new Date(2026,9,14,12).getTime(),coverageStart:{claude:'2026-09-14'}}) });
-  renderWithClient(<StatsPage/>);
+  renderWithClient(<StatsPage initialTab="usage"/>);
   expect(await screen.findAllByText('前 30 天数据不足，暂不比较')).toHaveLength(3);
   expect(document.querySelector('.kpi-delta')).not.toHaveTextContent('%');
 });
@@ -113,7 +113,7 @@ it('Regression: partial previous periods do not show growth percentages', async 
 it('Regression: a full previous period retains the comparison and names ambiguous official usage', async () => {
   const row = (day: string, input: number) => ({ day, input, tool:'codex', provider:'codex-route:openai', model:'m', attribution:'route', cacheRead:0,cacheWrite:0,output:0,requests:1 });
   start({ usage_report:()=>({rows:[row('2026-10-14',200),row('2026-09-14',100)],events:[],sources:[],scannedAt:new Date(2026,9,14,12).getTime(),coverageStart:{codex:'2026-08-01'}}) });
-  renderWithClient(<StatsPage/>);
+  renderWithClient(<StatsPage initialTab="usage"/>);
   expect(await screen.findByText('↑ 100%，对比前 30 天')).toBeInTheDocument();
   expect(screen.getByText('官方 OpenAI（未区分卡片）')).toBeInTheDocument();
   expect(screen.getByText('记录自带路由')).toBeInTheDocument();

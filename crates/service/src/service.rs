@@ -935,6 +935,50 @@ impl Service {
         self.quota_overview()
     }
 
+    /// 自动刷新：设了刷新间隔的中转来源里，到点的联网查一次（共用一个来源的几张卡取最短的
+    /// 间隔）。距上次结果和上次尝试都满一个间隔才算到点，站点出错时不会每分钟重试。
+    /// 查过任何来源时返回 `true`。
+    pub fn quota_refresh_due(&self) -> ApiResult<bool> {
+        let rt = self.runtime();
+        let data = store::load_readonly(&rt.env).map_err(|e| self.err(e))?;
+        let mut intervals: HashMap<String, u32> = HashMap::new();
+        for card in self.relay_cards(&data) {
+            if card.refresh_minutes == 0 {
+                continue;
+            }
+            let entry = intervals.entry(card.key).or_insert(card.refresh_minutes);
+            *entry = (*entry).min(card.refresh_minutes);
+        }
+        if intervals.is_empty() {
+            return Ok(false);
+        }
+        let cached = quota::cache::load_relays(&rt.env);
+        let now = quota::now_ms();
+        let due: Vec<String> = {
+            let attempts = self
+                .quota_attempts
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
+            intervals
+                .into_iter()
+                .filter(|(key, minutes)| {
+                    let last = cached
+                        .get(key)
+                        .map(|s| s.fetched_at)
+                        .max(attempts.get(key).copied())
+                        .unwrap_or(i64::MIN);
+                    now.saturating_sub(last) >= i64::from(*minutes) * 60_000
+                })
+                .map(|(key, _)| key)
+                .collect()
+        };
+        if due.is_empty() {
+            return Ok(false);
+        }
+        self.quota_refresh(Some(due))?;
+        Ok(true)
+    }
+
     /// 识别中转站的平台：用这份配置里的地址和 Key 依次试各平台的额度接口。认出来时把结果
     /// 存进缓存，但不改卡片设置（保存时再写）。只在用户点击时调用。
     pub fn quota_detect(

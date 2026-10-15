@@ -39,6 +39,7 @@ export function QuotaDetectDialog({
   settingsConfig,
   quotaPerUsd,
   onUse,
+  onDisable,
   onClose,
 }: {
   tool: ToolId;
@@ -46,6 +47,8 @@ export function QuotaDetectDialog({
   settingsConfig: Record<string, unknown>;
   quotaPerUsd?: number;
   onUse: (adapter: RelayAdapter) => void;
+  /** 没认出平台时提供“不再提示”：把这张卡设为不查询。 */
+  onDisable?: () => void;
   onClose: () => void;
 }) {
   const { t } = useTranslation();
@@ -102,6 +105,9 @@ export function QuotaDetectDialog({
             <Button type="button" variant="ghost" onClick={() => void detect.refetch()}>
               <RotateCcw /> {t("quotaDetect.retry")}
             </Button>
+          )}
+          {!detect.isFetching && result && !found && onDisable && (
+            <Button type="button" variant="outline" onClick={() => { onDisable(); onClose(); }}>{t("quotaDetect.disable")}</Button>
           )}
           <Button type="button" variant="outline" onClick={onClose}>{t("common.cancel")}</Button>
           {found && (

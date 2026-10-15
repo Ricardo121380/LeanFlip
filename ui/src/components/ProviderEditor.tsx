@@ -585,6 +585,23 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
                 <option value="off">{t("editor.quotaAdapterOff")}</option>
               </NativeSelect>
             </div>
+            {(quota?.adapter === "sub2api" || quota?.adapter === "newapi") && (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="pe-quota-refresh">{t("editor.quotaRefresh")}</Label>
+                <NativeSelect
+                  id="pe-quota-refresh"
+                  aria-describedby="pe-quota-refresh-hint"
+                  value={String(quota.refreshMinutes)}
+                  onChange={(e) => setQuota((q) => ({ ...(q ?? { refreshMinutes: 0 }), refreshMinutes: Number(e.target.value) }))}
+                >
+                  {[0, 15, 60].includes(quota.refreshMinutes) ? null : <option value={quota.refreshMinutes}>{t("editor.quotaRefreshEvery", { count: quota.refreshMinutes })}</option>}
+                  <option value="0">{t("editor.quotaRefreshOff")}</option>
+                  <option value="15">{t("editor.quotaRefreshEvery", { count: 15 })}</option>
+                  <option value="60">{t("editor.quotaRefreshEvery", { count: 60 })}</option>
+                </NativeSelect>
+                <p id="pe-quota-refresh-hint" className="text-xs leading-5 text-muted-foreground">{t("editor.quotaRefreshHint")}</p>
+              </div>
+            )}
             {quota?.adapter === "newapi" && (
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="pe-quota-unit">{t("editor.quotaPerUsd")}</Label>

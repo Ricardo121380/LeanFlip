@@ -63,6 +63,49 @@ export function sourceFor(view: QuotaView | undefined, match: { accountId?: stri
   return view?.sources.find((s) => (match.accountId && s.accountId === match.accountId) || (match.login && s.login === match.login));
 }
 
+/** 每张卡（`tool:id`）用的额度来源。 */
+export function sourcesByCard(view: QuotaView | undefined): Map<string, QuotaSource> {
+  const map = new Map<string, QuotaSource>();
+  for (const source of view?.sources ?? []) {
+    for (const user of source.users) map.set(`${user.tool}:${user.providerId}`, source);
+  }
+  return map;
+}
+
+export interface QuotaBrief {
+  text: string;
+  level: QuotaSnapshot["level"];
+  /** 进度条的已用比例；只有余额、没有总额时为空。 */
+  percent?: number;
+  /** 跟在后面的淡色说明：重置时间或总额。 */
+  note?: string;
+}
+
+/** 首页用的一小段，规则和托盘一致：快满的窗口优先，其次是余额，再其次是最满的窗口。 */
+export function quotaBrief(snapshot: QuotaSnapshot, now: number, t: TFunction, language: string): QuotaBrief | null {
+  const worst = snapshot.windows.filter((w) => !w.reset).reduce<QuotaSnapshot["windows"][number] | undefined>((a, w) => (!a || w.usedPercent > a.usedPercent ? w : a), undefined);
+  const balance = snapshot.balance;
+  const window = (w: NonNullable<typeof worst>): QuotaBrief => ({
+    text: `${windowLabel(w.minutes, t)} ${percentText(w.usedPercent)}`,
+    level: snapshot.level,
+    percent: w.usedPercent,
+    note: resetText(w.resetsAt, now, t) ?? undefined,
+  });
+  if (worst && worst.usedPercent >= 80) return window(worst);
+  if (balance?.unlimited) return { text: t("quota.unlimited"), level: snapshot.level };
+  if (balance?.remaining !== undefined) {
+    return {
+      text: t("quota.left", { amount: moneyText(balance.remaining, balance.unit, language) }),
+      level: snapshot.level,
+      percent: balance.used !== undefined && balance.limit ? (balance.used / balance.limit) * 100 : undefined,
+      note: balance.limit !== undefined ? `/ ${moneyText(balance.limit, balance.unit, language)}` : undefined,
+    };
+  }
+  if (worst) return window(worst);
+  const credits = creditsText(snapshot, language, t);
+  return credits ? { text: `credits ${credits}`, level: snapshot.level } : null;
+}
+
 /** 宽度用的已用比例；已重置的窗口按 0 画。 */
 export function meterWidth(usedPercent: number, reset: boolean): string {
   return reset ? "0%" : `${Math.min(100, Math.max(0, usedPercent))}%`;

@@ -1,7 +1,36 @@
 import { describe, expect, it } from "vitest";
 import i18n from "@/i18n";
 import type { Provider, QuotaSnapshot, QuotaView } from "./api";
-import { agoText, applyQuotaSettings, creditsText, errorText, meterWidth, moneyText, quotaSettingsOf, resetText, sourceFor, windowLabel, windowLevel } from "./quota";
+import { agoText, applyQuotaSettings, creditsText, errorText, meterWidth, moneyText, quotaBrief, quotaSettingsOf, resetText, sourceFor, sourcesByCard, windowLabel, windowLevel } from "./quota";
+
+describe("home quota brief", () => {
+  const t = i18n.getFixedT("zh");
+  const at = Date.UTC(2026, 9, 15, 4, 0);
+  const snap = (windows: QuotaSnapshot["windows"], balance?: QuotaSnapshot["balance"], level: QuotaSnapshot["level"] = "ok"): QuotaSnapshot => ({
+    windows, balance, fetchedAt: at, origin: "network", level, limitReached: false,
+  });
+  const w = (minutes: number, usedPercent: number) => ({ minutes, usedPercent, resetsAt: Math.floor(at / 1000) + 3 * 86_400 + 60, reset: false });
+
+  it("follows the tray rule: a nearly full window first, then the balance, then the fullest window", () => {
+    expect(quotaBrief(snap([w(10080, 51)]), at, t, "zh")).toEqual({ text: "本周 51%", level: "ok", percent: 51, note: "3 天后重置" });
+    const wallet = { unit: "USD", remaining: 31.4, limit: 50, used: 18.6, unlimited: false };
+    expect(quotaBrief(snap([w(300, 30)], wallet), at, t, "zh")).toMatchObject({ text: "余 $31.40", percent: 37.2, note: "/ $50.00" });
+    expect(quotaBrief(snap([w(300, 84)], wallet, "warn"), at, t, "zh")).toMatchObject({ text: "5 小时 84%", level: "warn" });
+    expect(quotaBrief(snap([], { unit: "USD", unlimited: true }), at, t, "zh")?.text).toBe("不限");
+    expect(quotaBrief(snap([]), at, t, "zh")).toBeNull();
+  });
+
+  it("maps every card to its source", () => {
+    const view: QuotaView = {
+      checkedAt: at,
+      sources: [{ key: "relay:a", kind: "relay", users: [{ tool: "claude", providerId: "a", providerName: "A", active: true }, { tool: "opencode", providerId: "a2", providerName: "A", active: false }] }],
+    };
+    const map = sourcesByCard(view);
+    expect(map.get("claude:a")?.key).toBe("relay:a");
+    expect(map.get("opencode:a2")?.key).toBe("relay:a");
+    expect(map.size).toBe(2);
+  });
+});
 
 describe("relay quota helpers", () => {
   it("formats dollars as currency and other units after the number", () => {

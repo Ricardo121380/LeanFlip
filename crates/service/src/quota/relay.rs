@@ -464,6 +464,7 @@ pub(crate) struct RelayCard {
     pub secret: String,
     pub adapter: RelayAdapter,
     pub per_usd: f64,
+    pub refresh_minutes: u32,
 }
 
 /// 各工具里设置了平台类型（sub2api / NewAPI）的卡。`active` 判断这张卡是否正在用。
@@ -491,6 +492,7 @@ pub(crate) fn relay_cards(
                 secret,
                 adapter,
                 per_usd: settings.per_usd(),
+                refresh_minutes: settings.refresh_minutes,
             })
         })
         .collect()
@@ -504,8 +506,13 @@ pub(crate) fn relay_sources(
 ) -> Vec<QuotaSource> {
     let mut sources: Vec<QuotaSource> = Vec::new();
     for card in cards {
+        let interval = (card.refresh_minutes > 0).then_some(card.refresh_minutes);
         if let Some(source) = sources.iter_mut().find(|s| s.key == card.key) {
             source.users.push(card.user.clone());
+            source.refresh_minutes = match (source.refresh_minutes, interval) {
+                (Some(a), Some(b)) => Some(a.min(b)),
+                (a, b) => a.or(b),
+            };
             continue;
         }
         let snapshot = cached.get(&card.key).cloned();
@@ -517,6 +524,7 @@ pub(crate) fn relay_sources(
             account_id: None,
             login: None,
             adapter: Some(card.adapter),
+            refresh_minutes: interval,
             users: vec![card.user.clone()],
             snapshot,
             error: errors.get(&card.key).filter(|e| e.at > newest).cloned(),

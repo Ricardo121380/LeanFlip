@@ -63,6 +63,28 @@ fn start_background_refresh(app: tauri::AppHandle, service: Arc<Service>) {
         .expect("spawn refresh thread");
 }
 
+/// 额度：每分钟看一次有没有到点该自动刷新的中转来源；没有时每 5 分钟重建一次托盘，
+/// 带上 Codex 本机记录里的新数字（重建前会比较，没变化就不动菜单）。
+fn start_quota_refresh(app: tauri::AppHandle, service: Arc<Service>) {
+    std::thread::Builder::new()
+        .name("quota-refresh".into())
+        .spawn(move || {
+            std::thread::sleep(Duration::from_secs(30));
+            let mut tick: u64 = 0;
+            loop {
+                match service.quota_refresh_due() {
+                    Ok(true) => notify_changed(&app),
+                    Ok(false) if tick.is_multiple_of(5) => tray::rebuild(&app),
+                    Ok(false) => {}
+                    Err(err) => log::warn!("quota auto refresh failed: {err}"),
+                }
+                tick += 1;
+                std::thread::sleep(Duration::from_secs(60));
+            }
+        })
+        .expect("spawn quota thread");
+}
+
 fn app_context() -> tauri::Context<tauri::Wry> {
     tauri::generate_context!()
 }
@@ -103,7 +125,8 @@ pub fn run() {
             // 只放占位菜单，读取 Tool::ALL 的配置在托盘后台线程里做，不挡窗口显示。
             tray::create(app.handle())?;
             watcher::start(app.handle(), &service.env());
-            start_background_refresh(app.handle().clone(), service);
+            start_background_refresh(app.handle().clone(), service.clone());
+            start_quota_refresh(app.handle().clone(), service);
             Ok(())
         })
         .on_window_event(|window, event| {

@@ -326,6 +326,60 @@
     background: hsl(var(--destructive));
   }
 
+  /* Home: quota after the current provider (meter + text), and as a superscript on the others. */
+  /* `.w` sets inline-block for every word; the mark needs flex so its parts keep their gap. */
+  .q,
+  .w.q {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, Consolas, "PingFang SC", monospace;
+    font-size: 12px;
+    letter-spacing: 0;
+    font-variant-numeric: tabular-nums;
+    color: hsl(var(--muted-foreground));
+    cursor: default;
+  }
+  .q .quota-meter {
+    width: 34px;
+  }
+  .q-main {
+    font-weight: 600;
+    color: color-mix(in srgb, hsl(var(--foreground)) 78%, hsl(var(--muted-foreground)));
+  }
+  .q[data-level="warn"] .q-main,
+  .qs[data-level="warn"] {
+    color: hsl(var(--warning));
+  }
+  .q[data-level="out"] .q-main,
+  .qs[data-level="out"] {
+    color: hsl(var(--destructive));
+  }
+  .q-age::before {
+    content: "· ";
+  }
+  /* "Check usage" shows on hover or focus only: most non-relay cards never need it. */
+  .sentence .quota-ask {
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .sentence:hover .quota-ask,
+  .sentence:focus-within .quota-ask {
+    opacity: 1;
+  }
+  .qs {
+    position: relative;
+    top: -0.7em;
+    display: inline-block;
+    margin-left: 5px;
+    font-family: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, Consolas, "PingFang SC", monospace;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0;
+    font-variant-numeric: tabular-nums;
+    color: hsl(var(--muted-foreground));
+  }
+
   /* Home: list / map switch. */
   .segmented {
     display: inline-flex;

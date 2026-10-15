@@ -76,11 +76,13 @@ describe("Relay usage lookup in the provider editor", () => {
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "识别 公司网关 的额度接口" })).not.toBeInTheDocument());
     expect(screen.getByLabelText("平台类型")).toHaveValue("newapi");
     await userEvent.type(screen.getByLabelText("多少额度算 $1"), "1000000");
+    expect(screen.getByLabelText("自动刷新")).toHaveValue("0");
+    await userEvent.selectOptions(screen.getByLabelText("自动刷新"), "15");
 
     await userEvent.click(screen.getByRole("button", { name: "保存" }));
     await waitFor(() => expect(backend.calls.some((c) => c.cmd === "update_provider")).toBe(true));
     const saved = backend.calls.find((c) => c.cmd === "update_provider")!.args!.provider as Provider;
-    expect(saved.meta?.leanflipQuota).toEqual({ refreshMinutes: 0, adapter: "newapi", quotaPerUsd: 1000000 });
+    expect(saved.meta?.leanflipQuota).toEqual({ refreshMinutes: 15, adapter: "newapi", quotaPerUsd: 1000000 });
   });
 
   it("says when nothing matched or the card has no key, and lets the user try again", async () => {

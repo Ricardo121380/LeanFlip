@@ -522,3 +522,63 @@ fn detection_without_an_address_or_key_says_so() {
     assert_eq!(detected.error.as_deref(), Some("noEndpoint"));
     assert!(detected.steps.is_empty());
 }
+
+#[test]
+fn auto_refresh_runs_only_when_a_card_interval_has_passed() {
+    let (_dir, env) = sandbox();
+    let (origin_url, seen) = serve(vec![
+        (200, "", newapi_usage(15_700_000, false).to_string()),
+        (500, "", "{}".into()),
+    ]);
+    let mut card = claude_relay("corp", &origin_url, "sk-corp");
+    card.meta.extra.insert(
+        META_QUOTA.into(),
+        json!({"adapter": "newapi", "refreshMinutes": 15}),
+    );
+    let mut manual = claude_relay("manual", &format!("{origin_url}/other"), "sk-manual");
+    manual.meta.extra.insert(
+        META_QUOTA.into(),
+        json!({"adapter": "newapi", "refreshMinutes": 0}),
+    );
+    store::add_provider(&env, Tool::Claude, card).unwrap();
+    store::add_provider(&env, Tool::Claude, manual).unwrap();
+    let service = Service::start(env.clone(), None).unwrap();
+
+    // 从没查过：到点，只查设了间隔的那张卡。
+    assert!(service.quota_refresh_due().unwrap());
+    assert_eq!(seen.lock().unwrap().len(), 1);
+    // 刚查过：不到点。
+    assert!(!service.quota_refresh_due().unwrap());
+    assert_eq!(seen.lock().unwrap().len(), 1);
+
+    // 上次结果已经过了 16 分钟：到点；这次失败。
+    let key = service
+        .quota_overview()
+        .unwrap()
+        .sources
+        .into_iter()
+        .find(|s| s.users.iter().any(|u| u.provider_id == "corp"))
+        .unwrap()
+        .key;
+    let mut old = parse(
+        RelayAdapter::Newapi,
+        &newapi_usage(15_700_000, false),
+        DEFAULT_QUOTA_PER_USD,
+        super::super::now_ms(),
+    )
+    .unwrap();
+    old.fetched_at -= 16 * 60_000;
+    super::super::cache::save(
+        &env,
+        Vec::new(),
+        vec![super::super::cache::RelayEntry { key, snapshot: old }],
+        super::super::now_ms(),
+    )
+    .unwrap();
+    service.forget_quota_attempts();
+    assert!(service.quota_refresh_due().unwrap());
+    assert_eq!(seen.lock().unwrap().len(), 2);
+    // 失败后也要等满一个间隔，不会每分钟重试。
+    assert!(!service.quota_refresh_due().unwrap());
+    assert_eq!(seen.lock().unwrap().len(), 2);
+}

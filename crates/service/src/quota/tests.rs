@@ -878,3 +878,89 @@ fn accounts_saved_without_a_workspace_use_the_id_token_and_ask_for_a_new_sign_in
     );
     assert_eq!(source.error.as_ref().unwrap().code, "reauth");
 }
+
+#[test]
+fn brief_text_prefers_a_nearly_full_window_then_the_balance() {
+    let snap = |windows: Vec<(i64, f64)>, balance: Option<QuotaBalance>| {
+        QuotaSnapshot::new(
+            windows
+                .into_iter()
+                .map(|(minutes, used)| QuotaWindow {
+                    minutes,
+                    used_percent: used,
+                    resets_at: None,
+                    reset: false,
+                    used_amount: None,
+                    limit_amount: None,
+                })
+                .collect(),
+            None,
+            None,
+            NOW,
+            QuotaOrigin::Network,
+            false,
+        )
+        .with_balance(balance)
+    };
+    let wallet = |remaining: f64| QuotaBalance {
+        unit: "USD".into(),
+        remaining: Some(remaining),
+        limit: None,
+        used: None,
+        unlimited: false,
+        expires_at: None,
+        account_remaining: None,
+    };
+    let warn = |text: &str| format!("\u{26A0}\u{FE0E} {text}");
+    let text = |s: QuotaSnapshot, english: bool| brief(&s, english);
+    assert_eq!(
+        text(snap(vec![(10080, 51.4)], None), false).as_deref(),
+        Some("周 51%")
+    );
+    assert_eq!(
+        text(snap(vec![(10080, 51.4)], None), true).as_deref(),
+        Some("wk 51%")
+    );
+    assert_eq!(
+        text(snap(vec![(300, 92.0), (10080, 40.0)], None), false),
+        Some(warn("5h 92%"))
+    );
+    // 余额优先，除非有窗口快满了。
+    assert_eq!(
+        text(snap(vec![(300, 30.0)], Some(wallet(31.4))), false).as_deref(),
+        Some("$31.40")
+    );
+    assert_eq!(
+        text(snap(vec![(300, 84.0)], Some(wallet(31.4))), false),
+        Some(warn("5h 84%"))
+    );
+    assert_eq!(
+        text(snap(vec![], Some(wallet(0.0))), false),
+        Some(warn("$0.00"))
+    );
+    assert_eq!(
+        text(snap(vec![(1440, 10.0)], None), true).as_deref(),
+        Some("day 10%")
+    );
+    assert_eq!(
+        text(snap(vec![(43200, 10.0)], None), false).as_deref(),
+        Some("30天 10%")
+    );
+    let only_credits = QuotaSnapshot::new(
+        vec![],
+        Some(QuotaCredits {
+            has_credits: true,
+            unlimited: false,
+            balance: Some(60951.56),
+        }),
+        None,
+        NOW,
+        QuotaOrigin::Local,
+        false,
+    );
+    assert_eq!(
+        brief(&only_credits, false).as_deref(),
+        Some("credits 60952")
+    );
+    assert_eq!(text(snap(vec![], None), false), None);
+}

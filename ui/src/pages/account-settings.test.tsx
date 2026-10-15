@@ -145,6 +145,22 @@ describe("Settings editing states", () => {
   });
 });
 
+describe("Menu-bar usage setting", () => {
+  it("is off by default and saves the switch with the other app settings", async () => {
+    const { calls } = mount(<SettingsPage />, {
+      get_settings: () => settings(),
+      save_settings: () => ({ dirsChanged: false }),
+    });
+    const toggle = await screen.findByRole("switch", { name: "在状态栏显示额度" });
+    expect(toggle).not.toBeChecked();
+    expect(toggle).toHaveAccessibleDescription(/macOS 上会显示/);
+    await userEvent.click(toggle);
+    await userEvent.click(screen.getByRole("button", { name: "保存设置" }));
+    await waitFor(() => expect(calls.some((call) => call.cmd === "save_settings")).toBe(true));
+    expect((calls.find((call) => call.cmd === "save_settings")!.args!.input as SettingsView).app.trayQuotaTitle).toBe(true);
+  });
+});
+
 describe("Account feedback", () => {
   it("distinguishes failed account and local-login queries from empty data, and retries separately", async () => {
     let failed = true;

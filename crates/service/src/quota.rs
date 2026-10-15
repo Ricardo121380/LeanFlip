@@ -257,6 +257,9 @@ pub struct QuotaSource {
     /// 中转站的平台类型。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub adapter: Option<relay::RelayAdapter>,
+    /// 中转站的自动刷新间隔（分钟，共用的几张卡里最短的）；不自动刷新时为空。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refresh_minutes: Option<u32>,
     pub users: Vec<QuotaUser>,
     /// 还没有数据时为空（最近 8 天没在本机用过，也没联网查过）。
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -438,6 +441,7 @@ pub(crate) fn build_view(
         account_id: None,
         login: None,
         adapter: None,
+        refresh_minutes: None,
         users: Vec::new(),
         snapshot: None,
         error: None,
@@ -491,18 +495,69 @@ pub(crate) fn build_view(
     }
 }
 
-/// 正在用的来源里最紧张的一个：先比等级，再比已用比例。
+/// 正在用的来源里最紧张的一个：先比等级，再比已用比例。只有余额、算不出比例的（钱包）
+/// 排在最后，但只有它时也选它。
 pub(crate) fn busiest(sources: &[QuotaSource]) -> Option<String> {
     sources
         .iter()
         .filter(|s| s.users.iter().any(|u| u.active))
         .filter_map(|s| {
             let snap = s.snapshot.as_ref()?;
-            let fraction = snap
-                .used_fraction
-                .or((snap.level == QuotaLevel::Out).then_some(1.0))?;
+            let fraction = snap.used_fraction.unwrap_or(match snap.level {
+                QuotaLevel::Out => 1.0,
+                _ => 0.0,
+            });
             Some((s, fraction, snap.level))
         })
         .max_by(|a, b| a.2.cmp(&b.2).then(a.1.total_cmp(&b.1)))
         .map(|(s, _, _)| s.key.clone())
+}
+
+fn window_short(minutes: i64, english: bool) -> String {
+    match minutes {
+        10080 => (if english { "wk" } else { "周" }).to_string(),
+        1440 => (if english { "day" } else { "日" }).to_string(),
+        m if m % 1440 == 0 => format!("{}{}", m / 1440, if english { "d" } else { "天" }),
+        m if m % 60 == 0 => format!("{}h", m / 60),
+        m => format!("{m}m"),
+    }
+}
+
+fn money(amount: f64, unit: &str) -> String {
+    if unit.eq_ignore_ascii_case("USD") {
+        format!("${amount:.2}")
+    } else {
+        format!("{amount:.2} {unit}")
+    }
+}
+
+/// 托盘和状态栏用的一小段文字。快满的窗口优先，其次是余额，再其次是最满的窗口；
+/// 用量过 80% 或用完时前面加 ⚠︎。没有可显示的数字时为空。
+pub fn brief(snapshot: &QuotaSnapshot, english: bool) -> Option<String> {
+    let worst = snapshot
+        .windows
+        .iter()
+        .filter(|w| !w.reset)
+        .max_by(|a, b| a.used_percent.total_cmp(&b.used_percent));
+    let window = |w: &QuotaWindow| {
+        format!(
+            "{} {}%",
+            window_short(w.minutes, english),
+            w.used_percent.round() as i64
+        )
+    };
+    let text = match (&snapshot.balance, worst) {
+        (_, Some(w)) if w.used_percent >= WARN_FRACTION * 100.0 => window(w),
+        (Some(b), _) if b.unlimited => (if english { "unlimited" } else { "不限" }).to_string(),
+        (Some(b), _) if b.remaining.is_some() => money(b.remaining.unwrap_or_default(), &b.unit),
+        (_, Some(w)) => window(w),
+        _ => {
+            let balance = snapshot.credits.as_ref()?.balance?;
+            format!("credits {balance:.0}")
+        }
+    };
+    Some(match snapshot.level {
+        QuotaLevel::Ok => text,
+        _ => format!("\u{26A0}\u{FE0E} {text}"),
+    })
 }
