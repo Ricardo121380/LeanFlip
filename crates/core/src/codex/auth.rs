@@ -44,6 +44,25 @@ pub fn extract_codex_id_token_user_identity(token: &str) -> Option<String> {
 pub fn extract_codex_auth_user_identity(auth: &Value) -> Option<String> {
     extract_codex_id_token_user_identity(auth.pointer("/tokens/id_token")?.as_str()?)
 }
+/// Workspace (`chatgpt_account_id`) from the id token, for stored accounts that lack the field.
+pub fn extract_chatgpt_account_id(token: &str) -> Option<String> {
+    let claims = jwt_claims(token)?;
+    nonblank(
+        claims
+            .get("https://api.openai.com/auth")
+            .and_then(|a| a.get("chatgpt_account_id")),
+    )
+    .map(str::to_string)
+}
+/// ChatGPT user id from the id token. Codex session records store it as `creator_user_id`;
+/// it differs from `sub`, which [`extract_codex_id_token_user_identity`] uses.
+pub fn extract_chatgpt_user_id(token: &str) -> Option<String> {
+    let claims = jwt_claims(token)?;
+    let auth = claims.get("https://api.openai.com/auth");
+    nonblank(auth.and_then(|a| a.get("chatgpt_user_id")))
+        .or_else(|| nonblank(auth.and_then(|a| a.get("user_id"))))
+        .map(str::to_string)
+}
 #[doc(hidden)]
 pub fn test_id_token_with_claims(claims: &Value) -> String {
     format!(
@@ -145,6 +164,34 @@ pub fn codex_config_auth_store_mode(source: &str) -> CodexAuthStoreMode {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn chatgpt_user_id_comes_from_the_openai_claim_not_sub() {
+        let token = test_id_token_with_claims(&json!({
+            "sub": "auth0|abc",
+            "https://api.openai.com/auth": {"chatgpt_user_id": "user-1", "user_id": "user-2"}
+        }));
+        assert_eq!(extract_chatgpt_user_id(&token).as_deref(), Some("user-1"));
+        let fallback = test_id_token_with_claims(&json!({
+            "https://api.openai.com/auth": {"chatgpt_user_id": " ", "user_id": "user-2"}
+        }));
+        assert_eq!(
+            extract_chatgpt_user_id(&fallback).as_deref(),
+            Some("user-2")
+        );
+        assert_eq!(
+            extract_chatgpt_user_id(&test_codex_id_token("only-sub")),
+            None
+        );
+        assert_eq!(extract_chatgpt_user_id("not-a-jwt"), None);
+        let workspace = test_id_token_with_claims(&json!({
+            "https://api.openai.com/auth": {"chatgpt_account_id": "ws-1"}
+        }));
+        assert_eq!(
+            extract_chatgpt_account_id(&workspace).as_deref(),
+            Some("ws-1")
+        );
+        assert_eq!(extract_chatgpt_account_id(&token), None);
+    }
     #[test]
     fn metadata_is_not_login_and_invalid_store_types_are_unknown() {
         assert!(!codex_auth_has_login_material(

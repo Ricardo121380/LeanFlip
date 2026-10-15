@@ -49,7 +49,7 @@ function start() {
     switch_provider: () => ({ changed: [], warnings: [] }),
   });
   backend.invoke = fake.invoke;
-  renderWithClient(<StatsPage />);
+  renderWithClient(<StatsPage initialTab="usage" />);
   return fake;
 }
 
@@ -60,7 +60,7 @@ describe("Stats page", () => {
     start();
     expect(await screen.findByRole("heading", { name: "统计" })).toBeInTheDocument();
     // 30 days: claude 1010 + 1010 tokens, opencode 30; the 40-day-old row is outside.
-    const kpi = screen.getByText("全部 token", { selector: ".kpi-label" }).parentElement!;
+    const kpi = (await screen.findByText("全部 token", { selector: ".kpi-label" })).parentElement!;
     expect(kpi).toHaveTextContent("2,050");
     const relay = screen.getByText("公司网关", { selector: ".who span" }).closest("tr")!;
     expect(relay).toHaveTextContent("40.0%");

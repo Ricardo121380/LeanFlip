@@ -25,9 +25,11 @@ import { Monogram, ToolGlyph } from "@/components/Glyph";
 import { ModelRoutesEditor } from "@/components/ModelRoutesEditor";
 import { ConnectionCheck, ProbeLine, type ProbeSlot } from "@/components/ProviderProbe";
 import { applyRoutes, routeErrors, routesOf } from "@/lib/routes";
-import { api, errorMessage, type AccountInfo, type LoginSummary, type ProbeResult, type Provider, type ToolId } from "@/lib/api";
+import { loginChoices, loginHelp } from "@/lib/login-choices";
+import { adapterName, applyQuotaSettings, DEFAULT_QUOTA_PER_USD, quotaSettingsOf, RELAY_ADAPTERS } from "@/lib/quota";
+import { QuotaDetectDialog } from "@/components/QuotaDetectDialog";
+import { api, errorMessage, type AccountInfo, type LoginSummary, type ProbeResult, type Provider, type QuotaSettings, type ToolId } from "@/lib/api";
 import {
-  accountLabel,
   endpointOf,
   fromEditorText,
   hasRedacted,
@@ -191,13 +193,15 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
     return toEditorText(meta.editor, settings);
   });
   const [loginSource, setLoginSource] = useState(loginSourceOf(source));
+  const [quota, setQuota] = useState<QuotaSettings | null>(() => quotaSettingsOf(source));
+  const [detecting, setDetecting] = useState(false);
   const [routes, setRoutes] = useState(() => routesOf(source));
   const [apply, setApply] = useState(false);
   const [checkModel, setCheckModel] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [confirm, confirmDialog] = useConfirm();
-  const signature = JSON.stringify({ name, id, website, notes, category, text, loginSource, routes, apply });
+  const signature = JSON.stringify({ name, id, website, notes, category, text, loginSource, routes, apply, quota });
   const [initialSignature] = useState(signature);
   const [presetSignature, setPresetSignature] = useState(signature);
   const dirty = signature !== initialSignature;
@@ -235,6 +239,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
   const settingsKey = parsed.ok ? JSON.stringify(parsed.value) : null;
   const official = isOfficial({ category });
   const showLogin = tool === "codex" && official;
+  const loginOptions = useMemo(() => loginChoices(logins, accounts, loginSource, t), [logins, accounts, loginSource, t]);
   const showRoutes = tool === "claude-desktop" && !official;
   const routesOk = !showRoutes || routeErrors(routes).every((e) => e === null);
   const connection = readConnection(tool, text, official);
@@ -334,7 +339,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
     modelsProbe.reset();
     checkProbe.reset();
     effortsProbe.reset();
-    setPresetSignature(JSON.stringify({ name: nextName, id: nextId, website: nextWebsite, notes, category: nextCategory, text: nextText, loginSource, routes, apply }));
+    setPresetSignature(JSON.stringify({ name: nextName, id: nextId, website: nextWebsite, notes, category: nextCategory, text: nextText, loginSource, routes, apply, quota }));
     setStep("form");
   }
 
@@ -372,6 +377,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
       else delete next.notes;
       if (showRoutes) next = applyRoutes(next, routes);
       if (showLogin) next = applyLoginSource(next, loginSource);
+      if (!official) next = applyQuotaSettings(next, quota);
 
       const result = editing
         ? await api.updateProvider(tool, next)
@@ -490,20 +496,21 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
 
       {showLogin && (
         <Section title={t("editor.loginSource")}>
-          <NativeSelect id="pe-login" aria-label={t("editor.loginSource")} value={loginSource} onChange={(e) => setLoginSource(e.target.value)}>
-            <option value="native">{t("editor.loginNative")}</option>
-            {logins.map((l) => (
-              <option key={l.identity} value={`ref:${l.identity}`}>
-                {t("editor.loginRef", { label: [l.email, l.workspace].filter(Boolean).join(" · ") || l.identity })}
-              </option>
-            ))}
-            <option value="managed:">{t("editor.loginManagedDefault")}</option>
-            {accounts.map((a) => (
-              <option key={a.id} value={`managed:${a.id}`}>
-                {t("editor.loginManaged", { label: `${accountLabel(a)}${a.plan ? ` (${a.plan})` : ""}` })}
-              </option>
-            ))}
+          <NativeSelect id="pe-login" aria-label={t("editor.loginSource")} aria-describedby="pe-login-help" value={loginSource} onChange={(e) => setLoginSource(e.target.value)}>
+            {loginOptions.missing && <option value={loginOptions.missing.value}>{loginOptions.missing.label}</option>}
+            <option value={loginOptions.native.value}>{loginOptions.native.label}</option>
+            {loginOptions.local.length > 0 && (
+              <optgroup label={t("editor.loginLocalGroup")}>
+                {loginOptions.local.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+              </optgroup>
+            )}
+            {loginOptions.managed.length > 0 && (
+              <optgroup label={t("editor.loginManagedGroup")}>
+                {loginOptions.managed.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+              </optgroup>
+            )}
           </NativeSelect>
+          <p id="pe-login-help" className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{loginHelp(loginSource, loginOptions, t)}</p>
         </Section>
       )}
 
@@ -545,6 +552,91 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
           {modelFields.length > 0 && fieldsFor(modelFields)}
           {showRoutes && <ModelRoutesEditor rows={routes} onChange={setRoutes} />}
         </Section>
+      )}
+
+      {canProbe && (
+        <Section
+          title={t("editor.quotaTitle")}
+          hint={t("editor.quotaHint")}
+          aside={
+            <Button type="button" size="sm" variant="outline" disabled={saving || !parsed.ok} onClick={() => setDetecting(true)}>
+              {t("editor.quotaDetect")}
+            </Button>
+          }
+        >
+          <div className="grid gap-x-3 gap-y-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="pe-quota-adapter">{t("editor.quotaAdapter")}</Label>
+              <NativeSelect
+                id="pe-quota-adapter"
+                value={quota?.adapter ?? ""}
+                onChange={(e) => {
+                  const adapter = e.target.value as QuotaSettings["adapter"] | "";
+                  setQuota((q) => {
+                    const next: QuotaSettings = { ...(q ?? { refreshMinutes: 0 }) };
+                    if (adapter) next.adapter = adapter;
+                    else delete next.adapter;
+                    return next;
+                  });
+                }}
+              >
+                <option value="">{t("editor.quotaAdapterUnset")}</option>
+                {RELAY_ADAPTERS.map((adapter) => <option key={adapter} value={adapter}>{adapterName(adapter)}</option>)}
+                <option value="off">{t("editor.quotaAdapterOff")}</option>
+              </NativeSelect>
+            </div>
+            {(quota?.adapter === "sub2api" || quota?.adapter === "newapi") && (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="pe-quota-refresh">{t("editor.quotaRefresh")}</Label>
+                <NativeSelect
+                  id="pe-quota-refresh"
+                  aria-describedby="pe-quota-refresh-hint"
+                  value={String(quota.refreshMinutes)}
+                  onChange={(e) => setQuota((q) => ({ ...(q ?? { refreshMinutes: 0 }), refreshMinutes: Number(e.target.value) }))}
+                >
+                  {[0, 15, 60].includes(quota.refreshMinutes) ? null : <option value={quota.refreshMinutes}>{t("editor.quotaRefreshEvery", { count: quota.refreshMinutes })}</option>}
+                  <option value="0">{t("editor.quotaRefreshOff")}</option>
+                  <option value="15">{t("editor.quotaRefreshEvery", { count: 15 })}</option>
+                  <option value="60">{t("editor.quotaRefreshEvery", { count: 60 })}</option>
+                </NativeSelect>
+                <p id="pe-quota-refresh-hint" className="text-xs leading-5 text-muted-foreground">{t("editor.quotaRefreshHint")}</p>
+              </div>
+            )}
+            {quota?.adapter === "newapi" && (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="pe-quota-unit">{t("editor.quotaPerUsd")}</Label>
+                <Input
+                  id="pe-quota-unit"
+                  type="number"
+                  min={1}
+                  inputMode="numeric"
+                  placeholder={String(DEFAULT_QUOTA_PER_USD)}
+                  value={quota.quotaPerUsd ?? ""}
+                  onChange={(e) => {
+                    const value = Number(e.target.value);
+                    setQuota((q) => {
+                      const next: QuotaSettings = { ...(q ?? { refreshMinutes: 0 }) };
+                      if (e.target.value.trim() && Number.isFinite(value) && value > 0) next.quotaPerUsd = value;
+                      else delete next.quotaPerUsd;
+                      return next;
+                    });
+                  }}
+                />
+                <p className="text-xs leading-5 text-muted-foreground">{t("editor.quotaPerUsdHint")}</p>
+              </div>
+            )}
+          </div>
+        </Section>
+      )}
+      {detecting && parsed.ok && (
+        <QuotaDetectDialog
+          tool={tool}
+          name={name.trim() || t("editor.quotaThisCard")}
+          settingsConfig={parsed.value}
+          quotaPerUsd={quota?.quotaPerUsd}
+          onUse={(adapter) => setQuota((q) => ({ ...(q ?? { refreshMinutes: 0 }), adapter }))}
+          onClose={() => setDetecting(false)}
+        />
       )}
 
       {fieldControls}

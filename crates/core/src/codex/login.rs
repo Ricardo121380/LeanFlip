@@ -248,6 +248,9 @@ pub struct LoginSummary {
     pub workspace: Option<String>,
     pub plan: Option<String>,
     pub live: bool,
+    /// Matches `creator_user_id` in Codex session records. Kept out of the frontend payload.
+    #[serde(skip)]
+    pub chatgpt_user_id: Option<String>,
 }
 pub fn summarize(auth: &Value, live: bool) -> Option<LoginSummary> {
     let claims = auth
@@ -267,5 +270,9 @@ pub fn summarize(auth: &Value, live: bool) -> Option<LoginSummary> {
                 .or_else(|| claims.get("chatgpt_plan_type")),
         ),
         live,
+        chatgpt_user_id: auth
+            .pointer("/tokens/id_token")
+            .and_then(Value::as_str)
+            .and_then(extract_chatgpt_user_id),
     })
 }

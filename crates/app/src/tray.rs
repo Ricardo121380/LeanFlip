@@ -1,6 +1,8 @@
 //! 托盘：每个工具一个子菜单。切换式工具是单选（勾 = 当前卡），并存式工具是开关
 //! （勾 = 写在客户端配置里）。菜单 id：`sw:<tool>:<id>` / `cx:<tool>:<id>`。
+//! 有额度数据的供应商后面带一小段额度；设置里打开后，状态栏图标旁显示最紧张的一项。
 
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 
@@ -35,6 +37,7 @@ struct Labels {
     open: &'static str,
     quit: &'static str,
     empty: &'static str,
+    refresh: &'static str,
 }
 
 fn labels(english: bool) -> Labels {
@@ -43,13 +46,24 @@ fn labels(english: bool) -> Labels {
             open: "Open LeanFlip",
             quit: "Quit",
             empty: "(no providers)",
+            refresh: "Refresh usage",
         }
     } else {
         Labels {
             open: "打开 LeanFlip",
             quit: "退出",
             empty: "（没有供应商）",
+            refresh: "刷新额度",
         }
+    }
+}
+
+/// 名字后面带上额度：`拼车站（$8.75）`。
+fn with_quota(name: &str, brief: Option<&String>, english: bool) -> String {
+    match (brief, english) {
+        (Some(brief), true) => format!("{name} ({brief})"),
+        (Some(brief), false) => format!("{name}（{brief}）"),
+        (None, _) => name.to_string(),
     }
 }
 
@@ -58,6 +72,8 @@ fn labels(english: bool) -> Labels {
 pub(crate) struct TrayModel {
     pub english: bool,
     pub tools: Vec<ToolEntry>,
+    /// 状态栏图标旁的文字；设置里没打开或没有数据时为空。
+    pub title: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -76,7 +92,30 @@ pub(crate) struct Item {
 
 /// 读 11 个工具的卡和 live 状态（有文件 IO，别在异步运行时 / 主线程上调）。
 pub(crate) fn model(service: &Service) -> TrayModel {
-    let english = service.app_settings().language.as_deref() == Some("en");
+    let settings = service.app_settings();
+    let english = settings.language.as_deref() == Some("en");
+    let quota = service.quota_overview().ok();
+    let mut briefs: HashMap<(Tool, String), String> = HashMap::new();
+    for source in quota.iter().flat_map(|view| &view.sources) {
+        let Some(brief) = source
+            .snapshot
+            .as_ref()
+            .and_then(|snap| leanflip_service::quota::brief(snap, english))
+        else {
+            continue;
+        };
+        for user in &source.users {
+            briefs.insert((user.tool, user.provider_id.clone()), brief.clone());
+        }
+    }
+    let title = quota
+        .as_ref()
+        .filter(|_| settings.tray_quota_title)
+        .and_then(|view| {
+            let key = view.busiest.as_ref()?;
+            let source = view.sources.iter().find(|s| &s.key == key)?;
+            leanflip_service::quota::brief(source.snapshot.as_ref()?, english)
+        });
     let mut tools = Vec::new();
     for tool in Tool::ALL {
         let Ok(listing) = service.list_providers(tool) else {
@@ -91,7 +130,11 @@ pub(crate) fn model(service: &Service) -> TrayModel {
             .iter()
             .map(|provider| Item {
                 id: format!("{prefix}:{}:{}", tool.as_str(), provider.id),
-                label: provider.name.clone(),
+                label: with_quota(
+                    &provider.name,
+                    briefs.get(&(tool, provider.id.clone())),
+                    english,
+                ),
                 // 并存式工具的配置文件读不了时不让点（开关状态不可信）。
                 enabled: listing.live_error.is_none(),
                 checked: if tool.is_coexist() {
@@ -109,14 +152,22 @@ pub(crate) fn model(service: &Service) -> TrayModel {
                     .find(|p| &p.id == current)
                     .map(|p| p.name.as_str())
                     .unwrap_or(current.as_str());
-                format!("{} · {name}", tool_label(tool))
+                with_quota(
+                    &format!("{} · {name}", tool_label(tool)),
+                    briefs.get(&(tool, current.clone())),
+                    english,
+                )
             }
             (_, true) => format!("{} · {}", tool_label(tool), listing.in_live.len()),
             _ => tool_label(tool).to_string(),
         };
         tools.push(ToolEntry { title, items });
     }
-    TrayModel { english, tools }
+    TrayModel {
+        english,
+        tools,
+        title,
+    }
 }
 
 /// 按模型建菜单（只创建菜单项，不读文件）。
@@ -155,6 +206,13 @@ fn build_menu<R: Runtime>(app: &AppHandle<R>, model: &TrayModel) -> tauri::Resul
         menu.append(&Submenu::with_items(app, &entry.title, true, &refs)?)?;
     }
     menu.append(&PredefinedMenuItem::separator(app)?)?;
+    menu.append(&MenuItem::with_id(
+        app,
+        "quota-refresh",
+        text.refresh,
+        true,
+        None::<&str>,
+    )?)?;
     menu.append(&MenuItem::with_id(
         app,
         "quit",
@@ -230,6 +288,16 @@ fn on_menu(app: &AppHandle, id: &str) {
     match id {
         "open" => show_main(app),
         "quit" => app.exit(0),
+        "quota-refresh" => {
+            let app = app.clone();
+            std::thread::spawn(move || {
+                let service = app.state::<AppState>().0.clone();
+                if let Err(err) = service.quota_refresh(None) {
+                    log::warn!("tray quota refresh failed: {err}");
+                }
+                crate::notify_changed(&app);
+            });
+        }
         other => {
             let Some((coexist, tool, provider)) = parse_menu_id(other) else {
                 return;
@@ -262,6 +330,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
     let placeholder = TrayModel {
         english: app.state::<AppState>().0.app_settings().language.as_deref() == Some("en"),
         tools: Vec::new(),
+        title: None,
     };
     let menu = build_menu(app, &placeholder)?;
     let mut builder = TrayIconBuilder::with_id(TRAY_ID)
@@ -295,6 +364,12 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
         let Some(tray) = handle.tray_by_id(TRAY_ID) else {
             return;
         };
+        // Windows 不支持图标旁的文字；Linux 只在部分面板上显示。
+        if last.as_ref().map(|m| &m.title) != Some(&next.title) {
+            if let Err(err) = tray.set_title(next.title.as_deref()) {
+                log::warn!("tray title: {err}");
+            }
+        }
         match build_menu(&handle, &next).and_then(|menu| tray.set_menu(Some(menu))) {
             Ok(()) => last = Some(next),
             Err(err) => log::warn!("tray menu: {err}"),
@@ -418,6 +493,76 @@ mod tests {
 
         service.switch_provider(Tool::Claude, "a").unwrap();
         assert_ne!(model(&service), first);
+    }
+
+    #[test]
+    fn model_shows_quota_next_to_providers_and_a_title_only_when_enabled() {
+        use crate::service::SettingsInput;
+        use leanflip_core::{Env, Provider};
+        use leanflip_service::quota::{QuotaBalance, QuotaLevel, QuotaOrigin, QuotaSnapshot};
+        use serde_json::json;
+
+        let dir = tempfile::tempdir().unwrap();
+        let home = dir.path().join("home");
+        std::fs::create_dir_all(&home).unwrap();
+        let env = Env::with_home(&home);
+        let service = Service::start(env.clone(), None).unwrap();
+        let mut card = Provider::new(
+            "corp",
+            "Corp",
+            json!({"env": {"ANTHROPIC_BASE_URL": "https://relay.example.invalid", "ANTHROPIC_AUTH_TOKEN": "sk-x"}}),
+        );
+        card.meta.extra.insert(
+            "leanflipQuota".into(),
+            json!({"adapter": "newapi", "refreshMinutes": 0}),
+        );
+        service.add_provider(Tool::Claude, card, false).unwrap();
+        service.switch_provider(Tool::Claude, "corp").unwrap();
+        let key = service.quota_overview().unwrap().sources[0].key.clone();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as i64;
+        let snapshot = QuotaSnapshot {
+            windows: Vec::new(),
+            credits: None,
+            balance: Some(QuotaBalance {
+                unit: "USD".into(),
+                remaining: Some(31.4),
+                limit: Some(58.0),
+                used: Some(26.6),
+                unlimited: false,
+                expires_at: None,
+                account_remaining: None,
+            }),
+            plan: None,
+            fetched_at: now,
+            origin: QuotaOrigin::Network,
+            level: QuotaLevel::Ok,
+            used_fraction: Some(0.46),
+            limit_reached: false,
+        };
+        std::fs::write(
+            env.data_file("quota-cache.json"),
+            json!({"version": 1, "entries": [], "relays": [{"key": key, "snapshot": snapshot}]})
+                .to_string(),
+        )
+        .unwrap();
+
+        let off = model(&service);
+        assert_eq!(off.tools[0].title, "Claude Code · Corp（$31.40）");
+        assert_eq!(off.tools[0].items[0].label, "Corp（$31.40）");
+        assert_eq!(off.title, None);
+
+        let mut app = service.app_settings();
+        app.tray_quota_title = true;
+        service
+            .save_settings(SettingsInput {
+                app,
+                keep_codex_login: false,
+            })
+            .unwrap();
+        assert_eq!(model(&service).title.as_deref(), Some("$31.40"));
     }
 
     #[test]

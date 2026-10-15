@@ -115,6 +115,56 @@ pub async fn usage_report(
 }
 
 #[tauri::command]
+pub async fn quota_overview(
+    state: State<'_, AppState>,
+) -> ApiResult<leanflip_service::quota::QuotaView> {
+    blocking(&state, |s| s.quota_overview()).await
+}
+
+/// 查到的额度写进了缓存：托盘和菜单栏文字马上跟着变。发起查询的页面已经拿到了结果，
+/// 不用再通知前端。
+#[tauri::command]
+pub async fn quota_refresh(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    keys: Option<Vec<String>>,
+) -> ApiResult<leanflip_service::quota::QuotaView> {
+    let result = blocking(&state, move |s| s.quota_refresh(keys)).await;
+    crate::tray::rebuild(&app);
+    result
+}
+
+#[tauri::command]
+pub async fn quota_detect(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    tool: Tool,
+    settings_config: serde_json::Value,
+    quota_per_usd: Option<f64>,
+) -> ApiResult<leanflip_service::quota::relay::QuotaDetect> {
+    let result = blocking(&state, move |s| {
+        s.quota_detect(tool, &settings_config, quota_per_usd)
+    })
+    .await;
+    crate::tray::rebuild(&app);
+    result
+}
+
+#[tauri::command]
+pub async fn quota_configure(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    tool: Tool,
+    id: String,
+    settings: Option<leanflip_service::quota::relay::QuotaSettings>,
+) -> ApiResult<()> {
+    mutating(&app, &state, move |s| {
+        s.quota_configure(tool, &id, settings)
+    })
+    .await
+}
+
+#[tauri::command]
 pub async fn switch_provider(
     app: AppHandle,
     state: State<'_, AppState>,

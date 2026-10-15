@@ -1,12 +1,16 @@
 // 首页：清单（每个工具一句话）和光路两个视图。冷启动时清单逐词浮现。
+// 清单里正在用的供应商带上额度；标题区可以联网刷新额度。
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Gauge, List, Loader2, Waypoints } from "lucide-react";
+import { Gauge, List, Loader2, RefreshCw, Waypoints } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { QueryState } from "@/components/QueryState";
-import { useAction, useAllProviders, useOverview, useSwitchProvider, useToggleLive } from "@/hooks/queries";
-import { api, type Provider, type ToolId } from "@/lib/api";
+import { QuotaDetectDialog } from "@/components/QuotaDetectDialog";
+import { refreshAll, useAction, useAllProviders, useOverview, useQuota, useQuotaRefresh, useSwitchProvider, useToggleLive } from "@/hooks/queries";
+import { api, errorMessage, type Provider, type QuotaSettings, type ToolId } from "@/lib/api";
+import { agoText, quotaSettingsOf, sourcesByCard } from "@/lib/quota";
 import { isOfficial } from "@/lib/cards";
 import { settle } from "@/lib/probe";
 import { prefersReducedMotion } from "@/lib/motion";
@@ -33,6 +37,22 @@ export function HomePage({ mode, onNavigate }: { mode: HomeMode; onNavigate: (ha
   const [testing, setTesting] = useState(false);
   const run = useRef(0);
   const [intro, setIntro] = useState(() => mode === "list" && !introPlayed && !prefersReducedMotion());
+  const client = useQueryClient();
+  const quota = useQuota();
+  const refreshQuota = useQuotaRefresh();
+  const cards = useMemo(() => sourcesByCard(quota.data), [quota.data]);
+  const [detecting, setDetecting] = useState<{ tool: ToolId; provider: Provider } | null>(null);
+  const now = Date.now();
+  const lastOnline = Math.max(0, ...(quota.data?.sources ?? []).flatMap((s) => (s.snapshot?.origin === "network" ? [s.snapshot.fetchedAt] : [])));
+  const configureQuota = async (target: { tool: ToolId; provider: Provider }, adapter: QuotaSettings["adapter"]) => {
+    try {
+      await api.quotaConfigure(target.tool, target.provider.id, { ...(quotaSettingsOf(target.provider) ?? { refreshMinutes: 0 }), adapter });
+    } catch (error) {
+      toast.error(errorMessage(error));
+    } finally {
+      void refreshAll(client);
+    }
+  };
 
   const switchAction = useSwitchProvider({ optimistic: true });
   const toggleAction = useToggleLive({ optimistic: true });
@@ -125,6 +145,12 @@ export function HomePage({ mode, onNavigate }: { mode: HomeMode; onNavigate: (ha
               </button>
             ))}
           </div>
+          {mode === "list" && (quota.data?.sources.length ?? 0) > 0 && (
+            <Button size="sm" variant="outline" className="h-8" disabled={refreshQuota.isPending} title={t("quota.refreshHint")} onClick={() => refreshQuota.mutate(undefined)}>
+              {refreshQuota.isPending ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+              {refreshQuota.isPending ? t("quota.refreshing") : lastOnline ? t("quota.checked", { ago: agoText(lastOnline, now, t) }) : t("quota.refresh")}
+            </Button>
+          )}
           {mode === "map" && (
             <Button size="sm" variant="outline" className="h-8" disabled={testing || !testable} onClick={() => void testAll()} title={t("probe.latencyAllHint")}>
               {testing ? <Loader2 className="animate-spin" /> : <Gauge />} {t(testing ? "home.testing" : "probe.latencyAll")}
@@ -143,6 +169,9 @@ export function HomePage({ mode, onNavigate }: { mode: HomeMode; onNavigate: (ha
             open={open}
             importing={importAction.isPending ? (importAction.variables ?? null) : null}
             intro={intro && ready}
+            quota={cards}
+            now={now}
+            onDetect={(row, provider) => setDetecting({ tool: row.tool.id, provider })}
             onOpen={setOpen}
             onSwitch={onSwitch}
             onToggle={onToggle}
@@ -155,6 +184,16 @@ export function HomePage({ mode, onNavigate }: { mode: HomeMode; onNavigate: (ha
         <section aria-label={t("home.map")} className="home-panel">
           <LightMap rows={rows} latency={latency} onSwitch={onSwitch} onToggle={onToggle} />
         </section>
+      )}
+      {detecting && (
+        <QuotaDetectDialog
+          tool={detecting.tool}
+          name={detecting.provider.name}
+          settingsConfig={detecting.provider.settingsConfig}
+          onUse={(adapter) => void configureQuota(detecting, adapter)}
+          onDisable={() => void configureQuota(detecting, "off")}
+          onClose={() => setDetecting(null)}
+        />
       )}
     </div>
   );

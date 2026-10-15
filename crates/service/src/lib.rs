@@ -2,6 +2,7 @@
 
 pub mod oauth_http;
 pub mod probe;
+pub mod quota;
 pub mod redact;
 pub mod service;
 pub mod settings;

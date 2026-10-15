@@ -1,5 +1,5 @@
 // 统计页：读各工具留在本机的会话记录，按天汇总 token 用量，并用切换记录画出时间线。
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { RefreshCw, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,7 @@ import {
 import { cn } from "@/lib/utils";
 import { DailyChart, dayLabel, type Series } from "./stats/DailyChart";
 import { Timeline, type Lane } from "./stats/Timeline";
+import { QuotaPanel } from "./stats/QuotaPanel";
 
 const RANGES: Range[] = [7, 30, 90];
 const PROVIDER_SLOTS = 8;
@@ -88,7 +89,53 @@ function sourceText(source: SourceStatus, t: (k: string) => string) {
   return t("stats.source.read");
 }
 
-export function StatsPage() {
+type StatsTab = "quota" | "usage";
+// 离开统计页再回来时停在上次看的标签。
+let lastTab: StatsTab = "quota";
+
+/** 统计页：“额度”（默认）和“用量记录”两个标签。用量记录要扫描会话文件，只在打开它时读。 */
+export function StatsPage({ initialTab }: { initialTab?: StatsTab } = {}) {
+  const { t } = useTranslation();
+  const [tab, setTab] = useState<StatsTab>(initialTab ?? lastTab);
+  const choose = (next: StatsTab) => {
+    lastTab = next;
+    setTab(next);
+  };
+  const tabs = (
+    <div role="tablist" aria-label={t("stats.tabs")} className="flex gap-5 border-b">
+      {(["quota", "usage"] as const).map((id) => (
+        <button
+          key={id}
+          type="button"
+          role="tab"
+          aria-selected={tab === id}
+          className={cn(
+            "-mb-px h-9 border-b-2 text-sm transition-colors",
+            tab === id ? "border-foreground font-semibold text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
+          )}
+          onClick={() => choose(id)}
+        >
+          {t(id === "quota" ? "stats.tabQuota" : "stats.tabUsage")}
+        </button>
+      ))}
+    </div>
+  );
+  return tab === "quota" ? <QuotaPanel tabs={tabs} /> : <UsageView tabs={tabs} />;
+}
+
+/** 加载中、出错时也留着标题和标签，可以切回“额度”。 */
+function UsageShell({ tabs, children }: { tabs: ReactNode; children: ReactNode }) {
+  const { t } = useTranslation();
+  return (
+    <div className="mx-auto flex w-full min-w-0 max-w-6xl flex-col gap-5 px-6 py-7 lg:px-8">
+      <h1 className="text-[22px] font-semibold leading-tight tracking-tight">{t("stats.title")}</h1>
+      {tabs}
+      {children}
+    </div>
+  );
+}
+
+function UsageView({ tabs }: { tabs: ReactNode }) {
   const { t, i18n } = useTranslation();
   const usage = useUsage();
   const providerResults = useAllProviders();
@@ -143,8 +190,8 @@ export function StatsPage() {
     return { rows, events, withData, order, eventName };
   }, [report, known]);
 
-  if (usage.isLoading) return <QueryState state="loading" title={t("stats.loading")} />;
-  if (!report || !model) return <QueryState state="error" title={t("stats.loadError")} description={usage.error ? errorMessage(usage.error) : undefined} onRetry={() => void usage.refetch()} />;
+  if (usage.isLoading) return <UsageShell tabs={tabs}><QueryState state="loading" title={t("stats.loading")} /></UsageShell>;
+  if (!report || !model) return <UsageShell tabs={tabs}><QueryState state="error" title={t("stats.loadError")} description={usage.error ? errorMessage(usage.error) : undefined} onRetry={() => void usage.refetch()} /></UsageShell>;
 
   const selected = tool === "all" ? model.withData : model.withData.filter((m) => m.id === tool);
   const tools = new Set(selected.map((m) => m.id));
@@ -292,6 +339,7 @@ export function StatsPage() {
           <RefreshCw className={cn(usage.isFetching && "animate-spin")} /> {t(usage.isFetching ? "stats.scanning" : "stats.rescan")}
         </Button>
       </header>
+      {tabs}
 
       {empty ? (
         <section className="flex flex-col items-start gap-2 rounded-2xl border border-dashed px-6 py-7">

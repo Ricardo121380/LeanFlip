@@ -23,6 +23,8 @@ pub struct AppSettings {
     pub background_refresh_hours: u32,
     /// 关闭主窗口时留在托盘。
     pub close_to_tray: bool,
+    /// 在状态栏图标旁显示正在用的来源里最紧张的额度。默认关闭：会占菜单栏的位置。
+    pub tray_quota_title: bool,
 }
 
 impl Default for AppSettings {
@@ -34,6 +36,7 @@ impl Default for AppSettings {
             autostart: false,
             background_refresh_hours: 24 * 7,
             close_to_tray: true,
+            tray_quota_title: false,
         }
     }
 }

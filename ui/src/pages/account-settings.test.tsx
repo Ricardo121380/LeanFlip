@@ -145,6 +145,22 @@ describe("Settings editing states", () => {
   });
 });
 
+describe("Menu-bar usage setting", () => {
+  it("is off by default and saves the switch with the other app settings", async () => {
+    const { calls } = mount(<SettingsPage />, {
+      get_settings: () => settings(),
+      save_settings: () => ({ dirsChanged: false }),
+    });
+    const toggle = await screen.findByRole("switch", { name: "在状态栏显示额度" });
+    expect(toggle).not.toBeChecked();
+    expect(toggle).toHaveAccessibleDescription(/macOS 上会显示/);
+    await userEvent.click(toggle);
+    await userEvent.click(screen.getByRole("button", { name: "保存设置" }));
+    await waitFor(() => expect(calls.some((call) => call.cmd === "save_settings")).toBe(true));
+    expect((calls.find((call) => call.cmd === "save_settings")!.args!.input as SettingsView).app.trayQuotaTitle).toBe(true);
+  });
+});
+
 describe("Account feedback", () => {
   it("distinguishes failed account and local-login queries from empty data, and retries separately", async () => {
     let failed = true;
@@ -201,5 +217,70 @@ describe("Account feedback", () => {
       if (previous) Object.defineProperty(navigator, "clipboard", previous);
       else Reflect.deleteProperty(navigator, "clipboard");
     }
+  });
+});
+
+describe("Account quota", () => {
+  const now = Date.now();
+  const view = (used: number, fetchedAt: number, error?: { code: string; status?: number; at: number }) => ({
+    checkedAt: now,
+    sources: [
+      {
+        key: "codex:ws:user",
+        kind: "codex",
+        accountId: "account-1",
+        users: [],
+        snapshot: {
+          windows: [{ minutes: 10080, usedPercent: used, resetsAt: Math.floor(now / 1000) + 3 * 86_400 + 60, reset: false }],
+          credits: { hasCredits: true, unlimited: false, balance: 18.79 },
+          fetchedAt,
+          origin: "network",
+          level: used >= 80 ? "warn" : "ok",
+          usedFraction: used / 100,
+          limitReached: false,
+        },
+        error,
+      },
+    ],
+  });
+
+  it("shows each window by its length with reset time, credits and data age", async () => {
+    mount(<CodexAccountsPage />, { codex_accounts: () => [account], codex_logins: () => [], quota_overview: () => view(51, now - 3 * 60_000) });
+    const quota = await screen.findByRole("group", { name: "me@example.com的额度" });
+    expect(within(quota).getByText("本周")).toBeInTheDocument();
+    expect(within(quota).getByText("51%")).toBeInTheDocument();
+    expect(within(quota).getByText("3 天后重置")).toBeInTheDocument();
+    expect(within(quota).getByText("credits 余额")).toBeInTheDocument();
+    expect(within(quota).getByText("18.79")).toBeInTheDocument();
+    expect(within(quota).getByText("联网查询 · 3 分钟前")).toBeInTheDocument();
+  });
+
+  it("refreshes one account online and shows a newer failure without dropping old data", async () => {
+    const { calls } = mount(<CodexAccountsPage />, {
+      codex_accounts: () => [account],
+      codex_logins: () => [],
+      quota_overview: () => view(51, now - 3 * 60_000),
+      quota_refresh: () => view(51, now - 3 * 60_000, { code: "unauthorized", status: 401, at: Date.now() }),
+    });
+    expect(calls.some((c) => c.cmd === "quota_refresh")).toBe(false);
+    await userEvent.click(await screen.findByRole("button", { name: "刷新 me@example.com 的额度" }));
+    expect(await screen.findByText("登录已失效（401），重新登录后再查")).toBeInTheDocument();
+    expect(calls.find((c) => c.cmd === "quota_refresh")?.args).toEqual({ keys: ["codex:ws:user"] });
+    expect(screen.getByText("51%")).toBeInTheDocument();
+  });
+
+  it("refreshes every account from the header and never queries online on its own", async () => {
+    const { calls } = mount(<CodexAccountsPage />, {
+      codex_accounts: () => [account],
+      codex_logins: () => [],
+      quota_overview: () => ({ checkedAt: now, sources: [{ key: "k", kind: "codex", accountId: "account-1", users: [] }] }),
+      quota_refresh: () => view(92, Date.now()),
+    });
+    expect(await screen.findByText("最近 8 天没有这个账号的记录。点“刷新额度”联网查询。")).toBeInTheDocument();
+    expect(calls.some((c) => c.cmd === "quota_refresh")).toBe(false);
+    await userEvent.click(screen.getByRole("button", { name: "刷新额度" }));
+    expect(await screen.findByText("92%")).toHaveClass("text-warning");
+    expect(calls.find((c) => c.cmd === "quota_refresh")?.args).toEqual({ keys: null });
+    expect(screen.getByRole("button", { name: "额度 · 刚刚" })).toBeEnabled();
   });
 });

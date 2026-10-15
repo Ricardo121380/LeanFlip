@@ -13,6 +13,7 @@ export const keys = {
   logins: ["codex-logins"] as const,
   settings: ["settings"] as const,
   usage: ["usage"] as const,
+  quota: ["quota"] as const,
 };
 
 export function useRecoveryNotices() {
@@ -45,6 +46,21 @@ export function useAccounts(enabled = true) {
 
 export function useLogins(enabled = true) {
   return useQuery({ queryKey: keys.logins, queryFn: api.codexLogins, enabled });
+}
+
+/** 额度总览：本机记录加上次联网查询的结果，不联网。 */
+export function useQuota(enabled = true) {
+  return useQuery({ queryKey: keys.quota, queryFn: api.quotaOverview, enabled, staleTime: 30_000 });
+}
+
+/** 联网查询额度（不传来源时查全部），结果直接替换总览。 */
+export function useQuotaRefresh() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (keys?: string[]) => api.quotaRefresh(keys),
+    onSuccess: (view) => client.setQueryData(keys.quota, view),
+    onError: (error) => toast.error(errorMessage(error)),
+  });
 }
 
 export function useSettings() {
