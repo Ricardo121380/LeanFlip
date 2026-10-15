@@ -747,3 +747,147 @@ fn encrypted_cli_backup_roundtrip_and_scope_preview_are_secret_safe() {
     assert!(!missing_password.status.success());
     assert!(String::from_utf8_lossy(&missing_password.stderr).contains("backup.password_required"));
 }
+
+/// Claude a/b (current a), OpenCode x/y (x enabled), and two scenes: work (b + y)
+/// and home (a + x).
+fn scene_sandbox() -> Sandbox {
+    use leanflip_core::scene::{self, Scene, SceneTool};
+    let sb = Sandbox::new();
+    let claude = |id: &str| {
+        Provider::new(
+            id,
+            id.to_uppercase(),
+            json!({"env": {"ANTHROPIC_BASE_URL": format!("https://{id}.example"), "ANTHROPIC_AUTH_TOKEN": format!("sk-private-{id}")}}),
+        )
+    };
+    let opencode = |id: &str| {
+        Provider::new(
+            id,
+            id.to_uppercase(),
+            json!({"npm": "@ai-sdk/openai-compatible", "options": {"baseURL": format!("https://{id}.example"), "apiKey": "sk-private"}, "models": {"m": {}}}),
+        )
+    };
+    sb.write(
+        &sb.env.opencode_dir.join("opencode.json"),
+        "{\"provider\": {}}\n",
+    );
+    for id in ["a", "b"] {
+        store::add_provider(&sb.env, Tool::Claude, claude(id)).unwrap();
+    }
+    for id in ["x", "y"] {
+        store::add_provider(&sb.env, Tool::OpenCode, opencode(id)).unwrap();
+    }
+    leanflip_core::switch::switch(&sb.env, Tool::Claude, "a").unwrap();
+    leanflip_core::coexist::write_to_live(&sb.env, Tool::OpenCode, "x").unwrap();
+    for (name, card, enabled) in [("work", "b", "y"), ("home", "a", "x")] {
+        let mut scene = Scene {
+            name: name.into(),
+            ..Scene::default()
+        };
+        scene
+            .tools
+            .insert("claude".into(), SceneTool::current(card));
+        scene
+            .tools
+            .insert("opencode".into(), SceneTool::enabled([enabled]));
+        scene::save(&sb.env, scene).unwrap();
+    }
+    sb
+}
+
+fn current(sb: &Sandbox, tool: Tool) -> String {
+    store::load(&sb.env)
+        .unwrap()
+        .current(tool)
+        .unwrap()
+        .id
+        .clone()
+}
+
+#[test]
+fn scene_list_and_show_are_readonly_and_apply_switches_every_tool() {
+    let sb = scene_sandbox();
+    let before = snapshot(&sb.env.home);
+    let list = sb.ok(&["scene", "list", "--json"]);
+    assert_eq!(list["scenes"][0]["name"], "work");
+    assert_eq!(list["scenes"][0]["status"], "idle");
+    assert_eq!(list["scenes"][0]["tools"], json!(["claude", "opencode"]));
+    assert_eq!(list["scenes"][1]["status"], "active");
+    let preview = sb.ok(&["scene", "show", "WORK", "--json"]);
+    assert_eq!(preview["tools"][0]["from"], "A");
+    assert_eq!(
+        preview["tools"][0]["steps"],
+        json!([{"action": {"kind": "switch", "id": "b"}, "name": "B"}])
+    );
+    assert_eq!(preview["tools"][1]["readable"], true);
+    let text = human(sb.run(&["scene", "show", "work"]));
+    assert!(text.contains("A → B"), "{text}");
+    assert!(text.contains("接入 Y · 移出 X"), "{text}");
+    let text = human(sb.run(&["--lang", "en", "scene", "list"]));
+    assert!(
+        text.contains("Matches") && text.contains("Not applied"),
+        "{text}"
+    );
+    assert_eq!(snapshot(&sb.env.home), before, "list and show never write");
+    assert!(
+        !String::from_utf8_lossy(&sb.run(&["scene", "show", "work", "--json"]).stdout)
+            .contains("sk-private")
+    );
+
+    let output = sb.run(&["scene", "apply", "work", "--tool", "gemini", "--json"]);
+    assert_eq!(output.status.code(), Some(2));
+    let error: Value = serde_json::from_slice(&output.stderr).unwrap();
+    assert_eq!(error["error"]["code"], "scene.tool_not_included");
+    let output = sb.run(&["scene", "apply", "nowhere", "--json"]);
+    assert_eq!(output.status.code(), Some(1));
+    let error: Value = serde_json::from_slice(&output.stderr).unwrap();
+    assert_eq!(error["error"]["code"], "scene.not_found");
+
+    let only = sb.ok(&["scene", "apply", "work", "--tool", "claude", "--json"]);
+    assert_eq!(only["results"].as_array().unwrap().len(), 1);
+    assert_eq!(current(&sb, Tool::Claude), "b");
+    let applied = sb.ok(&["scene", "apply", "work", "--json"]);
+    assert_eq!(applied["results"][0]["outcome"], "unchanged");
+    assert_eq!(applied["results"][1]["outcome"], "applied");
+    assert_eq!(
+        sb.ok(&["list", "opencode", "--json"])["providers"],
+        json!([
+            {"id": "x", "name": "X", "official": false, "current": false, "enabled": false},
+            {"id": "y", "name": "Y", "official": false, "current": false, "enabled": true}
+        ])
+    );
+    assert_eq!(
+        sb.ok(&["scene", "list", "--json"])["scenes"][0]["status"],
+        "active"
+    );
+}
+
+#[test]
+fn a_partly_applied_scene_prints_results_and_fails_with_a_stable_code() {
+    let sb = scene_sandbox();
+    sb.write(
+        &sb.env.opencode_dir.join("opencode.json"),
+        "{ secret-in-parse-error",
+    );
+    let output = sb.run(&["scene", "apply", "work", "--json"]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    let text = String::from_utf8(output.stderr).unwrap();
+    assert!(!text.contains("secret-in-parse-error"));
+    let body: Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(body["ok"], false);
+    assert_eq!(body["error"]["code"], "scene.partial");
+    assert_eq!(body["data"]["results"][0]["outcome"], "applied");
+    assert_eq!(body["data"]["results"][1]["outcome"], "failed");
+    assert_eq!(current(&sb, Tool::Claude), "b");
+
+    let output = sb.run(&["scene", "apply", "home"]);
+    assert_eq!(output.status.code(), Some(1));
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("场景只应用了一部分"), "{stdout}");
+    assert!(stdout.contains("leanflip paths opencode"), "{stdout}");
+    assert!(String::from_utf8(output.stderr)
+        .unwrap()
+        .contains("[scene.partial]"));
+    assert_eq!(current(&sb, Tool::Claude), "a");
+}

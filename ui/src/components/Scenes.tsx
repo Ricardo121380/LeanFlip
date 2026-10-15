@@ -1,6 +1,7 @@
 // 场景的入口和应用流程。首页下拉、命令面板都通过 `useSceneActions()` 打开同一个确认框和管理框。
 // 应用前先预览（只读），确认后一次应用；全部成功时提示里可以撤销，有失败时留在框里列出结果。
-import { createContext, lazy, Suspense, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+// 托盘里应用的场景通过 `scene-applied` 事件回到这里，用同样的提示和结果框。
+import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -60,9 +61,58 @@ export function useUndoScene() {
   });
 }
 
+/** 托盘应用场景后发来的结果（crates/app/src/tray.rs 的 `SceneEvent`）。 */
+interface SceneEvent {
+  id: string;
+  name: string;
+  report: SceneReport | null;
+  error: string | null;
+}
+
+/** 应用完成：提示警告；全部成功时弹带撤销的提示并返回 true，有失败时返回 false。 */
+function useAppliedNotice() {
+  const { t } = useTranslation();
+  const undo = useUndoScene();
+  return useCallback(
+    (name: string, report: SceneReport) => {
+      showResultWarnings(report);
+      if (failedTools(report).length) return false;
+      toast.success(t("scene.applied", { name }), { action: { label: t("common.undo"), onClick: () => undo.mutate(report.undo) } });
+      return true;
+    },
+    [t, undo],
+  );
+}
+
 export function ScenesProvider({ children }: { children: ReactNode }) {
+  const client = useQueryClient();
   const [applying, setApplying] = useState<string | null>(null);
   const [managing, setManaging] = useState<{ create: boolean } | null>(null);
+  const [result, setResult] = useState<{ name: string; report: SceneReport } | null>(null);
+  const notice = useAppliedNotice();
+  const onEvent = useRef<(event: SceneEvent) => void>(() => {});
+  onEvent.current = (event) => {
+    void refreshAll(client);
+    if (event.error) toast.error(event.error);
+    else if (event.report && !notice(event.name, event.report)) setResult({ name: event.name, report: event.report });
+  };
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    let cancelled = false;
+    import("@tauri-apps/api/event")
+      .then(({ listen }) => listen<SceneEvent>("scene-applied", (event) => onEvent.current(event.payload)))
+      .then((fn) => {
+        if (cancelled) fn();
+        else unlisten = fn;
+      })
+      .catch(() => {
+        /* 不在 Tauri 里（测试、演示）。 */
+      });
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, []);
   const apply = useCallback((id: string) => setApplying(id), []);
   const manage = useCallback((options?: { create?: boolean }) => setManaging({ create: options?.create ?? false }), []);
   const value = useMemo(() => ({ apply, manage }), [apply, manage]);
@@ -70,6 +120,7 @@ export function ScenesProvider({ children }: { children: ReactNode }) {
     <SceneContext.Provider value={value}>
       {children}
       {applying && <SceneApplyDialog key={applying} id={applying} onClose={() => setApplying(null)} />}
+      {result && <SceneResultDialog name={result.name} report={result.report} onClose={() => setResult(null)} />}
       {managing && (
         <Suspense fallback={null}>
           <SceneManager
@@ -142,64 +193,65 @@ function OutcomeRow({ result }: { result: ToolOutcome }) {
   );
 }
 
+/** 有工具失败时的结果：列出每个工具，可以撤销已经切换的部分。 */
+export function SceneResultDialog({ name, report, onClose }: { name: string; report: SceneReport; onClose: () => void }) {
+  const { t } = useTranslation();
+  const undo = useUndoScene();
+  const busy = undo.isPending;
+  return (
+    <Dialog open onOpenChange={(open) => !open && !busy && onClose()}>
+      <DialogContent className="max-w-lg" closeDisabled={busy}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-warning" aria-hidden="true" />
+            {t("scene.partialTitle", { name })}
+          </DialogTitle>
+          <DialogDescription>{t("scene.partialHint")}</DialogDescription>
+        </DialogHeader>
+        <ul className="divide-y rounded-lg border" aria-label={t("scene.tools")}>
+          {report.results.map((result) => (
+            <OutcomeRow key={result.tool} result={result} />
+          ))}
+        </ul>
+        <DialogFooter>
+          <Button variant="outline" disabled={busy} onClick={() => undo.mutate(report.undo, { onSuccess: onClose })}>
+            {busy && <Loader2 className="animate-spin" />}
+            {t("common.undo")}
+          </Button>
+          <Button disabled={busy} onClick={onClose}>
+            {t("common.close")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function SceneApplyDialog({ id, onClose }: { id: string; onClose: () => void }) {
   const { t } = useTranslation();
   const client = useQueryClient();
   const preview = useQuery({ queryKey: ["scene-preview", id], queryFn: () => api.previewScene(id), gcTime: 0, staleTime: 0, retry: false });
   const [skipped, setSkipped] = useState<Set<ToolId>>(() => new Set());
   const [report, setReport] = useState<SceneReport | null>(null);
-  const undo = useUndoScene();
   const name = preview.data?.scene.name ?? "";
   const { changing, inSync } = splitPreview(preview.data?.tools ?? []);
   const chosen = changing.filter((tool) => applicable(tool) && !skipped.has(tool.tool));
 
+  const notice = useAppliedNotice();
   const apply = useMutation({
     mutationFn: (tools: ToolId[]) => api.applyScene(id, tools),
     onSuccess: (result) => {
-      showResultWarnings(result);
-      if (failedTools(result).length) {
-        setReport(result);
-        return;
-      }
-      toast.success(t("scene.applied", { name }), { action: { label: t("common.undo"), onClick: () => undo.mutate(result.undo) } });
-      onClose();
+      if (notice(name, result)) onClose();
+      else setReport(result);
     },
     onError: (error) => toast.error(errorMessage(error)),
     onSettled: () => refreshAll(client),
   });
 
-  const busy = apply.isPending || undo.isPending;
+  const busy = apply.isPending;
   const close = (open: boolean) => !open && !busy && onClose();
 
-  if (report) {
-    return (
-      <Dialog open onOpenChange={close}>
-        <DialogContent className="max-w-lg" closeDisabled={busy}>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-warning" aria-hidden="true" />
-              {t("scene.partialTitle", { name })}
-            </DialogTitle>
-            <DialogDescription>{t("scene.partialHint")}</DialogDescription>
-          </DialogHeader>
-          <ul className="divide-y rounded-lg border" aria-label={t("scene.tools")}>
-            {report.results.map((result) => (
-              <OutcomeRow key={result.tool} result={result} />
-            ))}
-          </ul>
-          <DialogFooter>
-            <Button variant="outline" disabled={busy} onClick={() => undo.mutate(report.undo, { onSuccess: onClose })}>
-              {undo.isPending && <Loader2 className="animate-spin" />}
-              {t("common.undo")}
-            </Button>
-            <Button disabled={busy} onClick={onClose}>
-              {t("common.close")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    );
-  }
+  if (report) return <SceneResultDialog name={name} report={report} onClose={onClose} />;
 
   return (
     <Dialog open onOpenChange={close}>

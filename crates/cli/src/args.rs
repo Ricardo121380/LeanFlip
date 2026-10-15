@@ -67,6 +67,31 @@ pub enum Command {
     },
     /// Explicitly recover interrupted writes; read-only commands never recover.
     Recover { tool: Option<ToolArg> },
+    /// List, preview, or apply scenes (create and edit them in the App).
+    #[command(alias = "scenes")]
+    Scene {
+        #[command(subcommand)]
+        action: SceneCommand,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum SceneCommand {
+    /// List scenes and whether each matches the current configuration.
+    List,
+    /// Preview what applying a scene would change; nothing is written.
+    Show {
+        /// Scene name or ID.
+        scene: String,
+    },
+    /// Apply a scene to every tool it lists, or only to the given tools.
+    Apply {
+        /// Scene name or ID.
+        scene: String,
+        /// Apply only these tools; repeat or separate by commas.
+        #[arg(long = "tool", value_delimiter = ',')]
+        tools: Vec<ToolArg>,
+    },
 }
 
 #[derive(Subcommand)]

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import type { SceneList, SceneReport, ScenePreview, ToolId, ToolProviders } from "@/lib/api";
@@ -9,6 +9,13 @@ import { fakeBackend, renderWithClient } from "@/test/utils";
 const backend = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: (...args: unknown[]) => backend.invoke(...args) }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() } }));
+const events = vi.hoisted(() => ({ handlers: new Map<string, (event: { payload: unknown }) => void>() }));
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: async (name: string, handler: (event: { payload: unknown }) => void) => {
+    events.handlers.set(name, handler);
+    return () => events.handlers.delete(name);
+  },
+}));
 
 import { ScenesProvider } from "./Scenes";
 import { CommandPalette } from "./CommandPalette";
@@ -164,6 +171,29 @@ describe("Scene menu and apply dialog", () => {
     expect(screen.getByRole("option", { name: /应用场景：个人/ })).toHaveTextContent("应用");
     await user.click(option);
     expect(await screen.findByRole("dialog", { name: "应用场景「公司」" })).toBeInTheDocument();
+  });
+});
+
+describe("Scenes applied from the tray", () => {
+  it("shows an undoable notice on success, the results on failure and the error otherwise", async () => {
+    const fake = start();
+    await waitFor(() => expect(events.handlers.has("scene-applied")).toBe(true));
+    const emit = (payload: unknown) => act(() => events.handlers.get("scene-applied")!({ payload }));
+    const report: SceneReport = { results: [{ tool: "claude", outcome: "applied", changed: [], warnings: ["注意"], missing: [], error: null }], undo: undoSnapshot };
+
+    emit({ id: "scene-work", name: "公司", report, error: null });
+    expect(toast.warning).toHaveBeenCalledWith("Claude Code: 注意");
+    const [message, options] = vi.mocked(toast.success).mock.calls[0] as unknown as [string, { action: { onClick: () => void } }];
+    expect(message).toBe("已切换到场景「公司」");
+    options.action.onClick();
+    await waitFor(() => expect(calls(fake, "undo_scene")).toEqual([{ undo: undoSnapshot }]));
+
+    emit({ id: "scene-work", name: "公司", report: { ...report, results: [...report.results, { tool: "opencode", outcome: "failed", changed: [], warnings: [], missing: [], error: "坏了" }] }, error: null });
+    const result = await screen.findByRole("dialog", { name: "场景「公司」只应用了一部分" });
+    expect(within(result).getByText("坏了")).toBeInTheDocument();
+
+    emit({ id: "scene-work", name: "公司", report: null, error: "找不到场景" });
+    expect(toast.error).toHaveBeenCalledWith("找不到场景");
   });
 });
 

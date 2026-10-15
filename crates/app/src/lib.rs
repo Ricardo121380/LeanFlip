@@ -14,6 +14,8 @@ use crate::service::Service;
 
 /// 供应商 / 客户端配置变了（托盘操作、文件监听、后台刷新）。前端收到后重新拉数据。
 pub const EVENT_PROVIDERS_CHANGED: &str = "providers-changed";
+/// 托盘里应用了场景，载荷是 [`tray::SceneEvent`]。
+pub const EVENT_SCENE_APPLIED: &str = "scene-applied";
 
 #[derive(Clone)]
 pub struct AppState(pub Arc<Service>);
