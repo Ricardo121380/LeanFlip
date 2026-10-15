@@ -118,6 +118,68 @@ export interface LoginSummary {
   live: boolean;
 }
 
+/** 一个限额窗口。窗口长度要按 `minutes` 标注：有的套餐只有周窗口。 */
+export interface QuotaWindow {
+  minutes: number;
+  usedPercent: number;
+  /** Unix 秒。 */
+  resetsAt?: number;
+  /** 记录之后已过重置时间，用量要等下一条记录更新。 */
+  reset: boolean;
+}
+
+export interface QuotaCredits {
+  hasCredits: boolean;
+  unlimited: boolean;
+  balance?: number;
+}
+
+export type QuotaLevel = "ok" | "warn" | "out";
+
+export interface QuotaSnapshot {
+  windows: QuotaWindow[];
+  credits?: QuotaCredits;
+  plan?: string;
+  /** 毫秒。本机记录是那次请求的时间。 */
+  fetchedAt: number;
+  origin: "local" | "network";
+  level: QuotaLevel;
+  usedFraction?: number;
+  limitReached: boolean;
+}
+
+export interface QuotaError {
+  code: "reauth" | "unauthorized" | "rateLimited" | "http" | "timeout" | "network" | "format" | "token" | string;
+  status?: number;
+  at: number;
+}
+
+export interface QuotaUser {
+  tool: ToolId;
+  providerId: string;
+  providerName: string;
+  active: boolean;
+}
+
+export interface QuotaSource {
+  key: string;
+  kind: "codex";
+  label?: string;
+  /** 托管账号 id：有它才能联网查询。 */
+  accountId?: string;
+  /** 本机登录（`LoginSummary.identity`）。 */
+  login?: string;
+  users: QuotaUser[];
+  snapshot?: QuotaSnapshot;
+  error?: QuotaError;
+}
+
+export interface QuotaView {
+  sources: QuotaSource[];
+  busiest?: string;
+  checkedAt: number;
+}
+
 export type DirOverrides = Partial<
   Record<
     | "claudeDir"
@@ -315,6 +377,9 @@ export const api = {
   codexSetDefault: (id: string) => invoke<void>("codex_set_default", { id }),
   codexRemoveAccount: (id: string) => invoke<void>("codex_remove_account", { id }),
   codexLogins: () => invoke<LoginSummary[]>("codex_logins"),
+  quotaOverview: () => invoke<QuotaView>("quota_overview"),
+  /** 联网查询托管账号的额度；不传 `accounts` 查全部。 */
+  quotaRefresh: (accounts?: string[]) => invoke<QuotaView>("quota_refresh", { accounts: accounts ?? null }),
   codexSetLoginRef: (id: string, identity: string | null) =>
     invoke<OpResult>("codex_set_login_ref", { id, identity }),
   getSettings: () => invoke<SettingsView>("get_settings"),

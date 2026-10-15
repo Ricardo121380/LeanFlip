@@ -133,6 +133,8 @@ pub fn run() {
             commands::probe_check,
             commands::probe_efforts,
             commands::usage_report,
+            commands::quota_overview,
+            commands::quota_refresh,
             commands::switch_provider,
             commands::add_provider,
             commands::update_provider,

@@ -1,0 +1,72 @@
+import { describe, expect, it } from "vitest";
+import i18n from "@/i18n";
+import type { QuotaSnapshot, QuotaView } from "./api";
+import { agoText, creditsText, errorText, meterWidth, resetText, sourceFor, windowLabel, windowLevel } from "./quota";
+
+const zh = i18n.getFixedT("zh");
+const en = i18n.getFixedT("en");
+const NOW = Date.UTC(2026, 9, 15, 4, 0);
+const at = (ms: number) => Math.floor((NOW + ms) / 1000);
+
+const snapshot = (credits: QuotaSnapshot["credits"]): QuotaSnapshot => ({
+  windows: [], credits, fetchedAt: NOW, origin: "local", level: "ok", limitReached: false,
+});
+
+describe("quota text", () => {
+  it("names windows by their length, not their position", () => {
+    expect(windowLabel(10080, zh)).toBe("本周");
+    expect(windowLabel(300, zh)).toBe("5 小时");
+    expect(windowLabel(1440, zh)).toBe("1 天");
+    expect(windowLabel(90, zh)).toBe("90 分钟");
+    expect(windowLabel(300, en)).toBe("5 h");
+  });
+
+  it("says how long until a window resets", () => {
+    expect(resetText(at((3 * 24 + 4) * 3_600_000), NOW, zh)).toBe("3 天 4 小时后重置");
+    expect(resetText(at(72 * 60_000), NOW, zh)).toBe("1 小时 12 分后重置");
+    expect(resetText(at(2 * 3_600_000), NOW, zh)).toBe("2 小时后重置");
+    expect(resetText(at(20_000), NOW, zh)).toBe("1 分钟后重置");
+    expect(resetText(at(-1000), NOW, zh)).toBe("已重置，下次使用后更新");
+    expect(resetText(undefined, NOW, zh)).toBeNull();
+    expect(resetText(at(5 * 86_400_000), NOW, en)).toBe("Resets in 5 d");
+  });
+
+  it("says how old the data is", () => {
+    expect(agoText(NOW - 10_000, NOW, zh)).toBe("刚刚");
+    expect(agoText(NOW - 42 * 60_000, NOW, zh)).toBe("42 分钟前");
+    expect(agoText(NOW - 5 * 3_600_000, NOW, zh)).toBe("5 小时前");
+    expect(agoText(NOW - 2 * 86_400_000, NOW, en)).toBe("2 d ago");
+  });
+
+  it("formats credits and keeps small balances precise", () => {
+    expect(creditsText(snapshot({ hasCredits: true, unlimited: false, balance: 60951.5625 }), "en", en)).toBe("60,952");
+    expect(creditsText(snapshot({ hasCredits: true, unlimited: false, balance: 18.7907 }), "en", en)).toBe("18.79");
+    expect(creditsText(snapshot({ hasCredits: true, unlimited: true }), "zh", zh)).toBe("不限");
+    expect(creditsText(snapshot(undefined), "zh", zh)).toBeNull();
+  });
+
+  it("explains failures and falls back for unknown codes", () => {
+    expect(errorText({ code: "unauthorized", status: 401, at: NOW }, zh)).toBe("登录已失效（401），重新登录后再查");
+    expect(errorText({ code: "something-new", status: 502, at: NOW }, zh)).toBe("查询失败（HTTP 502）");
+  });
+
+  it("draws reset windows empty and uses the same thresholds as the backend", () => {
+    expect(meterWidth(140, false)).toBe("100%");
+    expect(meterWidth(60, true)).toBe("0%");
+    expect([windowLevel(79, false), windowLevel(80, false), windowLevel(100, false), windowLevel(100, true)]).toEqual(["ok", "warn", "out", "ok"]);
+  });
+
+  it("finds the source for a managed account or a local login", () => {
+    const view: QuotaView = {
+      checkedAt: NOW,
+      sources: [
+        { key: "a", kind: "codex", accountId: "acc-1", users: [] },
+        { key: "b", kind: "codex", login: "sub:x|account:y", users: [] },
+      ],
+    };
+    expect(sourceFor(view, { accountId: "acc-1" })?.key).toBe("a");
+    expect(sourceFor(view, { login: "sub:x|account:y" })?.key).toBe("b");
+    expect(sourceFor(view, { accountId: "missing" })).toBeUndefined();
+    expect(sourceFor(undefined, { accountId: "acc-1" })).toBeUndefined();
+  });
+});

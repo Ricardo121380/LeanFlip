@@ -115,6 +115,21 @@ pub async fn usage_report(
 }
 
 #[tauri::command]
+pub async fn quota_overview(
+    state: State<'_, AppState>,
+) -> ApiResult<leanflip_service::quota::QuotaView> {
+    blocking(&state, |s| s.quota_overview()).await
+}
+
+#[tauri::command]
+pub async fn quota_refresh(
+    state: State<'_, AppState>,
+    accounts: Option<Vec<String>>,
+) -> ApiResult<leanflip_service::quota::QuotaView> {
+    blocking(&state, move |s| s.quota_refresh(accounts)).await
+}
+
+#[tauri::command]
 pub async fn switch_provider(
     app: AppHandle,
     state: State<'_, AppState>,

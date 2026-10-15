@@ -3,7 +3,7 @@
 //!
 //! 安全约定：从这里出去的数据都经过 [`crate::redact`]，ChatGPT 登录凭据不会到前端。
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, RwLock};
 
@@ -16,6 +16,7 @@ use leanflip_core::{
 };
 use serde::{Deserialize, Serialize};
 
+use crate::quota;
 use crate::redact;
 use crate::settings::{self, AppSettings};
 use crate::usage;
@@ -240,6 +241,11 @@ pub struct Service {
     /// 读进来、等用户确认的 cc-switch 导出文件。
     staged_export: Mutex<Option<ccswitch_export::ParsedExport>>,
     staged_backup: Arc<Mutex<backup::BackupCache>>,
+    /// 最近一次联网查询额度失败，按来源记。只在内存里，重启后清空。
+    quota_errors: Mutex<HashMap<String, quota::QuotaError>>,
+    /// 每个托管账号上次联网查询额度的时间，用来挡住连续点击。
+    quota_attempts: Mutex<HashMap<String, i64>>,
+    quota_url: String,
 }
 
 fn services(rt: &Runtime) -> Services<'_> {
@@ -312,6 +318,9 @@ impl Service {
             recovery: Mutex::new(Vec::new()),
             staged_export: Mutex::new(None),
             staged_backup: Arc::new(Mutex::new(backup::BackupCache::default())),
+            quota_errors: Mutex::new(HashMap::new()),
+            quota_attempts: Mutex::new(HashMap::new()),
+            quota_url: quota::codex_remote::USAGE_URL.to_string(),
         })
     }
 
@@ -754,6 +763,119 @@ impl Service {
             self.live_ids(tool).ok()
         })
         .map_err(|e| self.err(e))
+    }
+
+    // ---- 额度 ----
+
+    /// Codex 官方登录的限额窗口和 credits：本机会话记录加上次联网查询的缓存，不联网。
+    pub fn quota_overview(&self) -> ApiResult<quota::QuotaView> {
+        let rt = self.runtime();
+        let data = store::load_readonly(&rt.env).map_err(|e| self.err(e))?;
+        let logins = switch::codex::available_logins(&rt.env).unwrap_or_else(|err| {
+            log::warn!("quota: Codex logins unreadable: {err}");
+            Vec::new()
+        });
+        let holders = quota::holders(&rt.oauth, &logins);
+        let default = rt.oauth.try_default_account_id().ok().flatten();
+        let cards = quota::codex_cards(&data, &holders, default.as_deref());
+        let now = quota::now_ms();
+        let mut seen = quota::codex_log::read(&rt.env.codex_dir, now);
+        seen.extend(quota::cache::load(&rt.env));
+        let errors = self
+            .quota_errors
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone();
+        Ok(quota::build_view(holders, cards, seen, &errors, now))
+    }
+
+    /// 联网查询托管账号的额度（`accounts` 为空时查全部），然后返回最新的总览。
+    /// 同一个账号一分钟内只查一次；需要重新登录的账号不查。
+    pub fn quota_refresh(&self, accounts: Option<Vec<String>>) -> ApiResult<quota::QuotaView> {
+        const MIN_INTERVAL_MS: i64 = 60_000;
+        let rt = self.runtime();
+        let infos = rt.oauth.try_list_accounts().map_err(|e| self.err(e))?;
+        let client = quota::codex_remote::client().ok();
+        let mut fresh = Vec::new();
+        for info in infos {
+            if accounts.as_ref().is_some_and(|ids| !ids.contains(&info.id)) {
+                continue;
+            }
+            let Some(identity) = quota::account_identity(&rt.oauth, &info.id) else {
+                continue;
+            };
+            let key = identity.key();
+            let now = quota::now_ms();
+            {
+                let mut attempts = self
+                    .quota_attempts
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner());
+                if attempts
+                    .get(&info.id)
+                    .is_some_and(|last| now - last < MIN_INTERVAL_MS)
+                {
+                    continue;
+                }
+                attempts.insert(info.id.clone(), now);
+            }
+            let failure = |code: &str, status: Option<u16>| quota::QuotaError {
+                code: code.to_string(),
+                status,
+                at: quota::now_ms(),
+            };
+            let outcome = if info.reauth_required {
+                Err(failure("reauth", None))
+            } else {
+                // 取 token 可能要刷新登录：和切换时一样在服务锁里做，联网查询放在锁外。
+                let bundle = self.write_guard().ok().and_then(|_guard| {
+                    rt.oauth
+                        .token_bundle(&info.id)
+                        .map_err(|err| log::warn!("quota: no token for {key}: {err}"))
+                        .ok()
+                });
+                match (bundle, client.as_ref()) {
+                    (None, _) => Err(failure("token", None)),
+                    (_, None) => Err(failure("network", None)),
+                    (Some(bundle), Some(client)) => quota::codex_remote::fetch(
+                        client,
+                        &self.quota_url,
+                        &bundle.access_token,
+                        &bundle.workspace,
+                        quota::now_ms(),
+                    )
+                    .map_err(|f| failure(f.code, f.status)),
+                }
+            };
+            let mut errors = self.quota_errors.lock().unwrap_or_else(|e| e.into_inner());
+            match outcome {
+                Ok(snapshot) => {
+                    errors.remove(&key);
+                    fresh.push(quota::Observation { identity, snapshot });
+                }
+                Err(error) => {
+                    log::info!("quota: {key} refresh failed: {}", error.code);
+                    errors.insert(key, error);
+                }
+            }
+        }
+        if let Err(err) = quota::cache::save(&rt.env, fresh, quota::now_ms()) {
+            log::warn!("quota: cache not saved: {err}");
+        }
+        self.quota_overview()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_quota_url(&mut self, url: &str) {
+        self.quota_url = url.to_string();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn forget_quota_attempts(&self) {
+        self.quota_attempts
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clear();
     }
 
     // ---- Codex 托管账号 / 本机登录 ----

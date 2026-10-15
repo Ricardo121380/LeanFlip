@@ -1,6 +1,6 @@
 // Browser-only stand-in for `@tauri-apps/api/core`, used by `pnpm dev:mock`.
 // Vite aliases the real module to this file only when LEANFLIP_MOCK=1, so it never ships in the app.
-import type { AccountInfo, LoginSummary, Provider, SettingsView, SwitchEvent, ToolId, ToolProviders, ToolSummary, UsageReport, UsageRow } from "@/lib/api";
+import type { AccountInfo, LoginSummary, Provider, QuotaView, SettingsView, SwitchEvent, ToolId, ToolProviders, ToolSummary, UsageReport, UsageRow } from "@/lib/api";
 
 type Kind = "switch" | "coexist";
 interface MockTool { kind: Kind; paths: string[]; detected: boolean; current: string | null; inLive: string[]; providers: Provider[] }
@@ -56,6 +56,39 @@ let accounts: AccountInfo[] = [
   { id: "acc-home", email: "me@example.com", workspace: null, plan: "plus", authenticatedAt: 1791100000, reauthRequired: true, isDefault: false },
 ];
 const logins: LoginSummary[] = [{ identity: "sub:demo|account:personal", email: "me@example.com", workspace: null, plan: "plus", live: true }];
+// 额度：工作账号联网查过（5 小时窗口快满了），个人登录只有本机记录（Pro 只有周窗口）。
+let quotaCheckedAt = Date.now() - 3 * 60_000;
+function quotaView(): QuotaView {
+  const now = Date.now();
+  const s = Math.floor(now / 1000);
+  return {
+    checkedAt: now,
+    busiest: "codex:studio:user-dev",
+    sources: [
+      {
+        key: "codex:studio:user-dev", kind: "codex", label: "dev@studio.example", accountId: "acc-work",
+        users: [{ tool: "codex", providerId: "official", providerName: "Codex 官方", active: true }],
+        snapshot: {
+          windows: [
+            { minutes: 300, usedPercent: 92, resetsAt: s + 72 * 60, reset: false },
+            { minutes: 10080, usedPercent: 40, resetsAt: s + 5 * 86_400, reset: false },
+          ],
+          credits: { hasCredits: false, unlimited: false, balance: 0 },
+          plan: "team", fetchedAt: quotaCheckedAt, origin: "network", level: "warn", usedFraction: 0.92, limitReached: false,
+        },
+      },
+      {
+        key: "codex:personal:user-me", kind: "codex", label: "me@example.com", accountId: "acc-home", login: "sub:demo|account:personal", users: [],
+        snapshot: {
+          windows: [{ minutes: 10080, usedPercent: 51, resetsAt: s + 3 * 86_400 + 4 * 3600, reset: false }],
+          credits: { hasCredits: true, unlimited: false, balance: 60951.56 },
+          plan: "pro", fetchedAt: now - 42 * 60_000, origin: "local", level: "ok", usedFraction: 0.51, limitReached: false,
+        },
+        error: { code: "reauth", at: quotaCheckedAt },
+      },
+    ],
+  };
+}
 let app: SettingsView["app"] = { language: null, theme: null, dirOverrides: {}, autostart: false, backgroundRefreshHours: 168, closeToTray: true };
 const ok = { changed: [] as string[], warnings: [] as string[] };
 const wait = (ms = 220) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -261,6 +294,8 @@ const handlers: Record<string, (args: Args) => unknown> = {
   },
   codex_accounts: () => accounts,
   codex_logins: () => logins,
+  quota_overview: () => quotaView(),
+  quota_refresh: () => { quotaCheckedAt = Date.now(); return quotaView(); },
   codex_set_default: (a) => { accounts = accounts.map((x) => ({ ...x, isDefault: x.id === a!.id })); return null; },
   codex_remove_account: (a) => { accounts = accounts.filter((x) => x.id !== a!.id); return null; },
   codex_set_login_ref: () => ok,

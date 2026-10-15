@@ -9,10 +9,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useAccounts, useAction, useLogins, refreshAll } from "@/hooks/queries";
+import { useAccounts, useAction, useLogins, useQuota, useQuotaRefresh, refreshAll } from "@/hooks/queries";
 import { api, errorMessage, type DeviceFlow } from "@/lib/api";
 import { accountLabel, planBadge } from "@/lib/cards";
 import { Monogram } from "@/components/Glyph";
+import { QuotaDetails } from "@/components/QuotaDetails";
+import { agoText, sourceFor } from "@/lib/quota";
 
 export function PlanBadge({ plan }: { plan: string | null }) {
   const badge = planBadge(plan);
@@ -139,6 +141,11 @@ export function CodexAccountsPage() {
   const remove = useAction((id: string) => api.codexRemoveAccount(id), () => toast.success(t("codex.removed")));
   const [confirm, confirmDialog] = useConfirm();
   const busy = setDefault.isPending || remove.isPending || login !== null;
+  const quota = useQuota();
+  const refreshQuota = useQuotaRefresh();
+  const now = Date.now();
+  const refreshingAccount = (id: string) => refreshQuota.isPending && (!refreshQuota.variables || refreshQuota.variables.includes(id));
+  const lastOnline = Math.max(0, ...(quota.data?.sources ?? []).filter((s) => s.accountId && s.snapshot?.origin === "network").map((s) => s.snapshot!.fetchedAt));
 
   return (
     <div className="mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-5 px-6 py-6 lg:px-8">
@@ -147,9 +154,17 @@ export function CodexAccountsPage() {
           <h1 className="text-[22px] font-semibold tracking-tight">{t("codex.title")}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{t("codex.hint")}</p>
         </div>
-        {(isError || accounts.length > 0) && <Button size="sm" disabled={busy || isError} onClick={() => setLogin({})}>
-          <LogIn /> {t("codex.add")}
-        </Button>}
+        <div className="flex flex-wrap items-center gap-2">
+          {accounts.length > 0 && (
+            <Button size="sm" variant="outline" disabled={refreshQuota.isPending} title={t("quota.refreshHint")} onClick={() => refreshQuota.mutate(undefined)}>
+              {refreshQuota.isPending && !refreshQuota.variables ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+              {refreshQuota.isPending && !refreshQuota.variables ? t("quota.refreshing") : lastOnline ? t("quota.checked", { ago: agoText(lastOnline, now, t) }) : t("quota.refresh")}
+            </Button>
+          )}
+          {(isError || accounts.length > 0) && <Button size="sm" disabled={busy || isError} onClick={() => setLogin({})}>
+            <LogIn /> {t("codex.add")}
+          </Button>}
+        </div>
       </header>
 
       {isLoading ? (
@@ -186,6 +201,16 @@ export function CodexAccountsPage() {
                   {a.workspace && a.email ? `${a.workspace} · ` : ""}
                   {t("codex.authenticatedAt", { time: new Date(a.authenticatedAt * 1000).toLocaleString(i18n.language) })}
                 </p>
+                {quota.data && (
+                  <QuotaDetails
+                    source={sourceFor(quota.data, { accountId: a.id })}
+                    label={accountLabel(a)}
+                    now={now}
+                    canRefresh={!a.reauthRequired}
+                    refreshing={refreshingAccount(a.id)}
+                    onRefresh={() => refreshQuota.mutate([a.id])}
+                  />
+                )}
               </div>
               <div className="flex flex-wrap items-center gap-1">
                 {!a.isDefault && (
@@ -241,6 +266,11 @@ export function CodexAccountsPage() {
                 <PlanBadge plan={l.plan} />
                 {l.workspace && <span className="text-xs text-muted-foreground">{l.workspace}</span>}
                 {l.live && <Badge variant="success">{t("codex.live")}</Badge>}
+                {sourceFor(quota.data, { login: l.identity })?.snapshot && (
+                  <div className="basis-full">
+                    <QuotaDetails source={sourceFor(quota.data, { login: l.identity })} label={l.email ?? l.identity} now={now} canRefresh={false} showError={false} />
+                  </div>
+                )}
               </div>
             ))}
           </Card>
