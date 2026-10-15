@@ -524,6 +524,31 @@ fn detection_without_an_address_or_key_says_so() {
 }
 
 #[test]
+fn refresh_shows_fresh_results_even_when_the_cache_cannot_be_written() {
+    let (_dir, env) = sandbox();
+    let (origin_url, _seen) = serve(vec![(200, "", newapi_usage(15_700_000, false).to_string())]);
+    let mut card = claude_relay("corp", &origin_url, "sk-corp");
+    card.meta
+        .extra
+        .insert(META_QUOTA.into(), json!({"adapter": "newapi"}));
+    store::add_provider(&env, Tool::Claude, card).unwrap();
+    store::set_current(&env, Tool::Claude, "corp").unwrap();
+    // 缓存文件的位置被一个目录占着，写不进去。
+    fs::create_dir_all(env.data_file("quota-cache.json").join("blocked")).unwrap();
+    let service = Service::start(env, None).unwrap();
+
+    let view = service.quota_refresh(None).unwrap();
+    let source = view
+        .sources
+        .iter()
+        .find(|s| s.kind == QuotaKind::Relay)
+        .unwrap();
+    let balance = source.snapshot.as_ref().unwrap().balance.as_ref().unwrap();
+    assert_eq!(balance.remaining, Some(31.4));
+    assert!(source.error.is_none());
+}
+
+#[test]
 fn auto_refresh_runs_only_when_a_card_interval_has_passed() {
     let (_dir, env) = sandbox();
     let (origin_url, seen) = serve(vec![
@@ -570,8 +595,8 @@ fn auto_refresh_runs_only_when_a_card_interval_has_passed() {
     old.fetched_at -= 16 * 60_000;
     super::super::cache::save(
         &env,
-        Vec::new(),
-        vec![super::super::cache::RelayEntry { key, snapshot: old }],
+        &[],
+        &[super::super::cache::RelayEntry { key, snapshot: old }],
         super::super::now_ms(),
     )
     .unwrap();

@@ -10,6 +10,7 @@ use super::{Observation, QuotaSnapshot};
 
 const FILE: &str = "quota-cache.json";
 const VERSION: u32 = 1;
+const LOCK: &str = "quota-cache";
 /// 超过这么久的结果对任何窗口都没用了。
 const KEEP_MS: i64 = 30 * 86_400_000;
 
@@ -40,38 +41,60 @@ fn read(env: &Env) -> Cache {
     }
 }
 
-pub(crate) fn load(env: &Env) -> Vec<Observation> {
-    read(env).entries
+fn recent(snapshot: &QuotaSnapshot, now_ms: i64) -> bool {
+    now_ms - snapshot.fetched_at <= KEEP_MS
 }
 
-pub(crate) fn load_relays(env: &Env) -> HashMap<String, QuotaSnapshot> {
+/// 读出来的结果按现在的时间重新看窗口是否已重置，太旧的不要。
+fn current(mut snapshot: QuotaSnapshot, now_ms: i64) -> Option<QuotaSnapshot> {
+    recent(&snapshot, now_ms).then(|| {
+        snapshot.settle(now_ms);
+        snapshot
+    })
+}
+
+pub(crate) fn load(env: &Env, now_ms: i64) -> Vec<Observation> {
     read(env)
-        .relays
+        .entries
         .into_iter()
-        .map(|e| (e.key, e.snapshot))
+        .filter_map(|o| {
+            Some(Observation {
+                snapshot: current(o.snapshot, now_ms)?,
+                identity: o.identity,
+            })
+        })
         .collect()
 }
 
-/// 用新结果替换同一来源的旧结果，顺便丢掉过期的。
+pub(crate) fn load_relays(env: &Env, now_ms: i64) -> HashMap<String, QuotaSnapshot> {
+    read(env)
+        .relays
+        .into_iter()
+        .filter_map(|e| Some((e.key, current(e.snapshot, now_ms)?)))
+        .collect()
+}
+
+/// 用新结果替换同一来源的旧结果，顺便丢掉过期的。后台自动刷新和用户点的查询可能同时
+/// 写，读改写整个过程拿着写锁，免得后写的覆盖掉先写的。
 pub(crate) fn save(
     env: &Env,
-    fresh: Vec<Observation>,
-    relays: Vec<RelayEntry>,
+    fresh: &[Observation],
+    relays: &[RelayEntry],
     now_ms: i64,
 ) -> Result<(), AppError> {
     if fresh.is_empty() && relays.is_empty() {
         return Ok(());
     }
+    let _guard = env.device_store().lock_app(LOCK)?;
     let mut cache = read(env);
-    let recent = |snapshot: &QuotaSnapshot| now_ms - snapshot.fetched_at <= KEEP_MS;
     cache.entries.retain(|old| {
-        recent(&old.snapshot) && !fresh.iter().any(|new| new.identity == old.identity)
+        recent(&old.snapshot, now_ms) && !fresh.iter().any(|new| new.identity == old.identity)
     });
-    cache.entries.extend(fresh);
-    cache
-        .relays
-        .retain(|old| recent(&old.snapshot) && !relays.iter().any(|new| new.key == old.key));
-    cache.relays.extend(relays);
+    cache.entries.extend_from_slice(fresh);
+    cache.relays.retain(|old| {
+        recent(&old.snapshot, now_ms) && !relays.iter().any(|new| new.key == old.key)
+    });
+    cache.relays.extend_from_slice(relays);
     cache.version = VERSION;
     fsutil::atomic_write_private(&env.data_file(FILE), &fsutil::sorted_json_bytes(&cache)?)
 }

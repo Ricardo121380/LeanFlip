@@ -268,6 +268,34 @@ fn reader_prefers_the_main_limit_and_skips_a_cut_first_line() {
     assert_eq!(found[0].snapshot.windows[0].used_percent, 30.0);
 }
 
+#[test]
+fn reader_steps_over_a_trailing_record_longer_than_the_tail() {
+    let dir = tempfile::tempdir().unwrap();
+    let day = dir.path().join("sessions/2026/10/15");
+    let resets = NOW / 1000 + 86_400;
+    // 最后一条是很长的工具输出，末尾一块里没有一行完整的记录。
+    let output = format!(
+        "{{\"type\":\"response_item\",\"payload\":\"{}\"}}",
+        "x".repeat(5000)
+    );
+    write_session(
+        &day,
+        "rollout.jsonl",
+        &[
+            session_meta("ws", "user"),
+            token_count(
+                "2026-10-15T03:00:00Z",
+                limits(weekly(30.0, resets), Value::Null),
+            ),
+            output,
+        ],
+        Duration::from_secs(60),
+    );
+    let found = codex_log::read_with(dir.path(), NOW, 1200);
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].snapshot.windows[0].used_percent, 30.0);
+}
+
 // ---- 联网查询的返回 ----
 
 #[test]
@@ -400,10 +428,10 @@ fn cache_replaces_the_same_identity_and_drops_old_entries() {
     };
     let a = identity("ws-a", Some("user-a"));
     let b = identity("ws-b", None);
-    assert!(cache::load(&env).is_empty());
+    assert!(cache::load(&env, NOW).is_empty());
     cache::save(
         &env,
-        vec![
+        &[
             Observation {
                 identity: a.clone(),
                 snapshot: snap(10.0, NOW - 40 * 86_400_000),
@@ -413,27 +441,131 @@ fn cache_replaces_the_same_identity_and_drops_old_entries() {
                 snapshot: snap(20.0, NOW - 1000),
             },
         ],
-        Vec::new(),
+        &[],
         NOW - 40 * 86_400_000,
     )
     .unwrap();
     cache::save(
         &env,
-        vec![Observation {
+        &[Observation {
             identity: b.clone(),
             snapshot: snap(30.0, NOW),
         }],
-        Vec::new(),
+        &[],
         NOW,
     )
     .unwrap();
-    let loaded = cache::load(&env);
+    let loaded = cache::load(&env, NOW);
     assert_eq!(loaded.len(), 1);
     assert_eq!(loaded[0].identity, b);
     assert_eq!(loaded[0].snapshot.windows[0].used_percent, 30.0);
 
     fs::write(env.data_file("quota-cache.json"), "{broken").unwrap();
-    assert!(cache::load(&env).is_empty());
+    assert!(cache::load(&env, NOW).is_empty());
+}
+
+fn relay_entry(key: &str, at: i64) -> cache::RelayEntry {
+    let balance = QuotaBalance {
+        unit: "USD".into(),
+        remaining: Some(5.0),
+        limit: None,
+        used: None,
+        unlimited: false,
+        expires_at: None,
+        account_remaining: None,
+    };
+    cache::RelayEntry {
+        key: key.into(),
+        snapshot: QuotaSnapshot::new(Vec::new(), None, None, at, QuotaOrigin::Network, false)
+            .with_balance(Some(balance)),
+    }
+}
+
+#[test]
+fn cache_hides_month_old_entries_even_before_the_next_save() {
+    let dir = tempfile::tempdir().unwrap();
+    let env = Env::with_home(dir.path());
+    let old = NOW - 31 * 86_400_000;
+    let mut snapshot =
+        codex_remote::parse(&serde_json::from_str(&usage_body(10.0)).unwrap(), old).unwrap();
+    snapshot.fetched_at = old;
+    cache::save(
+        &env,
+        &[Observation {
+            identity: identity("ws-a", Some("user-a")),
+            snapshot,
+        }],
+        &[relay_entry("relay:a", old)],
+        old,
+    )
+    .unwrap();
+    assert_eq!(cache::load(&env, old).len(), 1);
+    assert_eq!(cache::load_relays(&env, old).len(), 1);
+    // 之后一直没有新结果写进来，读的时候也不再显示。
+    assert!(cache::load(&env, NOW).is_empty());
+    assert!(cache::load_relays(&env, NOW).is_empty());
+}
+
+#[test]
+fn cached_snapshots_count_resets_that_passed_since_they_were_saved() {
+    let dir = tempfile::tempdir().unwrap();
+    let env = Env::with_home(dir.path());
+    let reset = NOW / 1000 - 60;
+    let later = NOW / 1000 + 86_400;
+    let five_hours =
+        |used: f64| json!({"used_percent": used, "window_minutes": 300, "resets_at": reset});
+    let mut full = limits(weekly(40.0, later), five_hours(100.0));
+    full["rate_limit_reached_type"] = json!("primary");
+    let before = NOW - 30 * 60_000;
+    let snapshot = codex_log::parse(&full, &json!("2026-10-15T03:00:00Z"), before).unwrap();
+    assert!(snapshot.limit_reached);
+    assert_eq!(snapshot.level, QuotaLevel::Out);
+    cache::save(
+        &env,
+        &[Observation {
+            identity: identity("ws-a", Some("user-a")),
+            snapshot,
+        }],
+        &[],
+        before,
+    )
+    .unwrap();
+
+    // 读的时候 5 小时窗口已经重置：不再算用完，只剩周窗口的 40%。
+    let loaded = cache::load(&env, NOW);
+    let snapshot = &loaded[0].snapshot;
+    assert!(snapshot.windows[0].reset);
+    assert!(!snapshot.limit_reached);
+    assert_eq!(snapshot.level, QuotaLevel::Ok);
+    assert_eq!(snapshot.used_fraction, Some(0.4));
+    // 本机记录也一样。
+    let local = codex_log::parse(&full, &json!("2026-10-15T03:00:00Z"), NOW).unwrap();
+    assert_eq!(local.level, QuotaLevel::Ok);
+
+    // 周窗口还满着：限额仍然有效。
+    let mut both = limits(weekly(100.0, later), five_hours(100.0));
+    both["rate_limit_reached_type"] = json!("secondary");
+    let local = codex_log::parse(&both, &json!("2026-10-15T03:00:00Z"), NOW).unwrap();
+    assert!(local.limit_reached);
+    assert_eq!(local.level, QuotaLevel::Out);
+}
+
+#[test]
+fn concurrent_cache_saves_keep_every_source() {
+    let dir = tempfile::tempdir().unwrap();
+    let env = Env::with_home(dir.path());
+    let writers: Vec<_> = (0..8)
+        .map(|i| {
+            let env = env.clone();
+            std::thread::spawn(move || {
+                cache::save(&env, &[], &[relay_entry(&format!("relay:{i}"), NOW)], NOW).unwrap();
+            })
+        })
+        .collect();
+    for writer in writers {
+        writer.join().unwrap();
+    }
+    assert_eq!(cache::load_relays(&env, NOW).len(), 8);
 }
 
 // ---- 身份、卡片和总览 ----

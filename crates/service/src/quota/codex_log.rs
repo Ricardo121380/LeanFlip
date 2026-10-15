@@ -16,6 +16,8 @@ use super::{parse_credits, CodexIdentity, Observation, QuotaOrigin, QuotaSnapsho
 const RECENT_MS: i64 = 8 * 86_400_000;
 const MAX_FILES: usize = 200;
 const TAIL_BYTES: u64 = 1 << 20;
+/// 末尾是超长记录时，每个文件最多往前读这么多块。
+const MAX_CHUNKS: u64 = 8;
 /// Codex 主额度的 `limit_id`；其他 id 是附加额度，只在找不到主额度时用。
 const MAIN_LIMIT: &str = "codex";
 
@@ -100,47 +102,71 @@ fn creator(path: &Path) -> Option<CodexIdentity> {
     })
 }
 
-/// 从文件末尾往前找最后一条带 `rate_limits` 的 `token_count`。
-fn last_rate_limits(path: &Path, now_ms: i64, tail: u64) -> Option<QuotaSnapshot> {
+/// 从文件末尾往前一块一块找最后一条带 `rate_limits` 的 `token_count`。每轮对话都会写
+/// 一条，看过大约一块的完整记录还没找到就不再找。比一块还长的记录（大段工具输出）不会
+/// 是它，只跳过、不算进看过的量，所以末尾是这样的记录时会接着往前读，最多读
+/// `MAX_CHUNKS` 块。
+fn last_rate_limits(path: &Path, now_ms: i64, chunk: u64) -> Option<QuotaSnapshot> {
+    let chunk = chunk.max(1);
     let mut file = File::open(path).ok()?;
-    let len = file.metadata().ok()?.len();
-    let start = len.saturating_sub(tail);
-    file.seek(SeekFrom::Start(start)).ok()?;
-    let mut bytes = Vec::new();
-    file.read_to_end(&mut bytes).ok()?;
-    // 从中间开始读时第一行不完整。
-    let body = if start > 0 {
-        let cut = bytes.iter().position(|b| *b == b'\n')? + 1;
-        &bytes[cut..]
-    } else {
-        &bytes[..]
-    };
+    let mut end = file.metadata().ok()?.len();
+    let floor = end.saturating_sub(chunk.saturating_mul(MAX_CHUNKS));
+    // 上一块开头那行的后半截；`long` 表示那行太长，已经丢掉不看。
+    let mut carry: Vec<u8> = Vec::new();
+    let mut long = false;
+    let mut looked = 0;
     let mut fallback = None;
-    for line in body.rsplit(|b| *b == b'\n') {
-        let Ok(line) = std::str::from_utf8(line) else {
-            continue;
-        };
-        if !line.contains("\"rate_limits\"") {
-            continue;
+    while end > floor && looked < chunk {
+        let start = end.saturating_sub(chunk).max(floor);
+        let mut bytes = vec![0; usize::try_from(end - start).ok()?];
+        file.seek(SeekFrom::Start(start)).ok()?;
+        file.read_exact(&mut bytes).ok()?;
+        bytes.append(&mut carry);
+        let lines: Vec<&[u8]> = bytes.split(|b| *b == b'\n').collect();
+        let last = lines.len() - 1;
+        // 没读到文件开头时，第一行的前半截在更前面，留到下一块。
+        let first = usize::from(start > 0);
+        for (index, line) in lines.iter().enumerate().skip(first).rev() {
+            if index == last && long {
+                continue;
+            }
+            looked += line.len() as u64 + 1;
+            let Some((snapshot, main)) = token_count(line, now_ms) else {
+                continue;
+            };
+            if main {
+                return Some(snapshot);
+            }
+            fallback.get_or_insert(snapshot);
         }
-        let Ok(value) = serde_json::from_str::<Value>(line) else {
-            continue;
-        };
-        let payload = &value["payload"];
-        if payload["type"] != "token_count" || !payload["rate_limits"].is_object() {
-            continue;
-        }
-        let Some(snapshot) = parse(&payload["rate_limits"], &value["timestamp"], now_ms) else {
-            continue;
-        };
-        match payload["rate_limits"]["limit_id"].as_str() {
-            None | Some(MAIN_LIMIT) => return Some(snapshot),
-            Some(_) => {
-                fallback.get_or_insert(snapshot);
+        if start > 0 {
+            long = (long && last == 0) || lines[0].len() as u64 > chunk;
+            if !long {
+                carry = lines[0].to_vec();
             }
         }
+        end = start;
     }
     fallback
+}
+
+/// 一行 `token_count` 里的额度，和它是不是主额度。
+fn token_count(line: &[u8], now_ms: i64) -> Option<(QuotaSnapshot, bool)> {
+    let line = std::str::from_utf8(line).ok()?;
+    if !line.contains("\"rate_limits\"") {
+        return None;
+    }
+    let value = serde_json::from_str::<Value>(line).ok()?;
+    let payload = &value["payload"];
+    if payload["type"] != "token_count" || !payload["rate_limits"].is_object() {
+        return None;
+    }
+    let snapshot = parse(&payload["rate_limits"], &value["timestamp"], now_ms)?;
+    let main = matches!(
+        payload["rate_limits"]["limit_id"].as_str(),
+        None | Some(MAIN_LIMIT)
+    );
+    Some((snapshot, main))
 }
 
 pub(super) fn parse(limits: &Value, timestamp: &Value, now_ms: i64) -> Option<QuotaSnapshot> {
@@ -148,25 +174,28 @@ pub(super) fn parse(limits: &Value, timestamp: &Value, now_ms: i64) -> Option<Qu
         .as_str()
         .and_then(|t| chrono::DateTime::parse_from_rfc3339(t).ok())
         .map(|t| t.timestamp_millis())?;
+    // 先按记录当时的样子建快照，再按现在的时间看哪些窗口已经重置。
     let windows = ["primary", "secondary"]
         .iter()
-        .filter_map(|key| window(&limits[*key], now_ms))
+        .filter_map(|key| window(&limits[*key], fetched_at))
         .collect::<Vec<_>>();
     let credits = parse_credits(&limits["credits"]);
     if windows.is_empty() && credits.is_none() {
         return None;
     }
-    Some(QuotaSnapshot::new(
+    let mut snapshot = QuotaSnapshot::new(
         windows,
         credits,
         text(&limits["plan_type"]),
         fetched_at,
         QuotaOrigin::Local,
         !limits["rate_limit_reached_type"].is_null(),
-    ))
+    );
+    snapshot.settle(now_ms);
+    Some(snapshot)
 }
 
-fn window(value: &Value, now_ms: i64) -> Option<QuotaWindow> {
+fn window(value: &Value, at_ms: i64) -> Option<QuotaWindow> {
     let minutes = value["window_minutes"].as_i64().filter(|m| *m > 0)?;
     let used_percent = value["used_percent"].as_f64()?;
     let resets_at = value["resets_at"].as_i64();
@@ -174,7 +203,7 @@ fn window(value: &Value, now_ms: i64) -> Option<QuotaWindow> {
         minutes,
         used_percent,
         resets_at,
-        reset: resets_at.is_some_and(|at| at.saturating_mul(1000) <= now_ms),
+        reset: resets_at.is_some_and(|at| at.saturating_mul(1000) <= at_ms),
         used_amount: None,
         limit_amount: None,
     })

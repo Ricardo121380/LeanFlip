@@ -770,6 +770,15 @@ impl Service {
     /// 额度总览：Codex 官方登录的窗口和 credits（本机会话记录加缓存），以及设置了平台类型
     /// 的中转卡的余额（缓存）。不联网。
     pub fn quota_overview(&self) -> ApiResult<quota::QuotaView> {
+        self.quota_view(Vec::new(), Vec::new())
+    }
+
+    /// 总览，再加上刚查到、可能没能写进缓存的结果。
+    fn quota_view(
+        &self,
+        fresh: Vec<quota::Observation>,
+        relays: Vec<quota::cache::RelayEntry>,
+    ) -> ApiResult<quota::QuotaView> {
         let rt = self.runtime();
         let data = store::load_readonly(&rt.env).map_err(|e| self.err(e))?;
         let logins = switch::codex::available_logins(&rt.env).unwrap_or_else(|err| {
@@ -781,17 +790,19 @@ impl Service {
         let cards = quota::codex_cards(&data, &holders, default.as_deref());
         let now = quota::now_ms();
         let mut seen = quota::codex_log::read(&rt.env.codex_dir, now);
-        seen.extend(quota::cache::load(&rt.env));
+        seen.extend(quota::cache::load(&rt.env, now));
+        seen.extend(fresh);
         let errors = self
             .quota_errors
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .clone();
         let mut view = quota::build_view(holders, cards, seen, &errors, now);
-        let relays = self.relay_cards(&data);
+        let mut cached = quota::cache::load_relays(&rt.env, now);
+        cached.extend(relays.into_iter().map(|e| (e.key, e.snapshot)));
         view.sources.extend(quota::relay::relay_sources(
-            &relays,
-            &quota::cache::load_relays(&rt.env),
+            &self.relay_cards(&data),
+            &cached,
             &errors,
         ));
         view.busiest = quota::busiest(&view.sources);
@@ -929,10 +940,11 @@ impl Service {
                 outcome.map(|snapshot| relays.push(quota::cache::RelayEntry { key, snapshot })),
             );
         }
-        if let Err(err) = quota::cache::save(&rt.env, fresh, relays, quota::now_ms()) {
+        // 缓存写不进去（磁盘满、目录不可写）时，这次返回的总览仍然用刚查到的结果。
+        if let Err(err) = quota::cache::save(&rt.env, &fresh, &relays, quota::now_ms()) {
             log::warn!("quota: cache not saved: {err}");
         }
-        self.quota_overview()
+        self.quota_view(fresh, relays)
     }
 
     /// 自动刷新：设了刷新间隔的中转来源里，到点的联网查一次（共用一个来源的几张卡取最短的
@@ -952,8 +964,8 @@ impl Service {
         if intervals.is_empty() {
             return Ok(false);
         }
-        let cached = quota::cache::load_relays(&rt.env);
         let now = quota::now_ms();
+        let cached = quota::cache::load_relays(&rt.env, now);
         let due: Vec<String> = {
             let attempts = self
                 .quota_attempts
@@ -1012,9 +1024,7 @@ impl Service {
                 key: key.clone(),
                 snapshot: snapshot.clone(),
             };
-            if let Err(err) =
-                quota::cache::save(&self.env(), Vec::new(), vec![entry], quota::now_ms())
-            {
+            if let Err(err) = quota::cache::save(&self.env(), &[], &[entry], quota::now_ms()) {
                 log::warn!("quota: cache not saved: {err}");
             }
             self.quota_outcome(key.clone(), Ok(()));

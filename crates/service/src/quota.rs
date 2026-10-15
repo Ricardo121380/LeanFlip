@@ -162,6 +162,30 @@ impl QuotaSnapshot {
         self
     }
 
+    /// 按现在的时间重新看哪些窗口已经重置。本机记录和缓存里的快照是当时的样子：用满的
+    /// 窗口过了重置时间就不该再算用完；服务端说的“已触发限额”也随用满的窗口一起失效。
+    pub(crate) fn settle(&mut self, now_ms: i64) {
+        let mut freed = false;
+        for w in &mut self.windows {
+            if !w.reset
+                && w.resets_at
+                    .is_some_and(|at| at.saturating_mul(1000) <= now_ms)
+            {
+                w.reset = true;
+                freed |= w.used_percent >= 100.0;
+            }
+        }
+        if freed
+            && !self
+                .windows
+                .iter()
+                .any(|w| !w.reset && w.used_percent >= 100.0)
+        {
+            self.limit_reached = false;
+        }
+        self.assess();
+    }
+
     fn assess(&mut self) {
         let balance = self.balance.as_ref().filter(|b| !b.unlimited);
         let balance_fraction = balance.and_then(|b| match (b.used, b.limit) {
