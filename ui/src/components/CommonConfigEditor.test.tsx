@@ -1,4 +1,5 @@
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
+import { useState } from "react";
 import { cleanup, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { fakeBackend, renderWithClient } from "@/test/utils";
@@ -56,11 +57,12 @@ it("retains invalid and conflicting drafts; cancelling does not write", async ()
 });
 it("Codex provider shortcuts write typed TOML without exposing ID in common settings", async () => {
   const fake = fakeBackend({ ignored_fields: () => [], update_provider: () => ({ warnings: [], changed: [] }) }); backend.invoke = fake.invoke;
-  renderWithClient(<ProviderEditor tool="codex" open onOpenChange={() => {}} provider={{ id: "official", name: "Official", category: "official", settingsConfig: { auth: {}, config: "# retain comment\nmodel = 'test-model'\n" } }} existingIds={["official"]} />);
+  renderWithClient(<ProviderEditor tool="codex" open onOpenChange={() => {}} provider={{ id: "official", name: "Official", category: "official", settingsConfig: { auth: {}, config: "# retain comment\nmodel = 'test-model'\ndisable_response_storage = true\n" } }} existingIds={["official"]} />);
   expect(screen.queryByLabelText("ID")).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("tab", { name: /^完整配置/ }));
   expect(screen.queryByLabelText("ID")).not.toBeInTheDocument();
-  await userEvent.click(screen.getByRole("checkbox", { name: "禁用响应存储" }));
+  expect(screen.queryByRole("checkbox", { name: "禁用响应存储" })).not.toBeInTheDocument();
+  await userEvent.selectOptions(screen.getByRole("combobox", { name: "输出详细程度" }), "low");
   const config = (screen.getByLabelText(/config.toml/) as HTMLTextAreaElement).value;
   expect(config).toContain("disable_response_storage = true"); expect(config).toContain("# retain comment");
   await userEvent.click(screen.getByRole("button", { name: "保存" }));
@@ -165,4 +167,82 @@ it("writes Claude capacity environment variables as strings and rejects partial 
   await userEvent.click(screen.getByRole("tab", { name: /^完整配置/ }));
   const jsonEditor = screen.getByRole("textbox", { name: "配置（JSON）" }) as HTMLTextAreaElement;
   expect(JSON.parse(jsonEditor.value).env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: "64000", CUSTOM_FLAG: "keep", ANTHROPIC_AUTH_TOKEN: "fake" });
+});
+
+it.each(["off", "no", "FALSE", "0"])("does not lock cache controls for false override %s", async (value) => {
+  backend.invoke = fakeBackend({ get_common_config: () => ({ config: { env: { FORCE_PROMPT_CACHING_5M: value, CLAUDE_CODE_PROMPT_CACHE_TTL: "invalid" } }, revision: "r", paths: [], format: "JSON" }) }).invoke;
+  renderWithClient(<CommonConfigEditor tool="claude" onClose={() => {}} />);
+  const field = await screen.findByRole("combobox", { name: "主会话缓存时长" });
+  expect(field).toBeEnabled();
+  await userEvent.selectOptions(field, "1h");
+  expect(JSON.parse((screen.getByLabelText("配置 JSON") as HTMLTextAreaElement).value).promptCacheTtl).toBe("1h");
+});
+
+it.each([
+  ["gemini", "压缩触发比例（0–1）", "0.65", { model: { compressionThreshold: 0.65 } }],
+  ["grokbuild", "压缩触发比例（%）", "80", { session: { auto_compact_threshold_percent: 80 } }],
+  ["opencode", "压缩预留空间（token）", "16000", { compaction: { reserved: 16000 } }],
+  ["openclaw", "最大并发会话数", "2", { agents: { defaults: { maxConcurrent: 2 } } }],
+  ["hermes", "压缩 token 上限", "150000", { compression: { threshold_tokens: 150000 } }],
+  ["pi", "输出预留量（token）", "16384", { compaction: { reserveTokens: 16384 } }],
+  ["mcode", "单条工具结果上限（KiB）", "64", { toolResultCompaction: { maxInlineKiB: 64 } }],
+] as const)("saves a typed common preference for %s", async (tool, label, value, expected) => {
+  let saved: Record<string, unknown> = { future: { value: [1, "keep"] } };
+  const fake = fakeBackend({ get_common_config: () => ({ config: saved, revision: "r1", paths: [], format: "JSON" }), save_common_config: (args) => { saved = args!.config as Record<string, unknown>; return { changed: [], warnings: [] }; } }); backend.invoke = fake.invoke;
+  const close = vi.fn();
+  const view = renderWithClient(<CommonConfigEditor tool={tool} onClose={close} />);
+  fireEvent.change(await screen.findByLabelText(label), { target: { value } });
+  await userEvent.click(screen.getByRole("button", { name: "保存并应用" }));
+  await waitFor(() => expect(close).toHaveBeenCalled());
+  expect(saved).toEqual({ future: { value: [1, "keep"] }, ...expected });
+  view.unmount();
+  renderWithClient(<CommonConfigEditor tool={tool} onClose={() => {}} />);
+  expect(await screen.findByLabelText(label)).toHaveValue(value);
+});
+
+it("keeps OpenCode v2 controls after resetting its last preference and never writes legacy keys", async () => {
+  const fake = fakeBackend({ get_common_config: () => ({ config: { compaction: { buffer: 1234 } }, variant: "opencode-v2", revision: "r", paths: [], format: "JSONC" }), save_common_config: () => ({ changed: [], warnings: [] }) }); backend.invoke = fake.invoke;
+  renderWithClient(<CommonConfigEditor tool="opencode" onClose={() => {}} />);
+  await userEvent.click(await screen.findByRole("button", { name: "将 压缩预留空间（token） 恢复默认" }));
+  expect(screen.queryByRole("checkbox", { name: "检查更新" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("checkbox", { name: "清理旧工具结果" })).not.toBeInTheDocument();
+  await userEvent.selectOptions(screen.getByRole("combobox", { name: "更新通知" }), "notify");
+  fireEvent.change(screen.getByLabelText("压缩预留空间（token）"), { target: { value: "8000" } });
+  expect(JSON.parse((screen.getByLabelText("配置 JSON") as HTMLTextAreaElement).value)).toEqual({ update: "notify", compaction: { buffer: 8000 } });
+});
+
+it("uses literal dotted model IDs for MCode capacity without losing other model metadata", async () => {
+  const fake = fakeBackend({ update_provider: () => ({ changed: [], warnings: [] }) }); backend.invoke = fake.invoke;
+  const models = { "vendor/model.v1": { limit: { context: 200000 }, reasoning: true }, other: { future: "keep" } };
+  renderWithClient(<ProviderEditor tool="mcode" open onOpenChange={() => {}} provider={{ id: "custom", name: "Custom", settingsConfig: { options: { baseURL: "https://qa.invalid", apiKey: "fake" }, models } }} existingIds={["custom"]} />);
+  fireEvent.change(screen.getByLabelText("最大输出（token） · vendor/model.v1"), { target: { value: "64000" } });
+  await userEvent.click(screen.getByRole("button", { name: "保存" }));
+  await waitFor(() => expect(fake.calls.some((c) => c.cmd === "update_provider")).toBe(true));
+  const saved = fake.calls.find((c) => c.cmd === "update_provider")!.args!.provider as { settingsConfig: { models: unknown } };
+  expect(saved.settingsConfig.models).toEqual({ ...models, "vendor/model.v1": { limit: { context: 200000, output: 64000 }, reasoning: true } });
+});
+
+it("writes Grok model controls into the selected quoted TOML table and preserves comments", async () => {
+  backend.invoke = fakeBackend({}).invoke;
+  renderWithClient(<ProviderEditor tool="grokbuild" open onOpenChange={() => {}} provider={{ id: "grok", name: "Grok", settingsConfig: { config: '# keep\n[models]\ndefault="vendor.model"\n[model."vendor.model"]\nmodel="model"\nbase_url="https://qa.invalid"\napi_key="fake"\n' } }} existingIds={["grok"]} />);
+  fireEvent.change(screen.getByLabelText("最大输出（token） · vendor.model"), { target: { value: "8192" } });
+  await userEvent.click(screen.getByRole("tab", { name: /^完整配置/ }));
+  const text = (screen.getByLabelText(/config.toml/) as HTMLTextAreaElement).value;
+  expect(text).toContain("# keep");
+  expect(readToml(text)).toMatchObject({ model: { "vendor.model": { max_completion_tokens: 8192, api_key: "fake" } } });
+});
+
+it("returns keyboard focus to the opener after the loading dialog and editor close", async () => {
+  backend.invoke = fakeBackend({ get_common_config: () => ({ config: {}, revision: "r", paths: [], format: "JSON" }) }).invoke;
+  function Harness() {
+    const [open, setOpen] = useState(false);
+    return <><button onClick={() => setOpen(true)}>打开测试配置</button>{open && <CommonConfigEditor tool="gemini" onClose={() => setOpen(false)} />}</>;
+  }
+  renderWithClient(<Harness />);
+  const opener = screen.getByRole("button", { name: "打开测试配置" });
+  await userEvent.click(opener);
+  await screen.findByLabelText("压缩触发比例（0–1）");
+  await userEvent.keyboard("{Escape}");
+  await waitFor(() => expect(opener).toHaveFocus());
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });

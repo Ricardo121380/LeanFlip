@@ -41,6 +41,7 @@ pub fn write(
     op: &str,
     mut pending: PendingTarget,
 ) -> Result<OperationReport, AppError> {
+    crate::config_shortcuts::provider(Tool::GrokBuild, &target.settings_config)?;
     let next = projection(target)?;
     let commit = |target: &PendingTarget| super::commit_target(env, Tool::GrokBuild, target);
     let transaction = AppWrite::begin(env.device_store(), Tool::GrokBuild.as_str(), &commit)?;

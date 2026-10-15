@@ -118,6 +118,7 @@ pub fn live_entries(env: &Env, tool: Tool) -> Result<Map<String, Value>, AppErro
 /// 只校验、不写：这张卡能不能写进客户端配置。
 pub fn validate(tool: Tool, provider: &Provider) -> Result<(), AppError> {
     ensure_coexist(tool)?;
+    crate::config_shortcuts::provider(tool, &provider.settings_config)?;
     match tool {
         Tool::OpenCode => opencode::validate(provider),
         Tool::OpenClaw => openclaw::validate(provider),

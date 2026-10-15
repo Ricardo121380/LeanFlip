@@ -21,8 +21,27 @@ fn common_settings_roundtrip_for_every_agent_without_touching_provider_records()
             Tool::Codex => {
                 json!({"features":{"shell_snapshot":false,"multi_agent":true},"tui":{"notifications":true}})
             }
-            Tool::Gemini => json!({"general":{"vimMode":true,"enableAutoUpdate":false}}),
-            Tool::OpenCode => json!({"autoupdate":false,"share":"disabled"}),
+            Tool::Gemini => {
+                json!({"general":{"vimMode":true,"enableAutoUpdate":false,"defaultApprovalMode":"auto_edit"},"model":{"compressionThreshold":0.65,"maxSessionTurns":-1}})
+            }
+            Tool::OpenCode => {
+                json!({"autoupdate":"notify","share":"disabled","compaction":{"auto":true,"prune":true,"reserved":16000},"permission":{"bash":"ask"}})
+            }
+            Tool::GrokBuild => {
+                json!({"session":{"auto_compact_threshold_percent":80},"sandbox":{"profile":"workspace"},"cli":{"auto_update":false}})
+            }
+            Tool::OpenClaw => {
+                json!({"agents":{"defaults":{"compaction":{"enabled":true,"mode":"safeguard","keepRecentTokens":20000,"memoryFlush":{"enabled":true}},"thinkingDefault":"high","maxConcurrent":2,"timeoutSeconds":180}}})
+            }
+            Tool::Hermes => {
+                json!({"compression":{"enabled":true,"threshold":0.8,"threshold_tokens":100000},"memory":{"memory_enabled":true,"user_profile_enabled":false}})
+            }
+            Tool::Pi => {
+                json!({"compaction":{"enabled":true,"reserveTokens":16000,"keepRecentTokens":20000},"retry":{"enabled":true,"maxRetries":3},"defaultThinkingLevel":"high"})
+            }
+            Tool::Mcode => {
+                json!({"permissionMode":"auto","toolResultCompaction":{"enabled":true,"maxInlineKiB":64,"keepRecentRounds":5}})
+            }
             _ => json!({"test_option":{"enabled":true,"label":"non-secret fixture"}}),
         };
         let before = fs::read(env.store_path()).ok();
@@ -311,7 +330,7 @@ fn invalid_capacity_and_budget_values_never_reach_client_files() {
             .is_err());
         assert!(!env.codex_config_path().exists());
     }
-    for value in ["0", "64000oops", "128001"] {
+    for value in ["0", "64000oops", "9007199254740992"] {
         assert!(service
             .add_provider(
                 Tool::Claude,
@@ -325,4 +344,198 @@ fn invalid_capacity_and_budget_values_never_reach_client_files() {
             .is_err());
         assert!(!env.claude_settings_path().exists());
     }
+}
+
+#[test]
+fn claude_compact_bounds_are_enforced_but_known_models_can_exceed_unknown_output_cap() {
+    let (_root, env, service) = setup();
+    for value in ["99999", "1000001"] {
+        assert!(service
+            .add_provider(
+                Tool::Claude,
+                Provider::new(
+                    "bad",
+                    "Bad",
+                    json!({"env":{"CLAUDE_CODE_AUTO_COMPACT_WINDOW":value}})
+                ),
+                true
+            )
+            .is_err());
+        assert!(!env.claude_settings_path().exists());
+    }
+    service.add_provider(Tool::Claude, Provider::new("valid", "Valid", json!({"env":{"CLAUDE_CODE_AUTO_COMPACT_WINDOW":"1000000","CLAUDE_CODE_MAX_OUTPUT_TOKENS":"256000"}})), true).unwrap();
+    let value: serde_json::Value =
+        serde_json::from_slice(&fs::read(env.claude_settings_path()).unwrap()).unwrap();
+    assert_eq!(value["env"]["CLAUDE_CODE_MAX_OUTPUT_TOKENS"], "256000");
+}
+
+#[test]
+fn invalid_new_numeric_preferences_do_not_change_native_files() {
+    let cases = [
+        (Tool::Gemini, json!({"model":{"compressionThreshold":65}})),
+        (Tool::Gemini, json!({"model":{"compressionThreshold":0}})),
+        (
+            Tool::GrokBuild,
+            json!({"session":{"auto_compact_threshold_percent":101}}),
+        ),
+        (Tool::OpenCode, json!({"compaction":{"reserved":-1}})),
+        (
+            Tool::OpenClaw,
+            json!({"agents":{"defaults":{"maxConcurrent":1.5}}}),
+        ),
+        (
+            Tool::Hermes,
+            json!({"compression":{"threshold_tokens":"100000"}}),
+        ),
+        (Tool::Pi, json!({"retry":{"maxRetries":-1}})),
+        (
+            Tool::Mcode,
+            json!({"toolResultCompaction":{"maxInlineKiB":8796093022208_u64}}),
+        ),
+    ];
+    for (tool, config) in cases {
+        let (_root, _env, service) = setup();
+        let snap = service.common_config(tool).unwrap();
+        assert!(
+            service
+                .save_common_config(tool, &snap.revision, config)
+                .is_err(),
+            "{tool}"
+        );
+        assert!(snap.paths.iter().all(|p| !p.exists()), "{tool}");
+    }
+}
+
+#[test]
+fn opencode_v2_preferences_preserve_credentials_comments_and_legacy_values() {
+    let (_root, env, service) = setup();
+    fs::create_dir_all(&env.opencode_dir).unwrap();
+    let path = env.opencode_config_path();
+    fs::write(&path, "{\n// keep comment\n\"providers\":{\"custom\":{\"options\":{\"apiKey\":\"fake\"}}},\n\"compaction\":{\"buffer\":8000},\n\"share\":\"future-value\"\n}").unwrap();
+    let snap = service.common_config(Tool::OpenCode).unwrap();
+    assert_eq!(snap.variant.as_deref(), Some("opencode-v2"));
+    assert!(snap.config.get("providers").is_none());
+    assert!(service
+        .save_common_config(Tool::OpenCode, &snap.revision, json!({"providers":{}}))
+        .is_err());
+    let mut next = snap.config.clone();
+    next["update"] = json!("notify");
+    service
+        .save_common_config(Tool::OpenCode, &snap.revision, next)
+        .unwrap();
+    let text = fs::read_to_string(&path).unwrap();
+    assert!(
+        text.contains("// keep comment") && text.contains("fake") && text.contains("future-value")
+    );
+    assert!(!text.contains("autoupdate"));
+}
+
+#[test]
+fn hermes_legacy_numeric_values_survive_other_edits_and_cap_can_be_cleared() {
+    let (_root, env, service) = setup();
+    fs::create_dir_all(&env.hermes_dir).unwrap();
+    fs::write(
+        env.hermes_config_path(),
+        "# keep\ncompression:\n  threshold_tokens: legacy-auto\n  threshold: 0.65\n",
+    )
+    .unwrap();
+    let snap = service.common_config(Tool::Hermes).unwrap();
+    let mut next = snap.config.clone();
+    next["memory"] = json!({"memory_enabled":true});
+    service
+        .save_common_config(Tool::Hermes, &snap.revision, next)
+        .unwrap();
+    let snap = service.common_config(Tool::Hermes).unwrap();
+    assert_eq!(
+        snap.config["compression"]["threshold_tokens"],
+        "legacy-auto"
+    );
+    let mut next = snap.config.clone();
+    next["compression"]["threshold_tokens"] = json!(null);
+    service
+        .save_common_config(Tool::Hermes, &snap.revision, next)
+        .unwrap();
+    assert!(fs::read_to_string(env.hermes_config_path())
+        .unwrap()
+        .contains("# keep"));
+    assert!(
+        service.common_config(Tool::Hermes).unwrap().config["compression"]["threshold_tokens"]
+            .is_null()
+    );
+}
+
+#[test]
+fn model_budgets_write_to_the_right_provider_and_preserve_common_preferences() {
+    for tool in [Tool::Mcode, Tool::OpenCode] {
+        let (_root, env, service) = setup();
+        let snap = service.common_config(tool).unwrap();
+        let common = if tool == Tool::Mcode {
+            json!({"permissionMode":"auto"})
+        } else {
+            json!({"autoupdate":"notify"})
+        };
+        service
+            .save_common_config(tool, &snap.revision, common.clone())
+            .unwrap();
+        let settings = json!({"npm":"@ai-sdk/anthropic","api":"anthropic-messages","options":{"baseURL":"https://qa.invalid","apiKey":"fake"},"models":{"vendor/model.v1":{"limit":{"context":200000,"output":64000},"reasoning":true},"other":{}}});
+        service
+            .add_provider(
+                tool,
+                Provider::new("custom", "Custom", settings.clone()),
+                true,
+            )
+            .unwrap();
+        assert_eq!(service.common_config(tool).unwrap().config, common);
+        let live = leanflip_core::coexist::live_entries(&env, tool).unwrap();
+        assert_eq!(live["custom"], settings, "{tool}");
+    }
+}
+
+#[test]
+fn openclaw_array_model_capacity_preserves_other_models_and_native_settings() {
+    let (_root, env, service) = setup();
+    let config = json!({"baseUrl":"https://qa.invalid","api":"openai-responses","models":[{"id":"vendor/model.v1","contextWindow":262144,"reasoning":true},{"id":"other","future":true}]});
+    service
+        .add_provider(
+            Tool::OpenClaw,
+            Provider::new("qa", "QA", config.clone()),
+            true,
+        )
+        .unwrap();
+    assert_eq!(
+        leanflip_core::coexist::live_entries(&env, Tool::OpenClaw).unwrap()["qa"],
+        config
+    );
+    let mut invalid = config;
+    invalid["models"][0]["contextWindow"] = json!(1.5);
+    let before = fs::read(env.openclaw_config_path()).unwrap();
+    assert!(service
+        .update_provider(Tool::OpenClaw, Provider::new("qa", "QA", invalid))
+        .is_err());
+    assert_eq!(fs::read(env.openclaw_config_path()).unwrap(), before);
+}
+
+#[test]
+fn mcode_common_edits_preserve_default_model_references() {
+    let (_root, env, service) = setup();
+    fs::create_dir_all(&env.mcode_dir).unwrap();
+    fs::write(env.mcode_config_path(), "# profile\ndefaultModel: custom_provider:qa/model\ndefaultLightModel: custom_provider:qa/light\nmemory:\n  captureModel: custom_provider:qa/capture\n").unwrap();
+    let snap = service.common_config(Tool::Mcode).unwrap();
+    assert!(snap.config.get("defaultModel").is_none());
+    assert!(service
+        .save_common_config(Tool::Mcode, &snap.revision, json!({"defaultModel":"other"}))
+        .is_err());
+    service
+        .save_common_config(
+            Tool::Mcode,
+            &snap.revision,
+            json!({"permissionMode":"default"}),
+        )
+        .unwrap();
+    let text = fs::read_to_string(env.mcode_config_path()).unwrap();
+    assert!(
+        text.contains("custom_provider:qa/model")
+            && text.contains("custom_provider:qa/light")
+            && text.contains("custom_provider:qa/capture")
+    );
 }

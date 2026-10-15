@@ -167,7 +167,8 @@ pub fn preflight(data: &store::StoreData, tool: Tool, provider: &Provider) -> Re
         }
         Tool::Codex => codex::plan(data, None, provider).map(|_| ()),
         Tool::Gemini => gemini::projection(provider).map(|_| ()),
-        Tool::GrokBuild => grok::projection(provider).map(|_| ()),
+        Tool::GrokBuild => crate::config_shortcuts::provider(tool, &provider.settings_config)
+            .and_then(|_| grok::projection(provider).map(|_| ())),
         Tool::ClaudeDesktop => claude_desktop::validate(provider),
         Tool::OpenCode | Tool::OpenClaw | Tool::Hermes | Tool::Pi | Tool::Mcode => {
             crate::coexist::validate(tool, provider)

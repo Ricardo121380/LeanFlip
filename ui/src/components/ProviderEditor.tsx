@@ -1,7 +1,8 @@
 import { CommonConfigEditor } from "./CommonConfigEditor";
 import { ConfigOptions } from "./ConfigOptions";
-import { providerOptions, applyOption, setPath } from "@/lib/config-options";
-import { providerFields, configFieldsIssue } from "@/lib/config-fields";
+import { providerOptions, applyOption, setPath, pathParts, type ConfigPath } from "@/lib/config-options";
+import { providerFieldsFor, configFieldsIssue } from "@/lib/config-fields";
+import { ConfigCompatibility } from "./ConfigCompatibility";
 import { ConfigFields, useFieldError } from "./ConfigFields";
 import { readToml, setTomlValue } from "@/lib/toml-edit";
 import { useEditorNavigation } from "@/lib/navigation";
@@ -212,13 +213,17 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
   const parsed = fromEditorText(meta.editor, text, source?.settingsConfig);
   const shortcutValue = meta.editor === "codex" ? readToml(text.toml ?? "") : parsed.ok ? parsed.value : null;
   const fieldError = useFieldError(shortcutValue ? configFieldsIssue(tool, "provider", shortcutValue) : null);
-  const shortcuts = providerFields[tool] ?? [];
-  const changeFields = (changes: [string, string | number | undefined][]) => {
+  const shortcuts = providerFieldsFor(tool, shortcutValue);
+  const changeFields = (changes: [ConfigPath, string | number | undefined][]) => {
     if (!parsed.ok || !shortcutValue) return;
     try {
       if (meta.editor === "codex") {
         let toml = text.toml ?? "";
-        for (const [key, value] of changes) toml = setTomlValue(toml, null, key, value);
+        for (const [key, value] of changes) {
+          const parts = pathParts(key).map(String);
+          toml = setTomlValue(toml, parts.length > 1 ? parts.slice(0, -1) : null, parts[parts.length - 1], value);
+        }
+        if (!readToml(toml)) throw new Error(t("config.fields.advancedToml"));
         setText((s) => ({ ...s, toml }));
       } else {
         const next = changes.reduce((value, [key, next]) => setPath(value, key, next), shortcutValue);
@@ -235,7 +240,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
   const connection = readConnection(tool, text, official);
   const ready = connection.state === "ready" ? connection : null;
   const connectionFields = ready?.fields.filter((f) => f.group === "connection") ?? [];
-  const modelFields = ready?.fields.filter((f) => f.group === "models") ?? [];
+  const modelFields = ready?.fields.filter((f) => f.group === "models" && !(tool === "grokbuild" && f.id === "contextWindow" && shortcuts.length > 0)) ?? [];
 
   // 只有 Claude 会过滤字段；停止输入一会儿再问后端，列表与保存时的提示一致。
   const checked = useDebounced(tool === "claude" && parsed.ok && !official ? settingsKey : null, 400);
@@ -451,6 +456,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
 
   const fieldControls = shortcuts.length > 0 && <Section title={t("config.quickOptions")} aside={tool === "codex" && <Button type="button" variant="outline" size="sm" disabled={saving || !parsed.ok} onClick={() => changeFields([["model_context_window", 1000000], ["model_auto_compact_token_limit", 900000]])}>{t("config.fields.contextPreset")}</Button>}>
     <ConfigFields fields={shortcuts} value={shortcutValue ?? {}} disabled={saving || !parsed.ok} onChange={(key, value) => changeFields([[key, value]])} />
+    <ConfigCompatibility tool={tool} config={shortcutValue} />
   </Section>;
 
   const formTab = (

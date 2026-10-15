@@ -83,7 +83,7 @@ export interface ToolProviders {
   paths: string[];
 }
 
-export interface CommonConfig { config: Record<string, unknown>; paths: string[]; revision: string; format: string }
+export interface CommonConfig { config: Record<string, unknown>; paths: string[]; revision: string; format: string; variant?: "opencode-v2" }
 
 export interface OpResult {
   changed: string[];

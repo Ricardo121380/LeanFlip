@@ -69,7 +69,10 @@ pub(super) fn validate_capacity(provider: &Provider) -> Result<(), AppError> {
                 !s.is_empty()
                     && s.bytes().all(|c| c.is_ascii_digit())
                     && s.parse::<u64>().is_ok_and(|n| {
-                        n > 0 && (key != "CLAUDE_CODE_MAX_OUTPUT_TOKENS" || n <= 128000)
+                        n > 0
+                            && n <= 9_007_199_254_740_991
+                            && (key != "CLAUDE_CODE_AUTO_COMPACT_WINDOW"
+                                || (100_000..=1_000_000).contains(&n))
                     })
             }) {
                 return Err(AppError::Config(format!(
