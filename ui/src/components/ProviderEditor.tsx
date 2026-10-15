@@ -25,9 +25,9 @@ import { Monogram, ToolGlyph } from "@/components/Glyph";
 import { ModelRoutesEditor } from "@/components/ModelRoutesEditor";
 import { ConnectionCheck, ProbeLine, type ProbeSlot } from "@/components/ProviderProbe";
 import { applyRoutes, routeErrors, routesOf } from "@/lib/routes";
+import { loginChoices, loginHelp } from "@/lib/login-choices";
 import { api, errorMessage, type AccountInfo, type LoginSummary, type ProbeResult, type Provider, type ToolId } from "@/lib/api";
 import {
-  accountLabel,
   endpointOf,
   fromEditorText,
   hasRedacted,
@@ -235,6 +235,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
   const settingsKey = parsed.ok ? JSON.stringify(parsed.value) : null;
   const official = isOfficial({ category });
   const showLogin = tool === "codex" && official;
+  const loginOptions = useMemo(() => loginChoices(logins, accounts, loginSource, t), [logins, accounts, loginSource, t]);
   const showRoutes = tool === "claude-desktop" && !official;
   const routesOk = !showRoutes || routeErrors(routes).every((e) => e === null);
   const connection = readConnection(tool, text, official);
@@ -490,20 +491,21 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
 
       {showLogin && (
         <Section title={t("editor.loginSource")}>
-          <NativeSelect id="pe-login" aria-label={t("editor.loginSource")} value={loginSource} onChange={(e) => setLoginSource(e.target.value)}>
-            <option value="native">{t("editor.loginNative")}</option>
-            {logins.map((l) => (
-              <option key={l.identity} value={`ref:${l.identity}`}>
-                {t("editor.loginRef", { label: [l.email, l.workspace].filter(Boolean).join(" · ") || l.identity })}
-              </option>
-            ))}
-            <option value="managed:">{t("editor.loginManagedDefault")}</option>
-            {accounts.map((a) => (
-              <option key={a.id} value={`managed:${a.id}`}>
-                {t("editor.loginManaged", { label: `${accountLabel(a)}${a.plan ? ` (${a.plan})` : ""}` })}
-              </option>
-            ))}
+          <NativeSelect id="pe-login" aria-label={t("editor.loginSource")} aria-describedby="pe-login-help" value={loginSource} onChange={(e) => setLoginSource(e.target.value)}>
+            {loginOptions.missing && <option value={loginOptions.missing.value}>{loginOptions.missing.label}</option>}
+            <option value={loginOptions.native.value}>{loginOptions.native.label}</option>
+            {loginOptions.local.length > 0 && (
+              <optgroup label={t("editor.loginLocalGroup")}>
+                {loginOptions.local.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+              </optgroup>
+            )}
+            {loginOptions.managed.length > 0 && (
+              <optgroup label={t("editor.loginManagedGroup")}>
+                {loginOptions.managed.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+              </optgroup>
+            )}
           </NativeSelect>
+          <p id="pe-login-help" className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{loginHelp(loginSource, loginOptions, t)}</p>
         </Section>
       )}
 
