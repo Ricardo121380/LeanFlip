@@ -60,11 +60,11 @@ leanflip import backup workspace.leanflip --apply
 
 完整备份包含供应商、密钥、托管 Codex 账号与应用偏好。恢复支持 `--tool`、`--no-providers`、`--no-accounts`、`--no-settings`、`--duplicate skip|rename`。本机目录默认不恢复，仅在路径布局一致时使用 `--restore-paths`；客户端配置不会自动切换。独立客户端登录暂存不迁移，开机启动保留目标机器设置。
 
-加密使用标准 age/scrypt，口令 10–4096 字符且不保存，遗失后无法恢复。脚本模式或 `--json` 需要 `--password-file FILE`（私有 UTF-8 文件）；不要把密码写入命令参数。已有备份文件不会覆盖，Unix 下新备份权限为 `0600`。完整范围和部分失败处理见[主 README](../../README.md#加密完整备份与恢复)。
+加密使用标准 age/scrypt，口令 10–4096 字符且不保存，遗失后无法恢复。脚本模式或 `--json` 需要 `--password-file FILE`（私有 UTF-8 文件）；不要把密码写入命令参数。已有备份文件不会覆盖，Unix 下新备份权限为 `0600`。完整范围和部分失败处理见[使用手册](../../docs/guide.md#加密完整备份与恢复)。
 
 ## 导入与供应商编辑
 
-旧版 `.switchleaf` 加密备份可直接导入；新导出建议使用 `.leanflip` 扩展名，三端使用相同备份格式。
+备份使用 `.leanflip` 扩展名，三端使用相同备份格式。
 
 常用字段可直接交互编辑：`leanflip provider edit TOOL ID`，或菜单中的“编辑供应商”。TUI 选择供应商后按 `e`。Base URL 和密钥状态会显示在终端列表 / 详情中；已有密钥只显示“已配置”，留空保留，替换时隐藏输入。HTTP(S) 地址中的登录信息、查询参数与片段不会显示，新地址请使用无凭据的 Base URL。
 

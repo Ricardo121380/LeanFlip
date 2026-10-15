@@ -15,8 +15,7 @@ use zeroize::{Zeroize, Zeroizing};
 use super::*;
 
 pub const MAX_BACKUP_BYTES: usize = 32 * 1024 * 1024;
-// Keep the wire identifier stable so existing SwitchLeaf backups stay compatible.
-const FORMAT: &str = "switchleaf-backup";
+const FORMAT: &str = "leanflip-backup";
 const VERSION: u32 = 1;
 const WORK_FACTOR: u8 = 18;
 const PREVIEW_LIFETIME: Duration = Duration::from_secs(10 * 60);

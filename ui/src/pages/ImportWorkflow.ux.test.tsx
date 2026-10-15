@@ -126,7 +126,7 @@ describe("local import source consistency", () => {
 });
 
 describe("export preview and action ordering", () => {
-  it.each(["leanflip", "switchleaf", "age"])("opens a .%s backup in the password flow without parsing it as a CC Switch export", async (extension) => {
+  it.each(["leanflip", "age"])("opens a .%s backup in the password flow without parsing it as a CC Switch export", async (extension) => {
     const user = userEvent.setup();
     const fake = use({ backup_discard: () => null });
     renderWithClient(<ExportImport />);
