@@ -100,9 +100,12 @@ describe("Provider editor workflow", () => {
     const key = await screen.findByLabelText("API Key");
     await userEvent.clear(key);
     await userEvent.type(key, "sk-new");
+    const before = backend.calls.length;
     await userEvent.click(screen.getByRole("button", { name: "保存" }));
     const confirm = await screen.findByRole("alertdialog", { name: "其他 Agent 的 Key 也一起换？" });
     expect(confirm).toHaveTextContent("Codex · Relay Codex");
+    // 关联卡按保存时现读的列表找，不靠可能没加载完或过时的缓存。
+    expect(backend.calls.slice(before).some((call) => call.cmd === "list_providers" && call.args?.tool === "codex")).toBe(true);
     await userEvent.click(within(confirm).getByRole("button", { name: "一起换" }));
     expect(await screen.findByText("Editor closed")).toBeInTheDocument();
     const updates = backend.calls.filter((call) => call.cmd === "update_provider").map((call) => call.args as { tool: string; provider: Provider });

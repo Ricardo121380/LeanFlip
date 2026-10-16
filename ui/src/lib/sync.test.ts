@@ -32,6 +32,21 @@ describe("sync sources", () => {
     expect(syncSource("codex", { ...codexRelay, category: "official" })).toBeNull();
     expect(syncSource("claude", { id: "x", name: "X", settingsConfig: { env: { ANTHROPIC_BASE_URL: "https://x.example" } } })).toBeNull();
   });
+
+  it("skips keys that reference environment variables", () => {
+    const opencode = (apiKey: string): Provider => ({ id: "o", name: "O", settingsConfig: { npm: "@ai-sdk/openai-compatible", options: { baseURL: "https://o.example/v1", apiKey }, models: { m: {} } } });
+    for (const key of ["{env:RELAY_KEY}", "${RELAY_KEY}", "$RELAY_KEY"]) expect(syncSource("opencode", opencode(key))).toBeNull();
+    expect(syncSource("opencode", opencode("sk-real"))).not.toBeNull();
+  });
+
+  it("keeps MCode's Responses protocol", () => {
+    const mcode: Provider = { id: "m", name: "M", settingsConfig: { api: "openai-responses", options: { baseURL: "https://m.example/v1", apiKey: "sk-m" }, models: { "gpt-5": {} } } };
+    const source = syncSource("mcode", mcode);
+    expect(source?.family).toBe("responses");
+    const openclaw = byTool(planSync(source!, presets, {})).openclaw;
+    expect(openclaw.status).toBe("ready");
+    expect(openclaw.provider!.settingsConfig).toMatchObject({ api: "openai-responses" });
+  });
 });
 
 describe("planSync", () => {
@@ -69,6 +84,9 @@ describe("planSync", () => {
     expect(targets.pi.provider!.settingsConfig).toMatchObject({ api: "anthropic-messages", baseUrl: "https://api.moonshot.cn/anthropic" });
     expect(targets["claude-desktop"].status).toBe("ready");
     expect(targets.codex.status).toBe("check");
+    // Grok Build 的后端要求模型；协议不同时模型被清空，必须重新填。
+    expect(targets.grokbuild).toMatchObject({ status: "check", needsModel: true });
+    expect(targets.codex.needsModel).toBe(false);
     const codexToml = targets.codex.provider!.settingsConfig.config as string;
     expect(codexToml).toContain('base_url = "https://api.moonshot.cn/anthropic/v1"');
     expect(codexToml).not.toContain("your-model-id");

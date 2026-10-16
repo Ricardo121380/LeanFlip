@@ -54,8 +54,11 @@ export function familyOf(tool: ToolId, settings: Json): Family {
       return text(settings.npm) === "@ai-sdk/anthropic" ? "anthropic" : "chat";
     case "openclaw":
       return text(settings.api) === "openai-responses" ? "responses" : "chat";
-    default:
-      return text(settings.api) === "anthropic-messages" ? "anthropic" : "chat";
+    default: {
+      // MCode 也接受 openai-responses。
+      const api = text(settings.api);
+      return api === "anthropic-messages" ? "anthropic" : api === "openai-responses" ? "responses" : "chat";
+    }
   }
 }
 
@@ -73,7 +76,13 @@ export interface SyncSource {
   model: string;
 }
 
-/** 能同步的卡：第三方、有地址也有 Key。官方登录、内置供应商、读不出的配置都不行。 */
+/** `{env:NAME}`、`${NAME}`、`$NAME` 这类引用环境变量的 Key：别的工具不认这种写法，不能照抄。 */
+export function isEnvReference(key: string): boolean {
+  return /^\{env:[^}]+\}$/i.test(key.trim()) || /^\$\{?[A-Za-z_][A-Za-z0-9_]*\}?$/.test(key.trim());
+}
+
+/** 能同步的卡：第三方、有地址也有 Key。官方登录、内置供应商、读不出的配置、Key 写成环境变量
+ * 引用的都不行。 */
 export function syncSource(tool: ToolId, provider: Provider): SyncSource | null {
   if (isOfficial(provider)) return null;
   const meta = toolMeta(tool);
@@ -82,7 +91,7 @@ export function syncSource(tool: ToolId, provider: Provider): SyncSource | null 
   const { baseUrl, apiKey, model, models } = connection.values;
   const url = typeof baseUrl === "string" ? baseUrl : "";
   const key = typeof apiKey === "string" ? apiKey : "";
-  if (!/^https?:\/\//i.test(url) || !key) return null;
+  if (!/^https?:\/\//i.test(url) || !key || isEnvReference(key)) return null;
   const first = typeof model === "string" && model ? model : Array.isArray(models) ? (models[0] ?? "") : "";
   return { tool, provider, family: familyOf(tool, provider.settingsConfig), root: rootUrl(url), apiKey: key, model: first };
 }
@@ -97,7 +106,7 @@ export interface SyncTarget {
   provider?: Provider;
   /** 已经有同样地址和 Key 的卡。 */
   existing?: Provider;
-  /** 这个工具的卡必须带模型（模型写在列表里）。 */
+  /** 这个工具的卡必须带模型（并存式工具的模型列表、Grok Build 的模型）。 */
   needsModel: boolean;
 }
 
@@ -170,7 +179,7 @@ export function planSync(
   return TOOLS.filter((tool) => tool.id !== source.tool).map(({ id: tool }) => {
     const cards = providers[tool] ?? [];
     const { family, preset: presetName, compatible } = pick(tool, source.family);
-    const needsModel = toolMeta(tool).kind === "coexist";
+    const needsModel = toolMeta(tool).kind === "coexist" || tool === "grokbuild";
     const existing = cards.find((card) => sameEndpoint(tool, card, source));
     if (existing) return { tool, status: "exists", family, existing, needsModel };
     const preset = presets[tool]?.find((candidate) => candidate.name === presetName);

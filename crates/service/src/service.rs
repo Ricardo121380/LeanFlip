@@ -985,6 +985,7 @@ impl Service {
             *entry = (*entry).min(card.refresh_minutes);
         }
         let codex_minutes = self.app_settings().codex_quota_refresh_minutes;
+        let mut accounts = Vec::new();
         if codex_minutes > 0 {
             for info in rt.oauth.try_list_accounts().unwrap_or_default() {
                 if info.reauth_required {
@@ -992,6 +993,7 @@ impl Service {
                 }
                 if let Some(identity) = quota::account_identity(&rt.oauth, &info.id) {
                     intervals.insert(identity.key(), codex_minutes);
+                    accounts.push(identity);
                 }
             }
         }
@@ -1003,12 +1005,20 @@ impl Service {
             .into_iter()
             .map(|(key, snapshot)| (key, snapshot.fetched_at))
             .collect();
-        if codex_minutes > 0 {
+        if !accounts.is_empty() {
             let mut seen = quota::codex_log::read(&rt.env.codex_dir, now);
             seen.extend(quota::cache::load(&rt.env, now));
-            for observation in seen {
-                let entry = cached.entry(observation.identity.key()).or_insert(i64::MIN);
-                *entry = (*entry).max(observation.snapshot.fetched_at);
+            // 只知道工作区的账号（`codex:<工作区>:*`）也认领带用户的记录，和总览里一样。
+            for identity in &accounts {
+                let latest = seen
+                    .iter()
+                    .filter(|observation| identity.covers(&observation.identity))
+                    .map(|observation| observation.snapshot.fetched_at)
+                    .max();
+                if let Some(latest) = latest {
+                    let entry = cached.entry(identity.key()).or_insert(i64::MIN);
+                    *entry = (*entry).max(latest);
+                }
             }
         }
         let due: Vec<String> = {

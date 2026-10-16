@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import type { Provider, ToolId, ToolProviders } from "@/lib/api";
@@ -109,5 +109,71 @@ describe("SyncDialog", () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("OpenClaw 添加失败：OpenClaw 配置坏了"));
     expect(onClose).not.toHaveBeenCalled();
     expect(calls(fake, "update_provider")).toHaveLength(0);
+  });
+
+  it("retries only the tools that failed and keeps one link", async () => {
+    const user = userEvent.setup();
+    const { fake, onClose } = start();
+    let failGrok = true;
+    backend.invoke = vi.fn(async (cmd: string, args?: Record<string, unknown>) => {
+      if (cmd === "add_provider" && args?.tool === "grokbuild" && failGrok) {
+        failGrok = false;
+        throw "暂时失败";
+      }
+      return fake.invoke(cmd, args);
+    });
+    const list = await screen.findByRole("list");
+    const row = (label: string) => within(list).getByRole("checkbox", { name: label }).closest("li")!;
+    await user.click(within(list).getByRole("checkbox", { name: "OpenClaw" }));
+    await user.click(within(list).getByRole("checkbox", { name: "Grok Build" }));
+    await user.click(screen.getByRole("button", { name: "添加到 2 个工具" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Grok Build 添加失败：暂时失败"));
+    expect(within(row("OpenClaw")).getByText("已添加")).toBeInTheDocument();
+    expect(within(list).getByRole("checkbox", { name: "OpenClaw" })).toBeDisabled();
+    expect(onClose).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "添加到 1 个工具" }));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    const added = calls(fake, "add_provider") as { tool: ToolId; provider: Provider }[];
+    expect(added.map((call) => call.tool)).toEqual(["openclaw", "grokbuild"]);
+    expect(added[1].provider.meta?.leanflipLink).toBe(added[0].provider.meta?.leanflipLink);
+    const updated = calls(fake, "update_provider") as { provider: Provider }[];
+    expect(updated).toHaveLength(1);
+    expect(updated[0].provider.meta?.leanflipLink).toBe(added[0].provider.meta?.leanflipLink);
+  });
+
+  it("keeps edits made while a request is pending and drops checks for an older model", async () => {
+    const user = userEvent.setup();
+    const { fake } = start();
+    const pending: Record<string, (value: unknown) => void> = {};
+    backend.invoke = vi.fn((cmd: string, args?: Record<string, unknown>) => {
+      if (cmd === "probe_models" || cmd === "probe_check") {
+        return new Promise((resolve) => {
+          pending[cmd] = () => resolve(fake.invoke(cmd, args));
+        });
+      }
+      return fake.invoke(cmd, args);
+    });
+    const list = await screen.findByRole("list");
+    const row = () => within(list).getByRole("checkbox", { name: "OpenCode" }).closest("li")!;
+    await user.click(within(list).getByRole("checkbox", { name: "OpenCode" }));
+    const model = within(row()).getByRole("combobox", { name: "OpenCode 的模型" });
+
+    await user.click(within(row()).getByRole("button", { name: "获取模型" }));
+    await user.click(within(row()).getByRole("checkbox", { name: "同时启用" }));
+    await user.type(model, "deepseek");
+    pending.probe_models(undefined);
+    await waitFor(() => expect(within(row()).getByRole("button", { name: "获取模型" })).toBeEnabled());
+    expect(model).toHaveValue("deepseek");
+    expect(within(row()).getByRole("checkbox", { name: "同时启用" })).toBeChecked();
+
+    await user.click(within(row()).getByRole("button", { name: "检测" }));
+    await user.type(model, "-chat");
+    await act(async () => {
+      pending.probe_check(undefined);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(within(row()).queryByRole("status")).not.toBeInTheDocument();
+    expect(model).toHaveValue("deepseek-chat");
   });
 });

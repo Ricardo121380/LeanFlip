@@ -1003,7 +1003,7 @@ const zh = {
   sync: {
     title: "同步到其他 Agent",
     hint: "用「{{name}}」（{{tool}}）的地址和 Key 给其他工具添加供应商。默认都不勾选，只添加卡片，不会切换。",
-    status: { ready: "直接可用", check: "需要检测", exists: "已存在：{{name}}", unavailable: "不支持" },
+    status: { ready: "直接可用", check: "需要检测", exists: "已存在：{{name}}", unavailable: "不支持", added: "已添加" },
     family: { anthropic: "Anthropic Messages", responses: "OpenAI Responses", chat: "OpenAI Chat Completions", gemini: "Gemini" },
     checkHint: "这个工具要用 {{protocol}} 协议，中转站也得支持；模型要重新选，建议先检测。",
     geminiHint: "Gemini CLI 走 Gemini 原生协议，多数中转站要用另一个地址，建议先检测。",
@@ -1026,6 +1026,7 @@ const zh = {
     linkedAction: "一起换",
     linkedDone: "已更新 {{count}} 张关联的供应商",
     linkedFailed: "{{name}} 更新失败：{{reason}}",
+    linkedUnknown: "有工具的供应商没读出来，那里的关联卡没法检查：{{reason}}",
   },
   common: { undo: "撤销", cancel: "取消", confirm: "确定", loading: "加载中…", retry: "重试", close: "关闭", warnings: "提示", separator: "、" },
 };

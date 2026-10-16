@@ -45,7 +45,7 @@ import { settle } from "@/lib/probe";
 import { filterPresets, loadPresets, type Preset } from "@/lib/presets";
 import { toolMeta } from "@/lib/tools";
 import { cn } from "@/lib/utils";
-import { showWarnings, refreshAll, useAllProviders } from "@/hooks/queries";
+import { keys, showWarnings, refreshAll } from "@/hooks/queries";
 import { LINK_META, linkedCards, syncSource, withApiKey } from "@/lib/sync";
 import { TOOLS } from "@/lib/tools";
 
@@ -205,7 +205,6 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [confirm, confirmDialog] = useConfirm();
-  const allProviders = useAllProviders(editing && Boolean(provider?.meta?.leanflipLink));
   const signature = JSON.stringify({ name, id, website, notes, category, text, loginSource, routes, apply, quota });
   const [initialSignature] = useState(signature);
   const [presetSignature, setPresetSignature] = useState(signature);
@@ -366,7 +365,13 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
     const oldKey = syncSource(tool, before)?.apiKey ?? "";
     const newKey = syncSource(tool, after)?.apiKey ?? "";
     if (!oldKey || !newKey || oldKey === newKey) return;
-    const providers = Object.fromEntries(TOOLS.map((item, index) => [item.id, allProviders[index]?.data?.providers ?? []]));
+    // 现读一遍各工具的卡：缓存可能还没加载或已经过时，不能当成“没有关联卡”。
+    const lists = await Promise.allSettled(
+      TOOLS.map((item) => client.fetchQuery({ queryKey: keys.providers(item.id), queryFn: () => api.listProviders(item.id), staleTime: 0 })),
+    );
+    const failed = lists.find((result): result is PromiseRejectedResult => result.status === "rejected");
+    if (failed) toast.warning(t("sync.linkedUnknown", { reason: errorMessage(failed.reason) }));
+    const providers = Object.fromEntries(TOOLS.map((item, index) => [item.id, lists[index].status === "fulfilled" ? lists[index].value.providers : []]));
     const linked = linkedCards(tool, before, oldKey, providers);
     if (linked.length === 0) return;
     const cards = linked.map((item) => `${toolMeta(item.tool).label} · ${item.provider.name}`).join(t("common.separator"));

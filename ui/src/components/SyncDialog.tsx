@@ -1,6 +1,6 @@
 // 同步到其他 Agent：用一张卡的地址和 Key 给其他工具添加供应商。默认都不勾选，只添加卡片；
 // 勾了「同时设为当前」才切换。协议不同的工具标「需要检测」，可以先获取模型、检测再添加。
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -28,14 +28,18 @@ interface RowState {
   models?: string[];
   check?: ProbeResult | "pending";
   listing?: boolean;
+  /** 这次对话框里已经添加成功，重试时跳过。 */
+  added?: boolean;
 }
+
+type RowUpdate = Partial<RowState> | ((current: RowState) => Partial<RowState>);
 
 const STATUS_VARIANT = { ready: "success", check: "warning", exists: "outline", unavailable: "outline" } as const;
 
-function SyncRow({ target, state, onChange }: { target: SyncTarget; state: RowState; onChange: (next: Partial<RowState>) => void }) {
+function SyncRow({ target, state, onChange }: { target: SyncTarget; state: RowState; onChange: (next: RowUpdate) => void }) {
   const { t } = useTranslation();
   const meta = toolMeta(target.tool);
-  const selectable = Boolean(target.provider);
+  const selectable = Boolean(target.provider) && !state.added;
   const id = `sync-${target.tool}`;
   const card = target.provider ? withModel(target.tool, target.provider, state.model) : undefined;
   const missingModel = target.needsModel && !state.model.trim();
@@ -58,12 +62,15 @@ function SyncRow({ target, state, onChange }: { target: SyncTarget; state: RowSt
   };
   const runCheck = async () => {
     if (!card) return;
+    const model = state.model.trim();
+    // 检测期间改了模型：结果属于旧模型，丢掉。
+    const settle = (check: RowState["check"]) => onChange((current) => (current.model.trim() === model ? { check } : {}));
     onChange({ check: "pending" });
     try {
-      onChange({ check: await api.probeCheck(target.tool, card.settingsConfig, state.model.trim() || undefined) });
+      settle(await api.probeCheck(target.tool, card.settingsConfig, model || undefined));
     } catch (error) {
       toast.error(errorMessage(error));
-      onChange({ check: undefined });
+      settle(undefined);
     }
   };
 
@@ -75,12 +82,16 @@ function SyncRow({ target, state, onChange }: { target: SyncTarget; state: RowSt
         <label htmlFor={id} className={cn("min-w-0 flex-1 text-sm", !selectable && "text-muted-foreground")}>
           <span className="flex flex-wrap items-center gap-1.5">
             <span className="font-medium">{meta.label}</span>
-            <Badge variant={STATUS_VARIANT[target.status]}>
-              {target.status === "exists" ? t("sync.status.exists", { name: target.existing?.name }) : t(`sync.status.${target.status}`)}
-            </Badge>
+            {state.added ? (
+              <Badge variant="success">{t("sync.status.added")}</Badge>
+            ) : (
+              <Badge variant={STATUS_VARIANT[target.status]}>
+                {target.status === "exists" ? t("sync.status.exists", { name: target.existing?.name }) : t(`sync.status.${target.status}`)}
+              </Badge>
+            )}
           </span>
           {card && <span className="block truncate font-mono text-xs text-muted-foreground">{endpointOf(target.tool, card)}</span>}
-          {target.status === "check" && <span className="block text-xs text-muted-foreground">{t(target.family === "gemini" ? "sync.geminiHint" : "sync.checkHint", { protocol: t(`sync.family.${target.family}`) })}</span>}
+          {target.status === "check" && !state.added && <span className="block text-xs text-muted-foreground">{t(target.family === "gemini" ? "sync.geminiHint" : "sync.checkHint", { protocol: t(`sync.family.${target.family}`) })}</span>}
         </label>
       </div>
       {selectable && state.checked && (
@@ -134,6 +145,9 @@ export function SyncDialog({ source, onClose }: { source: SyncSource; onClose: (
   const [presets, setPresets] = useState<Partial<Record<ToolId, Preset[]>> | null>(null);
   const [rows, setRows] = useState<Partial<Record<ToolId, RowState>>>({});
   const [saving, setSaving] = useState(false);
+  // 一个对话框只用一个关联 ID：部分失败后重试，新加的卡和之前加的、和来源都在同一组。
+  const link = useRef(linkOf(source.provider) ?? newLink());
+  const sourceLinked = useRef(Boolean(linkOf(source.provider)));
 
   useEffect(() => {
     let alive = true;
@@ -154,31 +168,37 @@ export function SyncDialog({ source, onClose }: { source: SyncSource; onClose: (
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, source]);
 
-  const stateOf = (target: SyncTarget): RowState =>
-    rows[target.tool] ?? { checked: false, activate: false, model: target.provider ? modelOfCard(target.tool, target.provider) : "" };
-  const update = (target: SyncTarget, next: Partial<RowState>) => setRows((all) => ({ ...all, [target.tool]: { ...stateOf(target), ...next } }));
+  const initial = (target: SyncTarget): RowState => ({ checked: false, activate: false, model: target.provider ? modelOfCard(target.tool, target.provider) : "" });
+  const stateOf = (target: SyncTarget): RowState => rows[target.tool] ?? initial(target);
+  // 按最新状态合并：异步请求回来时不能把用户在等待期间改的内容改回去。
+  const update = (target: SyncTarget, next: RowUpdate) =>
+    setRows((all) => {
+      const current = all[target.tool] ?? initial(target);
+      return { ...all, [target.tool]: { ...current, ...(typeof next === "function" ? next(current) : next) } };
+    });
 
-  const chosen = targets.filter((target) => target.provider && stateOf(target).checked);
+  const chosen = targets.filter((target) => target.provider && !stateOf(target).added && stateOf(target).checked);
   const blocked = chosen.some((target) => target.needsModel && !stateOf(target).model.trim());
 
   const save = async () => {
     setSaving(true);
-    const link = linkOf(source.provider) ?? newLink();
     let added = 0;
     try {
       for (const target of chosen) {
         const state = stateOf(target);
-        const card = withLink(withModel(target.tool, target.provider!, state.model), link);
+        const card = withLink(withModel(target.tool, target.provider!, state.model), link.current);
         try {
           showWarnings(await api.addProvider(target.tool, card, state.activate));
           added += 1;
+          update(target, { added: true, checked: false });
         } catch (error) {
           toast.error(t("sync.addFailed", { tool: toolMeta(target.tool).label, reason: errorMessage(error) }));
         }
       }
-      if (added > 0 && !linkOf(source.provider)) {
+      if (added > 0 && !sourceLinked.current) {
         try {
-          await api.updateProvider(source.tool, withLink(source.provider, link));
+          await api.updateProvider(source.tool, withLink(source.provider, link.current));
+          sourceLinked.current = true;
         } catch (error) {
           toast.error(errorMessage(error));
         }

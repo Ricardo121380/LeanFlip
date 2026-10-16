@@ -1000,7 +1000,7 @@ const en: Messages = {
   sync: {
     title: "Sync to other agents",
     hint: "Add providers to other tools with the address and key of “{{name}}” ({{tool}}). Nothing is checked by default; this only adds cards and never switches.",
-    status: { ready: "Ready", check: "Needs a check", exists: "Already added: {{name}}", unavailable: "Not supported" },
+    status: { ready: "Ready", check: "Needs a check", exists: "Already added: {{name}}", unavailable: "Not supported", added: "Added" },
     family: { anthropic: "Anthropic Messages", responses: "OpenAI Responses", chat: "OpenAI Chat Completions", gemini: "Gemini" },
     checkHint: "This tool uses the {{protocol}} protocol, so the relay must support it too. Pick a model again and run a check first.",
     geminiHint: "Gemini CLI uses the native Gemini protocol; most relays need a different address. Run a check first.",
@@ -1023,6 +1023,7 @@ const en: Messages = {
     linkedAction: "Change them too",
     linkedDone: "Updated {{count}} linked providers",
     linkedFailed: "Couldn’t update {{name}}: {{reason}}",
+    linkedUnknown: "Couldn’t read some tools’ providers, so their linked cards weren’t checked: {{reason}}",
   },
   common: { undo: "Undo", cancel: "Cancel", confirm: "OK", loading: "Loading…", retry: "Retry", close: "Close", warnings: "Notes", separator: ", " },
 };
