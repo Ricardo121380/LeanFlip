@@ -1,9 +1,10 @@
-// 管理场景：列表（应用、编辑、删除）和编辑器。新建场景从当前状态开始，再按工具微调。
+// 管理场景：列表（应用、编辑、删除）和编辑器。新建场景从当前状态开始，再按工具微调；
+// 编辑器里还可以加提醒规则（时间段、网段、内网域名），规则只提醒，不自动切换。
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2, Pencil, Play, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Loader2, Pencil, Play, Plus, Trash2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -14,19 +15,21 @@ import { ToolGlyph } from "@/components/Glyph";
 import { QueryState } from "@/components/QueryState";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { refreshAll, useAllProviders, useScenes } from "@/hooks/queries";
-import { api, errorMessage, type Scene, type SceneTool, type SceneView, type ToolProviders } from "@/lib/api";
-import { defaultEntry, missingIds, sceneTools, toggleEnabled } from "@/lib/scenes";
+import { api, errorMessage, type KnownSceneRule, type Scene, type SceneRule, type SceneTool, type SceneView, type ToolProviders } from "@/lib/api";
+import { defaultEntry, MAC, missingIds, ruleText, sceneShortcut, sceneTools, toggleEnabled, validRule } from "@/lib/scenes";
 import { TOOLS, type ToolMeta } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
 /** 列表项带着状态字段；保存时只交回场景本身，免得状态被存进场景里。 */
-function sceneOf({ status: _status, pending: _pending, missing: _missing, ...scene }: SceneView): Scene {
+function sceneOf({ status: _status, pending: _pending, missing: _missing, suggested: _suggested, ...scene }: SceneView): Scene {
   return structuredClone(scene);
 }
 
-function SceneRow({ scene, onApply, onEdit, onDelete }: { scene: SceneView; onApply: () => void; onEdit: () => void; onDelete: () => void }) {
+function SceneRow({ scene, index, onApply, onEdit, onDelete }: { scene: SceneView; index: number; onApply: () => void; onEdit: () => void; onDelete: () => void }) {
   const { t } = useTranslation();
   const tools = sceneTools(scene, TOOLS).map((id) => TOOLS.find((tool) => tool.id === id)!);
+  const keys = sceneShortcut(index);
+  const rules = scene.rules ?? [];
   return (
     <li className="flex items-center gap-3 px-3 py-2.5">
       <div className="min-w-0 flex-1">
@@ -35,13 +38,16 @@ function SceneRow({ scene, onApply, onEdit, onDelete }: { scene: SceneView; onAp
           {scene.status === "active" && <Badge>{t("scene.active")}</Badge>}
           {scene.status === "drifted" && <Badge variant="outline">{t("scene.drifted")}</Badge>}
           {scene.missing.length > 0 && <Badge variant="warning">{t("scene.incomplete")}</Badge>}
+          {scene.suggested && <Badge variant="success">{t("scene.suggested")}</Badge>}
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-1" aria-label={tools.map((tool) => tool.label).join(t("common.separator"))}>
           {tools.map((tool) => (
             <ToolGlyph key={tool.id} tool={tool} size={18} />
           ))}
+          {rules.length > 0 && <span className="ml-1 truncate text-xs text-muted-foreground">{rules.map((rule) => ruleText(rule, t)).join(t("common.separator"))}</span>}
         </div>
       </div>
+      {keys && <kbd className="shrink-0 font-sans text-[11px] text-muted-foreground">{keys}</kbd>}
       <Button size="icon" variant="ghost" aria-label={t("scene.applyNamed", { name: scene.name })} title={t("scene.apply")} onClick={onApply}>
         <Play />
       </Button>
@@ -138,6 +144,105 @@ function ToolEntry({ tool, data, entry, onChange }: { tool: ToolMeta; data: Tool
   );
 }
 
+const DAYS = [1, 2, 3, 4, 5, 6, 7];
+
+function blankRule(kind: KnownSceneRule["kind"]): KnownSceneRule {
+  if (kind === "subnet") return { kind, cidr: "" };
+  if (kind === "host") return { kind, host: "" };
+  return { kind: "time", days: [1, 2, 3, 4, 5], start: "09:00", end: "18:00" };
+}
+
+function RulesEditor({ rules, onChange }: { rules: SceneRule[]; onChange: (rules: SceneRule[]) => void }) {
+  const { t } = useTranslation();
+  const [draft, setDraft] = useState<KnownSceneRule>(() => blankRule("time"));
+  const valid = validRule(draft);
+  const typed = draft.kind === "time" || (draft.kind === "subnet" ? draft.cidr : draft.host).trim() !== "";
+  const hint = {
+    time: t("scene.rule.overnightHint"),
+    subnet: t("scene.rule.cidrHint"),
+    host: t("scene.rule.hostHint"),
+  }[draft.kind];
+  const problem = { time: t("scene.rule.invalidTime"), subnet: t("scene.rule.invalidCidr"), host: t("scene.rule.invalidHost") }[draft.kind];
+  return (
+    <fieldset className="grid gap-1.5">
+      <legend className="text-sm font-medium">{t("scene.rules")}</legend>
+      <p className="text-xs text-muted-foreground">{t("scene.rulesHint")}</p>
+      {rules.length > 0 ? (
+        <ul className="mt-1 divide-y rounded-lg border" aria-label={t("scene.rules")}>
+          {rules.map((rule, index) => {
+            const text = ruleText(rule, t);
+            return (
+              <li key={index} className="flex items-center gap-2 py-1 pl-3 pr-1 text-sm">
+                <span className="min-w-0 flex-1 truncate">{text}</span>
+                <Button size="icon" variant="ghost" aria-label={t("scene.removeRule", { rule: text })} onClick={() => onChange(rules.filter((_, other) => other !== index))}>
+                  <X />
+                </Button>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p className="text-xs text-muted-foreground">{t("scene.noRules")}</p>
+      )}
+      <div className="mt-1 grid gap-2 rounded-lg border border-dashed p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <NativeSelect className="h-8 w-32" aria-label={t("scene.ruleKind")} value={draft.kind} onChange={(event) => setDraft(blankRule(event.target.value as KnownSceneRule["kind"]))}>
+            {(["time", "subnet", "host"] as const).map((kind) => (
+              <option key={kind} value={kind}>
+                {t(`scene.rule.${kind}`)}
+              </option>
+            ))}
+          </NativeSelect>
+          {draft.kind === "time" && (
+            <>
+              <div role="group" aria-label={t("scene.rule.days")} className="flex gap-0.5">
+                {DAYS.map((day) => {
+                  const on = draft.days.includes(day);
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      aria-pressed={on}
+                      className={cn("h-8 rounded-md px-1.5 text-xs transition-colors", on ? "bg-primary/15 font-medium text-primary" : "text-muted-foreground hover:bg-accent")}
+                      onClick={() => setDraft({ ...draft, days: on ? draft.days.filter((d) => d !== day) : [...draft.days, day].sort((a, b) => a - b) })}
+                    >
+                      {t(`scene.rule.day${day}`)}
+                    </button>
+                  );
+                })}
+              </div>
+              <Input type="time" className="h-8 w-28" aria-label={t("scene.rule.start")} value={draft.start} onChange={(event) => setDraft({ ...draft, start: event.target.value })} />
+              <span className="text-muted-foreground" aria-hidden="true">–</span>
+              <Input type="time" className="h-8 w-28" aria-label={t("scene.rule.end")} value={draft.end} onChange={(event) => setDraft({ ...draft, end: event.target.value })} />
+            </>
+          )}
+          {draft.kind === "subnet" && (
+            <Input className="h-8 w-56" aria-label={t("scene.rule.cidr")} placeholder={t("scene.rule.cidrPlaceholder")} value={draft.cidr} onChange={(event) => setDraft({ ...draft, cidr: event.target.value.trim() })} />
+          )}
+          {draft.kind === "host" && (
+            <Input className="h-8 w-56" aria-label={t("scene.rule.hostLabel")} placeholder={t("scene.rule.hostPlaceholder")} value={draft.host} onChange={(event) => setDraft({ ...draft, host: event.target.value.trim() })} />
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!valid}
+            onClick={() => {
+              onChange([...rules, draft]);
+              setDraft(blankRule(draft.kind));
+            }}
+          >
+            <Plus />
+            {t("scene.addRule")}
+          </Button>
+        </div>
+        <p className={cn("text-xs", typed && !valid ? "text-destructive" : "text-muted-foreground")} role={typed && !valid ? "alert" : undefined}>
+          {typed && !valid ? problem : hint}
+        </p>
+      </div>
+    </fieldset>
+  );
+}
+
 function SceneEditor({ draft, onChange }: { draft: Scene; onChange: (scene: Scene) => void }) {
   const { t } = useTranslation();
   const results = useAllProviders();
@@ -177,6 +282,7 @@ function SceneEditor({ draft, onChange }: { draft: Scene; onChange: (scene: Scen
           </ul>
         )}
       </fieldset>
+      <RulesEditor rules={draft.rules ?? []} onChange={(rules) => onChange({ ...draft, rules })} />
     </div>
   );
 }
@@ -235,7 +341,7 @@ export function SceneManager({ create, onApply, onClose }: { create: boolean; on
       <DialogContent className="max-w-xl" closeDisabled={save.isPending}>
         <DialogHeader>
           <DialogTitle>{editing ? t(draft?.id ? "scene.editTitle" : "scene.createTitle") : t("scene.manageTitle")}</DialogTitle>
-          <DialogDescription>{editing ? t("scene.editHint") : t("scene.manageHint")}</DialogDescription>
+          <DialogDescription>{editing ? t("scene.editHint") : `${t("scene.manageHint")} ${t("scene.shortcutHint", { keys: MAC ? "⌘⇧1–9" : "Ctrl+Shift+1–9" })}`}</DialogDescription>
         </DialogHeader>
         {editing ? (
           draft ? (
@@ -249,8 +355,8 @@ export function SceneManager({ create, onApply, onClose }: { create: boolean; on
           <p className="py-2 text-sm text-muted-foreground">{scenes.isError ? errorMessage(scenes.error) : t("scene.emptyList")}</p>
         ) : (
           <ul className="divide-y rounded-lg border" aria-label={t("scene.manageTitle")}>
-            {scenes.data!.scenes.map((scene) => (
-              <SceneRow key={scene.id} scene={scene} onApply={() => onApply(scene.id)} onEdit={() => setDraft(sceneOf(scene))} onDelete={() => void onDelete(scene)} />
+            {scenes.data!.scenes.map((scene, index) => (
+              <SceneRow key={scene.id} scene={scene} index={index} onApply={() => onApply(scene.id)} onEdit={() => setDraft(sceneOf(scene))} onDelete={() => void onDelete(scene)} />
             ))}
           </ul>
         )}

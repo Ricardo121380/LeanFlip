@@ -299,6 +299,8 @@ export interface RestoreOptions {
   accounts: boolean;
   settings: boolean;
   paths: boolean;
+  /** 恢复备份里的场景（引用的供应商改了 ID 时跟着改）。 */
+  scenes: boolean;
   duplicate: DuplicatePolicy;
 }
 
@@ -328,12 +330,29 @@ export interface SceneTool {
   [key: string]: unknown;
 }
 
+/** 场景的提醒规则（crates/core/src/scene_rules.rs）。`days`：1 = 周一 … 7 = 周日。 */
+export type KnownSceneRule =
+  | { kind: "time"; days: number[]; start: string; end: string }
+  | { kind: "subnet"; cidr: string }
+  | { kind: "host"; host: string };
+/** 新版本写的、不认识的规则原样保留。 */
+export type SceneRule = KnownSceneRule | { kind: string; [key: string]: unknown };
+
 /** 场景（crates/core/src/scene.rs）。`tools` 的键是工具 id。 */
 export interface Scene {
   id: string;
   name: string;
   tools: Record<string, SceneTool>;
+  /** 满足任意一条、而场景还没在用时提醒切换；不会自动切换。 */
+  rules?: SceneRule[];
   [key: string]: unknown;
+}
+
+/** 提醒规则满足时建议切换到的场景。 */
+export interface SceneSuggestion {
+  id: string;
+  name: string;
+  rule: KnownSceneRule;
 }
 
 export type SceneStatus = "active" | "drifted" | "idle";
@@ -344,6 +363,8 @@ export interface SceneView extends Scene {
   pending: ToolId[];
   /** 场景引用、但已经被删掉的卡。 */
   missing: { tool: ToolId; id: string }[];
+  /** 提醒规则满足，建议切换到它。 */
+  suggested?: boolean;
 }
 
 export interface SceneList {

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { act, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import type { SceneList, SceneReport, ScenePreview, ToolId, ToolProviders } from "@/lib/api";
@@ -13,7 +13,8 @@ const events = vi.hoisted(() => ({ handlers: new Map<string, (event: { payload: 
 vi.mock("@tauri-apps/api/event", () => ({
   listen: async (name: string, handler: (event: { payload: unknown }) => void) => {
     events.handlers.set(name, handler);
-    return () => events.handlers.delete(name);
+    // 只取消自己的订阅：上一个测试卸载后的订阅可能晚到。
+    return () => events.handlers.get(name) === handler && events.handlers.delete(name);
   },
 }));
 
@@ -39,11 +40,22 @@ const lists = (): Record<ToolId, ToolProviders> => {
   return out;
 };
 
+const workHours = { kind: "time" as const, days: [1, 2, 3, 4, 5], start: "09:00", end: "18:00" };
+
 const sceneList = (): SceneList => ({
   last: "scene-home",
   scenes: [
     { id: "scene-home", name: "个人", tools: { claude: { current: "kimi" }, opencode: { enabled: ["openrouter"] } }, status: "drifted", pending: ["claude"], missing: [] },
-    { id: "scene-work", name: "公司", tools: { claude: { current: "relay" }, codex: { current: "official" }, opencode: { enabled: ["moonshot"] }, gemini: { current: "gapi" } }, status: "idle", pending: ["claude", "opencode"], missing: [] },
+    {
+      id: "scene-work",
+      name: "公司",
+      tools: { claude: { current: "relay" }, codex: { current: "official" }, opencode: { enabled: ["moonshot"] }, gemini: { current: "gapi" } },
+      rules: [workHours, { kind: "subnet", cidr: "10.20.0.0/16" }],
+      status: "idle",
+      pending: ["claude", "opencode"],
+      missing: [],
+      suggested: true,
+    },
   ],
 });
 
@@ -102,10 +114,10 @@ describe("Scene menu and apply dialog", () => {
   it("shows the drifted last scene and applies a previewed scene with undo", async () => {
     const user = userEvent.setup();
     const fake = start();
-    const button = await screen.findByRole("button", { name: "场景：个人，已偏离" });
+    const button = await screen.findByRole("button", { name: "场景：个人，已偏离，建议切换到「公司」" });
     await user.click(button);
     const menu = screen.getByRole("menu");
-    expect(within(menu).getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["个人已偏离", "公司", "把当前状态存为场景…", "管理场景…"]);
+    expect(within(menu).getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["个人已偏离Ctrl+Shift+1", "公司建议Ctrl+Shift+2", "把当前状态存为场景…", "管理场景…"]);
     await user.click(within(menu).getByRole("menuitem", { name: /公司/ }));
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
 
@@ -179,6 +191,7 @@ describe("Scenes applied from the tray", () => {
     const fake = start();
     await waitFor(() => expect(events.handlers.has("scene-applied")).toBe(true));
     const emit = (payload: unknown) => act(() => events.handlers.get("scene-applied")!({ payload }));
+    await waitFor(() => expect(events.handlers.has("scene-suggested")).toBe(true));
     const report: SceneReport = { results: [{ tool: "claude", outcome: "applied", changed: [], warnings: ["注意"], missing: [], error: null }], undo: undoSnapshot };
 
     emit({ id: "scene-work", name: "公司", report, error: null });
@@ -194,6 +207,68 @@ describe("Scenes applied from the tray", () => {
 
     emit({ id: "scene-work", name: "公司", report: null, error: "找不到场景" });
     expect(toast.error).toHaveBeenCalledWith("找不到场景");
+  });
+});
+
+describe("Scene shortcuts and reminders", () => {
+  it("applies the scene at the pressed position directly, with undo", async () => {
+    const fake = start();
+    await screen.findByRole("button", { name: /场景：个人/ });
+    fireEvent.keyDown(window, { code: "Digit2", ctrlKey: true, shiftKey: true });
+    await waitFor(() => expect(calls(fake, "apply_scene")).toEqual([{ id: "scene-work", tools: null }]));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("已切换到场景「公司」", expect.objectContaining({ action: expect.objectContaining({ label: "撤销" }) })));
+    fireEvent.keyDown(window, { code: "Digit3", ctrlKey: true, shiftKey: true });
+    fireEvent.keyDown(window, { code: "Digit1", shiftKey: true });
+    expect(calls(fake, "apply_scene")).toHaveLength(1);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("reminds once per backend event and previews the suggested scene", async () => {
+    start();
+    await waitFor(() => expect(events.handlers.has("scene-suggested")).toBe(true));
+    const emit = (payload: unknown) => act(() => events.handlers.get("scene-suggested")!({ payload }));
+    emit({ id: "scene-work", name: "公司", rule: workHours });
+    const [message, options] = vi.mocked(toast.info).mock.calls[0] as unknown as [string, { action: { label: string; onClick: () => void } }];
+    expect(message).toBe("建议切换到场景「公司」：工作日 09:00–18:00");
+    expect(options.action.label).toBe("预览");
+    act(() => options.action.onClick());
+    expect(await screen.findByRole("dialog", { name: "应用场景「公司」" })).toBeInTheDocument();
+    emit(null);
+    expect(toast.info).toHaveBeenCalledTimes(1);
+  });
+
+  it("edits reminder rules with inline validation", async () => {
+    const user = userEvent.setup();
+    const fake = start();
+    await user.click(await screen.findByRole("button", { name: /场景：个人/ }));
+    await user.click(screen.getByRole("menuitem", { name: "管理场景…" }));
+    const dialog = await screen.findByRole("dialog", { name: "管理场景" });
+    expect(within(dialog).getByText("工作日 09:00–18:00、网段 10.20.0.0/16")).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "编辑场景「公司」" }));
+    const rules = await within(dialog).findByRole("list", { name: "提醒规则" });
+    expect(within(rules).getAllByRole("listitem").map((item) => item.textContent)).toEqual(["工作日 09:00–18:00", "网段 10.20.0.0/16"]);
+    await user.click(within(rules).getByRole("button", { name: "删除规则：网段 10.20.0.0/16" }));
+
+    await user.selectOptions(within(dialog).getByRole("combobox", { name: "规则类型" }), "host");
+    const add = within(dialog).getByRole("button", { name: "添加规则" });
+    expect(add).toBeDisabled();
+    await user.type(within(dialog).getByRole("textbox", { name: "域名" }), "http://x");
+    expect(within(dialog).getByRole("alert")).toHaveTextContent("不带 http://");
+    expect(add).toBeDisabled();
+    await user.clear(within(dialog).getByRole("textbox", { name: "域名" }));
+    await user.type(within(dialog).getByRole("textbox", { name: "域名" }), "intranet.corp");
+    await user.click(add);
+
+    await user.selectOptions(within(dialog).getByRole("combobox", { name: "规则类型" }), "time");
+    await user.click(within(dialog).getByRole("button", { name: "周六", pressed: false }));
+    await user.click(within(dialog).getByRole("button", { name: "添加规则" }));
+    expect(within(rules).getAllByRole("listitem").map((item) => item.textContent)).toEqual(["工作日 09:00–18:00", "intranet.corp 能解析", "周一、周二、周三、周四、周五、周六 09:00–18:00"]);
+
+    await user.click(within(dialog).getByRole("button", { name: "保存" }));
+    await waitFor(() => expect(calls(fake, "save_scene")).toHaveLength(1));
+    const saved = calls(fake, "save_scene")[0]!.scene as { rules: unknown[]; suggested?: boolean };
+    expect(saved.rules).toEqual([workHours, { kind: "host", host: "intranet.corp" }, { ...workHours, days: [1, 2, 3, 4, 5, 6] }]);
+    expect("suggested" in saved).toBe(false);
   });
 });
 

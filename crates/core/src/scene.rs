@@ -7,6 +7,7 @@
 //!   对应顶层 `model:` 指向的那家。
 //!
 //! 场景里没列的工具不动；工具名不认识的条目（新版本写的）原样保留、应用时跳过。
+//! 场景还可以带提醒规则（见 [`crate::scene_rules`]），规则只用来提醒，不会自动应用。
 //! 这里只算计划和读写场景本身，真正的切换由调用方逐个工具走现有的切换操作。
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -17,6 +18,7 @@ use serde_json::{Map, Value};
 use crate::env::Env;
 use crate::error::AppError;
 use crate::provider::Tool;
+use crate::scene_rules::{self, SceneRule};
 use crate::store::{self, StoreData};
 use crate::{coexist, switch};
 
@@ -33,9 +35,15 @@ pub struct Scene {
     /// 工具名 → 这个工具在场景里的选择。键用字符串，不认识的工具不会让整个库读不出来。
     #[serde(default)]
     pub tools: BTreeMap<String, SceneTool>,
+    /// 提醒规则：任意一条满足、而场景还没在用时提醒切换。
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub rules: Vec<SceneRule>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }
+
+/// 一个场景最多几条提醒规则。
+pub const RULES_MAX: usize = 20;
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -126,6 +134,15 @@ pub fn validate(scene: &Scene) -> Result<(), AppError> {
             format!("场景名最多 {NAME_MAX} 个字"),
             format!("Scene names are limited to {NAME_MAX} characters"),
         ));
+    }
+    if scene.rules.len() > RULES_MAX {
+        return Err(invalid(
+            format!("一个场景最多 {RULES_MAX} 条提醒规则"),
+            format!("A scene can have at most {RULES_MAX} reminder rules"),
+        ));
+    }
+    for rule in &scene.rules {
+        scene_rules::validate(rule)?;
     }
     let entries = scene.entries();
     if entries.is_empty() {

@@ -1,11 +1,12 @@
 // 首页标题区的场景下拉：按钮上是当前场景（手动改过后标「已偏离」），菜单里点场景先预览再应用。
+// 提醒规则建议切换的场景标「建议」，按钮上带一个小圆点；前 9 个场景旁边显示快捷键。
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Check, ChevronDown, Layers, Plus, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSceneActions } from "@/components/Scenes";
 import { useScenes } from "@/hooks/queries";
-import { currentScene } from "@/lib/scenes";
+import { currentScene, sceneShortcut } from "@/lib/scenes";
 import { cn } from "@/lib/utils";
 
 const ITEM = "flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm outline-none hover:bg-accent focus-visible:bg-accent";
@@ -19,6 +20,7 @@ export function SceneMenu() {
   const button = useRef<HTMLButtonElement>(null);
   const list = scenes.data?.scenes ?? [];
   const current = currentScene(scenes.data);
+  const suggested = list.find((scene) => scene.suggested);
 
   const items = () => [...(root.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
   const close = (focus = true) => {
@@ -58,7 +60,8 @@ export function SceneMenu() {
     action();
   };
 
-  const label = current ? t(current.drifted ? "scene.menuDrifted" : "scene.menuLabel", { name: current.scene.name }) : t("scene.menu");
+  const base = current ? t(current.drifted ? "scene.menuDrifted" : "scene.menuLabel", { name: current.scene.name }) : t("scene.menu");
+  const label = suggested ? t("scene.menuSuggested", { label: base, name: suggested.name }) : base;
 
   return (
     <div ref={root} className="relative">
@@ -82,6 +85,7 @@ export function SceneMenu() {
         <Layers aria-hidden="true" />
         <span className="truncate">{current ? current.scene.name : t("scene.menu")}</span>
         {current?.drifted && <span className="text-xs font-normal text-warning">· {t("scene.drifted")}</span>}
+        {suggested && <span className="size-1.5 shrink-0 rounded-full bg-primary" aria-hidden="true" />}
         <ChevronDown className="text-muted-foreground" aria-hidden="true" />
       </Button>
       {open && (
@@ -94,8 +98,9 @@ export function SceneMenu() {
           {list.length === 0 ? (
             <p className="px-2.5 py-2 text-xs leading-5 text-muted-foreground">{t("scene.none")}</p>
           ) : (
-            list.map((scene) => {
+            list.map((scene, index) => {
               const active = scene.status === "active";
+              const keys = sceneShortcut(index);
               const note = scene.missing.length > 0 ? t("scene.incomplete") : scene.status === "drifted" ? t("scene.drifted") : null;
               return (
                 <button
@@ -109,7 +114,9 @@ export function SceneMenu() {
                   <Check className={cn("h-4 w-4 shrink-0 text-primary", !active && "invisible")} aria-hidden="true" />
                   <span className="min-w-0 flex-1 truncate">{scene.name}</span>
                   {active && <span className="sr-only">{t("scene.active")}</span>}
+                  {scene.suggested && <span className="shrink-0 text-xs font-medium text-primary">{t("scene.suggested")}</span>}
                   {note && <span className={cn("shrink-0 text-xs", scene.missing.length > 0 ? "text-warning" : "text-muted-foreground")}>{note}</span>}
+                  {keys && <kbd className="shrink-0 font-sans text-[11px] text-muted-foreground" aria-hidden="true">{keys}</kbd>}
                 </button>
               );
             })

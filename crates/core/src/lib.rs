@@ -17,6 +17,7 @@ pub mod operation;
 pub mod promo;
 pub mod provider;
 pub mod scene;
+pub mod scene_rules;
 pub mod state;
 pub mod store;
 pub mod switch;

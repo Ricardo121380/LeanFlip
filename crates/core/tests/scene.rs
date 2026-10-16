@@ -298,3 +298,112 @@ fn stores_without_scenes_keep_their_shape() {
     assert!(!text.contains("scenes"), "{text}");
     assert!(!text.contains("lastScene"), "{text}");
 }
+
+mod rules {
+    use super::*;
+    use leanflip_core::scene_rules::{self, Rule, RuleContext, SceneRule};
+    use std::net::IpAddr;
+
+    fn rule(value: serde_json::Value) -> SceneRule {
+        serde_json::from_value(value).unwrap()
+    }
+
+    fn at(weekday: u8, time: &str, addresses: &[&str], hosts: &[&str], rule: &SceneRule) -> bool {
+        let addresses: Vec<IpAddr> = addresses.iter().map(|a| a.parse().unwrap()).collect();
+        let resolves = |host: &str| hosts.contains(&host);
+        scene_rules::matches(
+            rule,
+            &RuleContext {
+                weekday,
+                minute: scene_rules::parse_time(time).unwrap(),
+                addresses: &addresses,
+                resolves: &resolves,
+            },
+        )
+    }
+
+    #[test]
+    fn time_rules_cover_days_and_overnight_ranges() {
+        let work = rule(
+            json!({"kind": "time", "days": [1, 2, 3, 4, 5], "start": "09:00", "end": "18:00"}),
+        );
+        assert!(matches!(work, SceneRule::Known(Rule::Time { .. })));
+        assert!(at(1, "09:00", &[], &[], &work));
+        assert!(at(5, "17:59", &[], &[], &work));
+        assert!(!at(5, "18:00", &[], &[], &work), "end is exclusive");
+        assert!(!at(6, "10:00", &[], &[], &work));
+
+        let night = rule(json!({"kind": "time", "days": [5], "start": "22:00", "end": "02:00"}));
+        assert!(at(5, "23:30", &[], &[], &night));
+        assert!(at(6, "01:59", &[], &[], &night), "continues into Saturday");
+        assert!(!at(6, "22:30", &[], &[], &night));
+        assert!(
+            !at(5, "01:00", &[], &[], &night),
+            "Thursday night is not listed"
+        );
+        let sunday = rule(json!({"kind": "time", "days": [7], "start": "23:00", "end": "01:00"}));
+        assert!(at(1, "00:30", &[], &[], &sunday), "Sunday wraps to Monday");
+    }
+
+    #[test]
+    fn network_rules_match_subnets_and_resolvable_hosts() {
+        let office = rule(json!({"kind": "subnet", "cidr": "10.20.0.0/16"}));
+        assert!(at(1, "12:00", &["192.168.1.5", "10.20.3.4"], &[], &office));
+        assert!(!at(1, "12:00", &["10.21.0.1"], &[], &office));
+        assert!(!at(1, "12:00", &["fd00::1"], &[], &office));
+        let v6 = rule(json!({"kind": "subnet", "cidr": "fd00::/8"}));
+        assert!(at(1, "12:00", &["fd12::1"], &[], &v6));
+        let any = rule(json!({"kind": "subnet", "cidr": "0.0.0.0/0"}));
+        assert!(at(1, "12:00", &["8.8.8.8"], &[], &any));
+
+        let host = rule(json!({"kind": "host", "host": "intranet.corp.example"}));
+        assert!(at(1, "12:00", &[], &["intranet.corp.example"], &host));
+        assert!(!at(1, "12:00", &[], &[], &host));
+    }
+
+    #[test]
+    fn malformed_rules_are_rejected_and_unknown_kinds_are_kept() {
+        for bad in [
+            json!({"kind": "time", "days": [], "start": "09:00", "end": "18:00"}),
+            json!({"kind": "time", "days": [8], "start": "09:00", "end": "18:00"}),
+            json!({"kind": "time", "days": [1], "start": "9:00", "end": "18:00"}),
+            json!({"kind": "time", "days": [1], "start": "09:00", "end": "09:00"}),
+            json!({"kind": "time", "days": [1], "start": "24:00", "end": "09:00"}),
+            json!({"kind": "time", "days": [1]}),
+            json!({"kind": "subnet", "cidr": "10.0.0.0"}),
+            json!({"kind": "subnet", "cidr": "10.0.0.0/33"}),
+            json!({"kind": "host", "host": "https://intranet"}),
+            json!({"kind": "host", "host": "a..b"}),
+            json!({"no": "kind"}),
+        ] {
+            assert!(scene_rules::validate(&rule(bad.clone())).is_err(), "{bad}");
+        }
+        let future = rule(json!({"kind": "bluetooth", "device": "desk"}));
+        assert!(scene_rules::validate(&future).is_ok());
+        assert!(!at(1, "12:00", &[], &[], &future));
+
+        let sb = setup();
+        let mut scene = named("Office", &[(Tool::Claude, SceneTool::current("a"))]);
+        scene.rules = vec![
+            rule(json!({"kind": "subnet", "cidr": "10.0.0.0/8"})),
+            future.clone(),
+        ];
+        let saved = scene::save(&sb.env, scene).unwrap();
+        let reloaded = store::load(&sb.env).unwrap();
+        assert_eq!(
+            reloaded.scenes[0].rules, saved.rules,
+            "unknown rules survive a save"
+        );
+        let mut broken = saved.clone();
+        broken
+            .rules
+            .push(rule(json!({"kind": "subnet", "cidr": "nope"})));
+        assert!(matches!(
+            scene::save(&sb.env, broken),
+            Err(AppError::Localized {
+                key: "scene.invalid",
+                ..
+            })
+        ));
+    }
+}

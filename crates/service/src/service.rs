@@ -27,8 +27,8 @@ mod scene;
 pub use backup::{BackupItem, BackupPreview, RestoreOptions, RestoreReport, MAX_BACKUP_BYTES};
 pub use connection::{connection_info, ApiKeyChange, ConnectionInfo, ConnectionUpdate};
 pub use scene::{
-    SceneList, SceneMissing, SceneOutcome, ScenePreview, SceneReport, SceneStatus, SceneStep,
-    SceneUndo, SceneView, ToolOutcome, ToolPreview,
+    rule_label, SceneHintUpdate, SceneList, SceneMissing, SceneOutcome, ScenePreview, SceneReport,
+    SceneStatus, SceneStep, SceneSuggestion, SceneUndo, SceneView, ToolOutcome, ToolPreview,
 };
 
 /// 给前端的错误：一句话（按界面语言选中文 / 英文）。
@@ -251,6 +251,7 @@ pub struct Service {
     /// 每个托管账号上次联网查询额度的时间，用来挡住连续点击。
     quota_attempts: Mutex<HashMap<String, i64>>,
     quota_url: String,
+    scene_hints: Mutex<scene::SceneHints>,
 }
 
 fn services(rt: &Runtime) -> Services<'_> {
@@ -326,6 +327,7 @@ impl Service {
             quota_errors: Mutex::new(HashMap::new()),
             quota_attempts: Mutex::new(HashMap::new()),
             quota_url: quota::codex_remote::USAGE_URL.to_string(),
+            scene_hints: Mutex::new(scene::SceneHints::default()),
         })
     }
 

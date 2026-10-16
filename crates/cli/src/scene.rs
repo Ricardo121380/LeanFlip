@@ -91,7 +91,7 @@ fn list(service: &Service, lang: Language) -> Result<Output, CliError> {
             json!({
                 "id": view.scene.id, "name": view.scene.name, "status": view.status,
                 "tools": view.scene.entries().into_iter().map(|(tool, _)| tool).collect::<Vec<_>>(),
-                "pending": view.pending, "missing": view.missing,
+                "pending": view.pending, "missing": view.missing, "rules": view.scene.rules,
             })
         })
         .collect::<Vec<_>>();

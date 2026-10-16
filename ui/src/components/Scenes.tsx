@@ -1,6 +1,8 @@
 // 场景的入口和应用流程。首页下拉、命令面板都通过 `useSceneActions()` 打开同一个确认框和管理框。
 // 应用前先预览（只读），确认后一次应用；全部成功时提示里可以撤销，有失败时留在框里列出结果。
 // 托盘里应用的场景通过 `scene-applied` 事件回到这里，用同样的提示和结果框。
+// 提醒规则满足时后端发 `scene-suggested`，这里提示一次，点「预览」进入确认框。
+// 窗口在前台时 ⌘⇧1…9（其他系统 Ctrl+Shift）直接应用列表里对应的场景，之后可以撤销。
 import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -10,9 +12,9 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ToolGlyph } from "@/components/Glyph";
-import { refreshAll } from "@/hooks/queries";
-import { api, errorMessage, type SceneReport, type SceneUndo, type ToolId, type ToolOutcome, type ToolPreview } from "@/lib/api";
-import { applicable, splitPreview } from "@/lib/scenes";
+import { keys, refreshAll, useScenes } from "@/hooks/queries";
+import { api, errorMessage, type SceneReport, type SceneSuggestion, type SceneUndo, type SceneView, type ToolId, type ToolOutcome, type ToolPreview } from "@/lib/api";
+import { applicable, ruleText, shortcutIndex, splitPreview } from "@/lib/scenes";
 import { toolMeta } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
@@ -84,34 +86,75 @@ function useAppliedNotice() {
   );
 }
 
-export function ScenesProvider({ children }: { children: ReactNode }) {
-  const client = useQueryClient();
-  const [applying, setApplying] = useState<string | null>(null);
-  const [managing, setManaging] = useState<{ create: boolean } | null>(null);
-  const [result, setResult] = useState<{ name: string; report: SceneReport } | null>(null);
-  const notice = useAppliedNotice();
-  const onEvent = useRef<(event: SceneEvent) => void>(() => {});
-  onEvent.current = (event) => {
-    void refreshAll(client);
-    if (event.error) toast.error(event.error);
-    else if (event.report && !notice(event.name, event.report)) setResult({ name: event.name, report: event.report });
-  };
+let eventApi: Promise<typeof import("@tauri-apps/api/event")> | undefined;
+
+/** 订阅后端事件；不在 Tauri 里（测试、演示）时什么都不做。`handler` 总是用最新的那个。 */
+function useBackendEvent<T>(name: string, handler: (payload: T) => void) {
+  const latest = useRef(handler);
+  latest.current = handler;
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     let cancelled = false;
-    import("@tauri-apps/api/event")
-      .then(({ listen }) => listen<SceneEvent>("scene-applied", (event) => onEvent.current(event.payload)))
+    (eventApi ??= import("@tauri-apps/api/event"))
+      .then(({ listen }) => listen<T>(name, (event) => latest.current(event.payload)))
       .then((fn) => {
         if (cancelled) fn();
         else unlisten = fn;
       })
-      .catch(() => {
-        /* 不在 Tauri 里（测试、演示）。 */
-      });
+      .catch(() => {});
     return () => {
       cancelled = true;
       unlisten?.();
     };
+  }, [name]);
+}
+
+export function ScenesProvider({ children }: { children: ReactNode }) {
+  const { t } = useTranslation();
+  const client = useQueryClient();
+  const scenes = useScenes();
+  const [applying, setApplying] = useState<string | null>(null);
+  const [managing, setManaging] = useState<{ create: boolean } | null>(null);
+  const [result, setResult] = useState<{ name: string; report: SceneReport } | null>(null);
+  const notice = useAppliedNotice();
+  useBackendEvent<SceneEvent>("scene-applied", (event) => {
+    void refreshAll(client);
+    if (event.error) toast.error(event.error);
+    else if (event.report && !notice(event.name, event.report)) setResult({ name: event.name, report: event.report });
+  });
+  useBackendEvent<SceneSuggestion | null>("scene-suggested", (suggestion) => {
+    void client.invalidateQueries({ queryKey: keys.scenes });
+    if (!suggestion) return;
+    toast.info(t("scene.suggestion", { name: suggestion.name, reason: ruleText(suggestion.rule, t) }), {
+      id: "scene-suggestion",
+      duration: 15_000,
+      action: { label: t("scene.preview"), onClick: () => setApplying(suggestion.id) },
+    });
+  });
+
+  // 快捷键直接应用，不经过预览；全部成功时提示里可以撤销。
+  const quick = useMutation({
+    mutationFn: (scene: SceneView) => api.applyScene(scene.id),
+    onSuccess: (report, scene) => {
+      if (!notice(scene.name, report)) setResult({ name: scene.name, report });
+    },
+    onError: (error) => toast.error(errorMessage(error)),
+    onSettled: () => refreshAll(client),
+  });
+  const shortcut = useRef<(event: KeyboardEvent) => void>(() => {});
+  shortcut.current = (event) => {
+    const index = shortcutIndex(event);
+    const scene = index >= 0 ? scenes.data?.scenes[index] : undefined;
+    if (!scene) return;
+    event.preventDefault();
+    if (quick.isPending || applying || managing) return;
+    if (scene.status === "active") toast.info(t("scene.alreadyActive", { name: scene.name }));
+    else quick.mutate(scene);
+  };
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => shortcut.current(event);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
   const apply = useCallback((id: string) => setApplying(id), []);
   const manage = useCallback((options?: { create?: boolean }) => setManaging({ create: options?.create ?? false }), []);

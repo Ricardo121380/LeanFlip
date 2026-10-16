@@ -16,6 +16,9 @@ use crate::service::Service;
 pub const EVENT_PROVIDERS_CHANGED: &str = "providers-changed";
 /// 托盘里应用了场景，载荷是 [`tray::SceneEvent`]。
 pub const EVENT_SCENE_APPLIED: &str = "scene-applied";
+/// 场景的提醒规则检查结果变了。载荷是刚变成满足、要提醒的 [`service::SceneSuggestion`]，
+/// 只是建议变化（不提醒）时为 `null`。
+pub const EVENT_SCENE_SUGGESTED: &str = "scene-suggested";
 
 #[derive(Clone)]
 pub struct AppState(pub Arc<Service>);
@@ -87,6 +90,27 @@ fn start_quota_refresh(app: tauri::AppHandle, service: Arc<Service>) {
         .expect("spawn quota thread");
 }
 
+/// 每分钟检查一次场景的提醒规则；只提醒，不切换。
+fn start_scene_rules(app: tauri::AppHandle, service: Arc<Service>) {
+    std::thread::Builder::new()
+        .name("scene-rules".into())
+        .spawn(move || {
+            std::thread::sleep(Duration::from_secs(5));
+            loop {
+                match service.refresh_scene_hint() {
+                    Ok(update) if update.changed || update.notify.is_some() => {
+                        tray::rebuild(&app);
+                        let _ = app.emit(EVENT_SCENE_SUGGESTED, update.notify);
+                    }
+                    Ok(_) => {}
+                    Err(err) => log::warn!("scene rules check failed: {err}"),
+                }
+                std::thread::sleep(Duration::from_secs(60));
+            }
+        })
+        .expect("spawn scene rules thread");
+}
+
 fn app_context() -> tauri::Context<tauri::Wry> {
     tauri::generate_context!()
 }
@@ -128,6 +152,7 @@ pub fn run() {
             tray::create(app.handle())?;
             watcher::start(app.handle(), &service.env());
             start_background_refresh(app.handle().clone(), service.clone());
+            start_scene_rules(app.handle().clone(), service.clone());
             start_quota_refresh(app.handle().clone(), service);
             Ok(())
         })

@@ -4,7 +4,12 @@
 //! 写入记录按工具分开，跨工具做不到全成全败：某个工具失败时继续其他工具，失败的列出来；
 //! 应用前给涉及的工具拍一份快照，撤销就是把快照当场景再应用一次。快照只交给调用方，不落盘。
 use super::*;
+use std::cell::RefCell;
+use std::net::{IpAddr, ToSocketAddrs, UdpSocket};
+
+use chrono::{Datelike, Timelike};
 use leanflip_core::scene::{self, Action, Scene, SceneTool};
+use leanflip_core::scene_rules::{self, Rule, RuleContext, SceneRule};
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -33,6 +38,8 @@ pub struct SceneView {
     pub pending: Vec<Tool>,
     /// 场景引用、但已经被删掉的卡。
     pub missing: Vec<SceneMissing>,
+    /// 提醒规则满足、建议切换到它（见 [`Service::refresh_scene_hint`]）。
+    pub suggested: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -106,6 +113,97 @@ pub struct SceneReport {
     pub undo: SceneUndo,
 }
 
+/// 建议切换到的场景，以及是哪条规则满足了。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SceneSuggestion {
+    pub id: String,
+    pub name: String,
+    pub rule: Rule,
+}
+
+/// 一次规则检查的结果。
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SceneHintUpdate {
+    /// 规则刚变成满足、要提醒用户的场景。
+    pub notify: Option<SceneSuggestion>,
+    /// 建议有变化（菜单和托盘要更新）。
+    pub changed: bool,
+}
+
+/// 规则检查在内存里的状态，重启后从头开始。
+#[derive(Debug, Default)]
+pub(super) struct SceneHints {
+    /// 上一次规则满足的场景（不管是否已经在用）。
+    satisfied: Vec<String>,
+    suggestion: Option<SceneSuggestion>,
+}
+
+/// 本机现在上网用的地址（按默认路由选出，IPv4 和 IPv6 各一个）。UDP 的 connect 只选路由，
+/// 不发任何数据包；目标是文档专用地址。
+fn local_addresses() -> Vec<IpAddr> {
+    [("0.0.0.0:0", "192.0.2.1:9"), ("[::]:0", "[2001:db8::1]:9")]
+        .into_iter()
+        .filter_map(|(bind, target)| {
+            let socket = UdpSocket::bind(bind).ok()?;
+            socket.connect(target).ok()?;
+            let address = socket.local_addr().ok()?.ip();
+            (!address.is_unspecified()).then_some(address)
+        })
+        .collect()
+}
+
+/// 规则的简短说明：`工作日 09:00–18:00`、`网段 10.0.0.0/8`、`intranet.example 能解析`。
+pub fn rule_label(rule: &Rule, english: bool) -> String {
+    match rule {
+        Rule::Time { days, start, end } => {
+            let mut days = days.clone();
+            days.sort_unstable();
+            days.dedup();
+            let names_zh = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
+            let names_en = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+            let when = match days.as_slice() {
+                [1, 2, 3, 4, 5, 6, 7] => (if english { "Every day" } else { "每天" }).to_string(),
+                [1, 2, 3, 4, 5] => (if english { "Weekdays" } else { "工作日" }).to_string(),
+                [6, 7] => (if english { "Weekends" } else { "周末" }).to_string(),
+                days => days
+                    .iter()
+                    .filter_map(|&day| {
+                        let names = if english { &names_en } else { &names_zh };
+                        names.get(usize::from(day).checked_sub(1)?).copied()
+                    })
+                    .collect::<Vec<_>>()
+                    .join(if english { ", " } else { "、" }),
+            };
+            let overnight = scene_rules::parse_time(end) <= scene_rules::parse_time(start);
+            let next = match (overnight, english) {
+                (true, true) => " next day",
+                (true, false) => "次日 ",
+                _ => "",
+            };
+            if english {
+                format!("{when} {start}–{end}{next}")
+            } else {
+                format!("{when} {start}–{next}{end}")
+            }
+        }
+        Rule::Subnet { cidr } => {
+            if english {
+                format!("network {cidr}")
+            } else {
+                format!("网段 {cidr}")
+            }
+        }
+        Rule::Host { host } => {
+            if english {
+                format!("{host} resolves")
+            } else {
+                format!("{host} 能解析")
+            }
+        }
+    }
+}
+
 impl SceneReport {
     pub fn failed(&self) -> bool {
         self.results
@@ -116,6 +214,7 @@ impl SceneReport {
 
 impl Service {
     pub fn scenes(&self) -> ApiResult<SceneList> {
+        let hint = self.scene_hint();
         let rt = self.runtime();
         let data = store::load_readonly(&rt.env).map_err(|e| self.err(e))?;
         let scenes = data
@@ -137,6 +236,7 @@ impl Service {
                         Err(_) => pending.push(tool),
                     }
                 }
+                let suggested = hint.as_ref().is_some_and(|hint| hint.id == scene.id);
                 let status = if pending.is_empty() {
                     SceneStatus::Active
                 } else if data.last_scene.as_deref() == Some(scene.id.as_str()) {
@@ -146,6 +246,7 @@ impl Service {
                 };
                 SceneView {
                     scene: scene.clone(),
+                    suggested: suggested && status != SceneStatus::Active,
                     status,
                     pending,
                     missing,
@@ -156,6 +257,72 @@ impl Service {
             scenes,
             last: data.last_scene,
         })
+    }
+
+    /// 上一次检查规则后建议切换到的场景。只读内存，不检查规则。
+    pub fn scene_hint(&self) -> Option<SceneSuggestion> {
+        self.scene_hints
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .suggestion
+            .clone()
+    }
+
+    /// 检查提醒规则（App 的后台线程每分钟一次）。只有场景的规则刚变成满足、场景又还没在用时
+    /// 才提醒一次；规则一直满足时只保留建议，不重复提醒。可能解析域名，别在界面线程上调。
+    pub fn refresh_scene_hint(&self) -> ApiResult<SceneHintUpdate> {
+        let rt = self.runtime();
+        let data = store::load_readonly(&rt.env).map_err(|e| self.err(e))?;
+        let mut satisfied = Vec::new();
+        let mut candidates = Vec::new();
+        if data.scenes.iter().any(|scene| !scene.rules.is_empty()) {
+            let addresses = local_addresses();
+            let cache = RefCell::new(HashMap::<String, bool>::new());
+            let resolves = |host: &str| {
+                *cache
+                    .borrow_mut()
+                    .entry(host.to_string())
+                    .or_insert_with(|| {
+                        (host, 0)
+                            .to_socket_addrs()
+                            .is_ok_and(|mut found| found.next().is_some())
+                    })
+            };
+            let now = chrono::Local::now();
+            let context = RuleContext {
+                weekday: now.weekday().number_from_monday() as u8,
+                minute: (now.hour() * 60 + now.minute()) as u16,
+                addresses: &addresses,
+                resolves: &resolves,
+            };
+            for scene in &data.scenes {
+                let Some(SceneRule::Known(rule)) = scene
+                    .rules
+                    .iter()
+                    .find(|rule| scene_rules::matches(rule, &context))
+                else {
+                    continue;
+                };
+                satisfied.push(scene.id.clone());
+                if !scene::matches(&rt.env, &data, scene) {
+                    candidates.push(SceneSuggestion {
+                        id: scene.id.clone(),
+                        name: scene.name.clone(),
+                        rule: rule.clone(),
+                    });
+                }
+            }
+        }
+        let mut hints = self.scene_hints.lock().unwrap_or_else(|e| e.into_inner());
+        let notify = candidates
+            .iter()
+            .find(|candidate| !hints.satisfied.contains(&candidate.id))
+            .cloned();
+        let suggestion = candidates.into_iter().next();
+        let changed = hints.suggestion != suggestion;
+        hints.satisfied = satisfied;
+        hints.suggestion = suggestion;
+        Ok(SceneHintUpdate { notify, changed })
     }
 
     /// 把现在的状态记成一个还没保存的场景（id 和名字为空）。`tools` 为空时取所有有卡的工具。
@@ -252,6 +419,15 @@ impl Service {
             .map(|(tool, entry)| (tool, entry.clone()))
             .collect();
         let report = self.run_scene(&rt, entries, Some(&scene.id));
+        let mut hints = self.scene_hints.lock().unwrap_or_else(|e| e.into_inner());
+        if hints
+            .suggestion
+            .as_ref()
+            .is_some_and(|hint| hint.id == scene.id)
+        {
+            hints.suggestion = None;
+        }
+        drop(hints);
         self.noted(report)
     }
 

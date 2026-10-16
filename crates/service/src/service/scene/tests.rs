@@ -274,3 +274,115 @@ fn capture_skips_tools_without_cards_and_rejects_bad_undo_snapshots() {
         .results
         .is_empty());
 }
+
+/// 两条合起来覆盖全天的时间规则：结果不依赖测试运行的时刻和网络。
+fn always() -> Vec<SceneRule> {
+    let days = json!([1, 2, 3, 4, 5, 6, 7]);
+    [("00:00", "12:00"), ("12:00", "00:00")]
+        .into_iter()
+        .map(|(start, end)| {
+            serde_json::from_value(
+                json!({"kind": "time", "days": days, "start": start, "end": end}),
+            )
+            .unwrap()
+        })
+        .collect()
+}
+
+#[test]
+fn reminders_fire_once_when_rules_start_matching_and_stay_as_suggestions() {
+    let home = home();
+    let service = &home.service;
+    let save = |name: &str, card: &str, rules: Vec<SceneRule>| {
+        let mut scene = Scene {
+            name: name.into(),
+            rules,
+            ..Scene::default()
+        };
+        scene
+            .tools
+            .insert("claude".into(), SceneTool::current(card));
+        service.save_scene(scene).unwrap()
+    };
+    assert_eq!(
+        service.refresh_scene_hint().unwrap(),
+        SceneHintUpdate::default()
+    );
+    let a = save("A", "a", always());
+    let b = save("B", "b", always());
+    save("Plain", "b", Vec::new());
+
+    let first = service.refresh_scene_hint().unwrap();
+    assert!(first.changed);
+    let notified = first.notify.unwrap();
+    assert_eq!(
+        (notified.id.as_str(), notified.name.as_str()),
+        (b.id.as_str(), "B"),
+        "A is already in use"
+    );
+    assert!(matches!(notified.rule, Rule::Time { .. }));
+    assert_eq!(service.scene_hint().unwrap().id, b.id);
+    let views = service.scenes().unwrap().scenes;
+    assert_eq!(
+        views.iter().map(|v| v.suggested).collect::<Vec<_>>(),
+        [false, true, false]
+    );
+
+    assert_eq!(
+        service.refresh_scene_hint().unwrap(),
+        SceneHintUpdate::default(),
+        "no repeat"
+    );
+
+    service.apply_scene(&b.id, None).unwrap();
+    assert_eq!(
+        service.scene_hint(),
+        None,
+        "applying the suggestion clears it"
+    );
+    let after = service.refresh_scene_hint().unwrap();
+    assert_eq!(after.notify, None, "A's rules were already satisfied");
+    assert!(after.changed);
+    assert_eq!(service.scene_hint().unwrap().id, a.id);
+
+    for scene in [&a, &b] {
+        service
+            .save_scene(Scene {
+                rules: Vec::new(),
+                ..scene.clone()
+            })
+            .unwrap();
+    }
+    let cleared = service.refresh_scene_hint().unwrap();
+    assert!(cleared.changed && cleared.notify.is_none());
+    assert_eq!(service.scene_hint(), None);
+}
+
+#[test]
+fn rule_labels_read_naturally() {
+    let label = |value: serde_json::Value, english: bool| {
+        let rule: Rule = serde_json::from_value(value).unwrap();
+        rule_label(&rule, english)
+    };
+    let work = json!({"kind": "time", "days": [5, 1, 2, 3, 4], "start": "09:00", "end": "18:00"});
+    assert_eq!(label(work.clone(), false), "工作日 09:00–18:00");
+    assert_eq!(label(work, true), "Weekdays 09:00–18:00");
+    let night = json!({"kind": "time", "days": [6, 7], "start": "22:00", "end": "02:00"});
+    assert_eq!(label(night.clone(), false), "周末 22:00–次日 02:00");
+    assert_eq!(label(night, true), "Weekends 22:00–02:00 next day");
+    assert_eq!(
+        label(
+            json!({"kind": "time", "days": [1, 3], "start": "08:00", "end": "09:00"}),
+            false
+        ),
+        "周一、周三 08:00–09:00"
+    );
+    assert_eq!(
+        label(json!({"kind": "subnet", "cidr": "10.0.0.0/8"}), false),
+        "网段 10.0.0.0/8"
+    );
+    assert_eq!(
+        label(json!({"kind": "host", "host": "intranet.example"}), true),
+        "intranet.example resolves"
+    );
+}

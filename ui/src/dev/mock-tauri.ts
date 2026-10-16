@@ -226,7 +226,11 @@ function noteDemo(tool: ToolId, provider: string, enabled: boolean) {
 // 场景：「个人」和现在的状态一致，「公司」要切 Claude、Codex 和 OpenCode。
 let scenes: Scene[] = [
   { id: "scene-home", name: "个人", tools: { claude: { current: "kimi" }, codex: { current: "official" }, opencode: { enabled: ["openrouter", "moonshot"] } } },
-  { id: "scene-work", name: "公司", tools: { claude: { current: "relay" }, codex: { current: "gateway" }, opencode: { enabled: ["openrouter"] }, hermes: { enabled: [] } } },
+  {
+    id: "scene-work", name: "公司",
+    tools: { claude: { current: "relay" }, codex: { current: "gateway" }, opencode: { enabled: ["openrouter"] }, hermes: { enabled: [] } },
+    rules: [{ kind: "time", days: [1, 2, 3, 4, 5], start: "09:00", end: "18:00" }, { kind: "subnet", cidr: "10.20.0.0/16" }],
+  },
 ];
 let lastScene: string | null = "scene-home";
 
@@ -389,6 +393,8 @@ const handlers: Record<string, (args: Args) => unknown> = {
       return {
         ...scene,
         status: pending.length === 0 ? "active" : scene.id === lastScene ? "drifted" : "idle",
+        // 演示：「公司」的规则一直满足，没在用时建议切换。
+        suggested: pending.length > 0 && (scene.rules?.length ?? 0) > 0,
         pending,
         missing: plans.flatMap((p) => p.missing.map((id) => ({ tool: p.tool, id }))),
       };
