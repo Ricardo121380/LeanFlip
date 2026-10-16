@@ -81,6 +81,13 @@ export interface QuotaBrief {
   note?: string;
 }
 
+/** 额度标记的悬停说明：来源名、本机或联网、多久以前。 */
+export function quotaTitle(source: QuotaSource | undefined, now: number, t: TFunction): string | undefined {
+  const snapshot = source?.snapshot;
+  if (!source || !snapshot) return undefined;
+  return [source.label, `${t(snapshot.origin === "local" ? "quota.local" : "quota.network")} · ${agoText(snapshot.fetchedAt, now, t)}`].filter(Boolean).join("\n");
+}
+
 /** 首页用的一小段，规则和托盘一致：快满的窗口优先，其次是余额，再其次是最满的窗口。 */
 export function quotaBrief(snapshot: QuotaSnapshot, now: number, t: TFunction, language: string): QuotaBrief | null {
   const worst = snapshot.windows.filter((w) => !w.reset).reduce<QuotaSnapshot["windows"][number] | undefined>((a, w) => (!a || w.usedPercent > a.usedPercent ? w : a), undefined);

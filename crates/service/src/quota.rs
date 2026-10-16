@@ -322,7 +322,7 @@ impl CodexIdentity {
     }
 
     /// 这个身份（可能缺用户）能不能认领一条观测到的身份。
-    fn covers(&self, seen: &CodexIdentity) -> bool {
+    pub(crate) fn covers(&self, seen: &CodexIdentity) -> bool {
         self.workspace == seen.workspace
             && self
                 .user

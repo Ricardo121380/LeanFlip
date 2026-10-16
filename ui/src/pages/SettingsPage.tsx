@@ -164,6 +164,20 @@ export function SettingsPage({ onLeaveStateChange }: { onLeaveStateChange?: (sta
             <Row id="settings-tray-quota" label={t("settings.trayQuotaTitle")} hint={t("settings.trayQuotaTitleHint")}>
               <Switch id="settings-tray-quota" aria-describedby="settings-tray-quota-hint" aria-label={t("settings.trayQuotaTitle")} checked={app.trayQuotaTitle ?? false} onCheckedChange={(v) => set({ trayQuotaTitle: v })} />
             </Row>
+            <Row id="settings-codex-quota" label={t("settings.codexQuotaRefresh")} hint={t("settings.codexQuotaRefreshHint")}>
+              <NativeSelect
+                id="settings-codex-quota"
+                className="w-36 shrink-0"
+                aria-label={t("settings.codexQuotaRefresh")}
+                aria-describedby="settings-codex-quota-hint"
+                value={String(app.codexQuotaRefreshMinutes ?? 0)}
+                onChange={(e) => set({ codexQuotaRefreshMinutes: Number(e.target.value) })}
+              >
+                <option value="0">{t("settings.codexQuotaOff")}</option>
+                <option value="15">{t("settings.codexQuota15")}</option>
+                <option value="60">{t("settings.codexQuota60")}</option>
+              </NativeSelect>
+            </Row>
             <Row id="settings-keep-login" label={t("settings.keepCodexLogin")} hint={t("settings.keepCodexLoginHint")}>
               <Switch id="settings-keep-login" aria-describedby="settings-keep-login-hint" aria-label={t("settings.keepCodexLogin")} checked={keep} onCheckedChange={(keep) => setDraft({ ...draft, keep })} />
             </Row>

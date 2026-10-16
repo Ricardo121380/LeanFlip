@@ -3,6 +3,7 @@ mod data;
 mod editor;
 mod menu;
 mod presentation;
+mod quota;
 mod scene;
 mod tui;
 
@@ -808,6 +809,7 @@ fn run(cli: Cli) -> Result<Output, CliError> {
             };
             Ok(Output::new(json!({"noticeCount": notices.len()}), text))
         }
+        Command::Quota { refresh } => quota::run(&service, refresh, lang),
         Command::Scene { action } => scene::run(&service, action, lang),
     };
     let mut output = result?;
@@ -935,6 +937,7 @@ fn writes_data(command: &Command) -> bool {
         },
         Command::Accounts { action } => !matches!(action, AccountCommand::List),
         Command::Scene { action } => matches!(action, SceneCommand::Apply { .. }),
+        Command::Quota { refresh } => *refresh,
         _ => true,
     }
 }

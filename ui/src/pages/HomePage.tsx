@@ -184,7 +184,7 @@ export function HomePage({ mode, onNavigate }: { mode: HomeMode; onNavigate: (ha
         </section>
       ) : (
         <section aria-label={t("home.map")} className="home-panel">
-          <LightMap rows={rows} latency={latency} onSwitch={onSwitch} onToggle={onToggle} />
+          <LightMap rows={rows} latency={latency} quota={cards} now={now} onSwitch={onSwitch} onToggle={onToggle} />
         </section>
       )}
       {detecting && (

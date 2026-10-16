@@ -891,3 +891,73 @@ fn a_partly_applied_scene_prints_results_and_fails_with_a_stable_code() {
         .contains("[scene.partial]"));
     assert_eq!(current(&sb, Tool::Claude), "a");
 }
+
+#[test]
+fn quota_reads_local_data_without_writes_and_refresh_reports_failures() {
+    let sb = Sandbox::new();
+    let empty = sb.ok(&["quota", "--json"]);
+    assert_eq!(empty["sources"], json!([]));
+    assert!(human(sb.run(&["quota"])).contains("还没有额度来源"));
+    assert!(snapshot(&sb.env.home).is_empty());
+
+    // A relay card with its platform set; it points at a closed local port so
+    // --refresh fails without leaving the machine.
+    let mut relay = Provider::new(
+        "relay",
+        "Relay",
+        json!({"env": {"ANTHROPIC_BASE_URL": "http://127.0.0.1:9", "ANTHROPIC_AUTH_TOKEN": "sk-private-relay"}}),
+    );
+    relay
+        .meta
+        .extra
+        .insert("leanflipQuota".into(), json!({"adapter": "sub2api"}));
+    store::add_provider(&sb.env, Tool::Claude, relay).unwrap();
+    leanflip_core::switch::switch(&sb.env, Tool::Claude, "relay").unwrap();
+    let before = snapshot(&sb.env.home);
+    let view = sb.ok(&["quota", "--json"]);
+    let source = &view["sources"][0];
+    assert_eq!(source["kind"], "relay");
+    assert!(source.get("snapshot").is_none());
+    assert_eq!(source["users"][0]["active"], true);
+    let text = human(sb.run(&["quota"]));
+    assert!(
+        text.contains("暂无数据") && text.contains("claude · Relay *"),
+        "{text}"
+    );
+    assert!(text.contains("leanflip quota --refresh"));
+    assert_eq!(snapshot(&sb.env.home), before, "quota wrote into the home");
+
+    // Cached numbers are shown with their age; no credentials appear anywhere.
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64;
+    let key = source["key"].as_str().unwrap();
+    sb.write(
+        &sb.env.data_file("quota-cache.json"),
+        json!({"version": 1, "entries": [], "relays": [{"key": key, "snapshot": {
+            "windows": [{"minutes": 1440, "usedPercent": 85.0, "reset": false}],
+            "balance": {"unit": "USD", "remaining": 12.3, "limit": 50.0, "used": 37.7},
+            "fetchedAt": now - 5 * 60_000, "origin": "network", "level": "warn", "limitReached": false
+        }}]})
+        .to_string(),
+    );
+    let text = human(sb.run(&["quota"]));
+    assert!(text.contains("1 天 85% · 余 $12.30 / $50.00"), "{text}");
+    assert!(
+        text.contains("快用完") && text.contains("联网 · 5 分钟前"),
+        "{text}"
+    );
+    let english = human(sb.run(&["--lang", "en", "quota"]));
+    assert!(
+        english.contains("1d 85% · left $12.30 / $50.00") && english.contains("online · 5m ago"),
+        "{english}"
+    );
+    let wire = String::from_utf8(sb.run(&["quota", "--json"]).stdout).unwrap();
+    assert!(!wire.contains("sk-private") && !text.contains("sk-private"));
+
+    let refreshed = sb.ok(&["quota", "--refresh", "--json"]);
+    let source = &refreshed["sources"][0];
+    assert!(source["error"]["code"].is_string(), "{refreshed}");
+    assert_eq!(source["snapshot"]["balance"]["remaining"], 12.3);
+}

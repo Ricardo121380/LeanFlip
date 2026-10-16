@@ -45,7 +45,9 @@ import { settle } from "@/lib/probe";
 import { filterPresets, loadPresets, type Preset } from "@/lib/presets";
 import { toolMeta } from "@/lib/tools";
 import { cn } from "@/lib/utils";
-import { showWarnings, refreshAll } from "@/hooks/queries";
+import { keys, showWarnings, refreshAll } from "@/hooks/queries";
+import { LINK_META, linkedCards, syncSource, withApiKey } from "@/lib/sync";
+import { TOOLS } from "@/lib/tools";
 
 const CODEX_TEMPLATE = (model: string) =>
   `model_provider = "custom"\nmodel = "${model}"\n\n[model_providers.custom]\nname = "custom"\nbase_url = ""\nwire_api = "responses"\nrequires_openai_auth = true\n`;
@@ -166,9 +168,11 @@ interface Props {
   existingIds: string[];
   accounts?: AccountInfo[];
   logins?: LoginSummary[];
+  /** 新建（或复制）保存成功后调用，用来提议同步到其他 Agent。 */
+  onCreated?: (provider: Provider) => void;
 }
 
-export function ProviderEditor({ tool, open, onOpenChange, provider, template, existingIds, accounts = [], logins = [] }: Props) {
+export function ProviderEditor({ tool, open, onOpenChange, provider, template, existingIds, accounts = [], logins = [], onCreated }: Props) {
   const { t } = useTranslation();
   const client = useQueryClient();
   const descriptionId = useId();
@@ -356,6 +360,34 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
     }
   }
 
+  /** 改了关联卡的 Key：问要不要把其他 Agent 里还在用旧 Key 的卡一起换掉。 */
+  async function offerLinkedKeyUpdate(before: Provider, after: Provider) {
+    const oldKey = syncSource(tool, before)?.apiKey ?? "";
+    const newKey = syncSource(tool, after)?.apiKey ?? "";
+    if (!oldKey || !newKey || oldKey === newKey) return;
+    // 现读一遍各工具的卡：缓存可能还没加载或已经过时，不能当成“没有关联卡”。
+    const lists = await Promise.allSettled(
+      TOOLS.map((item) => client.fetchQuery({ queryKey: keys.providers(item.id), queryFn: () => api.listProviders(item.id), staleTime: 0 })),
+    );
+    const failed = lists.find((result): result is PromiseRejectedResult => result.status === "rejected");
+    if (failed) toast.warning(t("sync.linkedUnknown", { reason: errorMessage(failed.reason) }));
+    const providers = Object.fromEntries(TOOLS.map((item, index) => [item.id, lists[index].status === "fulfilled" ? lists[index].value.providers : []]));
+    const linked = linkedCards(tool, before, oldKey, providers);
+    if (linked.length === 0) return;
+    const cards = linked.map((item) => `${toolMeta(item.tool).label} · ${item.provider.name}`).join(t("common.separator"));
+    if (!(await confirm({ title: t("sync.linkedTitle"), description: t("sync.linkedHint", { cards }), confirmLabel: t("sync.linkedAction") }))) return;
+    let updated = 0;
+    for (const item of linked) {
+      try {
+        showWarnings(await api.updateProvider(item.tool, withApiKey(item.tool, item.provider, newKey)));
+        updated += 1;
+      } catch (error) {
+        toast.error(t("sync.linkedFailed", { name: `${toolMeta(item.tool).label} · ${item.provider.name}`, reason: errorMessage(error) }));
+      }
+    }
+    if (updated) toast.success(t("sync.linkedDone", { count: updated }));
+  }
+
   async function save() {
     if (!canSave || !parsed.ok) return;
     setSaving(true);
@@ -370,6 +402,11 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
         next = { ...rest, id: uniqueId(id.trim(), existingIds), name: name.trim() || id.trim(), settingsConfig: parsed.value, createdAt: Date.now() };
         if (category) next.category = category;
         else delete next.category;
+        // 副本不跟原卡共用关联：之后改 Key 时不应该互相提示。
+        if (next.meta?.[LINK_META] !== undefined) {
+          const { [LINK_META]: _link, ...meta } = next.meta;
+          next.meta = meta;
+        }
       }
       if (website.trim()) next.websiteUrl = website.trim();
       else delete next.websiteUrl;
@@ -384,7 +421,9 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
         : await api.addProvider(tool, next, apply);
       showWarnings(result);
       toast.success(t("editor.saved"));
+      if (editing) await offerLinkedKeyUpdate(provider!, next);
       onOpenChange(false);
+      if (!editing) onCreated?.(next);
     } catch (error) {
       setSaveError(errorMessage(error));
     } finally {

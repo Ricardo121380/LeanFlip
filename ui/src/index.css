@@ -379,6 +379,11 @@
     font-variant-numeric: tabular-nums;
     color: hsl(var(--muted-foreground));
   }
+  /* On the light map the mark sits on the endpoint's line instead of above it. */
+  .lm-hosts .qs {
+    top: 0;
+    flex-shrink: 0;
+  }
 
   /* Home: list / map switch. */
   .segmented {
