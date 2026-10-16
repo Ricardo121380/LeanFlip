@@ -842,7 +842,16 @@ mod tests {
         assert!(service.refresh_scene_hint().unwrap().notify.is_some());
         let hint = model(&service).scene_hint.unwrap();
         assert_eq!(hint.id, format!("sh:{}", office.id));
-        assert_eq!(hint.label, "建议切换到场景「Office」（每天 00:00–12:00）");
+        // 标签写的是现在命中的那条规则，上午和下午不同。
+        assert!(
+            [
+                "建议切换到场景「Office」（每天 00:00–12:00）",
+                "建议切换到场景「Office」（每天 12:00–次日 00:00）"
+            ]
+            .contains(&hint.label.as_str()),
+            "{}",
+            hint.label
+        );
 
         service.apply_scene(&office.id, None).unwrap();
         assert_eq!(model(&service).scene_hint, None);
