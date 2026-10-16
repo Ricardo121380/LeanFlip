@@ -105,15 +105,22 @@ function relaySources(now: number): QuotaSource[] {
     const t = tools[tool];
     for (const p of t.providers) {
       const adapter = (p.meta?.leanflipQuota as { adapter?: string } | undefined)?.adapter;
-      if (adapter !== "sub2api" && adapter !== "newapi") continue;
+      if (adapter !== "sub2api" && adapter !== "newapi" && adapter !== "krill") continue;
       const active = t.kind === "switch" ? t.current === p.id : t.inLive.includes(p.id);
       sources.push({
         key: `relay:demo:${tool}:${p.id}`, kind: "relay", label: "gw.example.com", adapter,
-        users: [{ tool, providerId: p.id, providerName: p.name, active }], snapshot: relaySnapshot(now),
+        users: [{ tool, providerId: p.id, providerName: p.name, active }], snapshot: (p.meta?.leanflipQuota as {accountToken?: string})?.accountToken ? accountSnapshot(now) : relaySnapshot(now),
       });
     }
   }
   return sources;
+}
+
+function accountSnapshot(now: number): QuotaSnapshot {
+  return { windows: [], balance: { unit: "USD", unlimited: false, accountRemaining: 123.45 }, fetchedAt: now, origin: "network", level: "ok", limitReached: false };
+}
+function krillDetection(): QuotaDetect {
+  return { adapter: "krill", key: "relay:demo:krill", steps: [{adapter:"krill",url:"https://www.krill-code.com/api/subscription",outcome:"hit",status:200}], snapshot: relaySnapshot(Date.now()) };
 }
 let app: SettingsView["app"] = { language: null, theme: null, dirOverrides: {}, autostart: false, backgroundRefreshHours: 168, closeToTray: true };
 const ok = { changed: [] as string[], warnings: [] as string[] };
@@ -448,6 +455,10 @@ const handlers: Record<string, (args: Args) => unknown> = {
   codex_accounts: () => accounts,
   codex_logins: () => logins,
   quota_overview: () => quotaView(),
+  quota_account_detect: (): QuotaDetect => ({ adapter: "newapi", key: "relay:demo:account", steps: [{adapter:"newapi",url:"https://gw.example.com/api/user/self",outcome:"hit",status:200}], snapshot: accountSnapshot(Date.now()) }),
+  quota_krill_login: () => ({credential:"__leanflip_krill_login_demo",detected:krillDetection()}),
+  quota_krill_login_cancel: () => null,
+  quota_krill_detect: () => krillDetection(),
   quota_refresh: () => { quotaCheckedAt = Date.now(); return quotaView(); },
   quota_detect: (): QuotaDetect => ({
     steps: [

@@ -1,4 +1,4 @@
-//! 中转站额度：sub2api / NewAPI 使用卡片 Key 和同一主机；Krill 使用独立 JWT 和固定官网。
+//! 中转站额度：sub2api / NewAPI 使用模型 Key 或独立用户令牌和同一主机；Krill 使用官网登录。
 //! 所有请求均不跟随重定向。
 //!
 //! - sub2api：`GET {origin}/v1/usage`（源码 `backend/internal/handler/gateway_handler.go`
@@ -12,6 +12,7 @@
 //! 很多站点对不认识的路径也回 200 网页，所以按 JSON 的内容判断是哪个平台。
 //! 卡片上的设置存在 `meta.leanflipQuota`，和 CC Switch 的 `usage_script` 分开。
 
+pub(crate) mod account;
 mod krill;
 #[cfg(test)]
 mod tests;
@@ -47,7 +48,7 @@ pub enum RelayAdapter {
 }
 
 impl RelayAdapter {
-    /// 使用模型 Key 识别时按这个顺序试。Krill 需单独填写网站 JWT。
+    /// 使用模型 Key 识别时按这个顺序试。Krill 使用独立的官网登录凭据。
     const ALL: [RelayAdapter; 2] = [RelayAdapter::Sub2api, RelayAdapter::Newapi];
 
     fn path(self) -> &'static str {
@@ -63,7 +64,7 @@ impl RelayAdapter {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QuotaSettings {
-    /// `sub2api`、`newapi`、`krill`，或 `off`（不查）。没有时表示还没识别过。
+    /// `sub2api`、`newapi`、`krill`，或 `off`（不查）。没有时自动识别。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub adapter: Option<String>,
     /// 自动刷新间隔（分钟），0 表示只在点刷新时查。
@@ -75,6 +76,12 @@ pub struct QuotaSettings {
     /// Krill 网站登录 JWT；仅用于固定官网的额度查询，发给前端时脱敏。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub krill_jwt: Option<String>,
+    /// 网站用户访问令牌，与模型调用 Key 分开；返回界面时脱敏。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub account_token: Option<String>,
+    /// 兼容要求 New-Api-User 请求头的旧版 NewAPI。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub account_user_id: Option<u64>,
 }
 
 impl QuotaSettings {
@@ -99,6 +106,9 @@ impl QuotaSettings {
 
     /// 保存前检查：平台、刷新间隔、换算比例及 Krill 登录凭据。
     pub fn validate(&self) -> Result<(), String> {
+        if self.account_user_id == Some(0) {
+            return Err("用户 ID 必须大于 0 / User ID must be positive".into());
+        }
         if !matches!(
             self.adapter.as_deref(),
             None | Some("sub2api" | "newapi" | "krill" | "off")
@@ -120,7 +130,7 @@ impl QuotaSettings {
                 .as_deref()
                 .is_none_or(|jwt| jwt.trim().is_empty())
         {
-            return Err("请填写 Krill 登录 JWT / Enter the Krill login JWT".into());
+            return Err("请先登录 Krill / Sign in to Krill first".into());
         }
         Ok(())
     }
@@ -153,11 +163,13 @@ fn endpoints(adapter: RelayAdapter, address: &Url) -> Vec<Url> {
     if adapter == RelayAdapter::Krill {
         return vec![Url::parse(KRILL_URL).expect("static Krill URL")];
     }
-    let root = origin(address)
-        .join(adapter.path())
-        .expect("static quota path");
+    path_endpoints(address, adapter.path())
+}
+
+fn path_endpoints(address: &Url, path: &str) -> Vec<Url> {
+    let root = origin(address).join(path).expect("static quota path");
     let prefixed = query_base(address)
-        .join(adapter.path().trim_start_matches('/'))
+        .join(path.trim_start_matches('/'))
         .expect("static quota path");
     if prefixed == root {
         vec![root]
@@ -182,15 +194,26 @@ pub(crate) fn source_key(origin: &Url, key: &str) -> String {
 }
 
 fn get(client: &Client, url: Url, key: &str) -> Result<(u16, Value), Failure> {
-    let response = client
+    get_with_user(client, url, key, None)
+}
+
+fn get_with_user(
+    client: &Client,
+    url: Url,
+    key: &str,
+    user_id: Option<u64>,
+) -> Result<(u16, Value), Failure> {
+    let mut request = client
         .get(url)
         .bearer_auth(key)
-        .header(ACCEPT, "application/json")
-        .send()
-        .map_err(|e| Failure {
-            code: if e.is_timeout() { "timeout" } else { "network" },
-            status: None,
-        })?;
+        .header(ACCEPT, "application/json");
+    if let Some(id) = user_id {
+        request = request.header("New-Api-User", id.to_string());
+    }
+    let response = request.send().map_err(|e| Failure {
+        code: if e.is_timeout() { "timeout" } else { "network" },
+        status: None,
+    })?;
     let status = response.status().as_u16();
     let failure = |code| Failure {
         code,
@@ -550,7 +573,8 @@ fn parse_newapi(v: &Value, per_usd: f64, now_ms: i64) -> Option<QuotaSnapshot> {
         .filter(|t| *t > 0);
     let balance = QuotaBalance {
         unit: "USD".into(),
-        remaining: usd(&data["total_available"]),
+        // 不限额 Key 的 RemainQuota 可能为负数，不能当成可用账户余额。
+        remaining: usd(&data["total_available"]).filter(|_| !unlimited),
         limit: usd(&data["total_granted"]).filter(|_| !unlimited),
         used: usd(&data["total_used"]),
         unlimited,
@@ -571,19 +595,21 @@ fn parse_newapi(v: &Value, per_usd: f64, now_ms: i64) -> Option<QuotaSnapshot> {
     )
 }
 
-/// 一张设置了平台类型的中转卡。
+/// 一张可查询的中转卡；平台为空时自动识别。
 #[derive(Debug, Clone)]
 pub(crate) struct RelayCard {
     pub user: QuotaUser,
     pub key: String,
     pub address: Url,
     pub secret: String,
-    pub adapter: RelayAdapter,
+    pub adapter: Option<RelayAdapter>,
     pub per_usd: f64,
     pub refresh_minutes: u32,
+    pub account_query: bool,
+    pub account_user_id: Option<u64>,
 }
 
-/// 各工具里设置了平台类型的中转卡。`active` 判断这张卡是否正在用。
+/// 各工具里未关闭额度查询、且有地址和 Key 的中转卡。`active` 判断这张卡是否正在用。
 pub(crate) fn relay_cards(
     providers: &[(Tool, &Provider)],
     active: &dyn Fn(Tool, &str) -> bool,
@@ -592,16 +618,29 @@ pub(crate) fn relay_cards(
         .iter()
         .filter(|(_, p)| !p.is_official_category())
         .filter_map(|(tool, p)| {
-            let settings = QuotaSettings::of(p)?;
-            let adapter = settings.adapter()?;
-            let (address, secret) = if adapter == RelayAdapter::Krill {
+            let settings = QuotaSettings::of(p).unwrap_or_default();
+            if settings.adapter.as_deref() == Some("off") {
+                return None;
+            }
+            let adapter = settings.adapter();
+            let account_token = settings
+                .account_token
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty() && *s != crate::redact::PLACEHOLDER);
+            let account_query = adapter != Some(RelayAdapter::Krill) && account_token.is_some();
+            let (address, secret) = if adapter == Some(RelayAdapter::Krill) {
                 let jwt = settings.krill_jwt.as_deref()?.trim();
                 if jwt.is_empty() || jwt == crate::redact::PLACEHOLDER {
                     return None;
                 }
                 (Url::parse(KRILL_URL).ok()?, jwt.to_string())
+            } else if account_query {
+                (account::address(*tool, p)?, account_token?.to_string())
             } else {
-                crate::probe::address_and_key(*tool, &p.settings_config)?
+                let (address, model_key) =
+                    crate::probe::address_and_key(*tool, &p.settings_config)?;
+                (address, model_key)
             };
             Some(RelayCard {
                 user: QuotaUser {
@@ -610,7 +649,9 @@ pub(crate) fn relay_cards(
                     provider_name: p.name.clone(),
                     active: active(*tool, &p.id),
                 },
-                key: if adapter == RelayAdapter::Krill {
+                key: if account_query {
+                    account::key(&address, &secret, settings.account_user_id)
+                } else if adapter == Some(RelayAdapter::Krill) {
                     source_key(&origin(&address), &secret)
                 } else {
                     source_key(&query_base(&address), &secret)
@@ -620,6 +661,8 @@ pub(crate) fn relay_cards(
                 adapter,
                 per_usd: settings.per_usd(),
                 refresh_minutes: settings.refresh_minutes,
+                account_query,
+                account_user_id: settings.account_user_id,
             })
         })
         .collect()
@@ -650,7 +693,7 @@ pub(crate) fn relay_sources(
             label: card.address.host_str().map(str::to_string),
             account_id: None,
             login: None,
-            adapter: Some(card.adapter),
+            adapter: card.adapter,
             refresh_minutes: interval,
             users: vec![card.user.clone()],
             snapshot,

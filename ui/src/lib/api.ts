@@ -216,6 +216,8 @@ export interface QuotaSettings {
   quotaPerUsd?: number;
   /** Krill 网站登录 JWT；后端读取时返回占位符。 */
   krillJwt?: string;
+  accountToken?: string;
+  accountUserId?: number;
 }
 
 export interface DetectStep {
@@ -556,6 +558,10 @@ export const api = {
     invoke<QuotaDetect>("quota_detect", { tool, settingsConfig, quotaPerUsd: quotaPerUsd ?? null }),
   quotaKrillDetect: (tool: ToolId, jwt?: string, providerId?: string) =>
     invoke<QuotaDetect>("quota_krill_detect", { tool, jwt: jwt ?? null, providerId: providerId ?? null }),
+  quotaKrillLogin: (tool: ToolId) => invoke<{ credential: string; detected: QuotaDetect }>("quota_krill_login", { tool }),
+  quotaKrillLoginCancel: () => invoke<void>("quota_krill_login_cancel"),
+  quotaAccountDetect: (tool: ToolId, settingsConfig: Record<string, unknown>, settings: QuotaSettings, providerId?: string) =>
+    invoke<QuotaDetect>("quota_account_detect", { tool, settingsConfig, settings, providerId: providerId ?? null }),
   quotaConfigure: (tool: ToolId, id: string, settings: QuotaSettings | null) => invoke<null>("quota_configure", { tool, id, settings }),
   codexSetLoginRef: (id: string, identity: string | null) =>
     invoke<OpResult>("codex_set_login_ref", { id, identity }),

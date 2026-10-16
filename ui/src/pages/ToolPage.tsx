@@ -3,7 +3,7 @@ import { QueryState } from "@/components/QueryState";
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { useIsMutating } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, ArrowRightLeft, Copy, CopyPlus, Download, Gauge, FileCode2, FolderSearch, Loader2, Pencil, Plus, Search, Share2, Trash2, UserRound, X } from "lucide-react";
+import { AlertTriangle, ArrowRightLeft, Copy, CopyPlus, Download, Gauge, FileCode2, FolderSearch, Loader2, Pencil, Plus, RefreshCw, Search, Share2, Trash2, UserRound, X } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,8 +13,10 @@ import { Switch } from "@/components/ui/switch";
 const CommonConfigEditor = lazy(() => import("@/components/CommonConfigEditor").then((m) => ({ default: m.CommonConfigEditor })));
 const ProviderEditor = lazy(() => import("@/components/ProviderEditor").then((m) => ({ default: m.ProviderEditor })));
 const SyncDialog = lazy(() => import("@/components/SyncDialog").then((m) => ({ default: m.SyncDialog })));
-import { useAccounts, useAction, useLogins, useOverview, useProviders, useSwitchProvider } from "@/hooks/queries";
-import { api, errorMessage, type AccountInfo, type ProbeResult, type Provider, type ToolId } from "@/lib/api";
+import { useAccounts, useAction, useLogins, useOverview, useProviders, useQuota, useQuotaRefresh, useSwitchProvider } from "@/hooks/queries";
+import { api, errorMessage, type AccountInfo, type ProbeResult, type Provider, type QuotaSource, type ToolId } from "@/lib/api";
+import { agoText, errorText, quotaBrief, quotaSettingsOf, quotaTitle, sourcesByCard } from "@/lib/quota";
+import { QuotaMeter } from "@/components/QuotaDetails";
 import { accountLabel, endpointOf, isOfficial, modelOf } from "@/lib/cards";
 import { syncSource, type SyncSource } from "@/lib/sync";
 import { failureText, latencyTone, providerDetail, settle, toneClass } from "@/lib/probe";
@@ -76,6 +78,24 @@ function Notice({ title, children, onRetry }: { title: string; children?: ReactN
   );
 }
 
+function ProviderQuota({ source, name, now, refreshing, onRefresh }: { source: QuotaSource; name: string; now: number; refreshing: boolean; onRefresh: () => void }) {
+  const { t, i18n } = useTranslation();
+  const brief = source.snapshot ? quotaBrief(source.snapshot, now, t, i18n.language) : null;
+  const online = source.kind === "relay" || source.accountId !== undefined;
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground" role="group" aria-label={t("quota.windowsLabel", { label: name })}>
+      <span className={cn("font-mono tabular-nums", brief?.level === "warn" && "text-warning", brief?.level === "out" && "text-destructive", brief?.level === "ok" && "text-foreground")} title={quotaTitle(source, now, t)}>{brief?.text ?? t("quota.pending")}</span>
+      {brief?.percent !== undefined && <QuotaMeter usedPercent={brief.percent} reset={false} className="w-16" />}
+      {brief?.note && <span>{brief.note}</span>}
+      {source.snapshot && <span>{agoText(source.snapshot.fetchedAt, now, t)}</span>}
+      {source.error && <span role="status" className="inline-flex items-center gap-1 text-warning"><AlertTriangle className="size-3 shrink-0" />{errorText(source.error, t)}</span>}
+      {online && <button type="button" disabled={refreshing} onClick={onRefresh} aria-label={t("quota.refreshFor", { label: name })} title={t("quota.refreshFor", { label: name })} className="inline-flex size-6 items-center justify-center rounded hover:bg-accent hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50">
+        {refreshing ? <Loader2 className="size-3 animate-spin" /> : <RefreshCw className="size-3" />}
+      </button>}
+    </div>
+  );
+}
+
 export function ToolPage({ tool }: { tool: ToolId }) {
   const { t } = useTranslation();
   const meta = toolMeta(tool);
@@ -84,6 +104,11 @@ export function ToolPage({ tool }: { tool: ToolId }) {
   const summary = useOverview(data?.providers.length === 0).data?.find((s) => s.tool === tool);
   const accounts = useAccounts(tool === "codex").data ?? [];
   const logins = useLogins(tool === "codex").data ?? [];
+  const quota = useQuota();
+  const refreshQuota = useQuotaRefresh();
+  const quotaByCard = sourcesByCard(quota.data);
+  const quotaKeys = [...new Set((quota.data?.sources ?? []).filter((s) => s.users.some((u) => u.tool === tool) && (s.kind === "relay" || s.accountId)).map((s) => s.key))];
+  const now = Date.now();
   const [editing, setEditing] = useState<Provider | null>(null);
   const [copying, setCopying] = useState<Provider | null>(null);
   const [syncing, setSyncing] = useState<SyncSource | null>(null);
@@ -343,17 +368,22 @@ export function ToolPage({ tool }: { tool: ToolId }) {
                 {!coexist && !query && !currentProvider && <span> · {t("tool.noCurrent")}</span>}
               </p>
             </div>
-            <div className="flex w-full max-w-sm items-center gap-2">
+            <div className="flex w-full max-w-md flex-wrap items-center gap-2">
+              <Button size="sm" variant="outline" className="h-9 shrink-0" disabled={refreshQuota.isPending || quotaKeys.length === 0} onClick={() => refreshQuota.mutate(quotaKeys)}>
+                {refreshQuota.isPending ? <Loader2 className="animate-spin" /> : <RefreshCw />} {t("quota.refresh")}
+              </Button>
               <Button size="sm" variant="outline" className="h-9 shrink-0" disabled={testing || busy || data.providers.every(isOfficial)} onClick={() => void testAll()} title={t("probe.latencyAllHint")}>
                 {testing ? <Loader2 className="animate-spin" /> : <Gauge />} {t("probe.latencyAll")}
               </Button>
-              <div className="relative min-w-0 flex-1">
+              <div className="relative min-w-[8rem] flex-1">
                 <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" aria-hidden="true" />
                 <Input ref={searchInput} type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("tool.search")} aria-label={t("tool.search")} className="h-9 pl-9 pr-9 [&::-webkit-search-cancel-button]:appearance-none" />
                 {search && <Button size="icon" variant="ghost" className="absolute right-0.5 top-0.5" aria-label={t("tool.clearSearch")} onClick={clearSearch}><X /></Button>}
               </div>
             </div>
           </div>
+
+          {quota.isError && <p className="text-xs text-warning">{errorMessage(quota.error)} <button type="button" className="underline" onClick={() => void quota.refetch()}>{t("common.retry")}</button></p>}
 
           {providers.length === 0 ? (
             <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed p-8 text-center">
@@ -369,17 +399,18 @@ export function ToolPage({ tool }: { tool: ToolId }) {
                 const switching = switchAction.isPending && switchAction.variables?.id === p.id && switchAction.variables?.tool === tool;
                 const toggling = toggleAction.isPending && toggleAction.variables?.id === p.id;
                 const settingDefault = defaultAction.isPending && defaultAction.variables?.id === p.id;
+                const source = quotaByCard.get(`${tool}:${p.id}`);
                 return (
                   <li
                     key={p.id}
                     data-testid={`row-${p.id}`}
                     className={cn(
-                      "group relative flex min-w-0 items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/40",
+                      "group relative flex min-w-0 flex-wrap items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/40 sm:flex-nowrap",
                       (current || inLive) && "before:absolute before:inset-y-3 before:left-0 before:w-[3px] before:rounded-r-full before:bg-primary",
                     )}
                   >
                     <Monogram name={p.name} size={30} />
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-0 flex-1 basis-[calc(100%-3rem)] sm:basis-0">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span className="min-w-0 break-words font-medium [overflow-wrap:anywhere]">{p.name}</span>
                         {current && <Badge>{t("card.active")}</Badge>}
@@ -391,6 +422,8 @@ export function ToolPage({ tool }: { tool: ToolId }) {
                       </div>
                       <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground" title={subline(p)}>{subline(p)}</p>
                       {p.notes && <p className="mt-0.5 truncate text-xs text-muted-foreground" title={p.notes}>{p.notes}</p>}
+                      {source && <ProviderQuota source={source} name={p.name} now={now} refreshing={refreshQuota.isPending && (!refreshQuota.variables || refreshQuota.variables.includes(source.key))} onRefresh={() => refreshQuota.mutate([source.key])} />}
+                      {!source && quotaSettingsOf(p)?.adapter === "off" && <p className="mt-1.5 text-xs text-muted-foreground">{t("quota.off")}</p>}
                     </div>
                     <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                       {rowActions(p, current)}

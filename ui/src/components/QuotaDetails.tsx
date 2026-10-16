@@ -66,9 +66,9 @@ export function QuotaDetails({
         <div className="grid grid-cols-[auto_minmax(4rem,10rem)_auto_minmax(0,1fr)] items-center gap-x-2.5 gap-y-1.5">
           {balance && (balance.unlimited || balance.remaining !== undefined || balance.limit !== undefined) && (
             <Row
-              name={t("quota.balance")}
+              name={t(source?.adapter === "newapi" || balance.unlimited ? "quota.keyBalance" : "quota.balance")}
               meter={balanceUsed !== undefined ? <QuotaMeter usedPercent={balanceUsed} reset={false} className="w-full" /> : undefined}
-              value={balance.unlimited ? t("quota.unlimited") : balance.remaining !== undefined ? money(balance.remaining) : "—"}
+              value={balance.unlimited ? t("quota.keyUnlimited") : balance.remaining !== undefined ? money(balance.remaining) : "—"}
               level={balanceOut ? "out" : balanceUsed !== undefined ? windowLevel(balanceUsed, false) : "ok"}
               note={balance.limit !== undefined && !balance.unlimited ? t("quota.ofTotal", { total: money(balance.limit) }) : null}
             />
@@ -86,10 +86,12 @@ export function QuotaDetails({
               ].filter(Boolean).join(" · ")}
             />
           ))}
-          {balance?.accountRemaining !== undefined && <Row name={t("quota.accountBalance")} value={money(balance.accountRemaining)} />}
+          {balance?.accountRemaining !== undefined && <Row name={t("quota.accountBalance")} value={money(balance.accountRemaining)} level={snap.level === "out" && balance.accountRemaining <= 0 ? "out" : "ok"} />}
+          {balance?.unlimited && balance.accountRemaining === undefined && <Row name={t("quota.accountBalance")} value={t("quota.balanceUnavailable")} />}
           {credits && <Row name={t("quota.credits")} value={credits} />}
         </div>
       )}
+      {balance?.unlimited && balance.accountRemaining === undefined && <p className="leading-relaxed text-muted-foreground">{t("quota.accountBalanceHint")}</p>}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground">
         {snap ? (
           <span title={snap.origin === "local" ? t("quota.localHint") : undefined}>

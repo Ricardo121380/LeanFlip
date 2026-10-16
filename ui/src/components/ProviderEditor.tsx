@@ -6,7 +6,7 @@ import { ConfigCompatibility } from "./ConfigCompatibility";
 import { ConfigFields, useFieldError } from "./ConfigFields";
 import { readToml, setTomlValue } from "@/lib/toml-edit";
 import { useEditorNavigation } from "@/lib/navigation";
-import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import * as Tabs from "@radix-ui/react-tabs";
 import { ArrowLeft, Check, ExternalLink, ListRestart, Loader2, Plus, RotateCcw, Search } from "lucide-react";
@@ -28,7 +28,8 @@ import { applyRoutes, routeErrors, routesOf } from "@/lib/routes";
 import { loginChoices, loginHelp } from "@/lib/login-choices";
 import { adapterName, applyQuotaSettings, DEFAULT_QUOTA_PER_USD, quotaSettingsOf, RELAY_ADAPTERS } from "@/lib/quota";
 import { QuotaDetectDialog } from "@/components/QuotaDetectDialog";
-import { api, errorMessage, type AccountInfo, type LoginSummary, type ProbeResult, type Provider, type QuotaSettings, type ToolId } from "@/lib/api";
+import { QuotaDetails } from "@/components/QuotaDetails";
+import { api, errorMessage, type AccountInfo, type LoginSummary, type ProbeResult, type Provider, type QuotaDetect, type QuotaSettings, type ToolId } from "@/lib/api";
 import {
   endpointOf,
   fromEditorText,
@@ -199,9 +200,41 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
   const [loginSource, setLoginSource] = useState(loginSourceOf(source));
   const [quota, setQuota] = useState<QuotaSettings | null>(() => {
     const settings = quotaSettingsOf(source);
-    return copying && settings?.adapter === "krill" ? null : settings;
+    if (copying && settings?.adapter === "krill") return null;
+    if (copying && settings?.accountToken === REDACTED) {
+      const { accountToken: _token, accountUserId: _user, ...rest } = settings;
+      return rest;
+    }
+    return settings;
   });
   const [detecting, setDetecting] = useState(false);
+  const [krillLoginPending, setKrillLoginPending] = useState(false);
+  const [krillLoginError, setKrillLoginError] = useState<string | null>(null);
+  const [krillDetected, setKrillDetected] = useState<QuotaDetect | null>(null);
+  const krillLoginActive = useRef(false);
+  useEffect(() => () => {
+    if (krillLoginActive.current) {
+      krillLoginActive.current = false;
+      void api.quotaKrillLoginCancel().catch(() => {});
+    }
+  }, []);
+  const loginKrill = async () => {
+    krillLoginActive.current = true;
+    setKrillLoginPending(true);
+    setKrillLoginError(null);
+    try {
+      const result = await api.quotaKrillLogin(tool);
+      if (!krillLoginActive.current) return;
+      setQuota((q) => ({ ...(q ?? { refreshMinutes: 15 }), adapter: "krill", krillJwt: result.credential }));
+      setKrillDetected(result.detected);
+      toast.success(t("editor.krillLoginSuccess"));
+    } catch (error) {
+      if (krillLoginActive.current) setKrillLoginError(errorMessage(error));
+    } finally {
+      if (krillLoginActive.current) setKrillLoginPending(false);
+      krillLoginActive.current = false;
+    }
+  };
   const [routes, setRoutes] = useState(() => routesOf(source));
   const [apply, setApply] = useState(false);
   const [checkModel, setCheckModel] = useState("");
@@ -435,7 +468,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
     }
   }
 
-  const canSave = step === "form" && parsed.ok && !fieldError && routesOk && (editing ? dirty : id.trim() !== "") && !saving;
+  const canSave = step === "form" && parsed.ok && !fieldError && routesOk && (editing ? dirty : id.trim() !== "") && !saving && !krillLoginPending;
   const keyUrl = preset?.apiKeyUrl;
   const keyAction = keyUrl ? (
     <button type="button" className="inline-flex items-center gap-1 text-xs text-primary hover:underline" onClick={() => void openKeyPage(keyUrl)}>
@@ -601,8 +634,8 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
           title={t("editor.quotaTitle")}
           hint={t("editor.quotaHint")}
           aside={
-            <Button type="button" size="sm" variant="outline" disabled={saving || !parsed.ok} onClick={() => setDetecting(true)}>
-              {t(quota?.adapter === "krill" ? "editor.krillQuery" : "editor.quotaDetect")}
+            <Button type="button" size="sm" variant="outline" disabled={saving || krillLoginPending || !parsed.ok} onClick={() => quota?.adapter === "krill" && !quota.krillJwt ? void loginKrill() : setDetecting(true)}>
+              {t(quota?.adapter === "krill" && !quota.krillJwt ? "editor.krillLogin" : "editor.quotaDetect")}
             </Button>
           }
         >
@@ -611,6 +644,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
               <Label htmlFor="pe-quota-adapter">{t("editor.quotaAdapter")}</Label>
               <NativeSelect
                 id="pe-quota-adapter"
+                disabled={krillLoginPending}
                 value={quota?.adapter ?? ""}
                 onChange={(e) => {
                   const adapter = e.target.value as QuotaSettings["adapter"] | "";
@@ -627,16 +661,16 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
                 <option value="off">{t("editor.quotaAdapterOff")}</option>
               </NativeSelect>
             </div>
-            {quota?.adapter && quota.adapter !== "off" && (
+            {quota?.adapter !== "off" && (
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="pe-quota-refresh">{t("editor.quotaRefresh")}</Label>
                 <NativeSelect
                   id="pe-quota-refresh"
                   aria-describedby="pe-quota-refresh-hint"
-                  value={String(quota.refreshMinutes)}
+                  value={String(quota?.refreshMinutes ?? 0)}
                   onChange={(e) => setQuota((q) => ({ ...(q ?? { refreshMinutes: 0 }), refreshMinutes: Number(e.target.value) }))}
                 >
-                  {[0, 15, 60].includes(quota.refreshMinutes) ? null : <option value={quota.refreshMinutes}>{t("editor.quotaRefreshEvery", { count: quota.refreshMinutes })}</option>}
+                  {quota && ![0, 15, 60].includes(quota.refreshMinutes) ? <option value={quota.refreshMinutes}>{t("editor.quotaRefreshEvery", { count: quota.refreshMinutes })}</option> : null}
                   <option value="0">{t("editor.quotaRefreshOff")}</option>
                   <option value="15">{t("editor.quotaRefreshEvery", { count: 15 })}</option>
                   <option value="60">{t("editor.quotaRefreshEvery", { count: 60 })}</option>
@@ -646,18 +680,14 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
             )}
             {quota?.adapter === "krill" && (
               <div className="flex flex-col gap-1.5 sm:col-span-2">
-                <Label htmlFor="pe-krill-jwt">{t("editor.krillJwt")}</Label>
-                <Input
-                  id="pe-krill-jwt"
-                  type="password"
-                  autoComplete="off"
-                  spellCheck={false}
-                  aria-describedby="pe-krill-jwt-hint"
-                  value={quota.krillJwt ?? ""}
-                  onFocus={(e) => e.currentTarget.select()}
-                  onChange={(e) => setQuota((q) => ({ ...(q ?? { refreshMinutes: 0 }), krillJwt: e.target.value }))}
-                />
-                <p id="pe-krill-jwt-hint" className="text-xs leading-5 text-muted-foreground">{t("editor.krillJwtHint")}</p>
+                <p className="text-sm font-medium">{t(quota.krillJwt ? "editor.krillConnected" : "editor.krillNotConnected")}</p>
+                <p className="text-xs leading-5 text-muted-foreground">{t("editor.krillLoginHint")}</p>
+                {krillLoginPending ? <div className="flex items-center gap-2 text-sm" role="status">
+                  <Loader2 className="size-4 animate-spin" /> {t("editor.krillLoginWaiting")}
+                  <Button type="button" size="sm" variant="ghost" onClick={() => void api.quotaKrillLoginCancel().catch((error) => setKrillLoginError(errorMessage(error)))}>{t("common.cancel")}</Button>
+                </div> : quota.krillJwt ? <Button type="button" size="sm" variant="outline" className="self-start" onClick={() => void loginKrill()}>{t("editor.krillRelogin")}</Button> : null}
+                {krillLoginError && <p role="alert" className="text-xs text-destructive">{krillLoginError}</p>}
+                {krillDetected?.snapshot && <QuotaDetails source={{key: krillDetected.key ?? "", kind: "relay", adapter: "krill", users: [], snapshot: krillDetected.snapshot}} label={name || "Krill"} now={Date.now()} canRefresh={false} />}
               </div>
             )}
             {quota?.adapter === "newapi" && (
@@ -683,6 +713,15 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
                 <p className="text-xs leading-5 text-muted-foreground">{t("editor.quotaPerUsdHint")}</p>
               </div>
             )}
+            {quota?.adapter !== "krill" && quota?.adapter !== "off" && <div className="flex flex-col gap-2 sm:col-span-2">
+              <Label htmlFor="pe-account-token">{t("editor.accountToken")}</Label>
+              <Input id="pe-account-token" type="password" autoComplete="off" spellCheck={false} value={quota?.accountToken ?? ""} onFocus={(e) => e.currentTarget.select()} onChange={(e) => setQuota((q) => ({ ...(q ?? { refreshMinutes: 0 }), accountToken: e.target.value }))} />
+              <p className="text-xs leading-5 text-muted-foreground">{t("editor.accountTokenHint")}</p>
+              {quota?.accountToken && quota.adapter !== "sub2api" && <>
+                <Label htmlFor="pe-account-user">{t("editor.accountUserId")}</Label>
+                <Input id="pe-account-user" type="number" min={1} step={1} value={quota.accountUserId ?? ""} onChange={(e) => setQuota((q) => ({ ...(q ?? { refreshMinutes: 0 }), accountUserId: e.target.value ? Number(e.target.value) : undefined }))} />
+              </>}
+            </div>}
           </div>
         </Section>
       )}
@@ -693,6 +732,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
           settingsConfig={parsed.value}
           quotaPerUsd={quota?.quotaPerUsd}
           krill={quota?.adapter === "krill" ? { jwt: quota.krillJwt, providerId: provider?.id } : undefined}
+          account={quota?.adapter !== "krill" && quota?.accountToken ? { settings: quota, providerId: provider?.id } : undefined}
           onUse={(adapter) => setQuota((q) => ({ ...(q ?? { refreshMinutes: 0 }), adapter }))}
           onClose={() => setDetecting(false)}
         />

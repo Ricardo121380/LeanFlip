@@ -24,8 +24,8 @@ pub fn run(service: &Service, refresh: bool, lang: Language) -> Result<Output, C
     );
     if view.sources.is_empty() {
         text.push_str(lang.text(
-            "\n\n还没有额度来源。Codex 官方登录在本机用过之后会出现；中转卡在 LeanFlip App 里设置平台类型（sub2api / NewAPI）后可以查余额。",
-            "\n\nNo quota sources yet. A Codex ChatGPT sign-in shows up after it is used on this machine; set a relay card's platform (sub2api / NewAPI) in the LeanFlip App to check its balance.",
+            "\n\n还没有额度来源。Codex 官方登录在本机用过之后会出现；中转卡使用 leanflip quota --refresh 自动识别平台并查询余额。",
+            "\n\nNo quota sources yet. A Codex ChatGPT sign-in shows up after it is used on this machine; use leanflip quota --refresh to detect relay platforms and check their balances.",
         ));
     } else {
         let rows = view
@@ -142,7 +142,13 @@ fn amounts(snapshot: &QuotaSnapshot, lang: Language) -> String {
         .collect::<Vec<_>>();
     if let Some(balance) = &snapshot.balance {
         if balance.unlimited {
-            parts.push(lang.text("不限额", "unlimited").into());
+            parts.push(lang.text("Key 未设限", "Key has no cap").into());
+            if balance.account_remaining.is_none() {
+                parts.push(
+                    lang.text("账户余额未提供", "account balance unavailable")
+                        .into(),
+                );
+            }
         } else if let Some(remaining) = balance.remaining {
             let mut part = format!(
                 "{} {}",

@@ -13,6 +13,7 @@ serde_json.workspace = true
 toml_edit.workspace = true
 log.workspace = true
 zeroize.workspace = true
+getrandom.workspace = true
 age = { version = "0.12.1", default-features = false }
 tempfile.workspace = true
 rusqlite.workspace = true

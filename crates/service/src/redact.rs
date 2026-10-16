@@ -31,13 +31,19 @@ fn auth_mut(tool: Tool, provider: &mut Provider) -> Option<&mut serde_json::Map<
 /// 发给前端的副本。
 pub fn redact(tool: Tool, provider: &Provider) -> Provider {
     let mut copy = provider.clone();
-    if let Some(jwt) = copy
+    if let Some(quota) = copy
         .meta
         .extra
         .get_mut(crate::quota::relay::META_QUOTA)
-        .and_then(|quota| quota.get_mut("krillJwt"))
+        .and_then(Value::as_object_mut)
     {
-        *jwt = Value::String(PLACEHOLDER.into());
+        for field in ["krillJwt", "accountToken"] {
+            if let Some(secret) = quota.get_mut(field) {
+                if secret.as_str().is_some_and(|value| !value.is_empty()) {
+                    *secret = Value::String(PLACEHOLDER.into());
+                }
+            }
+        }
     }
     if let Some(auth) = auth_mut(tool, &mut copy) {
         for key in LOGIN_KEYS {
@@ -57,20 +63,23 @@ pub fn restore(tool: Tool, incoming: &mut Provider, stored: Option<&Provider>) {
         .get_mut(crate::quota::relay::META_QUOTA)
         .and_then(Value::as_object_mut)
     {
-        if quota.get("krillJwt").and_then(Value::as_str) == Some(PLACEHOLDER) {
-            match stored
-                .and_then(|p| p.meta.extra.get(crate::quota::relay::META_QUOTA))
-                .and_then(|quota| quota.get("krillJwt"))
-            {
-                Some(jwt) => {
-                    quota.insert("krillJwt".into(), jwt.clone());
-                }
-                None => {
-                    quota.remove("krillJwt");
+        for field in ["krillJwt", "accountToken"] {
+            if quota.get(field).and_then(Value::as_str) == Some(PLACEHOLDER) {
+                match stored
+                    .and_then(|p| p.meta.extra.get(crate::quota::relay::META_QUOTA))
+                    .and_then(|quota| quota.get(field))
+                {
+                    Some(secret) => {
+                        quota.insert(field.into(), secret.clone());
+                    }
+                    None => {
+                        quota.remove(field);
+                    }
                 }
             }
         }
     }
+
     let stored_auth = stored
         .and_then(|p| p.settings_config.get("auth"))
         .and_then(Value::as_object)

@@ -21,11 +21,14 @@ use crate::redact;
 use crate::settings::{self, AppSettings};
 use crate::usage;
 
+mod account_quota;
 mod backup;
 mod connection;
+mod krill_login;
 mod scene;
 pub use backup::{BackupItem, BackupPreview, RestoreOptions, RestoreReport, MAX_BACKUP_BYTES};
 pub use connection::{connection_info, ApiKeyChange, ConnectionInfo, ConnectionUpdate};
+pub use krill_login::KrillLogin;
 pub use scene::{
     rule_label, SceneHintUpdate, SceneList, SceneMissing, SceneOutcome, ScenePreview, SceneReport,
     SceneStatus, SceneStep, SceneSuggestion, SceneUndo, SceneView, ToolOutcome, ToolPreview,
@@ -250,6 +253,7 @@ pub struct Service {
     quota_errors: Mutex<HashMap<String, quota::QuotaError>>,
     /// 每个托管账号上次联网查询额度的时间，用来挡住连续点击。
     quota_attempts: Mutex<HashMap<String, i64>>,
+    krill_logins: Mutex<HashMap<String, krill_login::PendingLogin>>,
     quota_url: String,
     scene_hints: Mutex<scene::SceneHints>,
 }
@@ -326,6 +330,7 @@ impl Service {
             staged_backup: Arc::new(Mutex::new(backup::BackupCache::default())),
             quota_errors: Mutex::new(HashMap::new()),
             quota_attempts: Mutex::new(HashMap::new()),
+            krill_logins: Mutex::new(HashMap::new()),
             quota_url: quota::codex_remote::USAGE_URL.to_string(),
             scene_hints: Mutex::new(scene::SceneHints::default()),
         })
@@ -638,11 +643,12 @@ impl Service {
     pub fn add_provider(
         &self,
         tool: Tool,
-        provider: Provider,
+        mut provider: Provider,
         add_to_live: bool,
     ) -> ApiResult<OpResult> {
         let _guard = self.write_guard()?;
         let rt = self.runtime();
+        self.resolve_krill_login(&mut provider)?;
         self.check_incoming(&provider)?;
         if tool == Tool::Codex {
             switch::codex::validate_login_ref(&rt.env, &provider).map_err(|e| self.err(e))?;
@@ -693,7 +699,9 @@ impl Service {
         self.settle(&rt, tool)?;
         let data = store::load(&rt.env).map_err(|e| self.err(e))?;
         let stored = data.provider(tool, &provider.id).cloned();
+        self.check_account_origin(tool, &provider, stored.as_ref())?;
         redact::restore(tool, &mut provider, stored.as_ref());
+        self.resolve_krill_login(&mut provider)?;
         self.check_incoming(&provider)?;
         if tool == Tool::Codex {
             switch::codex::validate_login_ref(&rt.env, &provider).map_err(|e| self.err(e))?;
@@ -829,18 +837,28 @@ impl Service {
             .unwrap_or_else(|e| e.into_inner())
             .clone();
         let mut view = quota::build_view(holders, cards, seen, &errors, now);
-        let mut cached = quota::cache::load_relays(&rt.env, now);
-        cached.extend(relays.into_iter().map(|e| (e.key, e.snapshot)));
-        view.sources.extend(quota::relay::relay_sources(
-            &self.relay_cards(&data),
-            &cached,
-            &errors,
-        ));
+        let mut entries = quota::cache::load_relay_entries(&rt.env, now);
+        entries.extend(relays.into_iter().map(|e| (e.key.clone(), e)));
+        let cached = entries
+            .iter()
+            .map(|(key, e)| (key.clone(), e.snapshot.clone()))
+            .collect();
+        let mut cards = self.relay_cards(&data);
+        for card in &mut cards {
+            card.adapter = card.adapter.or_else(|| {
+                entries
+                    .get(&card.key)
+                    .and_then(|e| e.adapter)
+                    .filter(|a| *a != quota::relay::RelayAdapter::Krill)
+            });
+        }
+        view.sources
+            .extend(quota::relay::relay_sources(&cards, &cached, &errors));
         view.busiest = quota::busiest(&view.sources);
         Ok(view)
     }
 
-    /// 设置了平台类型的中转卡。切换式工具看当前指针，并存式工具看是否写进了客户端。
+    /// 可查询的中转卡（包括自动识别）。切换式工具看当前指针，并存式工具看是否写进了客户端。
     fn relay_cards(&self, data: &store::StoreData) -> Vec<quota::relay::RelayCard> {
         let coexist: HashMap<Tool, Vec<String>> = Tool::ALL
             .into_iter()
@@ -889,7 +907,7 @@ impl Service {
         }
     }
 
-    /// 联网查询托管账号和已设置平台的中转卡（`keys` 为空时查全部，否则只查这些来源），
+    /// 联网查询托管账号和中转卡；未设置平台时自动识别并缓存结果（`keys` 为空时查全部，否则只查这些来源），
     /// 然后返回最新的总览。需要重新登录的账号不查。
     pub fn quota_refresh(&self, keys: Option<Vec<String>>) -> ApiResult<quota::QuotaView> {
         let rt = self.runtime();
@@ -943,6 +961,7 @@ impl Service {
         }
 
         let data = store::load_readonly(&rt.env).map_err(|e| self.err(e))?;
+        let cached = quota::cache::load_relay_entries(&rt.env, quota::now_ms());
         let mut relays: Vec<quota::cache::RelayEntry> = Vec::new();
         let mut done: Vec<String> = Vec::new();
         for card in self.relay_cards(&data) {
@@ -953,22 +972,75 @@ impl Service {
             if !self.quota_attempt(&card.key) {
                 continue;
             }
-            let outcome = match client.as_ref() {
-                None => Err(failure("network", None)),
-                Some(client) => quota::relay::fetch(
+            let adapter = card.adapter.or_else(|| {
+                cached
+                    .get(&card.key)
+                    .and_then(|e| e.adapter)
+                    .filter(|a| *a != quota::relay::RelayAdapter::Krill)
+            });
+            let outcome = match (client.as_ref(), adapter) {
+                (None, _) => Err(failure("network", None)),
+                (Some(client), Some(adapter)) if card.account_query => {
+                    quota::relay::account::fetch(
+                        client,
+                        adapter,
+                        &card.address,
+                        &card.secret,
+                        card.account_user_id,
+                        card.per_usd,
+                        quota::now_ms(),
+                    )
+                    .map(|snapshot| (adapter, snapshot))
+                    .map_err(|f| failure(f.code, f.status))
+                }
+                (Some(client), Some(adapter)) => quota::relay::fetch(
                     client,
-                    card.adapter,
+                    adapter,
                     &card.address,
                     &card.secret,
                     card.per_usd,
                     quota::now_ms(),
                 )
+                .map(|snapshot| (adapter, snapshot))
                 .map_err(|f| failure(f.code, f.status)),
+                (Some(client), None) => {
+                    let (steps, found) = if card.account_query {
+                        quota::relay::account::detect(
+                            client,
+                            &card.address,
+                            &card.secret,
+                            card.account_user_id,
+                            card.per_usd,
+                            quota::now_ms(),
+                        )
+                    } else {
+                        quota::relay::detect(
+                            client,
+                            &card.address,
+                            &card.secret,
+                            card.per_usd,
+                            quota::now_ms(),
+                        )
+                    };
+                    found.ok_or_else(|| {
+                        let last = steps.iter().rev().find(|s| s.code.is_some());
+                        failure(
+                            last.and_then(|s| s.code.as_deref()).unwrap_or("format"),
+                            last.and_then(|s| s.status),
+                        )
+                    })
+                }
             };
             let key = card.key.clone();
             self.quota_outcome(
                 key.clone(),
-                outcome.map(|snapshot| relays.push(quota::cache::RelayEntry { key, snapshot })),
+                outcome.map(|(adapter, snapshot)| {
+                    relays.push(quota::cache::RelayEntry {
+                        key,
+                        snapshot,
+                        adapter: Some(adapter),
+                    })
+                }),
             );
         }
         // 缓存写不进去（磁盘满、目录不可写）时，这次返回的总览仍然用刚查到的结果。
@@ -1082,10 +1154,11 @@ impl Service {
             quota::codex_remote::client().map_err(|_| ApiError::message("network".into()))?;
         let (steps, found) =
             quota::relay::detect(&client, &address, &secret, per_usd, quota::now_ms());
-        if let Some((_, snapshot)) = &found {
+        if let Some((adapter, snapshot)) = &found {
             let entry = quota::cache::RelayEntry {
                 key: key.clone(),
                 snapshot: snapshot.clone(),
+                adapter: Some(*adapter),
             };
             if let Err(err) = quota::cache::save(&self.env(), &[], &[entry], quota::now_ms()) {
                 log::warn!("quota: cache not saved: {err}");
@@ -1129,13 +1202,15 @@ impl Service {
                 error: Some("noKrillJwt".into()),
             });
         };
+        let jwt = self.krill_credential(jwt)?;
         let client =
             quota::codex_remote::client().map_err(|_| ApiError::message("network".into()))?;
-        let result = quota::relay::detect_krill(&client, jwt, quota::now_ms());
+        let result = quota::relay::detect_krill(&client, &jwt, quota::now_ms());
         if let (Some(key), Some(snapshot)) = (&result.key, &result.snapshot) {
             let entry = quota::cache::RelayEntry {
                 key: key.clone(),
                 snapshot: snapshot.clone(),
+                adapter: Some(quota::relay::RelayAdapter::Krill),
             };
             if let Err(err) = quota::cache::save(&self.env(), &[], &[entry], quota::now_ms()) {
                 log::warn!("quota: cache not saved: {err}");
@@ -1150,8 +1225,11 @@ impl Service {
         &self,
         tool: Tool,
         id: &str,
-        settings: Option<quota::relay::QuotaSettings>,
+        mut settings: Option<quota::relay::QuotaSettings>,
     ) -> ApiResult<()> {
+        if let Some(jwt) = settings.as_mut().and_then(|s| s.krill_jwt.as_mut()) {
+            *jwt = self.krill_credential(jwt)?.to_string();
+        }
         if let Some(settings) = &settings {
             settings.validate().map_err(ApiError::message)?;
         }

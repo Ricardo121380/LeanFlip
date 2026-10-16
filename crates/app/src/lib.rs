@@ -1,6 +1,7 @@
 //! LeanFlip 桌面应用：Tauri 2 外壳，业务都在 `leanflip-core` 和 [`service`] 里。
 
 pub mod commands;
+mod krill_login;
 pub use leanflip_service::{oauth_http, redact, service, settings};
 mod tray;
 mod watcher;
@@ -157,6 +158,9 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
+            if window.label() != "main" {
+                return;
+            }
             if let WindowEvent::CloseRequested { api, .. } = event {
                 if let Some(state) = window.app_handle().try_state::<AppState>() {
                     state.0.backup_discard();
@@ -186,7 +190,10 @@ pub fn run() {
             commands::quota_overview,
             commands::quota_refresh,
             commands::quota_detect,
+            commands::quota_account_detect,
             commands::quota_krill_detect,
+            krill_login::quota_krill_login,
+            krill_login::quota_krill_login_cancel,
             commands::quota_configure,
             commands::switch_provider,
             commands::add_provider,

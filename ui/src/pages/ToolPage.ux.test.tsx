@@ -23,7 +23,7 @@ const providers: ToolProviders = {
 };
 
 function use(handlers: Record<string, Handler>) {
-  const fake = fakeBackend(handlers);
+  const fake = fakeBackend({ quota_overview: () => ({ sources: [], checkedAt: Date.now() }), ...handlers });
   backend.invoke = fake.invoke;
   return fake;
 }
@@ -57,7 +57,7 @@ describe("ToolPage task states", () => {
     expect(search).toHaveValue("");
     expect(search).toHaveFocus();
     expect(screen.getByTestId("row-official")).toBeInTheDocument();
-    expect(fake.calls.every((call) => call.cmd === "list_providers")).toBe(true);
+    expect(fake.calls.every((call) => ["list_providers", "quota_overview"].includes(call.cmd))).toBe(true);
   });
 
   it("shows the client config paths and copies the exact path", async () => {
