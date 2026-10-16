@@ -1,4 +1,4 @@
-//! 不把从文件里来的官方登录凭据交给前端。
+//! 不把从文件里来的官方登录凭据或 Krill 网站 JWT 交给前端。
 //!
 //! 卡片里可能带着 ChatGPT 登录（老版本 cc-switch 把 `auth.json` 抄进了官方卡，或者用户
 //! 粘贴了整份 `auth.json`）。发给前端之前把这些值换成占位符；前端原样带回占位符时，
@@ -31,6 +31,14 @@ fn auth_mut(tool: Tool, provider: &mut Provider) -> Option<&mut serde_json::Map<
 /// 发给前端的副本。
 pub fn redact(tool: Tool, provider: &Provider) -> Provider {
     let mut copy = provider.clone();
+    if let Some(jwt) = copy
+        .meta
+        .extra
+        .get_mut(crate::quota::relay::META_QUOTA)
+        .and_then(|quota| quota.get_mut("krillJwt"))
+    {
+        *jwt = Value::String(PLACEHOLDER.into());
+    }
     if let Some(auth) = auth_mut(tool, &mut copy) {
         for key in LOGIN_KEYS {
             if let Some(value) = auth.get_mut(*key) {
@@ -43,6 +51,26 @@ pub fn redact(tool: Tool, provider: &Provider) -> Provider {
 
 /// 前端带回来的卡：占位符换回库里的值；库里没有就去掉这个键（不会把占位符写进文件）。
 pub fn restore(tool: Tool, incoming: &mut Provider, stored: Option<&Provider>) {
+    if let Some(quota) = incoming
+        .meta
+        .extra
+        .get_mut(crate::quota::relay::META_QUOTA)
+        .and_then(Value::as_object_mut)
+    {
+        if quota.get("krillJwt").and_then(Value::as_str) == Some(PLACEHOLDER) {
+            match stored
+                .and_then(|p| p.meta.extra.get(crate::quota::relay::META_QUOTA))
+                .and_then(|quota| quota.get("krillJwt"))
+            {
+                Some(jwt) => {
+                    quota.insert("krillJwt".into(), jwt.clone());
+                }
+                None => {
+                    quota.remove("krillJwt");
+                }
+            }
+        }
+    }
     let stored_auth = stored
         .and_then(|p| p.settings_config.get("auth"))
         .and_then(Value::as_object)

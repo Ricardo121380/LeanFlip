@@ -33,6 +33,13 @@ describe("home quota brief", () => {
 });
 
 describe("relay quota helpers", () => {
+  it("round-trips Krill settings and removes its JWT when the adapter changes", () => {
+    const card: Provider = { id: "r", name: "R", settingsConfig: {} };
+    const settings = { adapter: "krill" as const, refreshMinutes: 15, krillJwt: "test-login-jwt" };
+    expect(quotaSettingsOf(applyQuotaSettings(card, settings))).toEqual(settings);
+    expect(applyQuotaSettings(card, { ...settings, adapter: "sub2api" }).meta?.leanflipQuota).toEqual({ adapter: "sub2api", refreshMinutes: 15 });
+  });
+
   it("formats dollars as currency and other units after the number", () => {
     expect(moneyText(31.4, "USD", "en")).toBe("$31.40");
     expect(moneyText(0, "USD", "zh")).toBe("$0.00");

@@ -1,7 +1,7 @@
 //! 额度：订阅窗口的已用百分比、credits 和中转站余额。
 //!
 //! 三个来源：Codex 本机会话记录里的 `rate_limits`（不联网）；托管 ChatGPT 账号的
-//! `wham/usage` 查询；中转站（sub2api、NewAPI）按卡片里的 Key 查询（见 [`relay`]）。
+//! `wham/usage` 查询；中转站按卡片 Key 或 Krill 网站 JWT 查询（见 [`relay`]）。
 //! 联网查询只在用户点刷新或识别时发生，结果缓存在 `quota-cache.json`。
 //!
 //! 数据按 ChatGPT 身份（工作区 + `chatgpt_user_id`）归档。身份的持有者是托管账号和本机登录
@@ -45,6 +45,12 @@ const WARN_FRACTION: f64 = 0.8;
 pub struct QuotaWindow {
     /// 窗口长度。不能假定 primary 就是 5 小时：有的套餐只有周窗口。
     pub minutes: i64,
+    /// 多套餐来源中区分各个套餐。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    /// 金额窗口默认为 USD；按次套餐使用 requests。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unit: Option<String>,
     pub used_percent: f64,
     /// 重置时间，Unix 秒。
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -566,7 +572,9 @@ pub fn brief(snapshot: &QuotaSnapshot, english: bool) -> Option<String> {
     let window = |w: &QuotaWindow| {
         format!(
             "{} {}%",
-            window_short(w.minutes, english),
+            w.label
+                .clone()
+                .unwrap_or_else(|| window_short(w.minutes, english)),
             w.used_percent.round() as i64
         )
     };

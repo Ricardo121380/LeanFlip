@@ -50,6 +50,63 @@ beforeEach(() => {
 });
 
 describe("Relay usage lookup in the provider editor", () => {
+  it("queries Krill with a separate JWT, displays named plans and saves without changing the model key", async () => {
+    const krillFound: QuotaDetect = {
+      steps: [{ adapter: "krill", url: "https://www.krill-code.com/api/subscription", outcome: "hit", status: 200 }],
+      adapter: "krill",
+      snapshot: {
+        windows: [
+          { minutes: 10080, label: "Claude Weekly", usedPercent: 20, reset: false, usedAmount: 20, limitAmount: 100 },
+          { minutes: 10080, label: "Requests", unit: "requests", usedPercent: 50, reset: false, usedAmount: 10, limitAmount: 20 },
+        ],
+        balance: { unit: "USD", accountRemaining: 0, unlimited: false },
+        fetchedAt: now, origin: "network", level: "ok", limitReached: false,
+      },
+    };
+    const { backend } = mount(relay, { quota_krill_detect: () => krillFound, update_provider: () => ({ changed: [], warnings: [] }) });
+    await userEvent.selectOptions(screen.getByLabelText("平台类型"), "krill");
+    const jwt = screen.getByLabelText("Krill 登录 JWT");
+    expect(jwt).toHaveAttribute("type", "password");
+    await userEvent.type(jwt, "test-login-jwt");
+    await userEvent.selectOptions(screen.getByLabelText("自动刷新"), "15");
+    expect(screen.queryByLabelText("多少额度算 $1")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "查询额度" }));
+    const dialog = await screen.findByRole("dialog", { name: "识别 公司网关 的额度接口" });
+    expect(await within(dialog).findByText("识别为 Krill")).toBeInTheDocument();
+    expect(within(dialog).getByText("Claude Weekly · 本周")).toBeInTheDocument();
+    expect(within(dialog).getByText("$20.00 / $100.00")).toBeInTheDocument();
+    expect(within(dialog).getByText("10 requests / 20 requests")).toBeInTheDocument();
+    expect(within(dialog).getByText("账户余额")).toBeInTheDocument();
+    expect(within(dialog).queryByText("余额")).not.toBeInTheDocument();
+    expect(backend.calls.find((call) => call.cmd === "quota_krill_detect")?.args).toEqual({ tool: "claude", providerId: "corp", jwt: "test-login-jwt" });
+    expect(backend.calls.some((call) => call.cmd === "quota_detect")).toBe(false);
+    await userEvent.click(within(dialog).getByRole("button", { name: "使用 Krill" }));
+    await userEvent.click(screen.getByRole("button", { name: "保存" }));
+    await waitFor(() => expect(backend.calls.some((call) => call.cmd === "update_provider")).toBe(true));
+    const saved = backend.calls.find((call) => call.cmd === "update_provider")!.args!.provider as Provider;
+    expect(saved.settingsConfig).toEqual(relay.settingsConfig);
+    expect(saved.meta?.leanflipQuota).toEqual({ adapter: "krill", refreshMinutes: 15, krillJwt: "test-login-jwt" });
+  });
+
+  it("keeps a saved Krill credential hidden and explains how to replace an expired JWT", async () => {
+    const configured: Provider = { ...relay, meta: { leanflipQuota: { adapter: "krill", refreshMinutes: 0, krillJwt: "__leanflip_redacted__" } } };
+    const { backend } = mount(configured, {
+      quota_krill_detect: () => ({ steps: [{ adapter: "krill", url: "https://www.krill-code.com/api/subscription", outcome: "miss", status: 401, code: "krillAuth" }] }),
+      update_provider: () => ({ changed: [], warnings: [] }),
+    });
+    expect(screen.getByLabelText("Krill 登录 JWT")).toHaveValue("__leanflip_redacted__");
+    await userEvent.click(screen.getByRole("button", { name: "查询额度" }));
+    const dialog = await screen.findByRole("dialog", { name: "识别 公司网关 的额度接口" });
+    expect(await within(dialog).findByText("Krill 登录 JWT 已失效或无权限，请在卡片额度设置中更新")).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "使用 Krill" })).not.toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("button", { name: "取消" }));
+    await userEvent.selectOptions(screen.getByLabelText("平台类型"), "off");
+    await userEvent.click(screen.getByRole("button", { name: "保存" }));
+    await waitFor(() => expect(backend.calls.some((call) => call.cmd === "update_provider")).toBe(true));
+    const saved = backend.calls.find((call) => call.cmd === "update_provider")!.args!.provider as Provider;
+    expect(saved.meta?.leanflipQuota).toEqual({ adapter: "off", refreshMinutes: 0 });
+  });
+
   it("detects the platform only when asked, shows what it found, and saves the choice on the card", async () => {
     const { backend } = mount(relay, { quota_detect: () => found, update_provider: () => ({ changed: [], warnings: [] }) });
     expect(screen.getByRole("heading", { name: "额度查询" })).toBeInTheDocument();

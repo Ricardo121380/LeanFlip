@@ -546,6 +546,7 @@ fn service_detects_configures_shares_one_source_and_refreshes() {
         adapter: Some("newapi".into()),
         refresh_minutes: 15,
         quota_per_usd: None,
+        krill_jwt: None,
     };
     service
         .quota_configure(Tool::Claude, "corp", Some(settings.clone()))

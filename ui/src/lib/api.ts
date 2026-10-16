@@ -121,6 +121,8 @@ export interface LoginSummary {
 /** 一个限额窗口。窗口长度要按 `minutes` 标注：有的套餐只有周窗口。 */
 export interface QuotaWindow {
   minutes: number;
+  label?: string;
+  unit?: string;
   usedPercent: number;
   /** Unix 秒。 */
   resetsAt?: number;
@@ -179,7 +181,7 @@ export interface QuotaUser {
   active: boolean;
 }
 
-export type RelayAdapter = "sub2api" | "newapi";
+export type RelayAdapter = "sub2api" | "newapi" | "krill";
 
 export interface QuotaSource {
   key: string;
@@ -212,6 +214,8 @@ export interface QuotaSettings {
   refreshMinutes: number;
   /** NewAPI 多少额度算 $1，默认 500000。 */
   quotaPerUsd?: number;
+  /** Krill 网站登录 JWT；后端读取时返回占位符。 */
+  krillJwt?: string;
 }
 
 export interface DetectStep {
@@ -550,6 +554,8 @@ export const api = {
   /** 用这份配置里的地址和 Key 识别中转站平台（联网，只在用户点击时调用）。 */
   quotaDetect: (tool: ToolId, settingsConfig: Record<string, unknown>, quotaPerUsd?: number) =>
     invoke<QuotaDetect>("quota_detect", { tool, settingsConfig, quotaPerUsd: quotaPerUsd ?? null }),
+  quotaKrillDetect: (tool: ToolId, jwt?: string, providerId?: string) =>
+    invoke<QuotaDetect>("quota_krill_detect", { tool, jwt: jwt ?? null, providerId: providerId ?? null }),
   quotaConfigure: (tool: ToolId, id: string, settings: QuotaSettings | null) => invoke<null>("quota_configure", { tool, id, settings }),
   codexSetLoginRef: (id: string, identity: string | null) =>
     invoke<OpResult>("codex_set_login_ref", { id, identity }),

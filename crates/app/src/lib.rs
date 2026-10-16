@@ -186,6 +186,7 @@ pub fn run() {
             commands::quota_overview,
             commands::quota_refresh,
             commands::quota_detect,
+            commands::quota_krill_detect,
             commands::quota_configure,
             commands::switch_provider,
             commands::add_provider,

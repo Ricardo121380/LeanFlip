@@ -136,6 +136,8 @@ fn window(value: &Value, now_ms: i64) -> Option<QuotaWindow> {
             .map(|after| now_ms / 1000 + after)
     });
     Some(QuotaWindow {
+        label: None,
+        unit: None,
         minutes: seconds / 60,
         used_percent,
         resets_at,

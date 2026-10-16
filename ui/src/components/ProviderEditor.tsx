@@ -197,7 +197,10 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
     return toEditorText(meta.editor, settings);
   });
   const [loginSource, setLoginSource] = useState(loginSourceOf(source));
-  const [quota, setQuota] = useState<QuotaSettings | null>(() => quotaSettingsOf(source));
+  const [quota, setQuota] = useState<QuotaSettings | null>(() => {
+    const settings = quotaSettingsOf(source);
+    return copying && settings?.adapter === "krill" ? null : settings;
+  });
   const [detecting, setDetecting] = useState(false);
   const [routes, setRoutes] = useState(() => routesOf(source));
   const [apply, setApply] = useState(false);
@@ -599,7 +602,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
           hint={t("editor.quotaHint")}
           aside={
             <Button type="button" size="sm" variant="outline" disabled={saving || !parsed.ok} onClick={() => setDetecting(true)}>
-              {t("editor.quotaDetect")}
+              {t(quota?.adapter === "krill" ? "editor.krillQuery" : "editor.quotaDetect")}
             </Button>
           }
         >
@@ -624,7 +627,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
                 <option value="off">{t("editor.quotaAdapterOff")}</option>
               </NativeSelect>
             </div>
-            {(quota?.adapter === "sub2api" || quota?.adapter === "newapi") && (
+            {quota?.adapter && quota.adapter !== "off" && (
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="pe-quota-refresh">{t("editor.quotaRefresh")}</Label>
                 <NativeSelect
@@ -639,6 +642,22 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
                   <option value="60">{t("editor.quotaRefreshEvery", { count: 60 })}</option>
                 </NativeSelect>
                 <p id="pe-quota-refresh-hint" className="text-xs leading-5 text-muted-foreground">{t("editor.quotaRefreshHint")}</p>
+              </div>
+            )}
+            {quota?.adapter === "krill" && (
+              <div className="flex flex-col gap-1.5 sm:col-span-2">
+                <Label htmlFor="pe-krill-jwt">{t("editor.krillJwt")}</Label>
+                <Input
+                  id="pe-krill-jwt"
+                  type="password"
+                  autoComplete="off"
+                  spellCheck={false}
+                  aria-describedby="pe-krill-jwt-hint"
+                  value={quota.krillJwt ?? ""}
+                  onFocus={(e) => e.currentTarget.select()}
+                  onChange={(e) => setQuota((q) => ({ ...(q ?? { refreshMinutes: 0 }), krillJwt: e.target.value }))}
+                />
+                <p id="pe-krill-jwt-hint" className="text-xs leading-5 text-muted-foreground">{t("editor.krillJwtHint")}</p>
               </div>
             )}
             {quota?.adapter === "newapi" && (
@@ -673,6 +692,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
           name={name.trim() || t("editor.quotaThisCard")}
           settingsConfig={parsed.value}
           quotaPerUsd={quota?.quotaPerUsd}
+          krill={quota?.adapter === "krill" ? { jwt: quota.krillJwt, providerId: provider?.id } : undefined}
           onUse={(adapter) => setQuota((q) => ({ ...(q ?? { refreshMinutes: 0 }), adapter }))}
           onClose={() => setDetecting(false)}
         />
