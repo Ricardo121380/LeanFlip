@@ -425,6 +425,14 @@ fn a_deleted_hermes_default_in_the_scene_keeps_the_current_default() {
 }
 
 #[test]
+fn capture_reports_an_unreadable_switch_tool_instead_of_omitting_it() {
+    let sb = setup();
+    sb.write(&sb.env.claude_settings_path(), "{ not json");
+    let data = store::load(&sb.env).unwrap();
+    assert!(scene::capture_tool(&sb.env, &data, Tool::Claude).is_err());
+}
+
+#[test]
 fn capture_skips_a_switch_selection_the_client_no_longer_uses() {
     let sb = setup();
     sb.write(

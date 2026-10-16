@@ -346,3 +346,63 @@ fn scenes_restore_once_and_follow_renamed_cards() {
         "the last-applied scene is device-local"
     );
 }
+
+#[test]
+fn restored_scenes_never_point_at_a_different_local_card() {
+    let source = TempDir::new().unwrap();
+    let exporter = open(source.path());
+    exporter
+        .add_provider(Tool::Claude, card("work", "fixture-private-api-key"), false)
+        .unwrap();
+    let mut office = Scene {
+        name: "Office".into(),
+        ..Scene::default()
+    };
+    office
+        .tools
+        .insert("claude".into(), scene::SceneTool::current("work"));
+    exporter.save_scene(office).unwrap();
+    let bytes = exporter.backup_export(PASSWORD).unwrap();
+
+    // Skip keeps the unrelated local "work"; the scene must not be retargeted to it.
+    let target = TempDir::new().unwrap();
+    let service = open(target.path());
+    service
+        .add_provider(Tool::Claude, card("work", "local-other-api-key"), false)
+        .unwrap();
+    service.backup_load(&bytes, PASSWORD).unwrap();
+    let report = service.backup_apply(RestoreOptions::default()).unwrap();
+    assert_eq!((report.scenes_added, report.scenes_skipped), (0, 1));
+    assert!(store::load_readonly(&service.env())
+        .unwrap()
+        .scenes
+        .is_empty());
+
+    // Scenes restored without their cards are skipped too.
+    let empty = TempDir::new().unwrap();
+    let bare = open(empty.path());
+    bare.backup_load(&bytes, PASSWORD).unwrap();
+    let report = bare
+        .backup_apply(RestoreOptions {
+            tools: vec![],
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!((report.scenes_added, report.scenes_skipped), (0, 1));
+
+    // An identical local card is a match even when the duplicate is skipped.
+    let same = TempDir::new().unwrap();
+    let matching = open(same.path());
+    matching
+        .add_provider(Tool::Claude, card("work", "fixture-private-api-key"), false)
+        .unwrap();
+    matching.backup_load(&bytes, PASSWORD).unwrap();
+    let report = matching.backup_apply(RestoreOptions::default()).unwrap();
+    assert_eq!((report.scenes_added, report.scenes_skipped), (1, 0));
+    assert_eq!(
+        store::load_readonly(&matching.env()).unwrap().scenes[0].tools["claude"]
+            .current
+            .as_deref(),
+        Some("work")
+    );
+}

@@ -192,7 +192,7 @@ const zh = {
     restoreAccounts: "恢复托管账号（{{count}} 个）",
     accountMergeHint: "其中 {{count}} 个账号已存在：保留本机登录凭据，不覆盖。",
     restoreScenes: "恢复场景（{{count}} 个）",
-    sceneMergeHint: "本机已有同名的场景会跳过；场景引用的供应商另存为副本时，会改用副本。",
+    sceneMergeHint: "本机已有同名的场景会跳过；场景引用的供应商另存为副本时，会改用副本；引用的供应商在本机找不到内容一致的那张时，这个场景也会跳过。",
     restorePreferences: "恢复应用偏好",
     restorePaths: "同时恢复本机目录覆盖（仅适用于相同路径布局）",
     duplicate: "重复供应商的处理方式",

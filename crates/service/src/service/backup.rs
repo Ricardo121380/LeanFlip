@@ -213,13 +213,24 @@ fn validate(payload: &Payload) -> Result<(), AppError> {
 }
 
 /// Merges backed-up scenes. Scenes whose id or name already exists are skipped;
-/// card references follow cards that were restored under a suffixed id. The
+/// card references follow cards that were restored under a suffixed id. A
+/// reference must land on a local card identical to the backed-up one: a scene
+/// pointing at a different local card with the same id (a skipped duplicate, or
+/// a tool left out of the restore) is skipped rather than retargeted. The
 /// last-applied scene is a device record and is never restored.
 fn restore_scenes(
     data: &mut StoreData,
-    scenes: &[Scene],
+    backup: &StoreData,
     renamed: &HashMap<(Tool, String), String>,
 ) -> (usize, usize) {
+    // Compare content only: a card restored under a suffixed id is still the same card.
+    let portable = |card: &leanflip_core::Provider| {
+        let mut card = card.clone();
+        card.set_codex_login_ref(None);
+        card.id.clear();
+        card
+    };
+    let scenes = &backup.scenes;
     let (mut added, mut skipped) = (0, 0);
     for scene in scenes {
         let same = |other: &Scene| {
@@ -231,17 +242,27 @@ fn restore_scenes(
             continue;
         }
         let mut next = scene.clone();
+        let mut resolved = true;
         for (key, entry) in next.tools.iter_mut() {
             let Ok(tool) = key.parse::<Tool>() else {
                 continue;
             };
-            let map = |id: &mut String| {
-                if let Some(local) = renamed.get(&(tool, id.clone())) {
-                    *id = local.clone();
-                }
+            let mut map = |id: &mut String| {
+                let local = renamed.get(&(tool, id.clone())).unwrap_or(id).clone();
+                // Cards missing on both sides stay missing; anything else must match.
+                resolved &= match (backup.provider(tool, id), data.provider(tool, &local)) {
+                    (Some(card), Some(found)) => portable(card) == portable(found),
+                    (None, None) => true,
+                    _ => false,
+                };
+                *id = local;
             };
-            entry.current.iter_mut().for_each(map);
-            entry.enabled.iter_mut().flatten().for_each(map);
+            entry.current.iter_mut().for_each(&mut map);
+            entry.enabled.iter_mut().flatten().for_each(&mut map);
+        }
+        if !resolved {
+            skipped += 1;
+            continue;
         }
         data.scenes.push(next);
         added += 1;
@@ -549,7 +570,7 @@ impl Service {
                     }
                 }
                 let scenes = if options.scenes {
-                    restore_scenes(data, &payload.providers.scenes, &renamed)
+                    restore_scenes(data, &payload.providers, &renamed)
                 } else {
                     (0, 0)
                 };

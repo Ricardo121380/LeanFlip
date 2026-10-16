@@ -277,17 +277,18 @@ pub fn plan_tool(
 }
 
 /// 把一个工具现在的状态记成场景条目。没有可记的（没有卡；单选式没有当前卡，或者客户端
-/// 文件被手动改过、已经不是当前卡）时返回 `None`。
+/// 文件被手动改过、已经不是当前卡）时返回 `None`。客户端配置读不了时报错，不悄悄漏掉。
 pub fn capture_tool(
     env: &Env,
     data: &StoreData,
     tool: Tool,
 ) -> Result<Option<SceneTool>, AppError> {
     if !tool.is_coexist() {
-        return Ok(data
-            .current(tool)
-            .filter(|card| switch::status::matches_live(env, data, tool, card).unwrap_or(false))
-            .map(|card| SceneTool::current(&card.id)));
+        let Some(card) = data.current(tool) else {
+            return Ok(None);
+        };
+        return Ok(switch::status::matches_live(env, data, tool, card)?
+            .then(|| SceneTool::current(&card.id)));
     }
     let cards = data.providers(tool);
     if cards.is_empty() {

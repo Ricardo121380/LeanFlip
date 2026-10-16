@@ -189,7 +189,7 @@ const en: Messages = {
     restoreAccounts: "Restore managed accounts ({{count}})",
     accountMergeHint: "{{count}} already exist. Their current credentials will be kept.",
     restoreScenes: "Restore scenes ({{count}})",
-    sceneMergeHint: "Scenes whose name already exists here are skipped. When a provider is saved as a copy, its scenes use the copy.",
+    sceneMergeHint: "Scenes whose name already exists here are skipped. When a provider is saved as a copy, its scenes use the copy. A scene is also skipped when one of its providers has no identical match here.",
     restorePreferences: "Restore application preferences",
     restorePaths: "Also restore directory overrides (matching machine paths only)",
     duplicate: "Duplicate provider IDs",
