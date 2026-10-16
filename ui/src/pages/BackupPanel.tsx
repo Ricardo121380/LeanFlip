@@ -39,7 +39,7 @@ export function BackupExport({ onBusyChange }: { onBusyChange?: (busy: boolean) 
     <div className="space-y-5">
       <div className="inline-flex size-12 items-center justify-center rounded-xl bg-primary/10 text-primary"><ShieldCheck className="size-6" aria-hidden="true" /></div>
       <div><h2 className="text-lg font-semibold tracking-tight">{t("backup.exportTitle")}</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">{t("backup.exportHint")}</p></div>
-      <ul className="space-y-3 text-sm">{["providers", "accounts", "preferences"].map((scope) => <li key={scope} className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />{t(`backup.scope.${scope}`)}</li>)}</ul>
+      <ul className="space-y-3 text-sm">{["providers", "accounts", "scenes", "preferences"].map((scope) => <li key={scope} className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />{t(`backup.scope.${scope}`)}</li>)}</ul>
       <p className="text-xs leading-5 text-muted-foreground">{t("backup.portableHint")}</p>
     </div>
     <form onSubmit={(event) => { event.preventDefault(); void save(); }} className="space-y-4 rounded-xl border bg-card p-5">
@@ -61,7 +61,7 @@ export function BackupRestore({ bytes, fileName, onBack, onBusyChange }: { bytes
   const client = useQueryClient();
   const [password, setPassword] = useState("");
   const [preview, setPreview] = useState<BackupPreview | null>(null);
-  const [options, setOptions] = useState<RestoreOptions>({ tools: [], accounts: true, settings: true, paths: false, duplicate: "skip" });
+  const [options, setOptions] = useState<RestoreOptions>({ tools: [], accounts: true, settings: true, paths: false, scenes: true, duplicate: "skip" });
   const [report, setReport] = useState<RestoreReport | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,7 +79,7 @@ export function BackupRestore({ bytes, fileName, onBack, onBusyChange }: { bytes
       const next = await api.backupLoad(bytes, password);
       if (!mounted.current) { await api.backupDiscard(); return; }
       setPreview(next); setReport(null);
-      setOptions({ tools: [...new Set(next.items.map((item) => item.tool))], accounts: next.accounts > 0, settings: next.hasSettings, paths: false, duplicate: "skip" });
+      setOptions({ tools: [...new Set(next.items.map((item) => item.tool))], accounts: next.accounts > 0, settings: next.hasSettings, paths: false, scenes: (next.scenes ?? 0) > 0, duplicate: "skip" });
     });
     setPassword("");
   }
@@ -89,7 +89,8 @@ export function BackupRestore({ bytes, fileName, onBack, onBusyChange }: { bytes
     return () => { mounted.current = false; void api.backupDiscard().catch(() => {}); };
   }, []);
 
-  const canRestore = options.tools.length > 0 || options.accounts || options.settings;
+  const canRestore = options.tools.length > 0 || options.accounts || options.settings || options.scenes;
+  const scenes = preview?.scenes ?? 0;
   return <section className="space-y-5">
     <header className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-semibold">{t("backup.restoreTitle")}</h2><p className="mt-1 break-all text-sm text-muted-foreground">{fileName}</p></div><Button variant="ghost" disabled={busy} onClick={() => void perform(async () => { await api.backupDiscard(); onBack(); })}>{t("backup.changeFile")}</Button></header>
     {!preview && <form className="max-w-lg space-y-4 rounded-xl border bg-card p-5" onSubmit={(event) => { event.preventDefault(); if (password) void unlock(); }}>
@@ -100,11 +101,13 @@ export function BackupRestore({ bytes, fileName, onBack, onBusyChange }: { bytes
     </form>}
     <Failure message={error} />
     {preview && (!report || report.failures.length > 0) && <>
-      <div className="flex flex-wrap gap-x-5 gap-y-2 border-b pb-4 text-sm text-muted-foreground"><span>{t("backup.cardCount", { count: preview.items.length })}</span><span>{t("backup.accountCount", { count: preview.accounts })}</span><span>{new Date(preview.createdAt * 1000).toLocaleString(i18n.language)}</span></div>
+      <div className="flex flex-wrap gap-x-5 gap-y-2 border-b pb-4 text-sm text-muted-foreground"><span>{t("backup.cardCount", { count: preview.items.length })}</span><span>{t("backup.accountCount", { count: preview.accounts })}</span>{scenes > 0 && <span>{t("backup.sceneCount", { count: scenes })}</span>}<span>{new Date(preview.createdAt * 1000).toLocaleString(i18n.language)}</span></div>
       <fieldset disabled={busy} className="space-y-3"><legend className="mb-3 text-sm font-semibold">{t("backup.restoreScopes")}</legend>
         {TOOLS.filter((tool) => preview.items.some((item) => item.tool === tool.id)).map((tool) => <label key={tool.id} className="flex items-center gap-3 rounded-lg border bg-card p-3 text-sm"><Checkbox checked={options.tools.includes(tool.id)} onCheckedChange={(checked) => setOptions((old) => ({ ...old, tools: checked === true ? [...old.tools, tool.id] : old.tools.filter((id) => id !== tool.id) }))} /><span className="flex-1 font-medium">{tool.label}</span><span className="tabular-nums text-muted-foreground">{preview.items.filter((item) => item.tool === tool.id).length}</span></label>)}
         <label className="flex items-center gap-3 py-1 text-sm"><Checkbox checked={options.accounts} disabled={preview.accounts === 0} onCheckedChange={(checked) => setOptions((old) => ({ ...old, accounts: checked === true }))} />{t("backup.restoreAccounts", { count: preview.accounts })}</label>
         <p className="pl-7 text-xs text-muted-foreground">{t("backup.accountMergeHint", { count: preview.existingAccounts })}</p>
+        {scenes > 0 && <><label className="flex items-center gap-3 py-1 text-sm"><Checkbox checked={options.scenes} onCheckedChange={(checked) => setOptions((old) => ({ ...old, scenes: checked === true }))} />{t("backup.restoreScenes", { count: scenes })}</label>
+        <p className="pl-7 text-xs text-muted-foreground">{t("backup.sceneMergeHint")}</p></>}
         <label className="flex items-center gap-3 py-1 text-sm"><Checkbox checked={options.settings} onCheckedChange={(checked) => setOptions((old) => ({ ...old, settings: checked === true, paths: checked === true && old.paths }))} />{t("backup.restorePreferences")}</label>
         {preview.hasPaths && <label className="flex items-center gap-3 py-1 text-sm"><Checkbox checked={options.paths} disabled={!options.settings} onCheckedChange={(checked) => setOptions((old) => ({ ...old, paths: checked === true }))} />{t("backup.restorePaths")}</label>}
       </fieldset>
@@ -112,6 +115,6 @@ export function BackupRestore({ bytes, fileName, onBack, onBusyChange }: { bytes
       <p className="text-sm leading-6 text-muted-foreground">{t("backup.restoreHint")}</p>
       <Button disabled={busy || !canRestore} onClick={() => void perform(async () => { setReport(await api.backupApply(options)); void refreshAll(client); })}>{busy && <Loader2 className="animate-spin" />}{t(busy ? "backup.restoring" : "backup.restore")}</Button>
     </>}
-    {report && <div role="status" className="space-y-2 rounded-xl border bg-card p-5"><h3 className="font-semibold">{t(report.failures.length ? "backup.partial" : "backup.restored")}</h3><p className="text-sm">{t("backup.report", { cards: report.providersAdded, skipped: report.providersSkipped, accounts: report.accountsAdded })}</p><p className="text-sm text-muted-foreground">{t("backup.noActivation")}</p>{report.failures.length > 0 && <p className="font-mono text-xs text-destructive">{report.failures.join(" · ")}</p>}</div>}
+    {report && <div role="status" className="space-y-2 rounded-xl border bg-card p-5"><h3 className="font-semibold">{t(report.failures.length ? "backup.partial" : "backup.restored")}</h3><p className="text-sm">{t("backup.report", { cards: report.providersAdded, skipped: report.providersSkipped, accounts: report.accountsAdded })}</p>{(report.scenesAdded ?? 0) + (report.scenesSkipped ?? 0) > 0 && <p className="text-sm">{t("backup.sceneReport", { added: report.scenesAdded ?? 0, skipped: report.scenesSkipped ?? 0 })}</p>}<p className="text-sm text-muted-foreground">{t("backup.noActivation")}</p>{report.failures.length > 0 && <p className="font-mono text-xs text-destructive">{report.failures.join(" · ")}</p>}</div>}
   </section>;
 }

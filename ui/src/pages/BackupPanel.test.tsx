@@ -58,7 +58,7 @@ it("retries a wrong password, previews without writing, and restores only select
   expect(fake.calls.filter((call) => call.cmd === "backup_apply")).toHaveLength(0);
   await user.click(screen.getByRole("checkbox", { name: /Claude Code/ }));
   await user.click(screen.getByRole("button", { name: "确认恢复所选内容" }));
-  await waitFor(() => expect(fake.calls.find((call) => call.cmd === "backup_apply")?.args).toEqual({ options: { tools: [], accounts: true, settings: true, paths: false, duplicate: "skip" } }));
+  await waitFor(() => expect(fake.calls.find((call) => call.cmd === "backup_apply")?.args).toEqual({ options: { tools: [], accounts: true, settings: true, paths: false, scenes: false, duplicate: "skip" } }));
   expect(await screen.findByRole("status")).toHaveTextContent("恢复完成");
   expect(screen.queryByRole("button", { name: "确认恢复所选内容" })).not.toBeInTheDocument();
 });
@@ -75,4 +75,26 @@ it("keeps a partial restore visible and retryable; directory restore requires pr
   await user.click(screen.getByRole("button", { name: "确认恢复所选内容" }));
   expect(await screen.findByRole("status")).toHaveTextContent("部分内容已恢复");
   expect(screen.getByRole("button", { name: "确认恢复所选内容" })).toBeEnabled();
+});
+
+it("shows backed-up scenes, restores them by default and reports the merge", async () => {
+  const user = userEvent.setup();
+  const fake = fakeBackend({ backup_load: () => ({ ...preview, scenes: 2 }), backup_apply: () => ({ ...restored, scenesAdded: 1, scenesSkipped: 1 }), backup_discard: () => null });
+  backend.invoke.mockImplementation(fake.invoke);
+  renderWithClient(<BackupRestore bytes={new Uint8Array()} fileName="fixture.leanflip" onBack={() => {}} />);
+  await user.type(screen.getByLabelText("备份密码"), "fixture-password"); await user.click(screen.getByRole("button", { name: "解密并预览" }));
+  expect(await screen.findByText("2 个场景")).toBeInTheDocument();
+  const scenes = screen.getByRole("checkbox", { name: "恢复场景（2 个）" });
+  expect(scenes).toBeChecked();
+  expect(screen.getByText(/本机已有同名的场景会跳过/)).toBeInTheDocument();
+  await user.click(screen.getByRole("checkbox", { name: /Claude Code/ }));
+  await user.click(screen.getByRole("checkbox", { name: /恢复托管账号/ }));
+  await user.click(screen.getByRole("checkbox", { name: "恢复应用偏好" }));
+  expect(screen.getByRole("button", { name: "确认恢复所选内容" })).toBeEnabled();
+  await user.click(scenes);
+  expect(screen.getByRole("button", { name: "确认恢复所选内容" })).toBeDisabled();
+  await user.click(scenes);
+  await user.click(screen.getByRole("button", { name: "确认恢复所选内容" }));
+  await waitFor(() => expect(fake.calls.find((call) => call.cmd === "backup_apply")?.args).toEqual({ options: { tools: [], accounts: false, settings: false, paths: false, scenes: true, duplicate: "skip" } }));
+  expect(await screen.findByText("新增 1 个场景 · 跳过 1 个")).toBeInTheDocument();
 });

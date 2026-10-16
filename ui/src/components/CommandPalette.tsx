@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from
 import { useTranslation } from "react-i18next";
 import { useQueries } from "@tanstack/react-query";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { Download, Search, Settings, UsersRound } from "lucide-react";
+import { Download, Layers, Search, Settings, UsersRound } from "lucide-react";
 import { toast } from "sonner";
-import { keys, useAction, useSwitchProvider } from "@/hooks/queries";
+import { keys, useAction, useScenes, useSwitchProvider } from "@/hooks/queries";
+import { useSceneActions } from "@/components/Scenes";
 import { api, type ToolId } from "@/lib/api";
 import { endpointOf } from "@/lib/cards";
 import { TOOLS, type ToolMeta } from "@/lib/tools";
@@ -23,7 +24,7 @@ interface Item {
   run: () => unknown;
 }
 
-/** ⌘K / Ctrl+K：搜索供应商直接切换或启用，也可以跳到任意工具和页面。 */
+/** ⌘K / Ctrl+K：应用场景（先预览），搜索供应商直接切换或启用，也可以跳到任意工具和页面。 */
 export function CommandPalette({ open, onOpenChange, onNavigate }: { open: boolean; onOpenChange: (open: boolean) => void; onNavigate: (hash: string) => boolean | void | Promise<boolean> }) {
   const { t } = useTranslation();
   const go = onNavigate;
@@ -32,6 +33,8 @@ export function CommandPalette({ open, onOpenChange, onNavigate }: { open: boole
   const results = useQueries({
     queries: TOOLS.map((tool) => ({ queryKey: keys.providers(tool.id), queryFn: () => api.listProviders(tool.id), enabled: open })),
   });
+  const scenes = useScenes(open).data;
+  const sceneActions = useSceneActions();
   const switchAction = useSwitchProvider();
   const toggleAction = useAction(
     ({ tool, id, enabled }: { tool: ToolId; id: string; name: string; enabled: boolean }) => api.setInLive(tool, id, enabled),
@@ -48,6 +51,17 @@ export function CommandPalette({ open, onOpenChange, onNavigate }: { open: boole
   const loading = results.some((r) => r.isLoading);
   const items = useMemo(() => {
     const out: Item[] = [];
+    for (const scene of scenes?.scenes ?? []) {
+      out.push({
+        key: `scene:${scene.id}`,
+        group: t("palette.scenes"),
+        label: t("palette.sceneLabel", { name: scene.name }),
+        hint: scene.status === "active" ? t("palette.current") : t("palette.apply"),
+        icon: <Layers className="h-3.5 w-3.5" />,
+        search: `${scene.name} ${t("palette.scenes")} scene`.toLocaleLowerCase(),
+        run: () => sceneActions.apply(scene.id),
+      });
+    }
     TOOLS.forEach((tool, index) => {
       const data = results[index]?.data;
       if (!data) return;
@@ -102,7 +116,7 @@ export function CommandPalette({ open, onOpenChange, onNavigate }: { open: boole
     return out;
     // `results` is a new array each render; the data references inside it are stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [t, go, ...results.map((r) => r.data)]);
+  }, [t, go, scenes, sceneActions, ...results.map((r) => r.data)]);
 
   const needle = query.trim().toLocaleLowerCase();
   const filtered = needle ? items.filter((item) => needle.split(/\s+/).every((word) => item.search.includes(word))) : items;

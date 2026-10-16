@@ -195,6 +195,10 @@ fn localize_help(command: &mut clap::Command, path: &str, lang: Language) {
         "accounts remove" => ("删除本地托管账号，不撤销 OpenAI 服务端登录", "leanflip accounts remove <account-id>"),
         "accounts refresh" => ("强制刷新账号凭据，不输出 token", "leanflip accounts refresh <account-id>"),
         "recover" => ("显式处理未完成的写入；查询命令不会自动恢复", "leanflip recover codex\n  leanflip recover"),
+        "scene" => ("列出、预览或应用场景；场景在 App 中创建和编辑", "leanflip scene list\n  leanflip scene show work\n  leanflip scene apply work"),
+        "scene list" => ("列出场景，以及是否和当前配置一致", "leanflip scene list\n  leanflip scene list --json"),
+        "scene show" => ("预览应用场景会改哪些工具，不写入", "leanflip scene show work"),
+        "scene apply" => ("应用场景；--tool 只应用其中的部分工具", "leanflip scene apply work\n  leanflip scene apply work --tool claude,codex"),
         _ => ("显示命令帮助", "leanflip --help"),
     };
     let examples = format!("{}\n  {examples}", lang.text("示例：", "Examples:"));
@@ -213,6 +217,7 @@ fn localize_help(command: &mut clap::Command, path: &str, lang: Language) {
                     "tools" => Some("仅处理这些工具；可重复指定或以逗号分隔"),
                     "provider_id" => Some("供应商 ID，可通过 leanflip list 查看"),
                     "account_id" => Some("账号 ID，可通过 leanflip accounts list 查看"),
+                    "scene" => Some("场景名称或 ID，可通过 leanflip scene list 查看"),
                     "path" => Some("备份或导出文件路径"),
                     "dir" => Some("指定 CC Switch 数据目录的绝对路径"),
                     "password_file" => Some("从私有文件读取密码；省略时隐藏输入，不接受密码值参数"),
@@ -305,6 +310,10 @@ pub fn error(code: &str, fallback: &str, lang: Language) -> String {
         "codex.oauth.reauth_workspace_mismatch" | "codex.oauth.reauth_user_mismatch" | "codex.oauth.workspace_mismatch" => "登录身份或工作区与目标账号不匹配。请在浏览器中选择对应账号和工作区后重新登录。",
         "codex.oauth.duplicate_account" => "该账号已存在。用 leanflip accounts list 查看已有账号，或使用 login --account 重新认证。",
         "codex.oauth.live_sync_failed" => "新凭据已保存在账号库，但 Codex 客户端同步失败。运行 leanflip paths codex 检查路径与权限；不要用旧 token 覆盖新凭据。",
+        "scene.not_found" => "找不到这个场景。运行 leanflip scene list 查看场景名称。",
+        "scene.invalid" => "场景内容无效。请在 LeanFlip App 中编辑这个场景后重试。",
+        "scene.partial" => "场景只应用了一部分。失败的工具已尽量改回原样，标了「可能改了一部分」的请先检查；运行 leanflip paths <tool> 查看配置后重试。",
+        "scene.tool_not_included" => "指定的工具不在这个场景里。运行 leanflip scene show <场景> 查看包含的工具。",
         _ if code.starts_with("ccswitch_export.") => "无法导入该文件。请使用 cc-switch 导出的 SQL、SQLite 或旧版 JSON，并先运行 import file 预览。",
         _ => "操作未完成。请根据错误码检查相关配置；配置原文和凭据不会在终端显示。",
     };
@@ -331,6 +340,7 @@ pub fn error(code: &str, fallback: &str, lang: Language) -> String {
                 Some("Next: leanflip accounts list or leanflip accounts login")
             }
             "codex.oauth.device_expired" => Some("Next: leanflip accounts login"),
+            "scene.not_found" => Some("Next: leanflip scene list"),
             _ => None,
         };
         if let Some(hint) = hint {

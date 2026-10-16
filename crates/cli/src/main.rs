@@ -3,6 +3,7 @@ mod data;
 mod editor;
 mod menu;
 mod presentation;
+mod scene;
 mod tui;
 
 use std::fs::File;
@@ -12,7 +13,7 @@ use std::process::ExitCode;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use args::{AccountCommand, Cli, Command, Import, Language, ProviderCommand};
+use args::{AccountCommand, Cli, Command, Import, Language, ProviderCommand, SceneCommand};
 use clap::{CommandFactory, FromArgMatches};
 use leanflip_core::ccswitch_export::{Preview, MAX_EXPORT_BYTES};
 use leanflip_core::{AppError, Env, Provider, Tool};
@@ -59,6 +60,8 @@ impl From<ApiError> for CliError {
             "io" => "Cannot access a required file. Check paths and permissions.",
             "serialization" => "Configuration could not be serialized; the operation failed.",
             "codex.oauth.live_sync_failed" => "Account credentials were refreshed and saved, but the Codex client could not be synchronized. Check the client path and permissions; the new credentials were retained.",
+            "scene.not_found" => "The scene was not found. Run leanflip scene list to see scene names.",
+            "scene.invalid" => "The scene is invalid. Edit it in the LeanFlip App and retry.",
             _ => "The operation failed. Use the error code to identify the cause; configuration contents are withheld.",
         };
         Self {
@@ -78,6 +81,9 @@ impl From<AppError> for CliError {
 struct Output {
     data: Value,
     text: String,
+    /// The command ran but did not fully succeed (a scene applied to only some
+    /// tools): the result is still printed, then this error and its exit code.
+    failure: Option<CliError>,
 }
 
 impl Output {
@@ -85,6 +91,7 @@ impl Output {
         Self {
             data,
             text: text.into(),
+            failure: None,
         }
     }
 
@@ -618,6 +625,8 @@ fn run(cli: Cli) -> Result<Output, CliError> {
                 accounts: !no_accounts,
                 settings: !no_settings,
                 paths: restore_paths,
+                // Scenes point at cards, so they travel with the providers.
+                scenes: !no_providers,
                 duplicate: duplicate.into(),
             };
             data::restore(
@@ -799,6 +808,7 @@ fn run(cli: Cli) -> Result<Output, CliError> {
             };
             Ok(Output::new(json!({"noticeCount": notices.len()}), text))
         }
+        Command::Scene { action } => scene::run(&service, action, lang),
     };
     let mut output = result?;
     let recovery_count = service.recovery().len();
@@ -924,6 +934,7 @@ fn writes_data(command: &Command) -> bool {
             Import::Live { .. } => true,
         },
         Command::Accounts { action } => !matches!(action, AccountCommand::List),
+        Command::Scene { action } => matches!(action, SceneCommand::Apply { .. }),
         _ => true,
     }
 }
@@ -970,6 +981,23 @@ fn execute(cli: Cli) -> ExitCode {
     let as_json = cli.json;
     let lang = cli.lang;
     match run(cli) {
+        Ok(Output {
+            data,
+            text,
+            failure: Some(error),
+        }) => {
+            if as_json {
+                let line = json!({"ok": false, "data": data, "error": {"code": error.code, "message": error.message}});
+                let _ = writeln!(io::stderr().lock(), "{line}");
+                return ExitCode::from(error.exit);
+            }
+            write_stdout(
+                io::stdout().lock(),
+                &presentation::human_output(&text),
+                false,
+            );
+            error_output(error, false, lang)
+        }
         Ok(output) => {
             let line = if as_json {
                 json!({"ok": true, "data": output.data}).to_string()

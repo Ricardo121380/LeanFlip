@@ -10,10 +10,12 @@ use leanflip_core::{ccswitch_import, Provider, Tool};
 use tauri::{AppHandle, State};
 
 use crate::service::{
-    ApiError, ApiResult, ImportLiveResult, OpResult, PollResult, SaveSettingsResult, Service,
-    SettingsInput, SettingsView, ToolProviders, ToolSummary,
+    ApiError, ApiResult, ImportLiveResult, OpResult, PollResult, SaveSettingsResult, SceneList,
+    ScenePreview, SceneReport, SceneUndo, Service, SettingsInput, SettingsView, ToolProviders,
+    ToolSummary,
 };
 use crate::{notify_changed, AppState};
+use leanflip_core::scene::Scene;
 
 async fn blocking<T: Send + 'static>(
     state: &State<'_, AppState>,
@@ -217,6 +219,59 @@ pub async fn set_in_live(
     enabled: bool,
 ) -> ApiResult<OpResult> {
     mutating(&app, &state, move |s| s.set_in_live(tool, &id, enabled)).await
+}
+
+// ---- 场景 ----
+
+#[tauri::command]
+pub async fn list_scenes(state: State<'_, AppState>) -> ApiResult<SceneList> {
+    blocking(&state, |s| s.scenes()).await
+}
+
+#[tauri::command]
+pub async fn capture_scene(
+    state: State<'_, AppState>,
+    tools: Option<Vec<Tool>>,
+) -> ApiResult<Scene> {
+    blocking(&state, move |s| s.scene_capture(tools)).await
+}
+
+#[tauri::command]
+pub async fn save_scene(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    scene: Scene,
+) -> ApiResult<Scene> {
+    mutating(&app, &state, move |s| s.save_scene(scene)).await
+}
+
+#[tauri::command]
+pub async fn delete_scene(app: AppHandle, state: State<'_, AppState>, id: String) -> ApiResult<()> {
+    mutating(&app, &state, move |s| s.delete_scene(&id)).await
+}
+
+#[tauri::command]
+pub async fn preview_scene(state: State<'_, AppState>, id: String) -> ApiResult<ScenePreview> {
+    blocking(&state, move |s| s.scene_preview(&id)).await
+}
+
+#[tauri::command]
+pub async fn apply_scene(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+    tools: Option<Vec<Tool>>,
+) -> ApiResult<SceneReport> {
+    mutating(&app, &state, move |s| s.apply_scene(&id, tools)).await
+}
+
+#[tauri::command]
+pub async fn undo_scene(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    undo: SceneUndo,
+) -> ApiResult<SceneReport> {
+    mutating(&app, &state, move |s| s.undo_scene(undo)).await
 }
 
 #[tauri::command]

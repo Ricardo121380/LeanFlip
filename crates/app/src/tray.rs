@@ -1,5 +1,8 @@
 //! 托盘：每个工具一个子菜单。切换式工具是单选（勾 = 当前卡），并存式工具是开关
 //! （勾 = 写在客户端配置里）。菜单 id：`sw:<tool>:<id>` / `cx:<tool>:<id>`。
+//! 有场景时最上面多一个「场景」子菜单（勾 = 和现在完全一致），id 是 `sc:<scene-id>`；
+//! 点了直接应用，结果通过事件交给窗口（有失败时把窗口叫出来）。提醒规则满足时，菜单
+//! 最上面多一项「建议切换到 X」（`sh:<scene-id>`），点了同样直接应用。
 //! 有额度数据的供应商后面带一小段额度；设置里打开后，状态栏图标旁显示最紧张的一项。
 
 use std::collections::HashMap;
@@ -11,7 +14,7 @@ use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem,
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Manager, Runtime};
 
-use crate::service::Service;
+use crate::service::{rule_label, SceneReport, SceneStatus, Service};
 use crate::AppState;
 
 const TRAY_ID: &str = "main";
@@ -38,6 +41,9 @@ struct Labels {
     quit: &'static str,
     empty: &'static str,
     refresh: &'static str,
+    scenes: &'static str,
+    drifted: &'static str,
+    suggest: &'static str,
 }
 
 fn labels(english: bool) -> Labels {
@@ -47,6 +53,9 @@ fn labels(english: bool) -> Labels {
             quit: "Quit",
             empty: "(no providers)",
             refresh: "Refresh usage",
+            scenes: "Scenes",
+            drifted: "drifted",
+            suggest: "Switch to scene",
         }
     } else {
         Labels {
@@ -54,6 +63,9 @@ fn labels(english: bool) -> Labels {
             quit: "退出",
             empty: "（没有供应商）",
             refresh: "刷新额度",
+            scenes: "场景",
+            drifted: "已偏离",
+            suggest: "建议切换到场景",
         }
     }
 }
@@ -71,6 +83,10 @@ fn with_quota(name: &str, brief: Option<&String>, english: bool) -> String {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct TrayModel {
     pub english: bool,
+    /// 场景子菜单；没有场景时为空。
+    pub scenes: Option<ToolEntry>,
+    /// 提醒规则满足时的「建议切换到 X」。
+    pub scene_hint: Option<Item>,
     pub tools: Vec<ToolEntry>,
     /// 状态栏图标旁的文字；设置里没打开或没有数据时为空。
     pub title: Option<String>,
@@ -116,6 +132,8 @@ pub(crate) fn model(service: &Service) -> TrayModel {
             let source = view.sources.iter().find(|s| &s.key == key)?;
             leanflip_service::quota::brief(source.snapshot.as_ref()?, english)
         });
+    let (scenes, scene_hint) = scene_entry(service, english).unzip();
+    let scene_hint = scene_hint.flatten();
     let mut tools = Vec::new();
     for tool in Tool::ALL {
         let Ok(listing) = service.list_providers(tool) else {
@@ -165,9 +183,81 @@ pub(crate) fn model(service: &Service) -> TrayModel {
     }
     TrayModel {
         english,
+        scenes,
+        scene_hint,
         tools,
         title,
     }
+}
+
+/// 场景子菜单：标题带上当前场景（最近应用的那个，或任意一个完全一致的）。另外返回提醒
+/// 规则建议切换到的场景（只读上一次检查的结果，不在这里检查规则）。
+fn scene_entry(service: &Service, english: bool) -> Option<(ToolEntry, Option<Item>)> {
+    let text = labels(english);
+    let list = service.scenes().ok()?;
+    if list.scenes.is_empty() {
+        return None;
+    }
+    let drifted = |name: &str| {
+        if english {
+            format!("{name} ({})", text.drifted)
+        } else {
+            format!("{name}（{}）", text.drifted)
+        }
+    };
+    let current = list
+        .scenes
+        .iter()
+        .find(|view| {
+            list.last.as_deref() == Some(view.scene.id.as_str()) && view.status != SceneStatus::Idle
+        })
+        .or_else(|| {
+            list.scenes
+                .iter()
+                .find(|view| view.status == SceneStatus::Active)
+        });
+    let title = match current {
+        Some(view) if view.status == SceneStatus::Drifted => {
+            format!("{} · {}", text.scenes, drifted(&view.scene.name))
+        }
+        Some(view) => format!("{} · {}", text.scenes, view.scene.name),
+        None => text.scenes.to_string(),
+    };
+    let items = list
+        .scenes
+        .iter()
+        .map(|view| Item {
+            id: format!("sc:{}", view.scene.id),
+            label: if view.status == SceneStatus::Drifted {
+                drifted(&view.scene.name)
+            } else {
+                view.scene.name.clone()
+            },
+            enabled: true,
+            checked: view.status == SceneStatus::Active,
+        })
+        .collect();
+    let hint = service
+        .scene_hint()
+        .filter(|hint| {
+            list.scenes
+                .iter()
+                .any(|view| view.scene.id == hint.id && view.suggested)
+        })
+        .map(|hint| {
+            let reason = rule_label(&hint.rule, english);
+            Item {
+                id: format!("sh:{}", hint.id),
+                label: if english {
+                    format!("{} {} ({reason})", text.suggest, hint.name)
+                } else {
+                    format!("{}「{}」（{reason}）", text.suggest, hint.name)
+                },
+                enabled: true,
+                checked: false,
+            }
+        });
+    Some((ToolEntry { title, items }, hint))
 }
 
 /// 按模型建菜单（只创建菜单项，不读文件）。
@@ -182,6 +272,31 @@ fn build_menu<R: Runtime>(app: &AppHandle<R>, model: &TrayModel) -> tauri::Resul
         None::<&str>,
     )?)?;
     menu.append(&PredefinedMenuItem::separator(app)?)?;
+    if let Some(hint) = &model.scene_hint {
+        menu.append(&MenuItem::with_id(
+            app,
+            &hint.id,
+            &hint.label,
+            hint.enabled,
+            None::<&str>,
+        )?)?;
+    }
+    if let Some(entry) = &model.scenes {
+        let mut items: Vec<Box<dyn IsMenuItem<R>>> = Vec::new();
+        for item in &entry.items {
+            items.push(Box::new(CheckMenuItem::with_id(
+                app,
+                &item.id,
+                &item.label,
+                item.enabled,
+                item.checked,
+                None::<&str>,
+            )?));
+        }
+        let refs: Vec<&dyn IsMenuItem<R>> = items.iter().map(|b| b.as_ref()).collect();
+        menu.append(&Submenu::with_items(app, &entry.title, true, &refs)?)?;
+        menu.append(&PredefinedMenuItem::separator(app)?)?;
+    }
     for entry in &model.tools {
         let mut items: Vec<Box<dyn IsMenuItem<R>>> = Vec::new();
         for item in &entry.items {
@@ -298,6 +413,11 @@ fn on_menu(app: &AppHandle, id: &str) {
                 crate::notify_changed(&app);
             });
         }
+        other if other.starts_with("sc:") || other.starts_with("sh:") => {
+            let id = other[3..].to_string();
+            let app = app.clone();
+            std::thread::spawn(move || apply_scene(&app, &id));
+        }
         other => {
             let Some((coexist, tool, provider)) = parse_menu_id(other) else {
                 return;
@@ -325,10 +445,58 @@ fn on_menu(app: &AppHandle, id: &str) {
     }
 }
 
+/// 托盘里应用场景的结果，交给窗口提示（成功可撤销，失败列出工具）。
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct SceneEvent {
+    pub id: String,
+    pub name: String,
+    pub report: Option<SceneReport>,
+    pub error: Option<String>,
+}
+
+fn apply_scene(app: &AppHandle, id: &str) {
+    use tauri::Emitter;
+    let service = app.state::<AppState>().0.clone();
+    let name = service
+        .scenes()
+        .ok()
+        .and_then(|list| list.scenes.into_iter().find(|view| view.scene.id == id))
+        .map(|view| view.scene.name)
+        .unwrap_or_else(|| id.to_string());
+    let event = match service.apply_scene(id, None) {
+        Ok(report) => SceneEvent {
+            id: id.to_string(),
+            name,
+            report: Some(report),
+            error: None,
+        },
+        Err(err) => {
+            log::warn!("tray scene {id} failed: {err}");
+            SceneEvent {
+                id: id.to_string(),
+                name,
+                report: None,
+                error: Some(err.0),
+            }
+        }
+    };
+    let failed = event.report.as_ref().is_none_or(SceneReport::failed);
+    if failed {
+        show_main(app);
+    }
+    let _ = app.emit(crate::EVENT_SCENE_APPLIED, event);
+    // CheckMenuItem 点击后自己翻转了勾选；不管成败都按实际状态重建。
+    force_next(app);
+    crate::notify_changed(app);
+}
+
 /// 先放一个只有「打开 / 退出」的菜单让窗口马上出来，真正的菜单在后台线程里建。
 pub fn create(app: &AppHandle) -> tauri::Result<()> {
     let placeholder = TrayModel {
         english: app.state::<AppState>().0.app_settings().language.as_deref() == Some("en"),
+        scenes: None,
+        scene_hint: None,
         tools: Vec::new(),
         title: None,
     };
@@ -563,6 +731,121 @@ mod tests {
             })
             .unwrap();
         assert_eq!(model(&service).title.as_deref(), Some("$31.40"));
+    }
+
+    #[test]
+    fn model_lists_scenes_with_the_current_one_checked_and_drift_marked() {
+        use leanflip_core::scene::{Scene, SceneTool};
+        use leanflip_core::{Env, Provider};
+        use serde_json::json;
+
+        let dir = tempfile::tempdir().unwrap();
+        let home = dir.path().join("home");
+        std::fs::create_dir_all(&home).unwrap();
+        let service = Service::start(Env::with_home(&home), None).unwrap();
+        for id in ["a", "b"] {
+            service
+                .add_provider(
+                    Tool::Claude,
+                    Provider::new(
+                        id,
+                        id,
+                        json!({"env": {"ANTHROPIC_BASE_URL": "https://example.invalid", "ANTHROPIC_AUTH_TOKEN": "sk-x"}}),
+                    ),
+                    false,
+                )
+                .unwrap();
+        }
+        service.switch_provider(Tool::Claude, "a").unwrap();
+        assert_eq!(model(&service).scenes, None);
+
+        let mut ids = Vec::new();
+        for (name, card) in [("Work", "a"), ("Home", "b")] {
+            let mut scene = Scene {
+                name: name.into(),
+                ..Scene::default()
+            };
+            scene
+                .tools
+                .insert("claude".into(), SceneTool::current(card));
+            ids.push(service.save_scene(scene).unwrap().id);
+        }
+        let scenes = model(&service).scenes.unwrap();
+        assert_eq!(scenes.title, "场景 · Work");
+        assert_eq!(
+            scenes
+                .items
+                .iter()
+                .map(|i| (i.id.as_str(), i.label.as_str(), i.checked))
+                .collect::<Vec<_>>(),
+            [
+                (format!("sc:{}", ids[0]).as_str(), "Work", true),
+                (format!("sc:{}", ids[1]).as_str(), "Home", false)
+            ]
+        );
+
+        service.apply_scene(&ids[1], None).unwrap();
+        service.switch_provider(Tool::Claude, "a").unwrap();
+        let scenes = model(&service).scenes.unwrap();
+        assert_eq!(scenes.title, "场景 · Home（已偏离）");
+        assert_eq!(scenes.items[1].label, "Home（已偏离）");
+        assert!(scenes.items[0].checked);
+    }
+
+    #[test]
+    fn model_puts_a_rule_suggestion_at_the_top_until_it_is_applied() {
+        use leanflip_core::scene::{Scene, SceneTool};
+        use leanflip_core::{Env, Provider};
+        use serde_json::json;
+
+        let dir = tempfile::tempdir().unwrap();
+        let home = dir.path().join("home");
+        std::fs::create_dir_all(&home).unwrap();
+        let service = Service::start(Env::with_home(&home), None).unwrap();
+        for id in ["a", "b"] {
+            service
+                .add_provider(
+                    Tool::Claude,
+                    Provider::new(
+                        id,
+                        id,
+                        json!({"env": {"ANTHROPIC_BASE_URL": "https://example.invalid", "ANTHROPIC_AUTH_TOKEN": "sk-x"}}),
+                    ),
+                    false,
+                )
+                .unwrap();
+        }
+        service.switch_provider(Tool::Claude, "a").unwrap();
+        // 两条合起来覆盖全天，结果不依赖测试运行的时刻。
+        let rules = [("00:00", "12:00"), ("12:00", "00:00")]
+            .into_iter()
+            .map(|(start, end)| {
+                serde_json::from_value(json!({"kind": "time", "days": [1, 2, 3, 4, 5, 6, 7], "start": start, "end": end}))
+                    .unwrap()
+            })
+            .collect();
+        let mut office = Scene {
+            name: "Office".into(),
+            rules,
+            ..Scene::default()
+        };
+        office
+            .tools
+            .insert("claude".into(), SceneTool::current("b"));
+        let office = service.save_scene(office).unwrap();
+        assert_eq!(
+            model(&service).scene_hint,
+            None,
+            "rules are checked in the background"
+        );
+
+        assert!(service.refresh_scene_hint().unwrap().notify.is_some());
+        let hint = model(&service).scene_hint.unwrap();
+        assert_eq!(hint.id, format!("sh:{}", office.id));
+        assert_eq!(hint.label, "建议切换到场景「Office」（每天 00:00–12:00）");
+
+        service.apply_scene(&office.id, None).unwrap();
+        assert_eq!(model(&service).scene_hint, None);
     }
 
     #[test]

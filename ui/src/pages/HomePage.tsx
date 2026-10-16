@@ -1,5 +1,5 @@
 // 首页：清单（每个工具一句话）和光路两个视图。冷启动时清单逐词浮现。
-// 清单里正在用的供应商带上额度；标题区可以联网刷新额度。
+// 清单里正在用的供应商带上额度；标题区可以切换场景、联网刷新额度。
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Gauge, List, Loader2, RefreshCw, Waypoints } from "lucide-react";
@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { buildRows, probeGroups, type Latency, type Row } from "./home/model";
 import { LightMap } from "./home/LightMap";
 import { Sentences } from "./home/Sentences";
+import { SceneMenu } from "./home/SceneMenu";
 
 export type HomeMode = "list" | "map";
 
@@ -131,6 +132,7 @@ export function HomePage({ mode, onNavigate }: { mode: HomeMode; onNavigate: (ha
           <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{t(mode === "list" ? "home.subtitle" : "home.mapHint")}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <SceneMenu />
           <div role="group" aria-label={t("home.views")} className="segmented">
             {views.map(({ mode: value, label, icon: Icon }) => (
               <button

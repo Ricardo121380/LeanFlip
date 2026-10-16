@@ -14,6 +14,11 @@ use crate::service::Service;
 
 /// 供应商 / 客户端配置变了（托盘操作、文件监听、后台刷新）。前端收到后重新拉数据。
 pub const EVENT_PROVIDERS_CHANGED: &str = "providers-changed";
+/// 托盘里应用了场景，载荷是 [`tray::SceneEvent`]。
+pub const EVENT_SCENE_APPLIED: &str = "scene-applied";
+/// 场景的提醒规则检查结果变了。载荷是刚变成满足、要提醒的 [`service::SceneSuggestion`]，
+/// 只是建议变化（不提醒）时为 `null`。
+pub const EVENT_SCENE_SUGGESTED: &str = "scene-suggested";
 
 #[derive(Clone)]
 pub struct AppState(pub Arc<Service>);
@@ -85,6 +90,27 @@ fn start_quota_refresh(app: tauri::AppHandle, service: Arc<Service>) {
         .expect("spawn quota thread");
 }
 
+/// 每分钟检查一次场景的提醒规则；只提醒，不切换。
+fn start_scene_rules(app: tauri::AppHandle, service: Arc<Service>) {
+    std::thread::Builder::new()
+        .name("scene-rules".into())
+        .spawn(move || {
+            std::thread::sleep(Duration::from_secs(5));
+            loop {
+                match service.refresh_scene_hint() {
+                    Ok(update) if update.changed || update.notify.is_some() => {
+                        tray::rebuild(&app);
+                        let _ = app.emit(EVENT_SCENE_SUGGESTED, update.notify);
+                    }
+                    Ok(_) => {}
+                    Err(err) => log::warn!("scene rules check failed: {err}"),
+                }
+                std::thread::sleep(Duration::from_secs(60));
+            }
+        })
+        .expect("spawn scene rules thread");
+}
+
 fn app_context() -> tauri::Context<tauri::Wry> {
     tauri::generate_context!()
 }
@@ -126,6 +152,7 @@ pub fn run() {
             tray::create(app.handle())?;
             watcher::start(app.handle(), &service.env());
             start_background_refresh(app.handle().clone(), service.clone());
+            start_scene_rules(app.handle().clone(), service.clone());
             start_quota_refresh(app.handle().clone(), service);
             Ok(())
         })
@@ -165,6 +192,13 @@ pub fn run() {
             commands::update_provider,
             commands::delete_provider,
             commands::set_in_live,
+            commands::list_scenes,
+            commands::capture_scene,
+            commands::save_scene,
+            commands::delete_scene,
+            commands::preview_scene,
+            commands::apply_scene,
+            commands::undo_scene,
             commands::import_live,
             commands::codex_accounts,
             commands::codex_start_login,

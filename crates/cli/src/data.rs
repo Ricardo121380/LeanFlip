@@ -176,14 +176,15 @@ pub(super) fn backup_preview(
             ]
         })
         .collect::<Vec<_>>();
-    let text = format!("{}\n\n{}\n\n{} {} · {} {} · {}\n{}",
+    let text = format!("{}\n\n{}\n\n{} {} · {} {} · {} {} · {}\n{}",
         lang.text("LeanFlip · 已解密备份预览", "LeanFlip · Unlocked backup preview"),
         table(&[lang.text("工具", "TOOL"),lang.text("名称", "NAME"),"ID",lang.text("状态", "STATE")], &rows),
         lang.text("供应商", "Providers"), rows.len(),lang.text("托管账号", "Managed accounts"),if options.accounts { preview.accounts } else { 0 },
+        lang.text("场景", "Scenes"), if options.scenes { preview.scenes } else { 0 },
         if options.settings { lang.text("恢复应用设置", "Restore preferences") } else { lang.text("保留本机设置", "Keep local preferences") },
         lang.text("尚未恢复。追加 --apply 确认；--no-accounts / --no-settings 可排除相应内容，本机路径默认不恢复。", "Nothing restored. Add --apply; use --no-accounts / --no-settings to exclude scopes. Machine paths are excluded by default."));
     Output::new(
-        json!({"preview": preview, "selection": {"tools":options.tools,"accounts":options.accounts,"settings":options.settings,"paths":options.paths,"duplicate":options.duplicate}}),
+        json!({"preview": preview, "selection": {"tools":options.tools,"accounts":options.accounts,"settings":options.settings,"paths":options.paths,"scenes":options.scenes,"duplicate":options.duplicate}}),
         format!(
             "{text}\n{}",
             if options.paths {
@@ -200,7 +201,7 @@ pub(super) fn backup_preview(
 
 pub(super) fn report_text(report: &RestoreReport, lang: Language) -> String {
     format!(
-        "{}\n{} {} · {} {} · {} {}\n{} {}\n{}",
+        "{}\n{} {} · {} {} · {} {} · {} {}\n{} {}\n{}",
         if report.failures.is_empty() {
             lang.text("恢复完成", "Restore complete")
         } else {
@@ -215,6 +216,8 @@ pub(super) fn report_text(report: &RestoreReport, lang: Language) -> String {
         report.providers_skipped,
         lang.text("账号新增", "Accounts added"),
         report.accounts_added,
+        lang.text("场景新增", "Scenes added"),
+        report.scenes_added,
         lang.text("应用设置", "Preferences"),
         if report.settings_restored {
             lang.text("已恢复", "restored")

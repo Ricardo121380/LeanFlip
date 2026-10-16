@@ -23,8 +23,13 @@ use crate::usage;
 
 mod backup;
 mod connection;
+mod scene;
 pub use backup::{BackupItem, BackupPreview, RestoreOptions, RestoreReport, MAX_BACKUP_BYTES};
 pub use connection::{connection_info, ApiKeyChange, ConnectionInfo, ConnectionUpdate};
+pub use scene::{
+    rule_label, SceneHintUpdate, SceneList, SceneMissing, SceneOutcome, ScenePreview, SceneReport,
+    SceneStatus, SceneStep, SceneSuggestion, SceneUndo, SceneView, ToolOutcome, ToolPreview,
+};
 
 /// 给前端的错误：一句话（按界面语言选中文 / 英文）。
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -246,6 +251,7 @@ pub struct Service {
     /// 每个托管账号上次联网查询额度的时间，用来挡住连续点击。
     quota_attempts: Mutex<HashMap<String, i64>>,
     quota_url: String,
+    scene_hints: Mutex<scene::SceneHints>,
 }
 
 fn services(rt: &Runtime) -> Services<'_> {
@@ -321,6 +327,7 @@ impl Service {
             quota_errors: Mutex::new(HashMap::new()),
             quota_attempts: Mutex::new(HashMap::new()),
             quota_url: quota::codex_remote::USAGE_URL.to_string(),
+            scene_hints: Mutex::new(scene::SceneHints::default()),
         })
     }
 
@@ -580,21 +587,25 @@ impl Service {
 
     pub fn switch_provider(&self, tool: Tool, id: &str) -> ApiResult<OpResult> {
         let _guard = self.write_guard()?;
-        let rt = self.runtime();
-        self.settle(&rt, tool)?;
+        let result = self.switch_locked(&self.runtime(), tool, id);
+        self.noted(result)
+    }
+
+    /// [`Self::switch_provider`] 的本体：调用方已经拿着写锁，也负责记切换日志。
+    fn switch_locked(&self, rt: &Runtime, tool: Tool, id: &str) -> ApiResult<OpResult> {
+        self.settle(rt, tool)?;
         let data = store::load(&rt.env).map_err(|e| self.err(e))?;
         let warnings = data
             .provider(tool, id)
             .map(|p| self.provider_notices(tool, p))
             .unwrap_or_default();
-        let result = switch::switch_with(&rt.env, services(&rt), tool, id)
+        switch::switch_with(&rt.env, services(rt), tool, id)
             .map(|report| {
                 let mut result = self.op_result(report);
                 result.warnings.extend(warnings);
                 result
             })
-            .map_err(|e| self.err(e));
-        self.noted(result)
+            .map_err(|e| self.err(e))
     }
 
     fn check_incoming(&self, provider: &Provider) -> ApiResult<()> {
@@ -703,14 +714,25 @@ impl Service {
     /// 并存式工具：写进 / 移出客户端配置。
     pub fn set_in_live(&self, tool: Tool, id: &str, enabled: bool) -> ApiResult<OpResult> {
         let _guard = self.write_guard()?;
-        let rt = self.runtime();
-        self.settle(&rt, tool)?;
+        let result = self.set_in_live_locked(&self.runtime(), tool, id, enabled);
+        self.noted(result)
+    }
+
+    /// [`Self::set_in_live`] 的本体：调用方已经拿着写锁，也负责记切换日志。
+    fn set_in_live_locked(
+        &self,
+        rt: &Runtime,
+        tool: Tool,
+        id: &str,
+        enabled: bool,
+    ) -> ApiResult<OpResult> {
+        self.settle(rt, tool)?;
         let result = if enabled {
             coexist::write_to_live(&rt.env, tool, id).map(|report| self.op_result(report))
         } else {
             coexist::remove_from_live(&rt.env, tool, id).map(|report| self.op_result(report))
         };
-        self.noted(result.map_err(|e| self.err(e)))
+        result.map_err(|e| self.err(e))
     }
 
     pub fn import_live(&self, tool: Tool) -> ApiResult<ImportLiveResult> {

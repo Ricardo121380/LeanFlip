@@ -22,6 +22,7 @@ use crate::env::Env;
 use crate::error::AppError;
 use crate::fsutil::atomic_write_private;
 use crate::provider::{Provider, Tool};
+use crate::scene::Scene;
 
 pub const STORE_VERSION: u32 = 1;
 
@@ -34,6 +35,12 @@ pub struct StoreData {
     pub apps: BTreeMap<String, AppProviders>,
     #[serde(default)]
     pub settings: Settings,
+    /// 场景（见 [`crate::scene`]）。
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub scenes: Vec<Scene>,
+    /// 最近一次应用的场景 id。只是本机的记录，备份恢复时不带过去。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_scene: Option<String>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }
@@ -48,6 +55,8 @@ impl Default for StoreData {
             version: STORE_VERSION,
             apps: BTreeMap::new(),
             settings: Settings::default(),
+            scenes: Vec::new(),
+            last_scene: None,
             extra: Map::new(),
         }
     }
