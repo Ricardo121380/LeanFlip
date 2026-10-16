@@ -1,13 +1,14 @@
 // 首次查询中转站额度：用卡片里的地址和 Key 依次试 sub2api、NewAPI 的额度接口，认出来后
 // 由调用方决定怎么保存（编辑器写进草稿，列表直接写回卡片）。打开就会联网，只能由用户点击打开。
 import { useQuery } from "@tanstack/react-query";
+import { useId } from "react";
 import { useTranslation } from "react-i18next";
 import { Check, CircleSlash, Loader2, RotateCcw, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { QuotaDetails } from "@/components/QuotaDetails";
 import { api, errorMessage, type DetectStep, type RelayAdapter, type ToolId } from "@/lib/api";
-import { adapterName, RELAY_ADAPTERS } from "@/lib/quota";
+import { adapterName, errorText, RELAY_ADAPTERS } from "@/lib/quota";
 
 function StepRow({ step }: { step: DetectStep }) {
   const { t } = useTranslation();
@@ -38,6 +39,7 @@ export function QuotaDetectDialog({
   name,
   settingsConfig,
   quotaPerUsd,
+  krill,
   onUse,
   onDisable,
   onClose,
@@ -46,15 +48,17 @@ export function QuotaDetectDialog({
   name: string;
   settingsConfig: Record<string, unknown>;
   quotaPerUsd?: number;
+  krill?: { jwt?: string; providerId?: string };
   onUse: (adapter: RelayAdapter) => void;
   /** 没认出平台时提供“不再提示”：把这张卡设为不查询。 */
   onDisable?: () => void;
   onClose: () => void;
 }) {
   const { t } = useTranslation();
+  const queryId = useId();
   const detect = useQuery({
-    queryKey: ["quota-detect", tool, JSON.stringify(settingsConfig), quotaPerUsd ?? null],
-    queryFn: () => api.quotaDetect(tool, settingsConfig, quotaPerUsd),
+    queryKey: krill ? ["quota-krill-detect", queryId] : ["quota-detect", tool, JSON.stringify(settingsConfig), quotaPerUsd ?? null],
+    queryFn: () => krill ? api.quotaKrillDetect(tool, krill.jwt, krill.providerId) : api.quotaDetect(tool, settingsConfig, quotaPerUsd),
     retry: false,
     gcTime: 0,
     staleTime: Infinity,
@@ -68,21 +72,21 @@ export function QuotaDetectDialog({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>{t("quotaDetect.title", { name })}</DialogTitle>
-          <DialogDescription>{t("quotaDetect.hint")}</DialogDescription>
+          <DialogDescription>{t(krill ? "quotaDetect.krillHint" : "quotaDetect.hint")}</DialogDescription>
         </DialogHeader>
 
         {detect.isFetching ? (
           <p role="status" className="flex items-center gap-2 py-3 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> {t("quotaDetect.running", { list: RELAY_ADAPTERS.map(adapterName).join("、") })}
+            <Loader2 className="h-4 w-4 animate-spin" /> {t("quotaDetect.running", { list: krill ? "Krill" : RELAY_ADAPTERS.filter((a) => a !== "krill").map(adapterName).join("、") })}
           </p>
         ) : detect.isError ? (
           <p role="alert" className="py-2 text-sm text-destructive">{errorMessage(detect.error)}</p>
-        ) : result?.error === "noEndpoint" ? (
-          <p role="status" className="py-2 text-sm text-muted-foreground">{t("quotaDetect.noEndpoint")}</p>
+        ) : result?.error === "noEndpoint" || result?.error === "noKrillJwt" ? (
+          <p role="status" className="py-2 text-sm text-muted-foreground">{t(result.error === "noKrillJwt" ? "quotaDetect.noKrillJwt" : "quotaDetect.noEndpoint")}</p>
         ) : result ? (
           <div className="flex flex-col gap-3">
             <ol aria-label={t("quotaDetect.steps")} className="divide-y overflow-hidden rounded-lg border">
-              {result.steps.map((step) => <StepRow key={step.adapter} step={step} />)}
+                {result.steps.map((step) => <StepRow key={`${step.adapter}:${step.url}`} step={step} />)}
             </ol>
             {found && result.snapshot ? (
               <div className="rounded-lg bg-muted px-3.5 py-3">
@@ -95,7 +99,9 @@ export function QuotaDetectDialog({
                 />
               </div>
             ) : (
-              <p role="status" className="text-sm text-muted-foreground">{t("quotaDetect.notFound")}</p>
+              <p role="status" className="text-sm text-muted-foreground">{krill && result.steps[0]?.code
+                ? errorText({ code: result.steps[0].code, status: result.steps[0].status, at: Date.now() }, t)
+                : t("quotaDetect.notFound")}</p>
             )}
           </div>
         ) : null}

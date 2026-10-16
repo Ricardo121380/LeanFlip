@@ -1,15 +1,18 @@
-//! 中转站的额度：用卡片里已有的 Key，只请求这张卡自己的地址（origin），不跟随重定向。
+//! 中转站额度：sub2api / NewAPI 使用卡片 Key 和同一主机；Krill 使用独立 JWT 和固定官网。
+//! 所有请求均不跟随重定向。
 //!
 //! - sub2api：`GET {origin}/v1/usage`（源码 `backend/internal/handler/gateway_handler.go`
 //!   的 `Usage`）。三种返回：按 Key 限额（`quota`、5h/1d/7d 的 `rate_limits`）、订阅
 //!   （`subscription` 的日/周/月用量和上限）、钱包（`balance`）。金额单位都是 USD。
-//! - NewAPI：`GET {origin}/api/usage/token`（`controller/token.go` 的 `GetTokenUsage`）。
+//! - NewAPI：`GET {origin}/api/usage/token/`（`controller/token.go` 的 `GetTokenUsage`）。
 //!   数值是站点的内部额度，默认 500000 = $1，站点可以改，所以换算比例可以在卡片上设置。
 //!   令牌允许时还带 `user_quota`，就是账户余额。
+//! - Krill：`GET https://www.krill-code.com/api/subscription`，网站登录 JWT，见 [`krill`]。
 //!
 //! 很多站点对不认识的路径也回 200 网页，所以按 JSON 的内容判断是哪个平台。
 //! 卡片上的设置存在 `meta.leanflipQuota`，和 CC Switch 的 `usage_script` 分开。
 
+mod krill;
 #[cfg(test)]
 mod tests;
 
@@ -33,22 +36,25 @@ use super::{
 pub const META_QUOTA: &str = "leanflipQuota";
 pub const DEFAULT_QUOTA_PER_USD: f64 = 500_000.0;
 const MAX_BODY: u64 = 4 * 1024 * 1024;
+pub(crate) const KRILL_URL: &str = "https://www.krill-code.com/api/subscription";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum RelayAdapter {
     Sub2api,
     Newapi,
+    Krill,
 }
 
 impl RelayAdapter {
-    /// 识别时按这个顺序试。
+    /// 使用模型 Key 识别时按这个顺序试。Krill 需单独填写网站 JWT。
     const ALL: [RelayAdapter; 2] = [RelayAdapter::Sub2api, RelayAdapter::Newapi];
 
     fn path(self) -> &'static str {
         match self {
             RelayAdapter::Sub2api => "/v1/usage",
-            RelayAdapter::Newapi => "/api/usage/token",
+            RelayAdapter::Newapi => "/api/usage/token/",
+            RelayAdapter::Krill => "/api/subscription",
         }
     }
 }
@@ -57,7 +63,7 @@ impl RelayAdapter {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QuotaSettings {
-    /// `sub2api`、`newapi`，或 `off`（不查）。没有时表示还没识别过。
+    /// `sub2api`、`newapi`、`krill`，或 `off`（不查）。没有时表示还没识别过。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub adapter: Option<String>,
     /// 自动刷新间隔（分钟），0 表示只在点刷新时查。
@@ -66,6 +72,9 @@ pub struct QuotaSettings {
     /// NewAPI 多少额度算 $1。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub quota_per_usd: Option<f64>,
+    /// Krill 网站登录 JWT；仅用于固定官网的额度查询，发给前端时脱敏。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub krill_jwt: Option<String>,
 }
 
 impl QuotaSettings {
@@ -77,6 +86,7 @@ impl QuotaSettings {
         match self.adapter.as_deref()? {
             "sub2api" => Some(RelayAdapter::Sub2api),
             "newapi" => Some(RelayAdapter::Newapi),
+            "krill" => Some(RelayAdapter::Krill),
             _ => None,
         }
     }
@@ -87,11 +97,11 @@ impl QuotaSettings {
             .unwrap_or(DEFAULT_QUOTA_PER_USD)
     }
 
-    /// 保存前检查：平台只认三个值，间隔 0–1440 分钟，换算比例要是正数。
+    /// 保存前检查：平台、刷新间隔、换算比例及 Krill 登录凭据。
     pub fn validate(&self) -> Result<(), String> {
         if !matches!(
             self.adapter.as_deref(),
-            None | Some("sub2api" | "newapi" | "off")
+            None | Some("sub2api" | "newapi" | "krill" | "off")
         ) {
             return Err("unknown quota adapter".into());
         }
@@ -104,11 +114,19 @@ impl QuotaSettings {
         {
             return Err("quota per USD must be positive".into());
         }
+        if self.adapter() == Some(RelayAdapter::Krill)
+            && self
+                .krill_jwt
+                .as_deref()
+                .is_none_or(|jwt| jwt.trim().is_empty())
+        {
+            return Err("请填写 Krill 登录 JWT / Enter the Krill login JWT".into());
+        }
         Ok(())
     }
 }
 
-/// 只保留 scheme、主机和端口：额度接口都挂在站点根上。
+/// 只保留 scheme、主机和端口，作为默认查询位置。
 pub(crate) fn origin(url: &Url) -> Url {
     let mut origin = url.clone();
     origin.set_path("/");
@@ -117,6 +135,40 @@ pub(crate) fn origin(url: &Url) -> Url {
     let _ = origin.set_username("");
     let _ = origin.set_password(None);
     origin
+}
+
+/// 保留子路径部署的前缀，但去掉客户端 API 版本、查询参数和 URL 中的凭据。
+pub(crate) fn query_base(address: &Url) -> Url {
+    let path = address.path().trim_end_matches('/');
+    let prefix = path
+        .strip_suffix("/v1")
+        .or_else(|| path.strip_suffix("/v1beta"))
+        .unwrap_or(path);
+    let mut base = origin(address);
+    base.set_path(&format!("{prefix}/"));
+    base
+}
+
+fn endpoints(adapter: RelayAdapter, address: &Url) -> Vec<Url> {
+    if adapter == RelayAdapter::Krill {
+        return vec![Url::parse(KRILL_URL).expect("static Krill URL")];
+    }
+    let root = origin(address)
+        .join(adapter.path())
+        .expect("static quota path");
+    let prefixed = query_base(address)
+        .join(adapter.path().trim_start_matches('/'))
+        .expect("static quota path");
+    if prefixed == root {
+        vec![root]
+    } else {
+        vec![root, prefixed]
+    }
+}
+
+/// 只在路径不匹配时试同一主机的子路径；限流、网络错误和重定向不重试。
+fn try_next_endpoint(failure: &Failure) -> bool {
+    failure.code == "format" || matches!(failure.status, Some(401 | 403 | 404 | 405))
 }
 
 /// 来源标识只存 Key 的哈希前 16 位，不存 Key。
@@ -169,16 +221,33 @@ fn get(client: &Client, url: Url, key: &str) -> Result<(u16, Value), Failure> {
 pub(crate) fn fetch(
     client: &Client,
     adapter: RelayAdapter,
-    origin: &Url,
+    address: &Url,
     key: &str,
     per_usd: f64,
     now_ms: i64,
 ) -> Result<QuotaSnapshot, Failure> {
-    let url = origin.join(adapter.path()).map_err(|_| Failure {
-        code: "format",
-        status: None,
+    let urls = endpoints(adapter, address);
+    let mut result = fetch_at(client, adapter, urls[0].clone(), key, per_usd, now_ms);
+    if result.as_ref().is_err_and(try_next_endpoint) && urls.len() > 1 {
+        result = fetch_at(client, adapter, urls[1].clone(), key, per_usd, now_ms);
+    }
+    result
+}
+
+fn fetch_at(
+    client: &Client,
+    adapter: RelayAdapter,
+    url: Url,
+    key: &str,
+    per_usd: f64,
+    now_ms: i64,
+) -> Result<QuotaSnapshot, Failure> {
+    let (status, value) = get(client, url, key).map_err(|mut failure| {
+        if adapter == RelayAdapter::Krill && failure.code == "unauthorized" {
+            failure.code = "krillAuth";
+        }
+        failure
     })?;
-    let (status, value) = get(client, url, key)?;
     parse(adapter, &value, per_usd, now_ms).ok_or(Failure {
         code: "format",
         status: Some(status),
@@ -222,15 +291,52 @@ pub struct QuotaDetect {
     /// 来源标识（同一地址加同一个 Key 只算一个来源）。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub key: Option<String>,
-    /// 没法识别的原因：`noEndpoint`（卡片里没有地址或 Key）。
+    /// 没法识别的原因：`noEndpoint`（无地址或 Key）或 `noKrillJwt`（无网站凭据）。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+}
+
+pub(crate) fn detect_krill(client: &Client, jwt: &str, now_ms: i64) -> QuotaDetect {
+    let url = Url::parse(KRILL_URL).expect("static Krill URL");
+    let result = fetch(
+        client,
+        RelayAdapter::Krill,
+        &url,
+        jwt,
+        DEFAULT_QUOTA_PER_USD,
+        now_ms,
+    );
+    let (outcome, status, code) = match &result {
+        Ok(_) => (StepOutcome::Hit, Some(200), None),
+        Err(f) => (
+            if matches!(f.code, "network" | "timeout") {
+                StepOutcome::Error
+            } else {
+                StepOutcome::Miss
+            },
+            f.status,
+            Some(f.code.to_string()),
+        ),
+    };
+    QuotaDetect {
+        steps: vec![DetectStep {
+            adapter: RelayAdapter::Krill,
+            url: KRILL_URL.into(),
+            outcome,
+            status,
+            code,
+        }],
+        adapter: result.is_ok().then_some(RelayAdapter::Krill),
+        snapshot: result.ok(),
+        key: Some(source_key(&origin(&url), jwt)),
+        error: None,
+    }
 }
 
 /// 依次试各平台的额度接口，认出一个就停。
 pub(crate) fn detect(
     client: &Client,
-    origin: &Url,
+    address: &Url,
     key: &str,
     per_usd: f64,
     now_ms: i64,
@@ -238,36 +344,43 @@ pub(crate) fn detect(
     let mut steps = Vec::new();
     let mut found = None;
     for adapter in RelayAdapter::ALL {
-        let url = origin
-            .join(adapter.path())
-            .map(|u| u.to_string())
-            .unwrap_or_default();
+        let urls = endpoints(adapter, address);
         if found.is_some() {
             steps.push(DetectStep {
                 adapter,
-                url,
+                url: urls[0].to_string(),
                 outcome: StepOutcome::Skipped,
                 status: None,
                 code: None,
             });
             continue;
         }
-        let step = |outcome, status, code: Option<&str>| DetectStep {
-            adapter,
-            url: url.clone(),
-            outcome,
-            status,
-            code: code.map(str::to_string),
-        };
-        match fetch(client, adapter, origin, key, per_usd, now_ms) {
-            Ok(snapshot) => {
-                steps.push(step(StepOutcome::Hit, Some(200), None));
-                found = Some((adapter, snapshot));
+        for url in urls {
+            let step = |outcome, status, code: Option<&str>| DetectStep {
+                adapter,
+                url: url.to_string(),
+                outcome,
+                status,
+                code: code.map(str::to_string),
+            };
+            match fetch_at(client, adapter, url.clone(), key, per_usd, now_ms) {
+                Ok(snapshot) => {
+                    steps.push(step(StepOutcome::Hit, Some(200), None));
+                    found = Some((adapter, snapshot));
+                    break;
+                }
+                Err(f) => {
+                    let outcome = if matches!(f.code, "network" | "timeout") {
+                        StepOutcome::Error
+                    } else {
+                        StepOutcome::Miss
+                    };
+                    steps.push(step(outcome, f.status, Some(f.code)));
+                    if !try_next_endpoint(&f) {
+                        break;
+                    }
+                }
             }
-            Err(f) if matches!(f.code, "network" | "timeout") => {
-                steps.push(step(StepOutcome::Error, None, Some(f.code)))
-            }
-            Err(f) => steps.push(step(StepOutcome::Miss, f.status, Some(f.code))),
         }
     }
     (steps, found)
@@ -309,6 +422,7 @@ pub(crate) fn parse(
     match adapter {
         RelayAdapter::Sub2api => parse_sub2api(value, now_ms),
         RelayAdapter::Newapi => parse_newapi(value, per_usd, now_ms),
+        RelayAdapter::Krill => krill::parse(value, now_ms),
     }
 }
 
@@ -321,6 +435,8 @@ fn amount_window(
 ) -> QuotaWindow {
     QuotaWindow {
         minutes,
+        label: None,
+        unit: None,
         used_percent: used / limit * 100.0,
         resets_at,
         reset: resets_at.is_some_and(|at| at.saturating_mul(1000) <= now_ms),
@@ -460,14 +576,14 @@ fn parse_newapi(v: &Value, per_usd: f64, now_ms: i64) -> Option<QuotaSnapshot> {
 pub(crate) struct RelayCard {
     pub user: QuotaUser,
     pub key: String,
-    pub origin: Url,
+    pub address: Url,
     pub secret: String,
     pub adapter: RelayAdapter,
     pub per_usd: f64,
     pub refresh_minutes: u32,
 }
 
-/// 各工具里设置了平台类型（sub2api / NewAPI）的卡。`active` 判断这张卡是否正在用。
+/// 各工具里设置了平台类型的中转卡。`active` 判断这张卡是否正在用。
 pub(crate) fn relay_cards(
     providers: &[(Tool, &Provider)],
     active: &dyn Fn(Tool, &str) -> bool,
@@ -478,8 +594,15 @@ pub(crate) fn relay_cards(
         .filter_map(|(tool, p)| {
             let settings = QuotaSettings::of(p)?;
             let adapter = settings.adapter()?;
-            let (address, secret) = crate::probe::address_and_key(*tool, &p.settings_config)?;
-            let origin = origin(&address);
+            let (address, secret) = if adapter == RelayAdapter::Krill {
+                let jwt = settings.krill_jwt.as_deref()?.trim();
+                if jwt.is_empty() || jwt == crate::redact::PLACEHOLDER {
+                    return None;
+                }
+                (Url::parse(KRILL_URL).ok()?, jwt.to_string())
+            } else {
+                crate::probe::address_and_key(*tool, &p.settings_config)?
+            };
             Some(RelayCard {
                 user: QuotaUser {
                     tool: *tool,
@@ -487,8 +610,12 @@ pub(crate) fn relay_cards(
                     provider_name: p.name.clone(),
                     active: active(*tool, &p.id),
                 },
-                key: source_key(&origin, &secret),
-                origin,
+                key: if adapter == RelayAdapter::Krill {
+                    source_key(&origin(&address), &secret)
+                } else {
+                    source_key(&query_base(&address), &secret)
+                },
+                address,
                 secret,
                 adapter,
                 per_usd: settings.per_usd(),
@@ -520,7 +647,7 @@ pub(crate) fn relay_sources(
         sources.push(QuotaSource {
             key: card.key.clone(),
             kind: QuotaKind::Relay,
-            label: card.origin.host_str().map(str::to_string),
+            label: card.address.host_str().map(str::to_string),
             account_id: None,
             login: None,
             adapter: Some(card.adapter),

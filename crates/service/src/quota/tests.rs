@@ -1125,6 +1125,8 @@ fn brief_text_prefers_a_nearly_full_window_then_the_balance() {
             windows
                 .into_iter()
                 .map(|(minutes, used)| QuotaWindow {
+                    label: None,
+                    unit: None,
                     minutes,
                     used_percent: used,
                     resets_at: None,

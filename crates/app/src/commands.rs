@@ -153,6 +153,19 @@ pub async fn quota_detect(
 }
 
 #[tauri::command]
+pub async fn quota_krill_detect(
+    state: State<'_, AppState>,
+    tool: Tool,
+    provider_id: Option<String>,
+    jwt: Option<String>,
+) -> ApiResult<leanflip_service::quota::relay::QuotaDetect> {
+    blocking(&state, move |s| {
+        s.quota_krill_detect(tool, provider_id.as_deref(), jwt.as_deref())
+    })
+    .await
+}
+
+#[tauri::command]
 pub async fn quota_configure(
     app: AppHandle,
     state: State<'_, AppState>,

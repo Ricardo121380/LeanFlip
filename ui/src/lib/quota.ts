@@ -54,7 +54,7 @@ export function creditsText(snapshot: QuotaSnapshot, language: string, t: TFunct
 }
 
 export function errorText(error: QuotaError, t: TFunction): string {
-  const known = ["reauth", "unauthorized", "rateLimited", "http", "timeout", "network", "format", "token"];
+  const known = ["reauth", "unauthorized", "krillAuth", "rateLimited", "http", "timeout", "network", "format", "token"];
   return t(`quota.error.${known.includes(error.code) ? error.code : "http"}`, { status: error.status ?? "?" });
 }
 
@@ -93,7 +93,7 @@ export function quotaBrief(snapshot: QuotaSnapshot, now: number, t: TFunction, l
   const worst = snapshot.windows.filter((w) => !w.reset).reduce<QuotaSnapshot["windows"][number] | undefined>((a, w) => (!a || w.usedPercent > a.usedPercent ? w : a), undefined);
   const balance = snapshot.balance;
   const window = (w: NonNullable<typeof worst>): QuotaBrief => ({
-    text: `${windowLabel(w.minutes, t)} ${percentText(w.usedPercent)}`,
+    text: `${w.label ?? windowLabel(w.minutes, t)} ${percentText(w.usedPercent)}`,
     level: snapshot.level,
     percent: w.usedPercent,
     note: resetText(w.resetsAt, now, t) ?? undefined,
@@ -135,10 +135,10 @@ export function moneyText(amount: number, unit: string, language: string): strin
 
 export const QUOTA_META = "leanflipQuota";
 export const DEFAULT_QUOTA_PER_USD = 500_000;
-export const RELAY_ADAPTERS: RelayAdapter[] = ["sub2api", "newapi"];
+export const RELAY_ADAPTERS: RelayAdapter[] = ["sub2api", "newapi", "krill"];
 
 export function adapterName(adapter: RelayAdapter): string {
-  return adapter === "newapi" ? "NewAPI" : "sub2api";
+  return { newapi: "NewAPI", sub2api: "sub2api", krill: "Krill" }[adapter];
 }
 
 /** 卡片上的额度设置；没有或格式不对时为空。 */
@@ -147,8 +147,9 @@ export function quotaSettingsOf(provider?: Provider): QuotaSettings | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const value = raw as Record<string, unknown>;
   const settings: QuotaSettings = { refreshMinutes: typeof value.refreshMinutes === "number" ? value.refreshMinutes : 0 };
-  if (value.adapter === "sub2api" || value.adapter === "newapi" || value.adapter === "off") settings.adapter = value.adapter;
+  if (value.adapter === "sub2api" || value.adapter === "newapi" || value.adapter === "krill" || value.adapter === "off") settings.adapter = value.adapter;
   if (typeof value.quotaPerUsd === "number" && value.quotaPerUsd > 0) settings.quotaPerUsd = value.quotaPerUsd;
+  if (typeof value.krillJwt === "string") settings.krillJwt = value.krillJwt;
   return settings;
 }
 
@@ -160,6 +161,7 @@ export function applyQuotaSettings(provider: Provider, settings: QuotaSettings |
     const value: QuotaSettings = { refreshMinutes: settings.refreshMinutes };
     if (settings.adapter) value.adapter = settings.adapter;
     if (settings.quotaPerUsd !== undefined) value.quotaPerUsd = settings.quotaPerUsd;
+    if (settings.adapter === "krill" && settings.krillJwt?.trim()) value.krillJwt = settings.krillJwt.trim();
     meta[QUOTA_META] = value;
   }
   const next: Provider = { ...provider, meta };

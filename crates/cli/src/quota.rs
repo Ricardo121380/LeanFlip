@@ -128,14 +128,15 @@ fn amounts(snapshot: &QuotaSnapshot, lang: Language) -> String {
         .windows
         .iter()
         .map(|w| {
+            let label = w
+                .label
+                .as_ref()
+                .map(|label| clean(label))
+                .unwrap_or_else(|| window_label(w.minutes, lang));
             if w.reset {
-                format!(
-                    "{} {}",
-                    window_label(w.minutes, lang),
-                    lang.text("已重置", "reset")
-                )
+                format!("{} {}", label, lang.text("已重置", "reset"))
             } else {
-                format!("{} {:.0}%", window_label(w.minutes, lang), w.used_percent)
+                format!("{} {:.0}%", label, w.used_percent)
             }
         })
         .collect::<Vec<_>>();
@@ -152,6 +153,13 @@ fn amounts(snapshot: &QuotaSnapshot, lang: Language) -> String {
                 part.push_str(&format!(" / {}", money(limit, &balance.unit)));
             }
             parts.push(part);
+        }
+        if let Some(remaining) = balance.account_remaining {
+            parts.push(format!(
+                "{} {}",
+                lang.text("账户余额", "account balance"),
+                money(remaining, &balance.unit)
+            ));
         }
     }
     if let Some(credits) = &snapshot.credits {
@@ -188,6 +196,7 @@ fn failure(error: &QuotaError, lang: Language) -> String {
     let reason = match error.code.as_str() {
         "reauth" => lang.text("需要重新登录", "sign-in required"),
         "unauthorized" => lang.text("Key 无效或无权限", "key rejected"),
+        "krillAuth" => lang.text("请更新 Krill 登录 JWT", "update the Krill login JWT"),
         "rateLimited" => lang.text("请求太频繁", "rate limited"),
         "timeout" => lang.text("查询超时", "timed out"),
         "network" => lang.text("连不上", "unreachable"),

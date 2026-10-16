@@ -200,6 +200,8 @@ fn window(value: &Value, at_ms: i64) -> Option<QuotaWindow> {
     let used_percent = value["used_percent"].as_f64()?;
     let resets_at = value["resets_at"].as_i64();
     Some(QuotaWindow {
+        label: None,
+        unit: None,
         minutes,
         used_percent,
         resets_at,

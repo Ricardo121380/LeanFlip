@@ -64,7 +64,7 @@ export function QuotaDetails({
     <div className="mt-2.5 flex flex-col gap-1.5 text-xs" role="group" aria-label={t("quota.windowsLabel", { label })}>
       {rows && (
         <div className="grid grid-cols-[auto_minmax(4rem,10rem)_auto_minmax(0,1fr)] items-center gap-x-2.5 gap-y-1.5">
-          {balance && (
+          {balance && (balance.unlimited || balance.remaining !== undefined || balance.limit !== undefined) && (
             <Row
               name={t("quota.balance")}
               meter={balanceUsed !== undefined ? <QuotaMeter usedPercent={balanceUsed} reset={false} className="w-full" /> : undefined}
@@ -73,15 +73,15 @@ export function QuotaDetails({
               note={balance.limit !== undefined && !balance.unlimited ? t("quota.ofTotal", { total: money(balance.limit) }) : null}
             />
           )}
-          {snap.windows.map((w) => (
+          {snap.windows.map((w, index) => (
             <Row
-              key={w.minutes}
-              name={windowLabel(w.minutes, t)}
+              key={`${w.label ?? ""}:${w.minutes}:${index}`}
+              name={w.label ? `${w.label} · ${windowLabel(w.minutes, t)}` : windowLabel(w.minutes, t)}
               meter={<QuotaMeter usedPercent={w.usedPercent} reset={w.reset} className="w-full" />}
               value={w.reset ? "—" : percentText(w.usedPercent)}
               level={windowLevel(w.usedPercent, w.reset)}
               note={[
-                w.usedAmount !== undefined && w.limitAmount !== undefined ? `${money(w.usedAmount)} / ${money(w.limitAmount)}` : null,
+                w.usedAmount !== undefined && w.limitAmount !== undefined ? `${moneyText(w.usedAmount, w.unit ?? balance?.unit ?? "USD", language)} / ${moneyText(w.limitAmount, w.unit ?? balance?.unit ?? "USD", language)}` : null,
                 w.reset ? t("quota.resetDone") : resetText(w.resetsAt, now, t),
               ].filter(Boolean).join(" · ")}
             />

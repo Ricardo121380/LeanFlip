@@ -32,7 +32,7 @@ fn sub2api_limited() -> Value {
     })
 }
 
-/// NewAPI `/api/usage/token`（controller/token.go 的 GetTokenUsage）。
+/// NewAPI `/api/usage/token/`（controller/token.go 的 GetTokenUsage）。
 fn newapi_usage(available: i64, unlimited: bool) -> Value {
     json!({
         "code": true,
@@ -293,7 +293,7 @@ fn detection_skips_html_and_stops_at_the_first_match() {
     assert_eq!(found.unwrap().0, RelayAdapter::Newapi);
     let requests = seen.lock().unwrap().clone();
     assert!(requests[0][0].starts_with("GET /v1/usage "));
-    assert!(requests[1][0].starts_with("GET /api/usage/token "));
+    assert!(requests[1][0].starts_with("GET /api/usage/token/ "));
     assert_eq!(
         test_server::header(&requests[1], "authorization").as_deref(),
         Some("Bearer sk-relay")
@@ -342,6 +342,137 @@ fn detection_reports_rejections_and_unreachable_sites() {
     drop(unused);
     let (steps, _) = detect(&client, &closed, "sk", DEFAULT_QUOTA_PER_USD, NOW);
     assert!(steps.iter().all(|s| s.outcome == StepOutcome::Error));
+}
+
+#[test]
+fn prefixed_endpoints_are_tried_only_after_a_root_path_miss() {
+    let client = super::super::codex_remote::client().unwrap();
+    for (adapter, body, path) in [
+        (RelayAdapter::Sub2api, sub2api_limited(), "/relay/v1/usage"),
+        (
+            RelayAdapter::Newapi,
+            newapi_usage(15_700_000, false),
+            "/relay/api/usage/token/",
+        ),
+    ] {
+        let (base, seen) = serve(vec![(404, "", "{}".into()), (200, "", body.to_string())]);
+        let address = Url::parse(&format!("{base}/relay/v1/?ignored=secret#fragment")).unwrap();
+        let snap = fetch(
+            &client,
+            adapter,
+            &address,
+            "sk-path",
+            DEFAULT_QUOTA_PER_USD,
+            NOW,
+        )
+        .unwrap();
+        assert_eq!(snap.balance.unwrap().remaining, Some(31.4));
+        let requests = seen.lock().unwrap();
+        assert_eq!(requests.len(), 2);
+        assert!(requests[1][0].starts_with(&format!("GET {path} ")));
+        assert_eq!(
+            test_server::header(&requests[1], "authorization").as_deref(),
+            Some("Bearer sk-path")
+        );
+    }
+
+    let (base, seen) = serve(vec![(200, "", sub2api_limited().to_string())]);
+    let address = Url::parse(&format!("{base}/codex/v1")).unwrap();
+    fetch(
+        &client,
+        RelayAdapter::Sub2api,
+        &address,
+        "sk",
+        DEFAULT_QUOTA_PER_USD,
+        NOW,
+    )
+    .unwrap();
+    assert_eq!(
+        seen.lock().unwrap().len(),
+        1,
+        "root-hosted quota remains the default"
+    );
+}
+
+#[test]
+fn prefixed_detection_records_the_real_url_and_refresh_uses_the_same_source() {
+    let (_dir, env) = sandbox();
+    let (base, seen) = serve(vec![
+        (200, "", "<html>not an endpoint</html>".into()),
+        (200, "", sub2api_limited().to_string()),
+        (404, "", "{}".into()),
+        (200, "", sub2api_limited().to_string()),
+    ]);
+    let card = claude_relay("prefix", &format!("{base}/relay/v1"), "sk-prefix");
+    store::add_provider(&env, Tool::Claude, card.clone()).unwrap();
+    let service = Service::start(env, None).unwrap();
+    let detected = service
+        .quota_detect(Tool::Claude, &card.settings_config, None)
+        .unwrap();
+    assert_eq!(detected.adapter, Some(RelayAdapter::Sub2api));
+    assert_eq!(detected.steps[1].url, format!("{base}/relay/v1/usage"));
+    assert_eq!(detected.steps[1].outcome, StepOutcome::Hit);
+    service
+        .quota_configure(
+            Tool::Claude,
+            "prefix",
+            Some(QuotaSettings {
+                adapter: Some("sub2api".into()),
+                ..Default::default()
+            }),
+        )
+        .unwrap();
+    let view = service.quota_overview().unwrap();
+    assert_eq!(Some(&view.sources[0].key), detected.key.as_ref());
+    assert!(view.sources[0].snapshot.is_some());
+    let view = service.quota_refresh(None).unwrap();
+    assert!(view.sources[0].error.is_none());
+    assert_eq!(seen.lock().unwrap().len(), 4);
+}
+
+#[test]
+fn url_candidates_never_change_authority_or_leak_url_credentials() {
+    let address = Url::parse("https://login:secret@gw.example/relay/v1/?token=secret#x").unwrap();
+    let urls = endpoints(RelayAdapter::Sub2api, &address);
+    assert_eq!(
+        urls.iter().map(Url::as_str).collect::<Vec<_>>(),
+        [
+            "https://gw.example/v1/usage",
+            "https://gw.example/relay/v1/usage",
+        ]
+    );
+    assert_ne!(
+        source_key(&query_base(&address), "sk"),
+        source_key(&origin(&address), "sk")
+    );
+    assert_eq!(
+        query_base(&Url::parse("https://gw.example/relay/v1beta").unwrap()),
+        query_base(&address),
+    );
+}
+
+#[test]
+fn rate_limits_and_redirects_do_not_trigger_fallback_or_follow_redirects() {
+    let client = super::super::codex_remote::client().unwrap();
+    for status in [301, 302, 307, 308, 429, 500] {
+        let (base, seen) = serve(vec![(
+            status,
+            "Location: https://elsewhere.invalid/\r\n",
+            "{}".into(),
+        )]);
+        let address = Url::parse(&format!("{base}/relay/v1")).unwrap();
+        let error = fetch(
+            &client,
+            RelayAdapter::Newapi,
+            &address,
+            "sk",
+            DEFAULT_QUOTA_PER_USD,
+            NOW,
+        )
+        .unwrap_err();
+        assert_eq!(error.status, Some(status));
+        assert_eq!(seen.lock().unwrap().len(), 1);
+    }
 }
 
 fn sandbox() -> (tempfile::TempDir, Env) {
@@ -415,6 +546,7 @@ fn service_detects_configures_shares_one_source_and_refreshes() {
         adapter: Some("newapi".into()),
         refresh_minutes: 15,
         quota_per_usd: None,
+        krill_jwt: None,
     };
     service
         .quota_configure(Tool::Claude, "corp", Some(settings.clone()))

@@ -23,7 +23,7 @@ function SourceRow({ source, now, refreshing, onRefresh }: { source: QuotaSource
   const { t } = useTranslation();
   const name = sourceName(source);
   const kind = source.kind === "relay"
-    ? [t("stats.quotaRelayKind", { name: source.adapter ? adapterName(source.adapter) : "" }), source.label].filter(Boolean).join(" · ")
+    ? [t(source.adapter === "krill" ? "stats.quotaKrillKind" : "stats.quotaRelayKind", { name: source.adapter ? adapterName(source.adapter) : "" }), source.label].filter(Boolean).join(" · ")
     : [t("stats.quotaCodexKind"), source.snapshot?.plan && source.snapshot.plan.charAt(0).toUpperCase() + source.snapshot.plan.slice(1)].filter(Boolean).join(" · ");
   const online = source.kind === "relay" || source.accountId !== undefined;
   return (

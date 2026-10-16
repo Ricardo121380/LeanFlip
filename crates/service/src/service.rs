@@ -616,12 +616,21 @@ impl Service {
                 "供应商 id 不能为空".into()
             }));
         }
-        if redact::contains_placeholder(&provider.settings_config) {
+        if redact::contains_placeholder(&provider.settings_config)
+            || provider
+                .meta
+                .extra
+                .get(quota::relay::META_QUOTA)
+                .is_some_and(redact::contains_placeholder)
+        {
             return Err(ApiError::message(if self.english() {
                 "Redacted login values cannot be saved into another provider".into()
             } else {
                 "隐藏的登录凭据不能保存到其他供应商".into()
             }));
+        }
+        if let Some(settings) = quota::relay::QuotaSettings::of(provider) {
+            settings.validate().map_err(ApiError::message)?;
         }
         Ok(())
     }
@@ -949,7 +958,7 @@ impl Service {
                 Some(client) => quota::relay::fetch(
                     client,
                     card.adapter,
-                    &card.origin,
+                    &card.address,
                     &card.secret,
                     card.per_usd,
                     quota::now_ms(),
@@ -1063,8 +1072,7 @@ impl Service {
                 error: Some("noEndpoint".into()),
             });
         };
-        let origin = quota::relay::origin(&address);
-        let key = quota::relay::source_key(&origin, &secret);
+        let key = quota::relay::source_key(&quota::relay::query_base(&address), &secret);
         let per_usd = quota::relay::QuotaSettings {
             quota_per_usd,
             ..Default::default()
@@ -1073,7 +1081,7 @@ impl Service {
         let client =
             quota::codex_remote::client().map_err(|_| ApiError::message("network".into()))?;
         let (steps, found) =
-            quota::relay::detect(&client, &origin, &secret, per_usd, quota::now_ms());
+            quota::relay::detect(&client, &address, &secret, per_usd, quota::now_ms());
         if let Some((_, snapshot)) = &found {
             let entry = quota::cache::RelayEntry {
                 key: key.clone(),
@@ -1091,6 +1099,50 @@ impl Service {
             key: Some(key),
             error: None,
         })
+    }
+
+    /// Krill 只能使用官网 JWT，不复用模型 Key，也不参与站点自动识别。
+    pub fn quota_krill_detect(
+        &self,
+        tool: Tool,
+        provider_id: Option<&str>,
+        jwt: Option<&str>,
+    ) -> ApiResult<quota::relay::QuotaDetect> {
+        let stored;
+        let jwt = if jwt == Some(redact::PLACEHOLDER) {
+            stored = store::load_readonly(&self.env()).map_err(|e| self.err(e))?;
+            provider_id
+                .and_then(|id| stored.provider(tool, id))
+                .and_then(|p| p.meta.extra.get(quota::relay::META_QUOTA))
+                .and_then(|q| q["krillJwt"].as_str())
+        } else {
+            jwt
+        }
+        .map(str::trim)
+        .filter(|jwt| !jwt.is_empty() && *jwt != redact::PLACEHOLDER);
+        let Some(jwt) = jwt else {
+            return Ok(quota::relay::QuotaDetect {
+                steps: Vec::new(),
+                adapter: None,
+                snapshot: None,
+                key: None,
+                error: Some("noKrillJwt".into()),
+            });
+        };
+        let client =
+            quota::codex_remote::client().map_err(|_| ApiError::message("network".into()))?;
+        let result = quota::relay::detect_krill(&client, jwt, quota::now_ms());
+        if let (Some(key), Some(snapshot)) = (&result.key, &result.snapshot) {
+            let entry = quota::cache::RelayEntry {
+                key: key.clone(),
+                snapshot: snapshot.clone(),
+            };
+            if let Err(err) = quota::cache::save(&self.env(), &[], &[entry], quota::now_ms()) {
+                log::warn!("quota: cache not saved: {err}");
+            }
+            self.quota_outcome(key.clone(), Ok(()));
+        }
+        Ok(result)
     }
 
     /// 改一张卡的额度设置（`None` 清除）。只改 `meta.leanflipQuota`，不动客户端配置。
@@ -1118,10 +1170,15 @@ impl Service {
                 Some(settings) => {
                     let value = serde_json::to_value(settings)
                         .map_err(|source| AppError::JsonSerialize { source })?;
+                    let stored = provider.clone();
                     provider
                         .meta
                         .extra
                         .insert(quota::relay::META_QUOTA.into(), value);
+                    redact::restore(tool, provider, Some(&stored));
+                    if let Some(settings) = quota::relay::QuotaSettings::of(provider) {
+                        settings.validate().map_err(AppError::InvalidInput)?;
+                    }
                 }
                 None => {
                     provider.meta.extra.remove(quota::relay::META_QUOTA);
