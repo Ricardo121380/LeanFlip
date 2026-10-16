@@ -79,9 +79,18 @@ function useAppliedNotice() {
     (name: string, report: SceneReport) => {
       showResultWarnings(report);
       if (failedTools(report).length) return false;
+      const separator = t("common.separator");
       const irreversible = (report.irreversible ?? []).map(toolLabel);
+      // 快捷键和托盘没有预览：跳过的已删除供应商要在这里说出来。
+      const missing = report.results
+        .filter((result) => result.missing.length > 0)
+        .map((result) => t("scene.missingItem", { tool: toolLabel(result.tool), ids: result.missing.join(separator) }));
+      const notes = [
+        ...(missing.length ? [t("scene.skippedMissing", { items: missing.join(separator) })] : []),
+        ...(irreversible.length ? [t("scene.irreversible", { tools: irreversible.join(separator) })] : []),
+      ];
       toast.success(t("scene.applied", { name }), {
-        description: irreversible.length ? t("scene.irreversible", { tools: irreversible.join(t("common.separator")) }) : undefined,
+        description: notes.length ? notes.join(" ") : undefined,
         action: { label: t("common.undo"), onClick: () => undo.mutate(report.undo) },
       });
       return true;

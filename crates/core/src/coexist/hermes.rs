@@ -94,14 +94,30 @@ pub(crate) fn model(text: &str) -> Result<Option<Value>, AppError> {
     Ok(doc.value.get("model").filter(|v| !v.is_null()).cloned())
 }
 /// 把顶层 `model:` 整段写回成 `model`（撤销场景时恢复原来的默认供应商和模型），其他段不动。
+/// `model` 是 `null` 时删掉这一段（原来就没有）。
 pub(crate) struct ModelPatch<'a> {
     pub model: &'a Value,
 }
+impl ModelPatch<'_> {
+    fn edit(&self, source: &str) -> Result<String, AppError> {
+        let doc = Document::parse(source)?;
+        if !self.model.is_null() {
+            return doc.replace(&[("model", self.model.clone())]);
+        }
+        let mut desired = doc.value.clone();
+        let removed = desired
+            .as_object_mut()
+            .is_some_and(|object| object.remove("model").is_some());
+        if removed {
+            doc.replace_all(&desired)
+        } else {
+            Ok(source.to_string())
+        }
+    }
+}
 impl LivePatch for ModelPatch<'_> {
     fn apply(&self, path: &Path, before: Option<&[u8]>) -> Result<Vec<u8>, LiveWriteError> {
-        let source = decode_utf8(path, before.unwrap_or_default())?;
-        Document::parse(source)
-            .and_then(|doc| doc.replace(&[("model", self.model.clone())]))
+        self.edit(decode_utf8(path, before.unwrap_or_default())?)
             .map(String::into_bytes)
             .map_err(rejected)
     }

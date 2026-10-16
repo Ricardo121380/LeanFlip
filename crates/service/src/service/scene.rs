@@ -542,8 +542,14 @@ impl Service {
             })
             .map(|result| result.tool)
             .collect();
-        if let Err(error) = scene::set_last(&rt.env, last) {
-            log::warn!("last scene not recorded: {error}");
+        // 全部失败（都改回去了）时不算应用过这个场景，保留原来的记录。
+        if results
+            .iter()
+            .any(|result| result.outcome != SceneOutcome::Failed)
+        {
+            if let Err(error) = scene::set_last(&rt.env, last) {
+                log::warn!("last scene not recorded: {error}");
+            }
         }
         Ok(SceneReport {
             results,
@@ -608,17 +614,19 @@ impl Service {
         if let Err(error) = self.run_actions(rt, tool, plan.actions, &mut outcome) {
             outcome.outcome = SceneOutcome::Failed;
             outcome.error = Some(error.0);
-            if !outcome.changed.is_empty() {
-                let rollback = snapshot
-                    .ok_or_else(|| ApiError::message(String::new()))
-                    .and_then(|snapshot| {
-                        store::load(&rt.env)
-                            .and_then(|data| scene::plan_tool(&rt.env, &data, tool, snapshot))
-                            .map_err(|e| self.err(e))
-                    })
-                    .and_then(|plan| self.run_actions(rt, tool, plan.actions, &mut outcome));
-                outcome.partial = rollback.is_err();
-            }
+            // 失败的那一步自己也可能已经写了文件（写完后在收尾时出错）：先落定这个工具，再按
+            // 快照改回去。快照和现在一致时什么都不做。
+            let rollback = self
+                .settle(rt, tool)
+                .and_then(|()| snapshot.ok_or_else(|| ApiError::message(String::new())))
+                .and_then(|snapshot| {
+                    store::load(&rt.env)
+                        .and_then(|data| scene::plan_tool(&rt.env, &data, tool, snapshot))
+                        .map_err(|e| self.err(e))
+                })
+                .and_then(|plan| self.run_actions(rt, tool, plan.actions, &mut outcome));
+            // 改不回、而且这次确实改过文件时才算「可能改了一部分」。
+            outcome.partial = rollback.is_err() && !outcome.changed.is_empty();
         }
         outcome.changed.sort();
         outcome.changed.dedup();

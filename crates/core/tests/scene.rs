@@ -372,6 +372,73 @@ fn hermes_undo_snapshots_restore_a_default_that_is_not_a_leanflip_card() {
 }
 
 #[test]
+fn hermes_undo_removes_a_model_section_that_did_not_exist() {
+    let sb = Sandbox::new();
+    sb.write(
+        &sb.env.hermes_config_path(),
+        "terminal:\n  backend: local\n",
+    );
+    sb.add(Tool::Hermes, hermes("r1"));
+    let data = store::load(&sb.env).unwrap();
+    let undo = scene::undo_entry(&sb.env, &data, Tool::Hermes)
+        .unwrap()
+        .unwrap();
+    assert_eq!(undo.extra[scene::HERMES_MODEL], serde_json::Value::Null);
+    switch::switch(&sb.env, Tool::Hermes, "r1").unwrap();
+    assert!(coexist::hermes_model(&sb.env).unwrap().is_some());
+    let snapshot = Scene {
+        name: "undo".into(),
+        tools: [("hermes".to_string(), undo)].into(),
+        ..Scene::default()
+    };
+    let actions = plan(&sb, &snapshot, Tool::Hermes).actions;
+    assert_eq!(
+        actions,
+        [
+            Action::Disable("r1".into()),
+            Action::RestoreDefault(serde_json::Value::Null)
+        ]
+    );
+    coexist::remove_from_live(&sb.env, Tool::Hermes, "r1").unwrap();
+    coexist::restore_hermes_model(&sb.env, &serde_json::Value::Null).unwrap();
+    assert_eq!(coexist::hermes_model(&sb.env).unwrap(), None);
+    let text = sb.read(&sb.env.hermes_config_path());
+    assert!(text.starts_with("terminal:\n  backend: local\n"), "{text}");
+    assert!(!text.contains("model:"), "{text}");
+    assert!(plan(&sb, &snapshot, Tool::Hermes).in_sync());
+}
+
+#[test]
+fn a_deleted_hermes_default_in_the_scene_keeps_the_current_default() {
+    let sb = Sandbox::new();
+    sb.write(&sb.env.hermes_config_path(), "");
+    sb.add(Tool::Hermes, hermes("r1"));
+    sb.add(Tool::Hermes, hermes("r2"));
+    coexist::write_to_live(&sb.env, Tool::Hermes, "r2").unwrap();
+    switch::switch(&sb.env, Tool::Hermes, "r1").unwrap();
+    let mut entry = SceneTool::enabled(["r2", "gone"]);
+    entry.current = Some("gone".into());
+    let scene = named("Gone", &[(Tool::Hermes, entry)]);
+    let plan = plan(&sb, &scene, Tool::Hermes);
+    assert!(plan.actions.is_empty(), "{:?}", plan.actions);
+    assert_eq!(plan.missing, ["gone"]);
+}
+
+#[test]
+fn capture_skips_a_switch_selection_the_client_no_longer_uses() {
+    let sb = setup();
+    sb.write(
+        &sb.env.claude_settings_path(),
+        r#"{"env": {"ANTHROPIC_BASE_URL": "https://elsewhere"}}"#,
+    );
+    let data = store::load(&sb.env).unwrap();
+    assert_eq!(
+        scene::capture_tool(&sb.env, &data, Tool::Claude).unwrap(),
+        None
+    );
+}
+
+#[test]
 fn scenes_with_only_unknown_tools_never_match() {
     let sb = setup();
     let mut future = named("Future", &[]);

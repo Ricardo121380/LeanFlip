@@ -486,3 +486,30 @@ fn subnet_probes_target_the_first_host_of_each_network() {
     assert_eq!(host("fd00::/8"), "fd00::1");
     assert_eq!(host("fd00::5/128"), "fd00::5");
 }
+
+#[test]
+fn a_scene_that_fails_everywhere_keeps_the_last_scene_marker() {
+    let home = home();
+    let service = &home.service;
+    let b = scene_b(service);
+    service.apply_scene(&b.id, None).unwrap();
+    let mut only = Scene {
+        name: "Only OpenCode".into(),
+        ..Scene::default()
+    };
+    only.tools
+        .insert("opencode".into(), SceneTool::enabled(["x"]));
+    let only = service.save_scene(only).unwrap();
+    std::fs::write(
+        service.env().opencode_dir.join("opencode.json"),
+        "{ not json",
+    )
+    .unwrap();
+    let report = service.apply_scene(&only.id, None).unwrap();
+    assert!(report.failed());
+    assert!(!report.results[0].partial, "nothing was written");
+    assert_eq!(
+        service.scenes().unwrap().last.as_deref(),
+        Some(b.id.as_str())
+    );
+}

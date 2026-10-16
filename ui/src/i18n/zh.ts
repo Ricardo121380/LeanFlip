@@ -923,6 +923,8 @@ const zh = {
     partialHint: "失败的工具已尽量改回原样。可以修好后再应用一次，也可以撤销已经切换的部分。",
     partialTool: "没能改回原样，可能改了一部分",
     irreversible: "撤销不会改回：{{tools}}（应用前没有选供应商）",
+    skippedMissing: "跳过了已删除的供应商：{{items}}",
+    missingItem: "{{tool}}（{{ids}}）",
     outcome: { applied: "已切换", unchanged: "无需改动", failed: "失败" },
     manageTitle: "管理场景",
     manageHint: "场景记下每个工具用哪家供应商，在首页或 ⌘K 里一键切换。",

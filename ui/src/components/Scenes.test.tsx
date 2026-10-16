@@ -215,13 +215,17 @@ describe("Scene shortcuts and reminders", () => {
   it("applies the scene at the pressed position directly, with undo", async () => {
     const fake = start();
     applyResult.irreversible = ["gemini"];
+    applyResult.results[0].missing = ["gone"];
     await screen.findByRole("button", { name: /场景：个人/ });
     fireEvent.keyDown(window, { code: "Digit2", ctrlKey: true, shiftKey: true });
     await waitFor(() => expect(calls(fake, "apply_scene")).toEqual([{ id: "scene-work", tools: null }]));
     await waitFor(() =>
       expect(toast.success).toHaveBeenCalledWith(
         "已切换到场景「公司」",
-        expect.objectContaining({ description: "撤销不会改回：Gemini CLI（应用前没有选供应商）", action: expect.objectContaining({ label: "撤销" }) }),
+        expect.objectContaining({
+          description: "跳过了已删除的供应商：Claude Code（gone） 撤销不会改回：Gemini CLI（应用前没有选供应商）",
+          action: expect.objectContaining({ label: "撤销" }),
+        }),
       ),
     );
     fireEvent.keyDown(window, { code: "Digit3", ctrlKey: true, shiftKey: true });

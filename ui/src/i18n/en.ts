@@ -920,6 +920,8 @@ const en: Messages = {
     partialHint: "Tools that failed were restored where possible. Fix them and apply again, or undo the tools that did switch.",
     partialTool: "Not restored; it may be partly changed",
     irreversible: "Undo won’t change back: {{tools}} (no provider was selected before)",
+    skippedMissing: "Skipped deleted providers: {{items}}",
+    missingItem: "{{tool}} ({{ids}})",
     outcome: { applied: "Switched", unchanged: "No change needed", failed: "Failed" },
     manageTitle: "Manage scenes",
     manageHint: "A scene records which provider each tool uses. Switch scenes from Home or ⌘K.",

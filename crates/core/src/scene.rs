@@ -239,19 +239,21 @@ pub fn plan_tool(
     }
     let live = coexist::live_entries(env, tool)?;
     let wanted = entry.enabled.iter().flatten().collect::<BTreeSet<_>>();
-    // 撤销快照带着原来的 `model:` 整段：最后原样写回，不再按 `current` 激活。
+    // 撤销快照带着原来的 `model:` 整段（`null` 表示原来没有）：最后原样写回，不再按
+    // `current` 激活。
     let restore = (tool == Tool::Hermes)
         .then(|| entry.extra.get(HERMES_MODEL))
         .flatten()
-        .filter(|model| model.is_object());
+        .filter(|model| model.is_object() || model.is_null());
     let active_now = coexist::active_entry(env, tool)?;
     let active = entry
         .current
         .as_deref()
         .filter(|id| restore.is_none() && data.provider(tool, id).is_some());
     let activate = active.is_some_and(|id| active_now.as_deref() != Some(id));
-    // 「不改默认」时，现在的默认供应商不能移出：Hermes 的 `model:` 会指向不存在的条目。
-    let keep = (entry.current.is_none() && restore.is_none())
+    // 「不改默认」或者指定的默认卡已经删了时，现在的默认供应商不能移出：Hermes 的
+    // `model:` 会指向不存在的条目。
+    let keep = (active.is_none() && restore.is_none())
         .then_some(active_now.as_deref())
         .flatten();
     for card in data.providers(tool) {
@@ -266,21 +268,26 @@ pub fn plan_tool(
         }
     }
     if let Some(model) = restore {
-        if coexist::hermes_model(env)?.as_ref() != Some(model) {
+        let live = coexist::hermes_model(env)?.unwrap_or(Value::Null);
+        if &live != model {
             plan.actions.push(Action::RestoreDefault(model.clone()));
         }
     }
     Ok(plan)
 }
 
-/// 把一个工具现在的状态记成场景条目。没有可记的（没有卡、单选式没有当前卡）时返回 `None`。
+/// 把一个工具现在的状态记成场景条目。没有可记的（没有卡；单选式没有当前卡，或者客户端
+/// 文件被手动改过、已经不是当前卡）时返回 `None`。
 pub fn capture_tool(
     env: &Env,
     data: &StoreData,
     tool: Tool,
 ) -> Result<Option<SceneTool>, AppError> {
     if !tool.is_coexist() {
-        return Ok(data.current(tool).map(|card| SceneTool::current(&card.id)));
+        return Ok(data
+            .current(tool)
+            .filter(|card| switch::status::matches_live(env, data, tool, card).unwrap_or(false))
+            .map(|card| SceneTool::current(&card.id)));
     }
     let cards = data.providers(tool);
     if cards.is_empty() {
@@ -305,7 +312,8 @@ pub fn capture_tool(
 pub fn undo_entry(env: &Env, data: &StoreData, tool: Tool) -> Result<Option<SceneTool>, AppError> {
     let mut entry = capture_tool(env, data, tool)?;
     if tool == Tool::Hermes {
-        if let (Some(entry), Some(model)) = (entry.as_mut(), coexist::hermes_model(env)?) {
+        if let Some(entry) = entry.as_mut() {
+            let model = coexist::hermes_model(env)?.unwrap_or(Value::Null);
             entry.extra.insert(HERMES_MODEL.into(), model);
         }
     }
