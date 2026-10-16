@@ -1,5 +1,5 @@
 {
-  "version": "0.3.3",
+  "version": "0.3.4",
   "homepage": "https://github.com/Ricardo121380/LeanFlip",
   "appName": "LeanFlip.app",
   "cliName": "leanflip",
@@ -9,26 +9,26 @@
   "platforms": {
     "darwin-arm64": {
       "cli": {
-        "name": "leanflip_0.3.3_macos-arm64.tar.gz",
-        "sha256": "84a6c6eaa06846cf0b3b0bcf539610919f15e55255e0a9749fd0d29eae44176e",
-        "url": "https://github.com/Ricardo121380/LeanFlip/releases/download/v0.3.3/leanflip_0.3.3_macos-arm64.tar.gz"
+        "name": "leanflip_0.3.4_macos-arm64.tar.gz",
+        "sha256": "01ddef110183845c2fd58e171508760e4ea781c40d5b07987f4b99343bf25b61",
+        "url": "https://github.com/Ricardo121380/LeanFlip/releases/download/v0.3.4/leanflip_0.3.4_macos-arm64.tar.gz"
       },
       "app": {
-        "name": "leanflip_0.3.3_macos-arm64.dmg",
-        "sha256": "f71b11cefaac04d7ee249adf5d2bd0629d71f4763b249014407895931aa4e33f",
-        "url": "https://github.com/Ricardo121380/LeanFlip/releases/download/v0.3.3/leanflip_0.3.3_macos-arm64.dmg"
+        "name": "leanflip_0.3.4_macos-arm64.dmg",
+        "sha256": "091e10ab7adac560970aabb764a64d90b7426c51d3e7604b1a4787295653ae9d",
+        "url": "https://github.com/Ricardo121380/LeanFlip/releases/download/v0.3.4/leanflip_0.3.4_macos-arm64.dmg"
       }
     },
     "linux-x64": {
       "cli": {
-        "name": "leanflip_0.3.3_linux-x64.tar.gz",
-        "sha256": "6861ab171b776fe14ba99b53d34a9e7610c90270d90a9aeb176453551bc950fd",
-        "url": "https://github.com/Ricardo121380/LeanFlip/releases/download/v0.3.3/leanflip_0.3.3_linux-x64.tar.gz"
+        "name": "leanflip_0.3.4_linux-x64.tar.gz",
+        "sha256": "bc3a5152095973efd215fc03993c950a5cab4141b4ff7792d5d00b9d2e78773f",
+        "url": "https://github.com/Ricardo121380/LeanFlip/releases/download/v0.3.4/leanflip_0.3.4_linux-x64.tar.gz"
       },
       "app": {
-        "name": "leanflip_0.3.3_linux-x64.deb",
-        "sha256": "6598266a23ac0060b89ac309c893a1380aa3c7add9820c17b145f81f5c12a450",
-        "url": "https://github.com/Ricardo121380/LeanFlip/releases/download/v0.3.3/leanflip_0.3.3_linux-x64.deb"
+        "name": "leanflip_0.3.4_linux-x64.deb",
+        "sha256": "4f263601fcf675de3bad0dc5397918820968eb99bf03a11d8b0541a9ba63d02e",
+        "url": "https://github.com/Ricardo121380/LeanFlip/releases/download/v0.3.4/leanflip_0.3.4_linux-x64.deb"
       }
     }
   }

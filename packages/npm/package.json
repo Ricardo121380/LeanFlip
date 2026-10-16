@@ -1,6 +1,6 @@
 {
   "name": "leanflip",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "LeanFlip native CLI, TUI and desktop app installer",
   "type": "module",
   "license": "MIT",
