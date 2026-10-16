@@ -11,6 +11,7 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.f
 
 import { HomePage } from "./HomePage";
 import { StatsPage } from "./StatsPage";
+import { ToolPage } from "./ToolPage";
 
 const now = Date.now();
 const s = Math.floor(now / 1000);
@@ -117,7 +118,7 @@ describe("Quota on the home page", () => {
     renderWithClient(<HomePage mode="list" onNavigate={vi.fn()} />);
     await userEvent.click(await screen.findByRole("button", { name: "查询额度" }));
     const dialog = await screen.findByRole("dialog", { name: "识别 新中转 的额度接口" });
-    await userEvent.click(await within(dialog).findByRole("button", { name: "使用 sub2api" }));
+    expect(within(dialog).queryByRole("button", { name: "使用 sub2api" })).not.toBeInTheDocument();
     await waitFor(() => expect(fake.calls.find((c) => c.cmd === "quota_configure")?.args).toEqual({ tool: "claude", id: "fresh", settings: { refreshMinutes: 0, adapter: "sub2api" } }));
     expect(fake.calls.find((c) => c.cmd === "quota_detect")?.args).toEqual({ tool: "claude", settingsConfig: state.claude.providers[2].settingsConfig, quotaPerUsd: null });
   });
@@ -147,7 +148,7 @@ describe("Quota tab on the stats page", () => {
 
     const relays = screen.getByRole("region", { name: "中转余额" });
     const corp = within(relays).getByTestId("quota-relay:corp");
-    expect(within(corp).getByText("NewAPI · 按 Key 查询 · corp.example")).toBeInTheDocument();
+    expect(within(corp).getByText("NewAPI · 平台额度 · corp.example")).toBeInTheDocument();
     expect(within(corp).getByText(/共用同一个 Key/)).toBeInTheDocument();
     expect(within(corp).getByText("每 15 分钟自动刷新")).toBeInTheDocument();
     expect(within(corp).getByText("$31.40")).toBeInTheDocument();
@@ -166,5 +167,30 @@ describe("Quota tab on the stats page", () => {
     renderWithClient(<StatsPage initialTab="quota" />);
     expect(await screen.findByText("还没有额度数据")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /额度 ·|刷新额度/ })).not.toBeInTheDocument();
+  });
+});
+
+
+describe("Quota in the provider list", () => {
+  it("shows remaining money, unavailable account balances and stale errors without querying on open", async () => {
+    const data = sources();
+    data[1].snapshot = { ...balance(0), balance: { unit: "USD", unlimited: true, remaining: -6665, accountRemaining: 120 } };
+    data[2].snapshot = { ...balance(0), balance: { unit: "USD", unlimited: true, remaining: 0.009822 } };
+    data[2].error = { code: "network", at: now };
+    data.push({ key: "relay:fresh", kind: "relay", users: [{ tool: "claude", providerId: "fresh", providerName: "新中转", active: false }] });
+    const { fake } = start({ quota_overview: () => ({ sources: data, checkedAt: now }) });
+    renderWithClient(<ToolPage tool="claude" />);
+    const corp = await screen.findByRole("group", { name: "公司网关的额度" });
+    expect(within(corp).getByText("余 $120.00")).toBeInTheDocument();
+    expect(within(corp).getByText("Key 未设限")).toBeInTheDocument();
+    const spare = screen.getByRole("group", { name: "备用站的额度" });
+    expect(within(spare).getByText("余额未提供")).toBeInTheDocument();
+    expect(within(spare).queryByText("不限")).not.toBeInTheDocument();
+    expect(within(spare).getByRole("status")).toHaveTextContent("连不上");
+    const pending = screen.getByRole("group", { name: "新中转的额度" });
+    expect(within(pending).getByText("尚未查询")).toBeInTheDocument();
+    expect(fake.calls.some((c) => c.cmd === "quota_refresh")).toBe(false);
+    await userEvent.click(within(corp).getByRole("button", { name: "刷新 公司网关 的额度" }));
+    await waitFor(() => expect(fake.calls.find((c) => c.cmd === "quota_refresh")?.args).toEqual({ keys: ["relay:corp"] }));
   });
 });

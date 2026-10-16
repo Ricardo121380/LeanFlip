@@ -1,13 +1,13 @@
 // 首次查询中转站额度：用卡片里的地址和 Key 依次试 sub2api、NewAPI 的额度接口，认出来后
 // 由调用方决定怎么保存（编辑器写进草稿，列表直接写回卡片）。打开就会联网，只能由用户点击打开。
 import { useQuery } from "@tanstack/react-query";
-import { useId } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Check, CircleSlash, Loader2, RotateCcw, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { QuotaDetails } from "@/components/QuotaDetails";
-import { api, errorMessage, type DetectStep, type RelayAdapter, type ToolId } from "@/lib/api";
+import { api, errorMessage, type DetectStep, type QuotaSettings, type RelayAdapter, type ToolId } from "@/lib/api";
 import { adapterName, errorText, RELAY_ADAPTERS } from "@/lib/quota";
 
 function StepRow({ step }: { step: DetectStep }) {
@@ -40,6 +40,7 @@ export function QuotaDetectDialog({
   settingsConfig,
   quotaPerUsd,
   krill,
+  account,
   onUse,
   onDisable,
   onClose,
@@ -49,16 +50,18 @@ export function QuotaDetectDialog({
   settingsConfig: Record<string, unknown>;
   quotaPerUsd?: number;
   krill?: { jwt?: string; providerId?: string };
-  onUse: (adapter: RelayAdapter) => void;
+  account?: { settings: QuotaSettings; providerId?: string };
+  onUse: (adapter: RelayAdapter) => void | Promise<void>;
   /** 没认出平台时提供“不再提示”：把这张卡设为不查询。 */
   onDisable?: () => void;
   onClose: () => void;
 }) {
   const { t } = useTranslation();
   const queryId = useId();
+  const opener = useRef(document.activeElement instanceof HTMLElement ? document.activeElement : null);
   const detect = useQuery({
-    queryKey: krill ? ["quota-krill-detect", queryId] : ["quota-detect", tool, JSON.stringify(settingsConfig), quotaPerUsd ?? null],
-    queryFn: () => krill ? api.quotaKrillDetect(tool, krill.jwt, krill.providerId) : api.quotaDetect(tool, settingsConfig, quotaPerUsd),
+    queryKey: [krill ? "quota-krill-detect" : "quota-detect", queryId],
+    queryFn: () => krill ? api.quotaKrillDetect(tool, krill.jwt, krill.providerId) : account ? api.quotaAccountDetect(tool, settingsConfig, account.settings, account.providerId) : api.quotaDetect(tool, settingsConfig, quotaPerUsd),
     retry: false,
     gcTime: 0,
     staleTime: Infinity,
@@ -66,13 +69,39 @@ export function QuotaDetectDialog({
   });
   const result = detect.data;
   const found = result?.adapter;
+  const onUseRef = useRef(onUse);
+  onUseRef.current = onUse;
+  const applied = useRef<typeof result>();
+  const [applying, setApplying] = useState(false);
+  const [applyError, setApplyError] = useState<string | null>(null);
+  const apply = async (adapter: RelayAdapter) => {
+    setApplying(true);
+    setApplyError(null);
+    try {
+      await onUseRef.current(adapter);
+    } catch (error) {
+      setApplyError(errorMessage(error));
+    } finally {
+      setApplying(false);
+    }
+  };
+  useEffect(() => {
+    if (!found || !result?.snapshot || applied.current === result) return;
+    applied.current = result;
+    void apply(found);
+  }, [found, result]);
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-lg">
+    <Dialog open onOpenChange={(open) => !open && !applying && onClose()}>
+      <DialogContent className="max-w-lg" closeDisabled={applying} onCloseAutoFocus={(event) => {
+        if (opener.current?.isConnected) {
+          event.preventDefault();
+          opener.current.focus();
+        }
+      }}>
         <DialogHeader>
           <DialogTitle>{t("quotaDetect.title", { name })}</DialogTitle>
-          <DialogDescription>{t(krill ? "quotaDetect.krillHint" : "quotaDetect.hint")}</DialogDescription>
+          <DialogDescription>{t(krill ? "quotaDetect.krillHint" : account ? "quotaDetect.accountHint" : "quotaDetect.hint")}</DialogDescription>
         </DialogHeader>
 
         {detect.isFetching ? (
@@ -81,8 +110,8 @@ export function QuotaDetectDialog({
           </p>
         ) : detect.isError ? (
           <p role="alert" className="py-2 text-sm text-destructive">{errorMessage(detect.error)}</p>
-        ) : result?.error === "noEndpoint" || result?.error === "noKrillJwt" ? (
-          <p role="status" className="py-2 text-sm text-muted-foreground">{t(result.error === "noKrillJwt" ? "quotaDetect.noKrillJwt" : "quotaDetect.noEndpoint")}</p>
+        ) : result?.error === "noEndpoint" || result?.error === "noKrillJwt" || result?.error === "noAccountToken" ? (
+          <p role="status" className="py-2 text-sm text-muted-foreground">{t(`quotaDetect.${result.error}`)}</p>
         ) : result ? (
           <div className="flex flex-col gap-3">
             <ol aria-label={t("quotaDetect.steps")} className="divide-y overflow-hidden rounded-lg border">
@@ -106,6 +135,8 @@ export function QuotaDetectDialog({
           </div>
         ) : null}
 
+        {applyError && <p role="alert" className="text-sm text-destructive">{applyError}</p>}
+        {found && !applying && !applyError && <p role="status" className="text-xs text-muted-foreground">{t("quotaDetect.applied")}</p>}
         <DialogFooter>
           {!detect.isFetching && !found && (
             <Button type="button" variant="ghost" onClick={() => void detect.refetch()}>
@@ -115,12 +146,8 @@ export function QuotaDetectDialog({
           {!detect.isFetching && result && !found && onDisable && (
             <Button type="button" variant="outline" onClick={() => { onDisable(); onClose(); }}>{t("quotaDetect.disable")}</Button>
           )}
-          <Button type="button" variant="outline" onClick={onClose}>{t("common.cancel")}</Button>
-          {found && (
-            <Button type="button" onClick={() => { onUse(found); onClose(); }}>
-              {t("quotaDetect.use", { name: adapterName(found) })}
-            </Button>
-          )}
+          <Button type="button" variant="outline" disabled={applying} onClick={onClose}>{t(found ? "quotaDetect.done" : "common.cancel")}</Button>
+          {found && applyError && <Button type="button" disabled={applying} onClick={() => void apply(found)}>{t("common.retry")}</Button>}
         </DialogFooter>
       </DialogContent>
     </Dialog>

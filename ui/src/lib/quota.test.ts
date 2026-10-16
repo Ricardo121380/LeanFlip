@@ -16,7 +16,9 @@ describe("home quota brief", () => {
     const wallet = { unit: "USD", remaining: 31.4, limit: 50, used: 18.6, unlimited: false };
     expect(quotaBrief(snap([w(300, 30)], wallet), at, t, "zh")).toMatchObject({ text: "余 $31.40", percent: 37.2, note: "/ $50.00" });
     expect(quotaBrief(snap([w(300, 84)], wallet, "warn"), at, t, "zh")).toMatchObject({ text: "5 小时 84%", level: "warn" });
-    expect(quotaBrief(snap([], { unit: "USD", unlimited: true }), at, t, "zh")?.text).toBe("不限");
+    expect(quotaBrief(snap([], { unit: "USD", unlimited: true }), at, t, "zh")?.text).toBe("余额未提供");
+    expect(quotaBrief(snap([], { unit: "USD", unlimited: true, remaining: -6665, accountRemaining: 120 }), at, t, "zh")).toMatchObject({ text: "余 $120.00", note: "Key 未设限" });
+    expect(quotaBrief(snap([], { unit: "USD", unlimited: true, accountRemaining: 0 }, "out"), at, t, "zh")).toMatchObject({ text: "余 $0.00", level: "out" });
     expect(quotaBrief(snap([]), at, t, "zh")).toBeNull();
   });
 

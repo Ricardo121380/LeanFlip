@@ -195,6 +195,92 @@ fn newapi_converts_quota_to_dollars_and_reads_the_account_balance() {
 }
 
 #[test]
+fn unlimited_key_quota_is_not_an_account_balance() {
+    let mut body = newapi_usage(-3_332_825_871, true);
+    body["data"].as_object_mut().unwrap().remove("user_quota");
+    let missing = parse(RelayAdapter::Newapi, &body, DEFAULT_QUOTA_PER_USD, NOW).unwrap();
+    assert_eq!(missing.balance.as_ref().unwrap().remaining, None);
+    assert_eq!(missing.balance.as_ref().unwrap().account_remaining, None);
+    assert_eq!(missing.level, QuotaLevel::Ok);
+    assert_eq!(
+        super::super::brief(&missing, false).as_deref(),
+        Some("余额未提供")
+    );
+    for (available, level) in [(60_000_000, QuotaLevel::Ok), (0, QuotaLevel::Out)] {
+        body["data"]["user_quota"] = json!({"total_available": available});
+        let snap = parse(RelayAdapter::Newapi, &body, DEFAULT_QUOTA_PER_USD, NOW).unwrap();
+        assert_eq!(
+            snap.balance.as_ref().unwrap().account_remaining,
+            Some(available as f64 / DEFAULT_QUOTA_PER_USD)
+        );
+        assert_eq!(snap.level, level);
+        assert!(super::super::brief(&snap, false)
+            .unwrap()
+            .contains(if available == 0 { "$0.00" } else { "$120.00" }));
+    }
+}
+
+#[test]
+fn refresh_detects_unconfigured_relays_and_reuses_detection_after_restart() {
+    let (_dir, env) = sandbox();
+    let (base, seen) = serve(vec![
+        (404, "", "{}".into()),
+        (200, "", newapi_usage(15_700_000, false).to_string()),
+        (200, "", newapi_usage(10_000_000, false).to_string()),
+    ]);
+    for id in ["auto", "shared", "off", "official"] {
+        let mut card = claude_relay(id, &base, "sk-auto");
+        if id == "off" {
+            card.meta
+                .extra
+                .insert(META_QUOTA.into(), json!({"adapter":"off"}));
+        }
+        if id == "official" {
+            card.category = Some("official".into());
+        }
+        store::add_provider(&env, Tool::Claude, card).unwrap();
+    }
+    let before = fs::read(env.data_file("providers.json")).unwrap();
+    let service = Service::start(env.clone(), None).unwrap();
+    let pending = service.quota_overview().unwrap();
+    assert_eq!(pending.sources.len(), 1);
+    assert_eq!(pending.sources[0].users.len(), 2);
+    assert!(pending.sources[0].snapshot.is_none());
+    assert!(seen.lock().unwrap().is_empty(), "overview remains offline");
+    let refreshed = service.quota_refresh(None).unwrap();
+    assert_eq!(refreshed.sources[0].adapter, Some(RelayAdapter::Newapi));
+    assert_eq!(
+        refreshed.sources[0]
+            .snapshot
+            .as_ref()
+            .unwrap()
+            .balance
+            .as_ref()
+            .unwrap()
+            .remaining,
+        Some(31.4)
+    );
+    assert_eq!(seen.lock().unwrap().len(), 2);
+    assert_eq!(fs::read(env.data_file("providers.json")).unwrap(), before);
+    let restarted = Service::start(env, None).unwrap();
+    let refreshed = restarted.quota_refresh(None).unwrap();
+    assert_eq!(
+        refreshed.sources[0]
+            .snapshot
+            .as_ref()
+            .unwrap()
+            .balance
+            .as_ref()
+            .unwrap()
+            .remaining,
+        Some(20.0)
+    );
+    let requests = seen.lock().unwrap();
+    assert_eq!(requests.len(), 3, "cached adapter skips detection");
+    assert!(requests[2][0].starts_with("GET /api/usage/token/ "));
+}
+
+#[test]
 fn other_json_is_not_mistaken_for_either_platform() {
     let samples = [
         json!({"success": false, "message": "无效的令牌"}),
@@ -540,13 +626,18 @@ fn service_detects_configures_shares_one_source_and_refreshes() {
         .unwrap()
         .contains("sk-corp"));
 
-    // 识别不改卡片：设置之前总览里还没有这个来源。
-    assert!(service.quota_overview().unwrap().sources.is_empty());
+    // 识别不改卡片：自动模式直接使用识别缓存。
+    assert_eq!(
+        service.quota_overview().unwrap().sources[0].adapter,
+        Some(RelayAdapter::Newapi)
+    );
     let settings = QuotaSettings {
         adapter: Some("newapi".into()),
         refresh_minutes: 15,
         quota_per_usd: None,
         krill_jwt: None,
+        account_token: None,
+        account_user_id: None,
     };
     service
         .quota_configure(Tool::Claude, "corp", Some(settings.clone()))
@@ -632,11 +723,24 @@ fn service_detects_configures_shares_one_source_and_refreshes() {
     let error = source.error.as_ref().unwrap();
     assert_eq!((error.code.as_str(), error.status), ("http", Some(500)));
 
-    // 清除设置后来源消失。
+    // 清除设置恢复自动模式，显式关闭才隐藏来源。
     service.quota_configure(Tool::Claude, "corp", None).unwrap();
     service
         .quota_configure(Tool::OpenCode, "corp-oc", None)
         .unwrap();
+    assert_eq!(service.quota_overview().unwrap().sources.len(), 1);
+    for (tool, id) in [(Tool::Claude, "corp"), (Tool::OpenCode, "corp-oc")] {
+        service
+            .quota_configure(
+                tool,
+                id,
+                Some(QuotaSettings {
+                    adapter: Some("off".into()),
+                    ..Default::default()
+                }),
+            )
+            .unwrap();
+    }
     assert!(service.quota_overview().unwrap().sources.is_empty());
 }
 
@@ -728,7 +832,11 @@ fn auto_refresh_runs_only_when_a_card_interval_has_passed() {
     super::super::cache::save(
         &env,
         &[],
-        &[super::super::cache::RelayEntry { key, snapshot: old }],
+        &[super::super::cache::RelayEntry {
+            key,
+            snapshot: old,
+            adapter: None,
+        }],
         super::super::now_ms(),
     )
     .unwrap();

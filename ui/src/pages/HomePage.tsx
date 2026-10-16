@@ -48,8 +48,6 @@ export function HomePage({ mode, onNavigate }: { mode: HomeMode; onNavigate: (ha
   const configureQuota = async (target: { tool: ToolId; provider: Provider }, adapter: QuotaSettings["adapter"]) => {
     try {
       await api.quotaConfigure(target.tool, target.provider.id, { ...(quotaSettingsOf(target.provider) ?? { refreshMinutes: 0 }), adapter });
-    } catch (error) {
-      toast.error(errorMessage(error));
     } finally {
       void refreshAll(client);
     }
@@ -192,8 +190,8 @@ export function HomePage({ mode, onNavigate }: { mode: HomeMode; onNavigate: (ha
           tool={detecting.tool}
           name={detecting.provider.name}
           settingsConfig={detecting.provider.settingsConfig}
-          onUse={(adapter) => void configureQuota(detecting, adapter)}
-          onDisable={() => void configureQuota(detecting, "off")}
+          onUse={(adapter) => configureQuota(detecting, adapter)}
+          onDisable={() => void configureQuota(detecting, "off").catch((error) => toast.error(errorMessage(error)))}
           onClose={() => setDetecting(null)}
         />
       )}

@@ -476,6 +476,7 @@ fn relay_entry(key: &str, at: i64) -> cache::RelayEntry {
     };
     cache::RelayEntry {
         key: key.into(),
+        adapter: None,
         snapshot: QuotaSnapshot::new(Vec::new(), None, None, at, QuotaOrigin::Network, false)
             .with_balance(Some(balance)),
     }
@@ -873,7 +874,11 @@ fn overview_matches_the_live_login_to_the_current_official_card() {
 
     let service = Service::start(env, None).unwrap();
     let view = service.quota_overview().unwrap();
-    assert_eq!(view.sources.len(), 1, "{view:?}");
+    assert_eq!(view.sources.len(), 2, "{view:?}");
+    assert!(
+        view.sources[1].snapshot.is_none(),
+        "unconfigured relay awaits its first query"
+    );
     let source = &view.sources[0];
     assert_eq!(source.key, "codex:ws-me:user-me");
     assert_eq!(source.label.as_deref(), Some("me@example.com"));

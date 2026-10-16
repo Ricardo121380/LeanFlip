@@ -18,6 +18,8 @@ const KEEP_MS: i64 = 30 * 86_400_000;
 pub(crate) struct RelayEntry {
     pub key: String,
     pub snapshot: QuotaSnapshot,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub adapter: Option<super::relay::RelayAdapter>,
 }
 
 #[derive(Default, Serialize, Deserialize)]
@@ -67,10 +69,20 @@ pub(crate) fn load(env: &Env, now_ms: i64) -> Vec<Observation> {
 }
 
 pub(crate) fn load_relays(env: &Env, now_ms: i64) -> HashMap<String, QuotaSnapshot> {
+    load_relay_entries(env, now_ms)
+        .into_iter()
+        .map(|(key, entry)| (key, entry.snapshot))
+        .collect()
+}
+
+pub(crate) fn load_relay_entries(env: &Env, now_ms: i64) -> HashMap<String, RelayEntry> {
     read(env)
         .relays
         .into_iter()
-        .filter_map(|e| Some((e.key, current(e.snapshot, now_ms)?)))
+        .filter_map(|mut e| {
+            e.snapshot = current(e.snapshot, now_ms)?;
+            Some((e.key.clone(), e))
+        })
         .collect()
 }
 

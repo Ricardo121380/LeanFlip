@@ -206,11 +206,22 @@ impl QuotaSnapshot {
             .chain(balance_fraction)
             .map(|f| f.clamp(0.0, 1.0))
             .reduce(f64::max);
-        let empty = balance
-            .and_then(|b| b.remaining)
+        let empty = self
+            .balance
+            .as_ref()
+            .and_then(|b| {
+                if b.unlimited {
+                    b.account_remaining
+                } else {
+                    b.remaining
+                }
+            })
             .is_some_and(|left| left <= 0.0);
+        let account_empty = balance.is_some_and(|b| {
+            b.remaining.is_some() && b.account_remaining.is_some_and(|left| left <= 0.0)
+        });
         self.level = match self.used_fraction {
-            _ if self.limit_reached || empty => QuotaLevel::Out,
+            _ if self.limit_reached || empty || account_empty => QuotaLevel::Out,
             Some(f) if f >= 1.0 => QuotaLevel::Out,
             Some(f) if f >= WARN_FRACTION => QuotaLevel::Warn,
             _ => QuotaLevel::Ok,
@@ -580,9 +591,22 @@ pub fn brief(snapshot: &QuotaSnapshot, english: bool) -> Option<String> {
     };
     let text = match (&snapshot.balance, worst) {
         (_, Some(w)) if w.used_percent >= WARN_FRACTION * 100.0 => window(w),
-        (Some(b), _) if b.unlimited => (if english { "unlimited" } else { "不限" }).to_string(),
+        (Some(b), _) if b.unlimited => b
+            .account_remaining
+            .map(|n| money(n, &b.unit))
+            .unwrap_or_else(|| {
+                (if english {
+                    "balance unavailable"
+                } else {
+                    "余额未提供"
+                })
+                .to_string()
+            }),
         (Some(b), _) if b.remaining.is_some() => money(b.remaining.unwrap_or_default(), &b.unit),
         (_, Some(w)) => window(w),
+        (Some(b), _) if b.account_remaining.is_some() => {
+            money(b.account_remaining.unwrap_or_default(), &b.unit)
+        }
         _ => {
             let balance = snapshot.credits.as_ref()?.balance?;
             format!("credits {balance:.0}")

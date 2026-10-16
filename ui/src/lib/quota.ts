@@ -85,7 +85,9 @@ export interface QuotaBrief {
 export function quotaTitle(source: QuotaSource | undefined, now: number, t: TFunction): string | undefined {
   const snapshot = source?.snapshot;
   if (!source || !snapshot) return undefined;
-  return [source.label, `${t(snapshot.origin === "local" ? "quota.local" : "quota.network")} · ${agoText(snapshot.fetchedAt, now, t)}`].filter(Boolean).join("\n");
+  return [source.label, `${t(snapshot.origin === "local" ? "quota.local" : "quota.network")} · ${agoText(snapshot.fetchedAt, now, t)}`,
+    snapshot.balance?.unlimited && snapshot.balance.accountRemaining === undefined ? t("quota.accountBalanceHint") : undefined,
+  ].filter(Boolean).join("\n");
 }
 
 /** 首页用的一小段，规则和托盘一致：快满的窗口优先，其次是余额，再其次是最满的窗口。 */
@@ -99,7 +101,13 @@ export function quotaBrief(snapshot: QuotaSnapshot, now: number, t: TFunction, l
     note: resetText(w.resetsAt, now, t) ?? undefined,
   });
   if (worst && worst.usedPercent >= 80) return window(worst);
-  if (balance?.unlimited) return { text: t("quota.unlimited"), level: snapshot.level };
+  if (balance?.unlimited) return {
+    text: balance.accountRemaining !== undefined
+      ? t("quota.left", { amount: moneyText(balance.accountRemaining, balance.unit, language) })
+      : t("quota.balanceUnavailable"),
+    level: snapshot.level,
+    note: t("quota.keyUnlimited"),
+  };
   if (balance?.remaining !== undefined) {
     return {
       text: t("quota.left", { amount: moneyText(balance.remaining, balance.unit, language) }),
@@ -109,6 +117,7 @@ export function quotaBrief(snapshot: QuotaSnapshot, now: number, t: TFunction, l
     };
   }
   if (worst) return window(worst);
+  if (balance?.accountRemaining !== undefined) return { text: t("quota.left", { amount: moneyText(balance.accountRemaining, balance.unit, language) }), level: snapshot.level };
   const credits = creditsText(snapshot, language, t);
   return credits ? { text: `credits ${credits}`, level: snapshot.level } : null;
 }
@@ -150,6 +159,8 @@ export function quotaSettingsOf(provider?: Provider): QuotaSettings | null {
   if (value.adapter === "sub2api" || value.adapter === "newapi" || value.adapter === "krill" || value.adapter === "off") settings.adapter = value.adapter;
   if (typeof value.quotaPerUsd === "number" && value.quotaPerUsd > 0) settings.quotaPerUsd = value.quotaPerUsd;
   if (typeof value.krillJwt === "string") settings.krillJwt = value.krillJwt;
+  if (typeof value.accountToken === "string") settings.accountToken = value.accountToken;
+  if (typeof value.accountUserId === "number" && value.accountUserId > 0) settings.accountUserId = value.accountUserId;
   return settings;
 }
 
@@ -157,11 +168,15 @@ export function quotaSettingsOf(provider?: Provider): QuotaSettings | null {
 export function applyQuotaSettings(provider: Provider, settings: QuotaSettings | null): Provider {
   const meta = { ...(provider.meta ?? {}) };
   delete meta[QUOTA_META];
-  if (settings && (settings.adapter || settings.refreshMinutes > 0 || settings.quotaPerUsd !== undefined)) {
+  if (settings && (settings.adapter || settings.refreshMinutes > 0 || settings.quotaPerUsd !== undefined || settings.accountToken)) {
     const value: QuotaSettings = { refreshMinutes: settings.refreshMinutes };
     if (settings.adapter) value.adapter = settings.adapter;
     if (settings.quotaPerUsd !== undefined) value.quotaPerUsd = settings.quotaPerUsd;
     if (settings.adapter === "krill" && settings.krillJwt?.trim()) value.krillJwt = settings.krillJwt.trim();
+    if (settings.adapter !== "krill" && settings.adapter !== "off" && settings.accountToken?.trim()) {
+      value.accountToken = settings.accountToken.trim();
+      if (settings.accountUserId !== undefined) value.accountUserId = settings.accountUserId;
+    }
     meta[QUOTA_META] = value;
   }
   const next: Provider = { ...provider, meta };
