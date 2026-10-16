@@ -229,6 +229,15 @@ fn apply(
             };
             let mut detail = Vec::new();
             if result.outcome == SceneOutcome::Failed {
+                if result.partial {
+                    detail.push(
+                        lang.text(
+                            "没能改回原样，可能改了一部分",
+                            "not restored; may be partly changed",
+                        )
+                        .into(),
+                    );
+                }
                 detail.push(format!("leanflip paths {}", result.tool));
             }
             if !result.missing.is_empty() {
@@ -277,7 +286,7 @@ fn apply(
         .map(|result| {
             json!({
                 "tool": result.tool, "outcome": result.outcome, "changed": result.changed,
-                "warningCount": result.warnings.len(), "missing": result.missing,
+                "warningCount": result.warnings.len(), "missing": result.missing, "partial": result.partial,
             })
         })
         .collect::<Vec<_>>();
@@ -288,7 +297,7 @@ fn apply(
     if failed {
         output.failure = Some(CliError {
             code: "scene.partial".into(),
-            message: "The scene was only partly applied; tools that failed were left unchanged. Inspect them with leanflip paths <tool> and retry.",
+            message: "The scene was only partly applied. Tools that failed were restored where possible; inspect the listed tools with leanflip paths <tool> and retry.",
             exit: 1,
         });
     }

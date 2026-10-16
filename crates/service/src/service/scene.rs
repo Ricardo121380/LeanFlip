@@ -1,8 +1,9 @@
 //! 场景：列表和状态、预览、应用和撤销。
 //!
 //! 应用时拿一次写锁，逐个工具走和单独切换一样的路径（恢复、托管账号、警告提示都一样）。
-//! 写入记录按工具分开，跨工具做不到全成全败：某个工具失败时继续其他工具，失败的列出来；
-//! 应用前给涉及的工具拍一份快照，撤销就是把快照当场景再应用一次。快照只交给调用方，不落盘。
+//! 写入记录按工具分开，跨工具做不到全成全败：某个工具失败时，用快照把这个工具改回原样再
+//! 继续其他工具，失败的列出来（改不回的标出来）；应用前给涉及的工具拍一份快照，撤销就是
+//! 把快照当场景再应用一次。快照只交给调用方，不落盘。
 use super::*;
 use std::cell::RefCell;
 use std::net::{IpAddr, ToSocketAddrs, UdpSocket};
@@ -50,7 +51,7 @@ pub struct SceneList {
     pub last: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SceneStep {
     pub action: Action,
@@ -94,6 +95,8 @@ pub struct ToolOutcome {
     pub warnings: Vec<String>,
     pub missing: Vec<String>,
     pub error: Option<String>,
+    /// 失败后没能改回原样，这个工具可能只改了一部分。
+    pub partial: bool,
 }
 
 /// 应用前的状态：撤销时原样交回来。
@@ -111,6 +114,8 @@ pub struct SceneUndo {
 pub struct SceneReport {
     pub results: Vec<ToolOutcome>,
     pub undo: SceneUndo,
+    /// 这次改了、但撤销改不回的工具（应用前没有选供应商，LeanFlip 没有「取消选择」）。
+    pub irreversible: Vec<Tool>,
 }
 
 /// 建议切换到的场景，以及是哪条规则满足了。
@@ -139,18 +144,65 @@ pub(super) struct SceneHints {
     suggestion: Option<SceneSuggestion>,
 }
 
-/// 本机现在上网用的地址（按默认路由选出，IPv4 和 IPv6 各一个）。UDP 的 connect 只选路由，
-/// 不发任何数据包；目标是文档专用地址。
-fn local_addresses() -> Vec<IpAddr> {
-    [("0.0.0.0:0", "192.0.2.1:9"), ("[::]:0", "[2001:db8::1]:9")]
-        .into_iter()
-        .filter_map(|(bind, target)| {
-            let socket = UdpSocket::bind(bind).ok()?;
-            socket.connect(target).ok()?;
-            let address = socket.local_addr().ok()?.ip();
-            (!address.is_unspecified()).then_some(address)
+/// 去 `target` 时系统会用的本机地址。UDP 的 connect 只选路由，不发任何数据包。
+fn source_address(target: IpAddr) -> Option<IpAddr> {
+    let bind = if target.is_ipv4() {
+        "0.0.0.0:0"
+    } else {
+        "[::]:0"
+    };
+    let socket = UdpSocket::bind(bind).ok()?;
+    socket.connect((target, 9)).ok()?;
+    let address = socket.local_addr().ok()?.ip();
+    (!address.is_unspecified()).then_some(address)
+}
+
+/// 网段里的第一个主机地址（`/31`、`/32` 和 IPv6 的 `/127`、`/128` 用网段地址本身）。
+fn first_host((network, prefix): (IpAddr, u8)) -> IpAddr {
+    match network {
+        IpAddr::V4(v4) => {
+            let mask = u32::MAX.checked_shl(32 - u32::from(prefix)).unwrap_or(0);
+            let base = u32::from(v4) & mask;
+            IpAddr::from(std::net::Ipv4Addr::from(if prefix < 31 {
+                base + 1
+            } else {
+                base
+            }))
+        }
+        IpAddr::V6(v6) => {
+            let mask = u128::MAX.checked_shl(128 - u32::from(prefix)).unwrap_or(0);
+            let base = u128::from(v6) & mask;
+            IpAddr::from(std::net::Ipv6Addr::from(if prefix < 127 {
+                base + 1
+            } else {
+                base
+            }))
+        }
+    }
+}
+
+/// 匹配网段规则用的本机地址：默认路由的地址（IPv4、IPv6 各一个），加上每条网段规则「去这个
+/// 网段走哪个本机地址」。副网卡、分流的 VPN 上的地址也能匹配；只查路由表，不发数据包。
+fn local_addresses(scenes: &[Scene]) -> Vec<IpAddr> {
+    let probes = scenes
+        .iter()
+        .flat_map(|scene| &scene.rules)
+        .filter_map(|rule| match rule {
+            SceneRule::Known(Rule::Subnet { cidr }) => scene_rules::parse_cidr(cidr),
+            _ => None,
         })
-        .collect()
+        .filter(|&(_, prefix)| prefix > 0)
+        .map(first_host);
+    let defaults = ["192.0.2.1", "2001:db8::1"].map(|target| target.parse().unwrap());
+    let mut addresses = Vec::new();
+    for target in defaults.into_iter().chain(probes) {
+        if let Some(address) = source_address(target) {
+            if !addresses.contains(&address) {
+                addresses.push(address);
+            }
+        }
+    }
+    addresses
 }
 
 /// 规则的简短说明：`工作日 09:00–18:00`、`网段 10.0.0.0/8`、`intranet.example 能解析`。
@@ -237,7 +289,9 @@ impl Service {
                     }
                 }
                 let suggested = hint.as_ref().is_some_and(|hint| hint.id == scene.id);
-                let status = if pending.is_empty() {
+                // 只有新版本才认识的工具时，这个版本应用不了，不算一致。
+                let usable = !scene.entries().is_empty();
+                let status = if usable && pending.is_empty() {
                     SceneStatus::Active
                 } else if data.last_scene.as_deref() == Some(scene.id.as_str()) {
                     SceneStatus::Drifted
@@ -276,7 +330,7 @@ impl Service {
         let mut satisfied = Vec::new();
         let mut candidates = Vec::new();
         if data.scenes.iter().any(|scene| !scene.rules.is_empty()) {
-            let addresses = local_addresses();
+            let addresses = local_addresses(&data.scenes);
             let cache = RefCell::new(HashMap::<String, bool>::new());
             let resolves = |host: &str| {
                 *cache
@@ -471,21 +525,65 @@ impl Service {
             ..SceneUndo::default()
         };
         for (tool, _) in &settled {
-            if let Ok(Some(entry)) = scene::capture_tool(&rt.env, &data, *tool) {
+            if let Ok(Some(entry)) = scene::undo_entry(&rt.env, &data, *tool) {
                 undo.tools.insert(tool.as_str().to_string(), entry);
             }
         }
         for (tool, entry) in settled {
-            results.push(self.apply_tool(rt, tool, &entry));
+            let snapshot = undo.tools.get(tool.as_str());
+            results.push(self.apply_tool(rt, tool, &entry, snapshot));
         }
         results.sort_by_key(|result| result.tool);
+        let irreversible = results
+            .iter()
+            .filter(|result| {
+                result.outcome == SceneOutcome::Applied
+                    && !undo.tools.contains_key(result.tool.as_str())
+            })
+            .map(|result| result.tool)
+            .collect();
         if let Err(error) = scene::set_last(&rt.env, last) {
             log::warn!("last scene not recorded: {error}");
         }
-        Ok(SceneReport { results, undo })
+        Ok(SceneReport {
+            results,
+            undo,
+            irreversible,
+        })
     }
 
-    fn apply_tool(&self, rt: &Runtime, tool: Tool, entry: &SceneTool) -> ToolOutcome {
+    /// 按计划逐步执行，返回结果和已经改过的文件；遇到错误就停。
+    fn run_actions(
+        &self,
+        rt: &Runtime,
+        tool: Tool,
+        actions: Vec<Action>,
+        outcome: &mut ToolOutcome,
+    ) -> Result<(), ApiError> {
+        for action in actions {
+            let result = match &action {
+                Action::Switch(id) | Action::Activate(id) => self.switch_locked(rt, tool, id),
+                Action::Enable(id) => self.set_in_live_locked(rt, tool, id, true),
+                Action::Disable(id) => self.set_in_live_locked(rt, tool, id, false),
+                Action::RestoreDefault(model) => coexist::restore_hermes_model(&rt.env, model)
+                    .map(|report| self.op_result(report))
+                    .map_err(|e| self.err(e)),
+            }?;
+            outcome.changed.extend(result.changed);
+            outcome.warnings.extend(result.warnings);
+        }
+        Ok(())
+    }
+
+    /// 应用一个工具。中途失败时用应用前的快照把这个工具改回去；改不回（或没有快照）时标
+    /// `partial`。
+    fn apply_tool(
+        &self,
+        rt: &Runtime,
+        tool: Tool,
+        entry: &SceneTool,
+        snapshot: Option<&SceneTool>,
+    ) -> ToolOutcome {
         // 前面的工具切换时可能改过库（指针），每个工具重新读一次。
         let plan = store::load(&rt.env)
             .and_then(|data| scene::plan_tool(&rt.env, &data, tool, entry))
@@ -505,23 +603,21 @@ impl Service {
             warnings: Vec::new(),
             missing: plan.missing,
             error: None,
+            partial: false,
         };
-        for action in plan.actions {
-            let result = match &action {
-                Action::Switch(id) | Action::Activate(id) => self.switch_locked(rt, tool, id),
-                Action::Enable(id) => self.set_in_live_locked(rt, tool, id, true),
-                Action::Disable(id) => self.set_in_live_locked(rt, tool, id, false),
-            };
-            match result {
-                Ok(result) => {
-                    outcome.changed.extend(result.changed);
-                    outcome.warnings.extend(result.warnings);
-                }
-                Err(error) => {
-                    outcome.outcome = SceneOutcome::Failed;
-                    outcome.error = Some(error.0);
-                    break;
-                }
+        if let Err(error) = self.run_actions(rt, tool, plan.actions, &mut outcome) {
+            outcome.outcome = SceneOutcome::Failed;
+            outcome.error = Some(error.0);
+            if !outcome.changed.is_empty() {
+                let rollback = snapshot
+                    .ok_or_else(|| ApiError::message(String::new()))
+                    .and_then(|snapshot| {
+                        store::load(&rt.env)
+                            .and_then(|data| scene::plan_tool(&rt.env, &data, tool, snapshot))
+                            .map_err(|e| self.err(e))
+                    })
+                    .and_then(|plan| self.run_actions(rt, tool, plan.actions, &mut outcome));
+                outcome.partial = rollback.is_err();
             }
         }
         outcome.changed.sort();
@@ -536,6 +632,7 @@ mod tests;
 fn action_id(action: &Action) -> &str {
     match action {
         Action::Switch(id) | Action::Enable(id) | Action::Disable(id) | Action::Activate(id) => id,
+        Action::RestoreDefault(_) => "",
     }
 }
 
@@ -547,5 +644,6 @@ fn failed(tool: Tool, error: ApiError) -> ToolOutcome {
         warnings: Vec::new(),
         missing: Vec::new(),
         error: Some(error.0),
+        partial: false,
     }
 }

@@ -145,7 +145,7 @@ describe("Scene menu and apply dialog", () => {
   it("keeps the results open when a tool fails and can undo the rest", async () => {
     const user = userEvent.setup();
     const fake = start();
-    applyResult.results.push({ tool: "opencode", outcome: "failed", changed: [], warnings: [], missing: [], error: "opencode.json 格式错误" });
+    applyResult.results.push({ tool: "opencode", outcome: "failed", changed: [], warnings: [], missing: [], error: "opencode.json 格式错误", partial: true });
     await user.click(await screen.findByRole("button", { name: /场景：个人/ }));
     await user.click(screen.getByRole("menuitem", { name: /公司/ }));
     const dialog = await screen.findByRole("dialog", { name: "应用场景「公司」" });
@@ -155,6 +155,7 @@ describe("Scene menu and apply dialog", () => {
     const result = await screen.findByRole("dialog", { name: "场景「公司」只应用了一部分" });
     expect(within(result).getByText("opencode.json 格式错误")).toBeInTheDocument();
     expect(within(result).getByText("失败")).toBeInTheDocument();
+    expect(within(result).getByText("没能改回原样，可能改了一部分")).toBeInTheDocument();
     expect(toast.success).not.toHaveBeenCalled();
     await user.click(within(result).getByRole("button", { name: "撤销" }));
     await waitFor(() => expect(calls(fake, "undo_scene")).toHaveLength(1));
@@ -213,10 +214,16 @@ describe("Scenes applied from the tray", () => {
 describe("Scene shortcuts and reminders", () => {
   it("applies the scene at the pressed position directly, with undo", async () => {
     const fake = start();
+    applyResult.irreversible = ["gemini"];
     await screen.findByRole("button", { name: /场景：个人/ });
     fireEvent.keyDown(window, { code: "Digit2", ctrlKey: true, shiftKey: true });
     await waitFor(() => expect(calls(fake, "apply_scene")).toEqual([{ id: "scene-work", tools: null }]));
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("已切换到场景「公司」", expect.objectContaining({ action: expect.objectContaining({ label: "撤销" }) })));
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(
+        "已切换到场景「公司」",
+        expect.objectContaining({ description: "撤销不会改回：Gemini CLI（应用前没有选供应商）", action: expect.objectContaining({ label: "撤销" }) }),
+      ),
+    );
     fireEvent.keyDown(window, { code: "Digit3", ctrlKey: true, shiftKey: true });
     fireEvent.keyDown(window, { code: "Digit1", shiftKey: true });
     expect(calls(fake, "apply_scene")).toHaveLength(1);

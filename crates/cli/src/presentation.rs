@@ -312,7 +312,7 @@ pub fn error(code: &str, fallback: &str, lang: Language) -> String {
         "codex.oauth.live_sync_failed" => "新凭据已保存在账号库，但 Codex 客户端同步失败。运行 leanflip paths codex 检查路径与权限；不要用旧 token 覆盖新凭据。",
         "scene.not_found" => "找不到这个场景。运行 leanflip scene list 查看场景名称。",
         "scene.invalid" => "场景内容无效。请在 LeanFlip App 中编辑这个场景后重试。",
-        "scene.partial" => "场景只应用了一部分，失败的工具保持原样。运行 leanflip paths <tool> 检查这些工具的配置后重试。",
+        "scene.partial" => "场景只应用了一部分。失败的工具已尽量改回原样，标了「可能改了一部分」的请先检查；运行 leanflip paths <tool> 查看配置后重试。",
         "scene.tool_not_included" => "指定的工具不在这个场景里。运行 leanflip scene show <场景> 查看包含的工具。",
         _ if code.starts_with("ccswitch_export.") => "无法导入该文件。请使用 cc-switch 导出的 SQL、SQLite 或旧版 JSON，并先运行 import file 预览。",
         _ => "操作未完成。请根据错误码检查相关配置；配置原文和凭据不会在终端显示。",

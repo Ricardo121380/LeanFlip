@@ -79,7 +79,11 @@ function useAppliedNotice() {
     (name: string, report: SceneReport) => {
       showResultWarnings(report);
       if (failedTools(report).length) return false;
-      toast.success(t("scene.applied", { name }), { action: { label: t("common.undo"), onClick: () => undo.mutate(report.undo) } });
+      const irreversible = (report.irreversible ?? []).map(toolLabel);
+      toast.success(t("scene.applied", { name }), {
+        description: irreversible.length ? t("scene.irreversible", { tools: irreversible.join(t("common.separator")) }) : undefined,
+        action: { label: t("common.undo"), onClick: () => undo.mutate(report.undo) },
+      });
       return true;
     },
     [t, undo],
@@ -226,6 +230,7 @@ function OutcomeRow({ result }: { result: ToolOutcome }) {
       <span className="min-w-0 flex-1 text-sm">
         <span className="font-medium">{meta.label}</span>
         {result.error && <span className="block break-words text-xs text-destructive">{result.error}</span>}
+        {result.partial && <span className="block text-xs font-medium text-warning">{t("scene.partialTool")}</span>}
         {result.missing.length > 0 && <span className="block text-xs text-warning">{t("scene.missing", { ids: result.missing.join(t("common.separator")) })}</span>}
       </span>
       <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">

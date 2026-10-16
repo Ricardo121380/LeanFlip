@@ -25,6 +25,7 @@ pub mod op {
     pub const WRITE: &str = "coexist-write";
     pub const ACTIVATE: &str = "coexist-activate";
     pub const REMOVE: &str = "coexist-remove";
+    pub const RESTORE_MODEL: &str = "coexist-restore-model";
 }
 
 /// 对一个条目做什么。
@@ -129,6 +130,36 @@ pub fn active_entry(env: &Env, tool: Tool) -> Result<Option<String>, AppError> {
         None => "",
     };
     hermes::active(text)
+}
+
+fn live_text(env: &Env, tool: Tool) -> Result<String, AppError> {
+    let path = live_path(env, tool);
+    let bytes = crate::live::engine::read_current(&path).map_err(AppError::from)?;
+    match bytes {
+        Some(bytes) => String::from_utf8(bytes)
+            .map_err(|_| AppError::Config(format!("{} 不是 UTF-8 文本", path.display()))),
+        None => Ok(String::new()),
+    }
+}
+
+/// Hermes 顶层 `model:` 整段（默认供应商和模型）。其他工具是 `None`。
+pub fn hermes_model(env: &Env) -> Result<Option<Value>, AppError> {
+    hermes::model(&live_text(env, Tool::Hermes)?)
+}
+
+/// 把 Hermes 顶层 `model:` 整段写回成 `model`，其他段不动。撤销场景时用。
+pub fn restore_hermes_model(env: &Env, model: &Value) -> Result<OperationReport, AppError> {
+    let commit = |target: &PendingTarget| crate::switch::commit_target(env, Tool::Hermes, target);
+    let write = AppWrite::begin(env.device_store(), Tool::Hermes.as_str(), &commit)?;
+    let patch = hermes::ModelPatch { model };
+    write.run(
+        op::RESTORE_MODEL,
+        &[FileChange {
+            file: live_file(env, Tool::Hermes),
+            patch: &patch,
+        }],
+        PendingTarget::pointer(None),
+    )
 }
 
 /// 只校验、不写：这张卡能不能写进客户端配置。

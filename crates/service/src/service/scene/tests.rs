@@ -386,3 +386,103 @@ fn rule_labels_read_naturally() {
         "intranet.example resolves"
     );
 }
+
+#[test]
+fn a_failing_tool_is_put_back_before_the_others_continue() {
+    let home = home();
+    let service = &home.service;
+    let env = service.env();
+    // `managed` 是 Hermes 账号字典里的条目：LeanFlip 写不进去，第二步一定失败。
+    std::fs::create_dir_all(env.hermes_config_path().parent().unwrap()).unwrap();
+    std::fs::write(
+        env.hermes_config_path(),
+        "providers:\n  managed:\n    base_url: https://dict\n",
+    )
+    .unwrap();
+    let hermes = |id: &str| {
+        Provider::new(
+            id,
+            id,
+            json!({"baseUrl": format!("https://{id}/v1"), "api_key": "k", "models": [{"id": "m"}]}),
+        )
+    };
+    service
+        .add_provider(Tool::Hermes, hermes("r1"), true)
+        .unwrap();
+    store::add_provider(&env, Tool::Hermes, hermes("managed")).unwrap();
+    let mut scene = scene_b(service);
+    scene
+        .tools
+        .insert("hermes".into(), SceneTool::enabled(["managed"]));
+    let scene = service.save_scene(scene).unwrap();
+
+    let report = service.apply_scene(&scene.id, None).unwrap();
+    let outcome = report
+        .results
+        .iter()
+        .find(|r| r.tool == Tool::Hermes)
+        .unwrap();
+    assert_eq!(outcome.outcome, SceneOutcome::Failed);
+    assert!(!outcome.partial, "r1 was written back");
+    assert_eq!(
+        service.list_providers(Tool::Hermes).unwrap().in_live,
+        ["r1"]
+    );
+    assert_eq!(state(service), (Some("b".into()), vec!["y".into()]));
+}
+
+#[test]
+fn tools_without_a_previous_selection_are_reported_as_irreversible() {
+    let home = home();
+    let service = &home.service;
+    service
+        .add_provider(
+            Tool::Gemini,
+            Provider::new("g", "G", json!({"env": {"GEMINI_API_KEY": "k"}})),
+            false,
+        )
+        .unwrap();
+    let mut scene = Scene {
+        name: "G".into(),
+        ..Scene::default()
+    };
+    scene.tools.insert("gemini".into(), SceneTool::current("g"));
+    scene.tools.insert("claude".into(), SceneTool::current("b"));
+    let scene = service.save_scene(scene).unwrap();
+    let report = service.apply_scene(&scene.id, None).unwrap();
+    assert!(!report.failed());
+    assert_eq!(report.irreversible, [Tool::Gemini]);
+    assert!(report.undo.tools.contains_key("claude"));
+}
+
+#[test]
+fn scenes_with_only_unknown_tools_stay_idle() {
+    let home = home();
+    store::update(&home.service.env(), |data| {
+        let mut scene = Scene {
+            id: "scene-future".into(),
+            name: "Future".into(),
+            ..Scene::default()
+        };
+        scene
+            .tools
+            .insert("future-tool".into(), SceneTool::current("x"));
+        data.scenes.push(scene);
+        Ok(())
+    })
+    .unwrap();
+    assert_eq!(
+        view(&home.service, "scene-future").status,
+        SceneStatus::Idle
+    );
+}
+
+#[test]
+fn subnet_probes_target_the_first_host_of_each_network() {
+    let host = |cidr: &str| first_host(scene_rules::parse_cidr(cidr).unwrap()).to_string();
+    assert_eq!(host("10.20.0.0/16"), "10.20.0.1");
+    assert_eq!(host("10.20.3.4/16"), "10.20.0.1");
+    assert_eq!(host("192.168.1.7/32"), "192.168.1.7");
+    assert_eq!(host("fd00::/8"), "fd00::1");
+    assert_eq!(host("fd00::5/128"), "fd00::5");
+}

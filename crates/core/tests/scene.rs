@@ -299,6 +299,92 @@ fn stores_without_scenes_keep_their_shape() {
     assert!(!text.contains("lastScene"), "{text}");
 }
 
+#[test]
+fn keeping_the_hermes_default_never_removes_the_active_entry() {
+    let sb = Sandbox::new();
+    sb.write(
+        &sb.env.hermes_config_path(),
+        "model:\n  default: old\n  provider: openrouter\n",
+    );
+    sb.add(Tool::Hermes, hermes("r1"));
+    sb.add(Tool::Hermes, hermes("r2"));
+    coexist::write_to_live(&sb.env, Tool::Hermes, "r2").unwrap();
+    switch::switch(&sb.env, Tool::Hermes, "r1").unwrap();
+    let keep = named("Keep", &[(Tool::Hermes, SceneTool::enabled(["r2"]))]);
+    assert!(
+        plan(&sb, &keep, Tool::Hermes).in_sync(),
+        "r1 is the default, so it stays"
+    );
+    let mut pick = SceneTool::enabled(["r2"]);
+    pick.current = Some("r2".into());
+    let pick = named("Pick", &[(Tool::Hermes, pick)]);
+    assert_eq!(
+        plan(&sb, &pick, Tool::Hermes).actions,
+        [Action::Disable("r1".into()), Action::Activate("r2".into())]
+    );
+}
+
+#[test]
+fn hermes_undo_snapshots_restore_a_default_that_is_not_a_leanflip_card() {
+    let sb = Sandbox::new();
+    sb.write(
+        &sb.env.hermes_config_path(),
+        "model:\n  default: old\n  provider: openrouter\n",
+    );
+    sb.add(Tool::Hermes, hermes("r1"));
+    let data = store::load(&sb.env).unwrap();
+    let undo = scene::undo_entry(&sb.env, &data, Tool::Hermes)
+        .unwrap()
+        .unwrap();
+    assert_eq!(undo.current, None);
+    assert_eq!(
+        undo.extra[scene::HERMES_MODEL],
+        json!({"default": "old", "provider": "openrouter"})
+    );
+    switch::switch(&sb.env, Tool::Hermes, "r1").unwrap();
+    let snapshot = Scene {
+        name: "undo".into(),
+        tools: [("hermes".to_string(), undo)].into(),
+        ..Scene::default()
+    };
+    let actions = plan(&sb, &snapshot, Tool::Hermes).actions;
+    assert_eq!(actions[0], Action::Disable("r1".into()));
+    assert!(matches!(actions[1], Action::RestoreDefault(_)));
+    coexist::remove_from_live(&sb.env, Tool::Hermes, "r1").unwrap();
+    let Action::RestoreDefault(model) = &actions[1] else {
+        unreachable!()
+    };
+    coexist::restore_hermes_model(&sb.env, model).unwrap();
+    assert_eq!(
+        coexist::active_entry(&sb.env, Tool::Hermes)
+            .unwrap()
+            .as_deref(),
+        Some("openrouter")
+    );
+    assert!(plan(&sb, &snapshot, Tool::Hermes).in_sync());
+    // 普通的「存为场景」不带 model 段，编辑器里的默认选项仍然有效。
+    let data = store::load(&sb.env).unwrap();
+    assert!(scene::capture_tool(&sb.env, &data, Tool::Hermes)
+        .unwrap()
+        .unwrap()
+        .extra
+        .is_empty());
+}
+
+#[test]
+fn scenes_with_only_unknown_tools_never_match() {
+    let sb = setup();
+    let mut future = named("Future", &[]);
+    future
+        .tools
+        .insert("future-tool".into(), SceneTool::current("a"));
+    assert!(!scene::matches(
+        &sb.env,
+        &store::load(&sb.env).unwrap(),
+        &future
+    ));
+}
+
 mod rules {
     use super::*;
     use leanflip_core::scene_rules::{self, Rule, RuleContext, SceneRule};

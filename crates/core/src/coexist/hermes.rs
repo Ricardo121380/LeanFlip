@@ -81,14 +81,30 @@ pub(crate) fn entries(text: &str) -> Result<Map<String, Value>, AppError> {
 }
 /// 顶层 `model.provider` 指向的那一家（没有设置时是 `None`）。
 pub(crate) fn active(text: &str) -> Result<Option<String>, AppError> {
-    let doc = Document::parse(text)?;
-    Ok(doc
-        .value
-        .get("model")
+    Ok(model(text)?
+        .as_ref()
         .and_then(|model| model.get("provider"))
         .and_then(Value::as_str)
         .filter(|name| !name.is_empty())
         .map(str::to_string))
+}
+/// 顶层 `model:` 整段（没有时是 `None`）。
+pub(crate) fn model(text: &str) -> Result<Option<Value>, AppError> {
+    let doc = Document::parse(text)?;
+    Ok(doc.value.get("model").filter(|v| !v.is_null()).cloned())
+}
+/// 把顶层 `model:` 整段写回成 `model`（撤销场景时恢复原来的默认供应商和模型），其他段不动。
+pub(crate) struct ModelPatch<'a> {
+    pub model: &'a Value,
+}
+impl LivePatch for ModelPatch<'_> {
+    fn apply(&self, path: &Path, before: Option<&[u8]>) -> Result<Vec<u8>, LiveWriteError> {
+        let source = decode_utf8(path, before.unwrap_or_default())?;
+        Document::parse(source)
+            .and_then(|doc| doc.replace(&[("model", self.model.clone())]))
+            .map(String::into_bytes)
+            .map_err(rejected)
+    }
 }
 pub(crate) fn validate(provider: &Provider) -> Result<(), AppError> {
     if provider.id.trim().is_empty() || !provider.settings_config.is_object() {

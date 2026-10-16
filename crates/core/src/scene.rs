@@ -90,8 +90,11 @@ impl Scene {
     }
 }
 
+/// 撤销快照里 Hermes 的顶层 `model:` 整段（见 [`undo_entry`]）。
+pub const HERMES_MODEL: &str = "hermesModel";
+
 /// 让一个工具和场景一致要做的一步。
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase", tag = "kind", content = "id")]
 pub enum Action {
     /// 单选式工具：切到这张卡。
@@ -102,10 +105,12 @@ pub enum Action {
     Disable(String),
     /// Hermes：写进客户端配置并把顶层 `model:` 指向它。
     Activate(String),
+    /// Hermes：把顶层 `model:` 整段写回撤销快照里的样子。
+    RestoreDefault(Value),
 }
 
 /// 一个工具的计划。`actions` 和 `missing` 都为空时这个工具已经和场景一致。
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolPlan {
     pub actions: Vec<Action>,
@@ -234,14 +239,21 @@ pub fn plan_tool(
     }
     let live = coexist::live_entries(env, tool)?;
     let wanted = entry.enabled.iter().flatten().collect::<BTreeSet<_>>();
+    // 撤销快照带着原来的 `model:` 整段：最后原样写回，不再按 `current` 激活。
+    let restore = (tool == Tool::Hermes)
+        .then(|| entry.extra.get(HERMES_MODEL))
+        .flatten()
+        .filter(|model| model.is_object());
+    let active_now = coexist::active_entry(env, tool)?;
     let active = entry
         .current
         .as_deref()
-        .filter(|id| data.provider(tool, id).is_some());
-    let activate = match active {
-        Some(id) => coexist::active_entry(env, tool)?.as_deref() != Some(id),
-        None => false,
-    };
+        .filter(|id| restore.is_none() && data.provider(tool, id).is_some());
+    let activate = active.is_some_and(|id| active_now.as_deref() != Some(id));
+    // 「不改默认」时，现在的默认供应商不能移出：Hermes 的 `model:` 会指向不存在的条目。
+    let keep = (entry.current.is_none() && restore.is_none())
+        .then_some(active_now.as_deref())
+        .flatten();
     for card in data.providers(tool) {
         let want = wanted.contains(&card.id);
         let have = live.contains_key(&card.id);
@@ -249,8 +261,13 @@ pub fn plan_tool(
             plan.actions.push(Action::Activate(card.id.clone()));
         } else if want && !have {
             plan.actions.push(Action::Enable(card.id.clone()));
-        } else if !want && have {
+        } else if !want && have && keep != Some(card.id.as_str()) {
             plan.actions.push(Action::Disable(card.id.clone()));
+        }
+    }
+    if let Some(model) = restore {
+        if coexist::hermes_model(env)?.as_ref() != Some(model) {
+            plan.actions.push(Action::RestoreDefault(model.clone()));
         }
     }
     Ok(plan)
@@ -283,12 +300,26 @@ pub fn capture_tool(
     }))
 }
 
-/// 场景里所有认识的工具是否都已经一致（卡片缺失也算不一致）。读不了客户端配置时算不一致。
+/// 撤销用的快照：和 [`capture_tool`] 一样，Hermes 另外记下顶层 `model:` 整段，撤销时
+/// 原样写回（原来的默认供应商可能不是 LeanFlip 的卡）。
+pub fn undo_entry(env: &Env, data: &StoreData, tool: Tool) -> Result<Option<SceneTool>, AppError> {
+    let mut entry = capture_tool(env, data, tool)?;
+    if tool == Tool::Hermes {
+        if let (Some(entry), Some(model)) = (entry.as_mut(), coexist::hermes_model(env)?) {
+            entry.extra.insert(HERMES_MODEL.into(), model);
+        }
+    }
+    Ok(entry)
+}
+
+/// 场景里所有认识的工具是否都已经一致（卡片缺失也算不一致）。读不了客户端配置时算不一致；
+/// 一个认识的工具都没有（只有新版本写的工具）时不算一致。
 pub fn matches(env: &Env, data: &StoreData, scene: &Scene) -> bool {
-    scene
-        .entries()
-        .into_iter()
-        .all(|(tool, entry)| plan_tool(env, data, tool, entry).is_ok_and(|plan| plan.in_sync()))
+    let entries = scene.entries();
+    !entries.is_empty()
+        && entries
+            .into_iter()
+            .all(|(tool, entry)| plan_tool(env, data, tool, entry).is_ok_and(|plan| plan.in_sync()))
 }
 
 /// 按 id 或名字找场景（名字忽略首尾空白和大小写）。

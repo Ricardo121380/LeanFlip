@@ -402,6 +402,8 @@ export interface ToolOutcome {
   warnings: string[];
   missing: string[];
   error: string | null;
+  /** 失败后没能改回原样，可能只改了一部分。 */
+  partial?: boolean;
 }
 
 /** 应用前的状态，撤销时原样交回去。 */
@@ -413,6 +415,8 @@ export interface SceneUndo {
 export interface SceneReport {
   results: ToolOutcome[];
   undo: SceneUndo;
+  /** 这次改了、但撤销改不回的工具（应用前没有选供应商）。 */
+  irreversible?: ToolId[];
 }
 
 /** 后端给的中英双语说明。 */
