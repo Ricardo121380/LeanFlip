@@ -3,7 +3,7 @@
 //! - sub2api：`GET {origin}/v1/usage`（源码 `backend/internal/handler/gateway_handler.go`
 //!   的 `Usage`）。三种返回：按 Key 限额（`quota`、5h/1d/7d 的 `rate_limits`）、订阅
 //!   （`subscription` 的日/周/月用量和上限）、钱包（`balance`）。金额单位都是 USD。
-//! - NewAPI：`GET {origin}/api/usage/token`（`controller/token.go` 的 `GetTokenUsage`）。
+//! - NewAPI：`GET {origin}/api/usage/token/`（`controller/token.go` 的 `GetTokenUsage`）。
 //!   数值是站点的内部额度，默认 500000 = $1，站点可以改，所以换算比例可以在卡片上设置。
 //!   令牌允许时还带 `user_quota`，就是账户余额。
 //!
@@ -48,7 +48,7 @@ impl RelayAdapter {
     fn path(self) -> &'static str {
         match self {
             RelayAdapter::Sub2api => "/v1/usage",
-            RelayAdapter::Newapi => "/api/usage/token",
+            RelayAdapter::Newapi => "/api/usage/token/",
         }
     }
 }
@@ -108,7 +108,7 @@ impl QuotaSettings {
     }
 }
 
-/// 只保留 scheme、主机和端口：额度接口都挂在站点根上。
+/// 只保留 scheme、主机和端口，作为默认查询位置。
 pub(crate) fn origin(url: &Url) -> Url {
     let mut origin = url.clone();
     origin.set_path("/");
@@ -117,6 +117,37 @@ pub(crate) fn origin(url: &Url) -> Url {
     let _ = origin.set_username("");
     let _ = origin.set_password(None);
     origin
+}
+
+/// 保留子路径部署的前缀，但去掉客户端 API 版本、查询参数和 URL 中的凭据。
+pub(crate) fn query_base(address: &Url) -> Url {
+    let path = address.path().trim_end_matches('/');
+    let prefix = path
+        .strip_suffix("/v1")
+        .or_else(|| path.strip_suffix("/v1beta"))
+        .unwrap_or(path);
+    let mut base = origin(address);
+    base.set_path(&format!("{prefix}/"));
+    base
+}
+
+fn endpoints(adapter: RelayAdapter, address: &Url) -> Vec<Url> {
+    let root = origin(address)
+        .join(adapter.path())
+        .expect("static quota path");
+    let prefixed = query_base(address)
+        .join(adapter.path().trim_start_matches('/'))
+        .expect("static quota path");
+    if prefixed == root {
+        vec![root]
+    } else {
+        vec![root, prefixed]
+    }
+}
+
+/// 只在路径不匹配时试同一主机的子路径；限流、网络错误和重定向不重试。
+fn try_next_endpoint(failure: &Failure) -> bool {
+    failure.code == "format" || matches!(failure.status, Some(401 | 403 | 404 | 405))
 }
 
 /// 来源标识只存 Key 的哈希前 16 位，不存 Key。
@@ -169,15 +200,27 @@ fn get(client: &Client, url: Url, key: &str) -> Result<(u16, Value), Failure> {
 pub(crate) fn fetch(
     client: &Client,
     adapter: RelayAdapter,
-    origin: &Url,
+    address: &Url,
     key: &str,
     per_usd: f64,
     now_ms: i64,
 ) -> Result<QuotaSnapshot, Failure> {
-    let url = origin.join(adapter.path()).map_err(|_| Failure {
-        code: "format",
-        status: None,
-    })?;
+    let urls = endpoints(adapter, address);
+    let mut result = fetch_at(client, adapter, urls[0].clone(), key, per_usd, now_ms);
+    if result.as_ref().is_err_and(try_next_endpoint) && urls.len() > 1 {
+        result = fetch_at(client, adapter, urls[1].clone(), key, per_usd, now_ms);
+    }
+    result
+}
+
+fn fetch_at(
+    client: &Client,
+    adapter: RelayAdapter,
+    url: Url,
+    key: &str,
+    per_usd: f64,
+    now_ms: i64,
+) -> Result<QuotaSnapshot, Failure> {
     let (status, value) = get(client, url, key)?;
     parse(adapter, &value, per_usd, now_ms).ok_or(Failure {
         code: "format",
@@ -230,7 +273,7 @@ pub struct QuotaDetect {
 /// 依次试各平台的额度接口，认出一个就停。
 pub(crate) fn detect(
     client: &Client,
-    origin: &Url,
+    address: &Url,
     key: &str,
     per_usd: f64,
     now_ms: i64,
@@ -238,36 +281,43 @@ pub(crate) fn detect(
     let mut steps = Vec::new();
     let mut found = None;
     for adapter in RelayAdapter::ALL {
-        let url = origin
-            .join(adapter.path())
-            .map(|u| u.to_string())
-            .unwrap_or_default();
+        let urls = endpoints(adapter, address);
         if found.is_some() {
             steps.push(DetectStep {
                 adapter,
-                url,
+                url: urls[0].to_string(),
                 outcome: StepOutcome::Skipped,
                 status: None,
                 code: None,
             });
             continue;
         }
-        let step = |outcome, status, code: Option<&str>| DetectStep {
-            adapter,
-            url: url.clone(),
-            outcome,
-            status,
-            code: code.map(str::to_string),
-        };
-        match fetch(client, adapter, origin, key, per_usd, now_ms) {
-            Ok(snapshot) => {
-                steps.push(step(StepOutcome::Hit, Some(200), None));
-                found = Some((adapter, snapshot));
+        for url in urls {
+            let step = |outcome, status, code: Option<&str>| DetectStep {
+                adapter,
+                url: url.to_string(),
+                outcome,
+                status,
+                code: code.map(str::to_string),
+            };
+            match fetch_at(client, adapter, url.clone(), key, per_usd, now_ms) {
+                Ok(snapshot) => {
+                    steps.push(step(StepOutcome::Hit, Some(200), None));
+                    found = Some((adapter, snapshot));
+                    break;
+                }
+                Err(f) => {
+                    let outcome = if matches!(f.code, "network" | "timeout") {
+                        StepOutcome::Error
+                    } else {
+                        StepOutcome::Miss
+                    };
+                    steps.push(step(outcome, f.status, Some(f.code)));
+                    if !try_next_endpoint(&f) {
+                        break;
+                    }
+                }
             }
-            Err(f) if matches!(f.code, "network" | "timeout") => {
-                steps.push(step(StepOutcome::Error, None, Some(f.code)))
-            }
-            Err(f) => steps.push(step(StepOutcome::Miss, f.status, Some(f.code))),
         }
     }
     (steps, found)
@@ -460,7 +510,7 @@ fn parse_newapi(v: &Value, per_usd: f64, now_ms: i64) -> Option<QuotaSnapshot> {
 pub(crate) struct RelayCard {
     pub user: QuotaUser,
     pub key: String,
-    pub origin: Url,
+    pub address: Url,
     pub secret: String,
     pub adapter: RelayAdapter,
     pub per_usd: f64,
@@ -479,7 +529,6 @@ pub(crate) fn relay_cards(
             let settings = QuotaSettings::of(p)?;
             let adapter = settings.adapter()?;
             let (address, secret) = crate::probe::address_and_key(*tool, &p.settings_config)?;
-            let origin = origin(&address);
             Some(RelayCard {
                 user: QuotaUser {
                     tool: *tool,
@@ -487,8 +536,8 @@ pub(crate) fn relay_cards(
                     provider_name: p.name.clone(),
                     active: active(*tool, &p.id),
                 },
-                key: source_key(&origin, &secret),
-                origin,
+                key: source_key(&query_base(&address), &secret),
+                address,
                 secret,
                 adapter,
                 per_usd: settings.per_usd(),
@@ -520,7 +569,7 @@ pub(crate) fn relay_sources(
         sources.push(QuotaSource {
             key: card.key.clone(),
             kind: QuotaKind::Relay,
-            label: card.origin.host_str().map(str::to_string),
+            label: card.address.host_str().map(str::to_string),
             account_id: None,
             login: None,
             adapter: Some(card.adapter),

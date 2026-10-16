@@ -82,7 +82,7 @@ export function QuotaDetectDialog({
         ) : result ? (
           <div className="flex flex-col gap-3">
             <ol aria-label={t("quotaDetect.steps")} className="divide-y overflow-hidden rounded-lg border">
-              {result.steps.map((step) => <StepRow key={step.adapter} step={step} />)}
+                {result.steps.map((step) => <StepRow key={`${step.adapter}:${step.url}`} step={step} />)}
             </ol>
             {found && result.snapshot ? (
               <div className="rounded-lg bg-muted px-3.5 py-3">

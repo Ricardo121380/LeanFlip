@@ -19,7 +19,7 @@ const now = Date.now();
 const found: QuotaDetect = {
   steps: [
     { adapter: "sub2api", url: "https://gw.example.com/v1/usage", outcome: "miss", status: 200, code: "format" },
-    { adapter: "newapi", url: "https://gw.example.com/api/usage/token", outcome: "hit", status: 200 },
+    { adapter: "newapi", url: "https://gw.example.com/api/usage/token/", outcome: "hit", status: 200 },
   ],
   adapter: "newapi",
   key: "relay:https://gw.example.com:abc",
@@ -62,7 +62,7 @@ describe("Relay usage lookup in the provider editor", () => {
     const steps = within(dialog).getByRole("list", { name: "尝试过的接口" });
     expect(within(steps).getByText("不是")).toBeInTheDocument();
     expect(within(steps).getByText("认出来了")).toBeInTheDocument();
-    expect(within(steps).getByText("GET https://gw.example.com/api/usage/token")).toBeInTheDocument();
+    expect(within(steps).getByText("GET https://gw.example.com/api/usage/token/")).toBeInTheDocument();
     expect(within(dialog).getByText("$31.40")).toBeInTheDocument();
     expect(within(dialog).getByText("共 $58.00")).toBeInTheDocument();
     expect(within(dialog).getByText("$120.00")).toBeInTheDocument();
@@ -93,7 +93,7 @@ describe("Relay usage lookup in the provider editor", () => {
         return calls === 1
           ? { steps: [
               { adapter: "sub2api", url: "https://gw.example.com/v1/usage", outcome: "miss", status: 404, code: "http" },
-              { adapter: "newapi", url: "https://gw.example.com/api/usage/token", outcome: "error", code: "network" },
+              { adapter: "newapi", url: "https://gw.example.com/api/usage/token/", outcome: "error", code: "network" },
             ] }
           : { steps: [], error: "noEndpoint" };
       },

@@ -949,7 +949,7 @@ impl Service {
                 Some(client) => quota::relay::fetch(
                     client,
                     card.adapter,
-                    &card.origin,
+                    &card.address,
                     &card.secret,
                     card.per_usd,
                     quota::now_ms(),
@@ -1063,8 +1063,7 @@ impl Service {
                 error: Some("noEndpoint".into()),
             });
         };
-        let origin = quota::relay::origin(&address);
-        let key = quota::relay::source_key(&origin, &secret);
+        let key = quota::relay::source_key(&quota::relay::query_base(&address), &secret);
         let per_usd = quota::relay::QuotaSettings {
             quota_per_usd,
             ..Default::default()
@@ -1073,7 +1072,7 @@ impl Service {
         let client =
             quota::codex_remote::client().map_err(|_| ApiError::message("network".into()))?;
         let (steps, found) =
-            quota::relay::detect(&client, &origin, &secret, per_usd, quota::now_ms());
+            quota::relay::detect(&client, &address, &secret, per_usd, quota::now_ms());
         if let Some((_, snapshot)) = &found {
             let entry = quota::cache::RelayEntry {
                 key: key.clone(),
