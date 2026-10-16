@@ -89,6 +89,27 @@ describe("Provider editor workflow", () => {
     expect(screen.getByLabelText("名称")).toHaveValue("Existing draft");
   });
 
+  it("offers to change the key in linked cards that still use the old one", async () => {
+    const linked: Provider = { id: "relay", name: "Relay", settingsConfig: { env: { ANTHROPIC_BASE_URL: "https://relay.example", ANTHROPIC_AUTH_TOKEN: "sk-old" } }, meta: { leanflipLink: "link-1" } };
+    const codexCard: Provider = { id: "relay", name: "Relay Codex", settingsConfig: { auth: { OPENAI_API_KEY: "sk-old" }, config: 'model_provider = "r"\n\n[model_providers.r]\nbase_url = "https://relay.example/v1"\n' }, meta: { leanflipLink: "link-1" } };
+    const empty = (tool: string) => ({ tool, kind: "switch", providers: [], current: null, inLive: [], liveError: null, paths: [] });
+    const { backend } = mount(linked, {
+      list_providers: (a) => (a!.tool === "codex" ? { ...empty("codex"), providers: [codexCard] } : a!.tool === "claude" ? { ...empty("claude"), providers: [linked] } : empty(String(a!.tool))),
+      update_provider: () => ({ changed: [], warnings: [] }),
+    });
+    const key = await screen.findByLabelText("API Key");
+    await userEvent.clear(key);
+    await userEvent.type(key, "sk-new");
+    await userEvent.click(screen.getByRole("button", { name: "保存" }));
+    const confirm = await screen.findByRole("alertdialog", { name: "其他 Agent 的 Key 也一起换？" });
+    expect(confirm).toHaveTextContent("Codex · Relay Codex");
+    await userEvent.click(within(confirm).getByRole("button", { name: "一起换" }));
+    expect(await screen.findByText("Editor closed")).toBeInTheDocument();
+    const updates = backend.calls.filter((call) => call.cmd === "update_provider").map((call) => call.args as { tool: string; provider: Provider });
+    expect(updates.map((call) => call.tool)).toEqual(["claude", "codex"]);
+    expect((updates[1].provider.settingsConfig.auth as Record<string, string>).OPENAI_API_KEY).toBe("sk-new");
+  });
+
   it("offers preset retry and generates a unique ID without exposing it in either tab", async () => {
     mock.loadPresets.mockRejectedValue(new Error("offline"));
     const { backend } = mount(null, { add_provider: () => ({ changed: [], warnings: [] }) });

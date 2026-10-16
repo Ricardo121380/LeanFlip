@@ -952,6 +952,54 @@ fn refresh_queries_managed_accounts_caches_results_and_throttles() {
 }
 
 #[test]
+fn managed_accounts_refresh_on_their_own_only_when_the_setting_is_on() {
+    let (_dir, env) = sandbox();
+    let (url, seen) = serve(vec![(200, "", usage_body(42.0))]);
+    let mut service = Service::start(env, None).unwrap();
+    service.set_quota_url(&url);
+    service
+        .runtime()
+        .oauth
+        .add_account_from_tokens(&team_token(), None)
+        .unwrap();
+
+    assert!(!service.quota_refresh_due().unwrap(), "off by default");
+    assert!(seen.lock().unwrap().is_empty());
+
+    let mut app = service.app_settings();
+    app.codex_quota_refresh_minutes = 15;
+    service
+        .save_settings(crate::service::SettingsInput {
+            app,
+            keep_codex_login: false,
+        })
+        .unwrap();
+    assert!(service.quota_refresh_due().unwrap());
+    assert_eq!(seen.lock().unwrap().len(), 1);
+    assert_eq!(
+        service.quota_overview().unwrap().sources[0]
+            .snapshot
+            .as_ref()
+            .unwrap()
+            .windows[0]
+            .used_percent,
+        42.0
+    );
+
+    // 结果还新：即使不算一分钟的限流也不会再查。
+    service.forget_quota_attempts();
+    assert!(!service.quota_refresh_due().unwrap());
+    assert_eq!(seen.lock().unwrap().len(), 1);
+
+    let mut low = crate::settings::AppSettings {
+        codex_quota_refresh_minutes: 2,
+        ..Default::default()
+    };
+    crate::settings::normalize(&mut low);
+    assert_eq!(low.codex_quota_refresh_minutes, 5);
+}
+
+#[test]
 fn accounts_saved_without_a_workspace_use_the_id_token_and_ask_for_a_new_sign_in() {
     let (_dir, env) = sandbox();
     let id_token = test_id_token_with_claims(&json!({

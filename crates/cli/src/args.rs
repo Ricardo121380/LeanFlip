@@ -67,6 +67,12 @@ pub enum Command {
     },
     /// Explicitly recover interrupted writes; read-only commands never recover.
     Recover { tool: Option<ToolArg> },
+    /// Show Codex and relay quota from this machine; --refresh queries online.
+    Quota {
+        /// Query managed Codex accounts and relays with a platform set, then save the result.
+        #[arg(long)]
+        refresh: bool,
+    },
     /// List, preview, or apply scenes (create and edit them in the App).
     #[command(alias = "scenes")]
     Scene {

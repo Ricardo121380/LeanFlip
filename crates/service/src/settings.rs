@@ -25,6 +25,8 @@ pub struct AppSettings {
     pub close_to_tray: bool,
     /// 在状态栏图标旁显示正在用的来源里最紧张的额度。默认关闭：会占菜单栏的位置。
     pub tray_quota_title: bool,
+    /// 每隔这么多分钟联网查一次托管 Codex 账号的额度（0 = 关闭，最少 5 分钟）。
+    pub codex_quota_refresh_minutes: u32,
 }
 
 impl Default for AppSettings {
@@ -37,6 +39,7 @@ impl Default for AppSettings {
             background_refresh_hours: 24 * 7,
             close_to_tray: true,
             tray_quota_title: false,
+            codex_quota_refresh_minutes: 0,
         }
     }
 }
@@ -48,6 +51,9 @@ pub fn normalize(settings: &mut AppSettings) {
     }
     if !matches!(settings.theme.as_deref(), None | Some("light" | "dark")) {
         settings.theme = None;
+    }
+    if (1..5).contains(&settings.codex_quota_refresh_minutes) {
+        settings.codex_quota_refresh_minutes = 5;
     }
 }
 

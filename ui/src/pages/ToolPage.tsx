@@ -3,7 +3,7 @@ import { QueryState } from "@/components/QueryState";
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { useIsMutating } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, ArrowRightLeft, Copy, CopyPlus, Download, Gauge, FileCode2, FolderSearch, Loader2, Pencil, Plus, Search, Trash2, UserRound, X } from "lucide-react";
+import { AlertTriangle, ArrowRightLeft, Copy, CopyPlus, Download, Gauge, FileCode2, FolderSearch, Loader2, Pencil, Plus, Search, Share2, Trash2, UserRound, X } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,9 +12,11 @@ import { Switch } from "@/components/ui/switch";
 // 编辑器（CodeMirror）按需加载。
 const CommonConfigEditor = lazy(() => import("@/components/CommonConfigEditor").then((m) => ({ default: m.CommonConfigEditor })));
 const ProviderEditor = lazy(() => import("@/components/ProviderEditor").then((m) => ({ default: m.ProviderEditor })));
+const SyncDialog = lazy(() => import("@/components/SyncDialog").then((m) => ({ default: m.SyncDialog })));
 import { useAccounts, useAction, useLogins, useOverview, useProviders, useSwitchProvider } from "@/hooks/queries";
 import { api, errorMessage, type AccountInfo, type ProbeResult, type Provider, type ToolId } from "@/lib/api";
 import { accountLabel, endpointOf, isOfficial, modelOf } from "@/lib/cards";
+import { syncSource, type SyncSource } from "@/lib/sync";
 import { failureText, latencyTone, providerDetail, settle, toneClass } from "@/lib/probe";
 import { toolMeta } from "@/lib/tools";
 import { Monogram, ToolGlyph } from "@/components/Glyph";
@@ -84,6 +86,9 @@ export function ToolPage({ tool }: { tool: ToolId }) {
   const logins = useLogins(tool === "codex").data ?? [];
   const [editing, setEditing] = useState<Provider | null>(null);
   const [copying, setCopying] = useState<Provider | null>(null);
+  const [syncing, setSyncing] = useState<SyncSource | null>(null);
+  // 新建的卡能同步时，保存后提议同步到其他 Agent。
+  const onCreated = (provider: Provider) => setSyncing(syncSource(tool, provider));
   // 测连通结果只在本页保留，切换工具或刷新页面后清空。
   const [latency, setLatency] = useState<Record<string, ProbeResult | "pending">>({});
   const [testing, setTesting] = useState(false);
@@ -187,8 +192,14 @@ export function ToolPage({ tool }: { tool: ToolId }) {
   };
   const rowActions = (p: Provider, current: boolean) => {
     const deleting = deleteAction.isPending && deleteAction.variables === p.id;
+    const sync = syncSource(tool, p);
     return (
       <>
+        {sync && (
+          <Button size="icon" variant="ghost" className="text-muted-foreground opacity-70 group-hover:opacity-100 focus-visible:opacity-100" disabled={busy} onClick={() => setSyncing(sync)} aria-label={`${t("sync.action")} ${p.name}`} title={t("sync.action")}>
+            <Share2 />
+          </Button>
+        )}
         <Button size="icon" variant="ghost" className="text-muted-foreground opacity-70 group-hover:opacity-100 focus-visible:opacity-100" disabled={busy} onClick={() => setCopying(p)} aria-label={`${t("card.duplicate")} ${p.name}`} title={t("card.duplicate")}>
           <CopyPlus />
         </Button>
@@ -410,8 +421,9 @@ export function ToolPage({ tool }: { tool: ToolId }) {
         </>
       )}
       <Suspense fallback={<p role="status" className="text-sm text-muted-foreground">{t("tool.loadingEditor")}</p>}>
-        {adding && <ProviderEditor tool={tool} open onOpenChange={setAdding} existingIds={data.providers.map((p) => p.id)} accounts={accounts} logins={logins} />}
-        {copying && <ProviderEditor key={`copy-${copying.id}`} tool={tool} open onOpenChange={(open) => !open && setCopying(null)} template={copying} existingIds={data.providers.map((p) => p.id)} accounts={accounts} logins={logins} />}
+        {adding && <ProviderEditor tool={tool} open onOpenChange={setAdding} existingIds={data.providers.map((p) => p.id)} accounts={accounts} logins={logins} onCreated={onCreated} />}
+        {copying && <ProviderEditor key={`copy-${copying.id}`} tool={tool} open onOpenChange={(open) => !open && setCopying(null)} template={copying} existingIds={data.providers.map((p) => p.id)} accounts={accounts} logins={logins} onCreated={onCreated} />}
+        {syncing && <SyncDialog key={`${syncing.tool}-${syncing.provider.id}`} source={syncing} onClose={() => setSyncing(null)} />}
         {editing && <ProviderEditor key={editing.id} tool={tool} open onOpenChange={(open) => !open && setEditing(null)} provider={editing} existingIds={data.providers.map((p) => p.id)} accounts={accounts} logins={logins} />}
       </Suspense>
       {commonOpen && <Suspense fallback={<p role="status">{t("common.loading")}</p>}><CommonConfigEditor tool={tool} onClose={() => setCommonOpen(false)} /></Suspense>}

@@ -970,7 +970,8 @@ impl Service {
     }
 
     /// 自动刷新：设了刷新间隔的中转来源里，到点的联网查一次（共用一个来源的几张卡取最短的
-    /// 间隔）。距上次结果和上次尝试都满一个间隔才算到点，站点出错时不会每分钟重试。
+    /// 间隔）；设置里开了托管账号自动刷新时，不用重新登录的托管 Codex 账号也一样。距上次
+    /// 结果（本机会话记录里的也算）和上次尝试都满一个间隔才算到点，出错时不会每分钟重试。
     /// 查过任何来源时返回 `true`。
     pub fn quota_refresh_due(&self) -> ApiResult<bool> {
         let rt = self.runtime();
@@ -983,11 +984,33 @@ impl Service {
             let entry = intervals.entry(card.key).or_insert(card.refresh_minutes);
             *entry = (*entry).min(card.refresh_minutes);
         }
+        let codex_minutes = self.app_settings().codex_quota_refresh_minutes;
+        if codex_minutes > 0 {
+            for info in rt.oauth.try_list_accounts().unwrap_or_default() {
+                if info.reauth_required {
+                    continue;
+                }
+                if let Some(identity) = quota::account_identity(&rt.oauth, &info.id) {
+                    intervals.insert(identity.key(), codex_minutes);
+                }
+            }
+        }
         if intervals.is_empty() {
             return Ok(false);
         }
         let now = quota::now_ms();
-        let cached = quota::cache::load_relays(&rt.env, now);
+        let mut cached: HashMap<String, i64> = quota::cache::load_relays(&rt.env, now)
+            .into_iter()
+            .map(|(key, snapshot)| (key, snapshot.fetched_at))
+            .collect();
+        if codex_minutes > 0 {
+            let mut seen = quota::codex_log::read(&rt.env.codex_dir, now);
+            seen.extend(quota::cache::load(&rt.env, now));
+            for observation in seen {
+                let entry = cached.entry(observation.identity.key()).or_insert(i64::MIN);
+                *entry = (*entry).max(observation.snapshot.fetched_at);
+            }
+        }
         let due: Vec<String> = {
             let attempts = self
                 .quota_attempts
@@ -998,7 +1021,7 @@ impl Service {
                 .filter(|(key, minutes)| {
                     let last = cached
                         .get(key)
-                        .map(|s| s.fetched_at)
+                        .copied()
                         .max(attempts.get(key).copied())
                         .unwrap_or(i64::MIN);
                     now.saturating_sub(last) >= i64::from(*minutes) * 60_000

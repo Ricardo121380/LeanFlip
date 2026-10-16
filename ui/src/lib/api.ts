@@ -257,6 +257,8 @@ export interface AppSettings {
   closeToTray: boolean;
   /** 在状态栏图标旁显示最紧张的额度，默认关闭。 */
   trayQuotaTitle?: boolean;
+  /** 每隔这么多分钟联网查一次托管 Codex 账号的额度；0 关闭。 */
+  codexQuotaRefreshMinutes?: number;
 }
 
 export interface SettingsView {

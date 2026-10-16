@@ -10,7 +10,7 @@ import { useFlip } from "@/lib/motion";
 import { CountUp } from "@/components/Morph";
 import { ToolGlyph, providerColor } from "@/components/Glyph";
 import { cn } from "@/lib/utils";
-import { agoText, meterWidth, quotaBrief, quotaSettingsOf, type QuotaBrief } from "@/lib/quota";
+import { agoText, meterWidth, quotaBrief, quotaSettingsOf, quotaTitle as quotaTitleOf, type QuotaBrief } from "@/lib/quota";
 import { latencyKey, type Latency, type Row } from "./model";
 
 export interface SentenceActions {
@@ -92,12 +92,7 @@ function Sentence({ row, index, latency, quota, now, open, importing, onOpen, on
     const snapshot = sourceOf(p)?.snapshot;
     return snapshot ? quotaBrief(snapshot, now, t, i18n.language) : null;
   };
-  const quotaTitle = (p: Provider) => {
-    const source = sourceOf(p);
-    const snapshot = source?.snapshot;
-    if (!source || !snapshot) return undefined;
-    return [source.label, `${t(snapshot.origin === "local" ? "quota.local" : "quota.network")} · ${agoText(snapshot.fetchedAt, now, t)}`].filter(Boolean).join("\n");
-  };
+  const quotaTitle = (p: Provider) => quotaTitleOf(sourceOf(p), now, t);
   const marks = row.active.map((p) => `${p.id}:${briefOf(p)?.text ?? ""}`).join(",");
   const signature = [row.state, open, row.active.map((p) => p.id).join(","), row.others.map((p) => p.id).join(","), data?.liveError ?? "", marks].join("|");
   useFlip(flow, ghosts, signature, open);

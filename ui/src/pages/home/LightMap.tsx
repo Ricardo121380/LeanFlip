@@ -1,9 +1,10 @@
 // 光路：左边是工具，右边是按地址合并的服务端点。正在用的路由上有光点流动，延迟越低流得越快。
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { Provider, ToolId } from "@/lib/api";
+import type { Provider, QuotaSource, ToolId } from "@/lib/api";
 import { isOfficial } from "@/lib/cards";
 import { latencyTone, toneClass } from "@/lib/probe";
+import { quotaBrief, quotaTitle } from "@/lib/quota";
 import { canAnimate } from "@/lib/motion";
 import { Morph } from "@/components/Morph";
 import { ToolGlyph } from "@/components/Glyph";
@@ -13,6 +14,9 @@ import { buildMap, probeKey, type Edge, type Host, type Latency, type Row } from
 interface Props {
   rows: Row[];
   latency: Latency;
+  /** 每张卡（`tool:id`）的额度来源。 */
+  quota?: Map<string, QuotaSource>;
+  now?: number;
   onSwitch: (row: Row, provider: Provider) => void;
   onToggle: (row: Row, provider: Provider, enabled: boolean) => void;
 }
@@ -122,8 +126,8 @@ function burst(layer: SVGGElement, at: Point) {
 const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
 const easeIn = (t: number) => t * t * t;
 
-export function LightMap({ rows, latency, onSwitch, onToggle }: Props) {
-  const { t } = useTranslation();
+export function LightMap({ rows, latency, quota, now = Date.now(), onSwitch, onToggle }: Props) {
+  const { t, i18n } = useTranslation();
   const map = useMemo(() => buildMap(rows), [rows]);
   const box = useRef<HTMLDivElement>(null);
   const fx = useRef<SVGGElement>(null);
@@ -374,6 +378,26 @@ export function LightMap({ rows, latency, onSwitch, onToggle }: Props) {
     return <span className={toneClass[latencyTone(result.latencyMs)]}>{t("probe.ms", { ms: result.latencyMs })}</span>;
   };
 
+  // 端点上的额度：连到这里的卡用到的每个额度来源各一个标记，同一个账号或 Key 只标一次。
+  const quotaMarks = (edges: Edge[]) => {
+    if (!quota) return null;
+    const sources = new Map<string, QuotaSource>();
+    for (const edge of edges) {
+      const source = quota.get(`${edge.row.tool.id}:${edge.provider.id}`);
+      if (source?.snapshot && !sources.has(source.key)) sources.set(source.key, source);
+    }
+    return [...sources.values()].map((source) => {
+      const brief = quotaBrief(source.snapshot!, now, t, i18n.language);
+      if (!brief) return null;
+      const title = quotaTitle(source, now, t);
+      return (
+        <span key={source.key} className="qs" data-level={brief.level} title={title} aria-label={[brief.text, title].filter(Boolean).join("\n")}>
+          {brief.text}
+        </span>
+      );
+    });
+  };
+
   return (
     <div ref={box} className="lightmap" style={{ minHeight: Math.max(map.rows.length * 72, map.hosts.length * 48) + 24 }}>
       {geo && (
@@ -437,7 +461,10 @@ export function LightMap({ rows, latency, onSwitch, onToggle }: Props) {
             <li key={host.key} className={cn(focus && !into.some((e) => e.row.tool.id === focus) && "dim")}>
               <span className={cn("lm-host", on && "on")} ref={(el) => { if (el) hostNodes.current.set(host.key, el); else hostNodes.current.delete(host.key); }} />
               <span className="min-w-0 flex-1">
-                <span className="block truncate font-mono text-[12px]">{hostLabel(host)}</span>
+                <span className="flex min-w-0 items-baseline">
+                  <span className="truncate font-mono text-[12px]">{hostLabel(host)}</span>
+                  {quotaMarks(into)}
+                </span>
                 <span className="flex flex-wrap text-[11px] text-muted-foreground">
                   {[...labels].map(([label, edges]) => {
                     const sameTool = edges.every((e) => e.row.tool.id === edges[0].row.tool.id);
