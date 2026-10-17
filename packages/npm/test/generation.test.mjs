@@ -17,8 +17,10 @@ test('release metadata names the LeanFlip commands and app and drops files from 
   await writeFile(join(root, 'packages/npm/NOTICE.md'), 'Notice from an earlier release');
   await writeFile(join(root, 'Casks/earlier.rb'), 'cask "earlier" do\nend\n');
   const tauri = JSON.parse(await readFile(join(root, 'crates/app/tauri.conf.json'), 'utf8'));
-  for (const version of ['0.2.0', '0.2.1']) {
-    const names = ['macos-arm64.tar.gz', 'linux-x64.tar.gz', 'macos-arm64.dmg', 'linux-x64.deb'].map(suffix => `leanflip_${version}_${suffix}`);
+  for (const version of ['0.2.0', '0.4.0']) {
+    const suffixes = ['macos-arm64.tar.gz', 'linux-x64.tar.gz', 'macos-arm64.dmg', 'linux-x64.deb'];
+    if (version === '0.4.0') suffixes.push('windows-x64.zip', 'windows-x64-setup.exe');
+    const names = suffixes.map(suffix => `leanflip_${version}_${suffix}`);
     const sums = [];
     for (const name of names) {
       const bytes = Buffer.from(`Metadata-only fixture ${name}`);
@@ -34,6 +36,8 @@ test('release metadata names the LeanFlip commands and app and drops files from 
     await assert.rejects(readFile(join(root, 'packages/npm/NOTICE.md')), { code: 'ENOENT' });
     assert.ok(!pkg.files.includes('NOTICE.md'));
     assert.equal(pkg.name, 'leanflip');
+    assert.deepEqual(pkg.os, version === '0.4.0' ? ['darwin', 'linux', 'win32'] : ['darwin', 'linux']);
+    assert.equal(Boolean(manifest.platforms['win32-x64']), version === '0.4.0');
     assert.deepEqual(pkg.bin, { leanflip: 'bin/leanflip.js', 'leanflip-app': 'bin/leanflip-app.js' });
     assert.deepEqual([manifest.appName, manifest.cliName, manifest.appCask], ['LeanFlip.app', 'leanflip', 'leanflip-app']);
     assert.deepEqual([manifest.appBinary, manifest.bundleId], [tauri.mainBinaryName, tauri.identifier]);
@@ -45,7 +49,7 @@ test('release metadata names the LeanFlip commands and app and drops files from 
   }
   // A stale earlier Cask makes the check fail instead of being published.
   await writeFile(join(root, 'Casks/earlier.rb'), 'cask "earlier" do\nend\n');
-  assert.throws(() => execFileSync(process.execPath, [join(root, 'scripts/prepare-distribution.mjs'), '0.2.1', join(root, 'assets'), '--check'], { stdio: 'pipe' }));
+  assert.throws(() => execFileSync(process.execPath, [join(root, 'scripts/prepare-distribution.mjs'), '0.4.0', join(root, 'assets'), '--check'], { stdio: 'pipe' }));
   assert.throws(() => execFileSync(process.execPath, [join(root, 'scripts/prepare-distribution.mjs'), '0.1.0', join(root, 'assets')], { stdio: 'pipe' }));
 });
 
@@ -58,9 +62,10 @@ test('installers extract the named CLI and show the matching product without dow
     await mkdir(join(fixture, 'native'));
     await copyFile(new URL('../lib/distribution.js', import.meta.url), join(fixture, 'lib/distribution.js'));
     await writeFile(join(fixture, 'package.json'), '{"type":"module"}');
-    await writeFile(join(fixture, 'native', name), `#!/bin/sh\nprintf '${name}-fixture\\n'\n`, { mode: 0o755 });
+    const executable = process.platform === 'win32' ? `${name}.exe` : name;
+    await writeFile(join(fixture, 'native', executable), `#!/bin/sh\nprintf '${name}-fixture\\n'\n`, { mode: 0o755 });
     const archive = `${name}.tar.gz`;
-    execFileSync('tar', ['-czf', join(fixture, archive), '-C', join(fixture, 'native'), name]);
+    execFileSync('tar', ['-czf', join(fixture, archive), '-C', join(fixture, 'native'), executable]);
     const digest = createHash('sha256').update(await readFile(join(fixture, archive))).digest('hex');
     const cache = join(fixture, 'cache', 'leanflip', version, digest);
     await mkdir(cache, { recursive: true });
@@ -72,11 +77,11 @@ test('installers extract the named CLI and show the matching product without dow
       platforms: { [`${process.platform}-${process.arch}`]: { cli: asset, app: asset } },
     }));
     const output = execFileSync(process.execPath, ['--input-type=module', '-e',
-      "import { ensureCli, command, desktop } from './lib/distribution.js'; console.log(command(await ensureCli(), [])); await desktop({ action: 'help' });",
+      "import { ensureCli, command, desktop } from './lib/distribution.js'; const binary = await ensureCli(); if (process.platform !== 'win32') console.log(command(binary, [])); await desktop({ action: 'help' });",
     ], { cwd: fixture, env: { ...process.env, XDG_CACHE_HOME: join(fixture, 'cache') }, encoding: 'utf8' });
-    assert.match(output, new RegExp(`${name}-fixture`));
+    if (process.platform !== 'win32') assert.match(output, new RegExp(`${name}-fixture`));
     assert.ok(output.includes(`${product} ${version}`));
     assert.ok(output.includes(`${name}-app install`));
-    assert.equal(await readFile(join(cache, name), 'utf8'), `#!/bin/sh\nprintf '${name}-fixture\\n'\n`);
+    assert.equal(await readFile(join(cache, executable), 'utf8'), `#!/bin/sh\nprintf '${name}-fixture\\n'\n`);
   }
 });

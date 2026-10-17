@@ -13,13 +13,17 @@ concurrency:
   group: checks-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   cli:
     name: Standalone CLI (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-14]
+        os: [ubuntu-24.04, macos-14, windows-2022]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -34,11 +38,16 @@ jobs:
           target/release/leanflip --home "$RUNNER_TEMP/leanflip-smoke" status --json
           test ! -e "$RUNNER_TEMP/leanflip-smoke"
       - name: Check interactive menu in a pseudo-terminal
+        if: runner.os != 'Windows'
         run: python3 scripts/check-cli-menu.py --binary target/release/leanflip
       - name: Check full-screen TUI in a pseudo-terminal
+        if: runner.os != 'Windows'
         run: python3 scripts/check-cli-tui.py --binary target/release/leanflip
       - name: Archive binary with executable permissions
-        run: tar -C target/release -czf leanflip-${{ matrix.os }}-${{ runner.arch }}.tar.gz leanflip
+        run: |
+          binary=leanflip
+          if [ "$RUNNER_OS" = Windows ]; then binary=leanflip.exe; fi
+          tar -C target/release -czf leanflip-${{ matrix.os }}-${{ runner.arch }}.tar.gz "$binary"
       - uses: actions/upload-artifact@v4
         with:
           name: leanflip-${{ matrix.os }}-${{ runner.arch }}
@@ -55,6 +64,8 @@ jobs:
             bundle: deb
           - os: macos-14
             bundle: app
+          - os: windows-2022
+            bundle: nsis
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -89,3 +100,7 @@ jobs:
         run: |
           codesign --verify --deep --strict --verbose=2 target/debug/bundle/macos/LeanFlip.app
           test -f target/debug/bundle/macos/LeanFlip.app/Contents/_CodeSignature/CodeResources
+      - name: Verify Windows install, launch, upgrade and uninstall
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/check-windows-package.ps1 -BundleDirectory target/debug/bundle/nsis

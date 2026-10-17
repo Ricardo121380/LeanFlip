@@ -434,13 +434,15 @@ mod tests {
 
     #[test]
     fn overrides_only_take_absolute_paths() {
-        let env = Env::with_home("/h").with_overrides(&DirOverrides {
-            codex_dir: Some("/custom/codex".into()),
+        let home = tempfile::tempdir().unwrap();
+        let custom = home.path().join("custom/codex");
+        let env = Env::with_home(home.path()).with_overrides(&DirOverrides {
+            codex_dir: Some(custom.clone()),
             hermes_dir: Some("relative".into()),
             ..DirOverrides::default()
         });
-        assert_eq!(env.codex_dir, PathBuf::from("/custom/codex"));
-        assert_eq!(env.hermes_dir, Env::with_home("/h").hermes_dir);
-        assert_eq!(env.data_dir, PathBuf::from("/h").join(DATA_DIR_NAME));
+        assert_eq!(env.codex_dir, custom);
+        assert_eq!(env.hermes_dir, Env::with_home(home.path()).hermes_dir);
+        assert_eq!(env.data_dir, home.path().join(DATA_DIR_NAME));
     }
 }
