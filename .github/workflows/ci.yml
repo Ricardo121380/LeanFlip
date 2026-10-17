@@ -43,6 +43,10 @@ jobs:
       - name: Check full-screen TUI in a pseudo-terminal
         if: runner.os != 'Windows'
         run: python3 scripts/check-cli-tui.py --binary target/release/leanflip
+      - name: Check Windows menu and TUI in ConPTY
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: python scripts/check-windows-terminal.py --binary target/release/leanflip.exe
       - name: Archive binary with executable permissions
         run: |
           binary=leanflip

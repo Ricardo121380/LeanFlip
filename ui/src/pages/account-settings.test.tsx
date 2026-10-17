@@ -153,7 +153,7 @@ describe("Menu-bar usage setting", () => {
     });
     const toggle = await screen.findByRole("switch", { name: "在状态栏显示额度" });
     expect(toggle).not.toBeChecked();
-    expect(toggle).toHaveAccessibleDescription(/macOS 上会显示/);
+    expect(toggle).toHaveAccessibleDescription(/macOS.*Windows.*Linux/);
     await userEvent.click(toggle);
     await userEvent.click(screen.getByRole("button", { name: "保存设置" }));
     await waitFor(() => expect(calls.some((call) => call.cmd === "save_settings")).toBe(true));

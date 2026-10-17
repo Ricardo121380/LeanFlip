@@ -87,6 +87,10 @@ jobs:
             python3 scripts/check-cli-menu.py --binary target/release/leanflip
             python3 scripts/check-cli-tui.py --binary target/release/leanflip
           fi
+      - name: Check Windows menu and TUI in ConPTY
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: python scripts/check-windows-terminal.py --binary target/release/leanflip.exe
       - name: Build optimized desktop packages
         run: pnpm tauri build --ci --bundles ${{ matrix.bundle }} -- --locked
       - name: Verify macOS bundle resource seal
