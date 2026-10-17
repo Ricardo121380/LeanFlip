@@ -1,6 +1,6 @@
 {
   "name": "leanflip",
-  "version": "0.3.9",
+  "version": "0.4.0",
   "description": "LeanFlip native CLI, TUI and desktop app installer",
   "type": "module",
   "license": "MIT",
@@ -16,7 +16,8 @@
   },
   "os": [
     "darwin",
-    "linux"
+    "linux",
+    "win32"
   ],
   "bin": {
     "leanflip": "bin/leanflip.js",

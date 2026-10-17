@@ -82,6 +82,8 @@ leanflip-app install   # 可选：下载并安装桌面 App
 
 同一页面的 `SHA256SUMS` 可用于校验下载：在下载目录执行 `shasum -a 256 -c SHA256SUMS --ignore-missing`（Linux 用 `sha256sum -c SHA256SUMS --ignore-missing`）。
 
+Windows CLI / TUI 需要 [Microsoft Visual C++ v14 x64 运行库](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist)，npm 启动的原生 CLI 也需要它。如果出现 `VCRUNTIME140.dll` 缺失提示，请安装微软页面中的 X64 版本后重试，无需安装 Visual Studio 开发工具。
+
 > [!WARNING]
 > **macOS 首次打开：** App 和命令行目前没有 Apple Developer ID 签名与公证，第一次运行会被系统拦下。确认文件来自本项目 Releases 页面后：
 >

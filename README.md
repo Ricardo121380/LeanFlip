@@ -91,6 +91,8 @@ leanflip-app install   # 可选：同时安装桌面 App
 
 Windows 安装程序支持中文和英文，默认安装到当前用户目录，缺少 WebView2 时会联网安装运行时。安装包暂未代码签名，首次运行可能出现 SmartScreen 提示；请核对 Release 的 `SHA256SUMS`。CLI 解压后在 PowerShell 中运行 `./leanflip.exe`，无需桌面 App。
 
+Windows CLI / TUI（包括 npm 启动的原生 CLI）需要 [Microsoft Visual C++ v14 x64 运行库](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist)。若提示缺少 `VCRUNTIME140.dll`，安装该页面的 X64 版本后重试。
+
 源码构建、校验下载与升级卸载见[使用手册 · 安装](docs/guide.md#安装)。
 
 ## 快速上手
