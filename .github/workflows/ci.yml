@@ -90,7 +90,7 @@ jobs:
       - name: Test frontend
         run: pnpm test
       - name: Test Rust workspace
-        run: cargo test --workspace --locked
+        run: cargo test --workspace --no-fail-fast --locked
       - name: Lint Rust workspace
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: Verify desktop packaging (no release)

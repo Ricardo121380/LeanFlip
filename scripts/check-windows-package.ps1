@@ -25,6 +25,10 @@ try {
     Run-Installer $installers[0].FullName @('/S', "/D=$installDir")
     $binary = Join-Path $installDir 'leanflip-app.exe'
     if (-not (Test-Path $binary)) { throw 'Installed desktop executable missing' }
+    Add-Type -AssemblyName System.Drawing
+    $icon = [System.Drawing.Icon]::ExtractAssociatedIcon($binary)
+    if ($null -eq $icon -or $icon.Width -lt 16) { throw 'Installed Windows icon is missing' }
+    $icon.Dispose()
     $version = (Get-Content package.json | ConvertFrom-Json).version
     if ((Get-Item $binary).VersionInfo.ProductVersion -ne $version) { throw 'Installed version mismatch' }
     $env:LEANFLIP_HOME = $fixtureHome

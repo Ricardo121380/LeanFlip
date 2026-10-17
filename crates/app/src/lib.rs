@@ -284,6 +284,9 @@ fn env_logger_init() -> Result<(), log::SetLoggerError> {
 
 #[cfg(test)]
 mod tests {
+    // On Windows Tauri loads the icon from the packaged PE executable's resources.
+    // The Rust libtest harness has no PE icon; check the installed EXE in CI instead.
+    #[cfg(not(windows))]
     #[test]
     fn generated_window_icon_has_rgba8_pixels_for_the_tray() {
         let context = super::app_context();
