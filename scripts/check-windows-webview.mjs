@@ -44,7 +44,13 @@ try {
     return result.result.value;
   };
   const invoke = (command, args = {}) => evaluate(`window.__TAURI_INTERNALS__.invoke(${JSON.stringify(command)}, ${JSON.stringify(args)})`);
-  assert.match(await evaluate('document.body.innerText'), /LeanFlip/);
+  // A responsive native window and a CDP target can precede React's first
+  // render on a busy runner. Wait for the actual UI before using its bridge.
+  for (let attempt = 0; attempt < 60; attempt++) {
+    if ((await evaluate("document.body?.innerText ?? ''")).includes('LeanFlip')) break;
+    await delay(250);
+  }
+  assert.match(await evaluate("document.body?.innerText ?? ''"), /LeanFlip/);
   const settings = await invoke('get_settings');
   assert.equal(resolve(settings.home).toLowerCase(), resolve(home).toLowerCase());
   assert.equal(resolve(settings.dataDir).toLowerCase(), resolve(home, '.leanflip').toLowerCase());
