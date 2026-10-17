@@ -634,7 +634,7 @@ leanflip paths codex
 | Codex | `~/.codex/config.toml`、`~/.codex/auth.json` |
 | Gemini CLI | `~/.gemini/.env`、`~/.gemini/settings.json` |
 | Grok Build | `~/.grok/config.toml` |
-| Claude Desktop | macOS 的 `~/Library/Application Support/Claude/` 和 `Claude-3p/`；Windows 的 `%LOCALAPPDATA%` 下同名目录；Linux 的对应配置根目录下同名目录 |
+| Claude Desktop | macOS 的 `~/Library/Application Support/Claude/` 和 `Claude-3p/`；Windows 的 `%APPDATA%\Claude` 与 `%LOCALAPPDATA%\Claude-3p`；Linux 的对应配置根目录下同名目录 |
 | OpenCode | `~/.config/opencode/opencode.jsonc`，已有该文件时优先；否则 `opencode.json` |
 | OpenClaw | `~/.openclaw/openclaw.json` |
 | Hermes | `~/.hermes/config.yaml` |
@@ -643,7 +643,7 @@ leanflip paths codex
 
 普通运行会遵循 `CODEX_HOME`、`HERMES_HOME`、`PI_CODING_AGENT_DIR`、`MINIMAX_DATA_DIR` / `MAVIS_DATA_DIR` 等已支持的路径环境变量，再应用 App 保存的目录覆盖。自定义配置目录时，建议在 App 中设置后运行 `leanflip paths` 核对。
 
-Windows 中 `~` 对应 `%USERPROFILE%`，LeanFlip 数据位于 `%USERPROFILE%\.leanflip`；Hermes 默认使用 `%LOCALAPPDATA%\hermes`。设置里的自定义目录需填写完整盘符路径或 UNC 共享路径。Windows 原生客户端和 WSL 的配置目录彼此独立，请核对页面显示的路径。
+Windows 中 `~` 对应 `%USERPROFILE%`，LeanFlip 数据位于 `%USERPROFILE%\.leanflip`；Hermes 默认使用 `%LOCALAPPDATA%\hermes`。设置里的自定义目录需填写完整盘符路径或 UNC 共享路径。Claude Desktop 的普通配置路径依据 [MCP 官方说明](https://modelcontextprotocol.io/docs/develop/build-server)；MSIX/商店版可能使用包内虚拟目录，本版未自动发现这些目录，使用前需确认客户端实际路径。Windows 原生客户端和 WSL 的配置目录彼此独立，请核对页面显示的路径。
 
 写入含凭据的客户端文件时，Unix 权限统一收紧到 `0600`；新建文件同样使用 `0600`。Windows 文件继承所在目录的 ACL，不等同于 Unix 的 `0600`，请把配置保存在受当前用户权限保护的目录。Gemini 的无凭据 `settings.json` 保留已有权限。原子写入会跟随文件及目录符号链接，在真实目标目录中暂存并替换目标，保留链接本身。
 

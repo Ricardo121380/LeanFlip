@@ -84,6 +84,10 @@ class Terminal:
         checked(set_attr(self.attrs, 0, 0x00020016, self.pty, c.sizeof(P), None, None))
         startup = StartupEx()
         startup.startup.cb = c.sizeof(StartupEx)
+        # Explicit null standard handles prevent Windows from duplicating the
+        # CI runner's redirected pipes instead of attaching ConPTY handles.
+        # https://github.com/microsoft/terminal/discussions/15814
+        startup.startup.flags = 0x00000100  # STARTF_USESTDHANDLES
         startup.attributes = c.cast(self.attrs, P)
         self.process = Process()
         command = c.create_unicode_buffer(subprocess.list2cmdline(args))
@@ -102,7 +106,7 @@ class Terminal:
         deadline = time.monotonic() + 15
         while text.encode() not in self.output:
             if time.monotonic() > deadline:
-                raise AssertionError(f'ConPTY did not render {text!r}')
+                raise AssertionError(f'ConPTY did not render {text!r}: {self.output[-1000:]!r}')
             try:
                 self.output += self.messages.get(timeout=0.1)
             except queue.Empty:
@@ -133,10 +137,10 @@ class Terminal:
             close(handle)
 
 
-def check(binary):
+def check(binary, entry=None):
     with tempfile.TemporaryDirectory(prefix='leanflip-conpty-') as root:
         home = Path(root) / '用户 Home'
-        args = [str(binary), '--home', str(home), '--lang', 'en']
+        args = [str(binary), *([str(entry)] if entry else []), '--home', str(home), '--lang', 'en']
         provider = {'id': 'windows-fixture', 'name': 'Windows Fixture', 'settingsConfig': {'env': {
             'ANTHROPIC_BASE_URL': 'https://windows.invalid', 'ANTHROPIC_AUTH_TOKEN': 'ci-dummy-key',
         }}}
@@ -144,11 +148,14 @@ def check(binary):
         subprocess.run([*args, 'use', 'claude', 'windows-fixture', '--json'], capture_output=True, check=True)
         before = {str(p.relative_to(home)): p.read_bytes() for p in home.rglob('*') if p.is_file()}
         with Terminal([*args, 'menu', 'claude']) as terminal:
-            terminal.expect('Windows Fixture')
+            terminal.expect('Fixture')
             terminal.finish('\x1b')
+        with Terminal([*args, 'menu', 'claude']) as terminal:
+            terminal.expect('Fixture')
+            terminal.finish('\x03', expected=130)
         with Terminal([*args, 'tui', 'claude']) as terminal:
             terminal.expect('LeanFlip')
-            terminal.expect('Windows Fixture')
+            terminal.expect('Fixture')
             terminal.finish('q')
         with Terminal([*args, 'tui', 'claude']) as terminal:
             terminal.expect('LeanFlip')
@@ -161,4 +168,6 @@ def check(binary):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--binary', type=Path, required=True)
-    check(parser.parse_args().binary.resolve())
+    parser.add_argument('--entry', type=Path)
+    options = parser.parse_args()
+    check(options.binary.resolve(), options.entry.resolve() if options.entry else None)

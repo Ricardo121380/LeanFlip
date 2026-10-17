@@ -19,6 +19,7 @@ function Run-Installer([string]$Path, [string[]]$Arguments) {
 
 $previousHome = $env:LEANFLIP_HOME
 $previousLocal = $env:LOCALAPPDATA
+$previousRoaming = $env:APPDATA
 $previousWebviewArgs = $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS
 try {
     # /D must be the last NSIS argument; spaces are part of the directory value.
@@ -33,6 +34,7 @@ try {
     if ((Get-Item $binary).VersionInfo.ProductVersion -ne $version) { throw 'Installed version mismatch' }
     $env:LEANFLIP_HOME = $fixtureHome
     $env:LOCALAPPDATA = Join-Path $fixtureHome 'AppData/Local'
+    $env:APPDATA = Join-Path $fixtureHome 'AppData/Roaming'
     $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=9230'
     # Do not inherit tool-specific directories from the runner's environment.
     foreach ($name in @('CODEX_HOME', 'HERMES_HOME', 'PI_CODING_AGENT_DIR', 'MINIMAX_DATA_DIR', 'MAVIS_DATA_DIR')) {
@@ -59,6 +61,7 @@ try {
         $app.WaitForExit()
     }
     $env:LOCALAPPDATA = $previousLocal
+    $env:APPDATA = $previousRoaming
     $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = $previousWebviewArgs
     Run-Installer $installers[0].FullName @('/S', "/D=$installDir")
     if (-not (Test-Path $binary)) { throw 'Upgrade removed the executable' }
@@ -72,6 +75,7 @@ try {
     Write-Output 'Windows install, startup, replacement and uninstall passed; user data preserved'
 } finally {
     $env:LEANFLIP_HOME = $previousHome
+    $env:APPDATA = $previousRoaming
     $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = $previousWebviewArgs
     $env:LOCALAPPDATA = $previousLocal
     Remove-Item $root -Recurse -Force -ErrorAction SilentlyContinue

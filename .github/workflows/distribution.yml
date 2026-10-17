@@ -3,9 +3,9 @@ name: Package managers
 on:
   push:
     branches: [main]
-    paths: ['packages/npm/**', 'Casks/**', 'scripts/prepare-distribution.mjs', 'scripts/check-windows-*.ps1', 'scripts/check-windows-*.mjs', '.github/workflows/distribution.yml', '.github/workflows/release.yml']
+    paths: ['packages/npm/**', 'Casks/**', 'scripts/prepare-distribution.mjs', 'scripts/check-windows-*.ps1', 'scripts/check-windows-*.mjs', 'scripts/check-windows-*.py', '.github/workflows/distribution.yml', '.github/workflows/release.yml']
   pull_request:
-    paths: ['packages/npm/**', 'Casks/**', 'scripts/prepare-distribution.mjs', 'scripts/check-windows-*.ps1', 'scripts/check-windows-*.mjs', '.github/workflows/distribution.yml', '.github/workflows/release.yml']
+    paths: ['packages/npm/**', 'Casks/**', 'scripts/prepare-distribution.mjs', 'scripts/check-windows-*.ps1', 'scripts/check-windows-*.mjs', 'scripts/check-windows-*.py', '.github/workflows/distribution.yml', '.github/workflows/release.yml']
   workflow_dispatch:
 
 permissions:
@@ -179,6 +179,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'CLI startup failed' }
           leanflip --home "$env:RUNNER_TEMP/leanflip-smoke" status --json
           if ($LASTEXITCODE -ne 0 -or (Test-Path "$env:RUNNER_TEMP/leanflip-smoke")) { throw 'Isolated CLI smoke failed' }
+          python scripts/check-windows-terminal.py --binary (Get-Command node).Source --entry "$env:RUNNER_TEMP/npm-prefix/node_modules/leanflip/bin/leanflip.js"
+          if ($LASTEXITCODE -ne 0) { throw 'npm terminal wrapper failed' }
           leanflip-app --help
           leanflip-app path
           leanflip-app download --output "$env:RUNNER_TEMP/desktop-package"

@@ -312,6 +312,9 @@ mod tests {
             let error =
                 lock_file_until(&path, exclusive, Instant::now() + Duration::from_millis(30))
                     .unwrap_err();
+            // Windows locks prevent reading the owner's PID through a second
+            // handle. The diagnostic includes it only when the OS allows it.
+            #[cfg(unix)]
             assert!(error.to_string().contains(&std::process::id().to_string()));
             assert!(matches!(
                 error,
