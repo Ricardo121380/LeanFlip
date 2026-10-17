@@ -39,10 +39,19 @@ const metadata = {
   version, homepage, appName: `${productName}.app`, cliName, appBinary, appCask, bundleId,
   platforms: { 'darwin-arm64': { cli: macCli, app: macApp }, 'linux-x64': { cli: linuxCli, app: linuxApp } },
 };
+// Older releases intentionally have only two platforms. Windows begins at 0.4.0.
+const [major, minor] = version.split('.').map(Number);
+if (major > 0 || minor >= 4) {
+  metadata.platforms['win32-x64'] = {
+    cli: await asset(`${cliName}_${version}_windows-x64.zip`),
+    app: await asset(`${cliName}_${version}_windows-x64-setup.exe`),
+  };
+}
 const packagePath = join(root, 'packages/npm/package.json');
 const pkg = JSON.parse(await readFile(packagePath, 'utf8'));
 pkg.version = version;
 pkg.name = cliName;
+pkg.os = Object.keys(metadata.platforms).map(platform => platform.split('-')[0]);
 pkg.description = `${productName} native CLI, TUI and desktop app installer`;
 pkg.bin = { [cliName]: `bin/${cliName}.js`, [appCask]: `bin/${appCask}.js` };
 pkg.files = pkg.files.filter(name => name !== 'NOTICE.md');

@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createReadStream, createWriteStream } from 'node:fs';
 import { chmod, lstat, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
@@ -25,7 +25,7 @@ const maxDownload = 128 * 1024 * 1024;
 
 export function selectAsset(kind, platform = process.platform, arch = process.arch) {
   const asset = manifest.platforms[`${platform}-${arch}`]?.[kind];
-  if (!asset) throw new Error(`Unsupported platform: ${platform}-${arch}. This release supports macOS ARM64 and Linux x64. See ${manifest.homepage}/releases.`);
+  if (!asset) throw new Error(`Unsupported platform: ${platform}-${arch}. This release supports ${Object.keys(manifest.platforms).join(', ')}. See ${manifest.homepage}/releases.`);
   return asset;
 }
 
@@ -81,15 +81,18 @@ export function command(program, args, options = {}) {
 export async function ensureCli() {
   const asset = selectAsset('cli');
   const directory = join(cacheRoot(), asset.sha256);
-  const binary = join(directory, cliName);
+  const executable = process.platform === 'win32' ? `${cliName}.exe` : cliName;
+  const binary = join(directory, executable);
   const receipt = join(directory, `${cliName}.sha256`);
   if (await regularFile(binary) && await regularFile(receipt) && await sha256(binary) === (await readFile(receipt, 'utf8')).trim()) return binary;
   const archive = await verifiedDownload(asset, directory);
   const staging = await mkdtemp(join(directory, '.extract-'));
   try {
     // Extract only the expected member; never execute archive-provided scripts.
-    command('tar', ['-xzf', archive, '-C', staging, cliName]);
-    const extracted = join(staging, cliName);
+    // Windows ships bsdtar, which can also extract the Windows ZIP asset.
+    const tar = process.platform === 'win32' ? join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe') : 'tar';
+    command(tar, ['-xf', archive, '-C', staging, executable]);
+    const extracted = join(staging, executable);
     const stat = await lstat(extracted);
     if (!stat.isFile() || stat.nlink !== 1) throw new Error(`The CLI archive does not contain a regular ${cliName} executable.`);
     await chmod(extracted, 0o755);
@@ -122,6 +125,11 @@ export function parseDesktopArgs(args) {
 
 export function macAppPath(appDir) {
   return join(appDir ?? join(homedir(), 'Applications'), appName);
+}
+
+export function windowsAppPath(localAppData = process.env.LOCALAPPDATA) {
+  const base = localAppData && isAbsolute(localAppData) ? localAppData : join(homedir(), 'AppData', 'Local');
+  return join(base, productName, `${appBinary}.exe`);
 }
 
 async function exists(path) {
@@ -206,14 +214,17 @@ export async function desktop(options) {
 
 macOS ARM64: 默认安装到 ~/Applications，--app-dir 可指定绝对路径。
 Linux x64: install 使用 apt（普通用户通过 sudo）；系统会提示确认和密码。
-App 尚未做 Apple Developer ID 签名及公证。安装不会自动启动 App。
+Windows x64: install 打开当前用户安装向导；path/open 使用默认的 %LOCALAPPDATA%\\${productName} 目录。
+Windows 安装包尚未做代码签名，首次运行可能显示 SmartScreen 提示。
+macOS App 尚未做 Apple Developer ID 签名及公证。Windows 安装向导可选择完成后启动。
 文档 / Documentation: ${manifest.homepage}#readme`);
     return;
   }
   const asset = selectAsset('app');
   if (process.platform !== 'darwin' && options.appDir) throw new Error('--app-dir is only supported on macOS.');
   if (options.action === 'path') {
-    console.log(process.platform === 'darwin' ? macAppPath(options.appDir) : `/usr/bin/${appBinary}`);
+    console.log(process.platform === 'darwin' ? macAppPath(options.appDir)
+      : process.platform === 'win32' ? windowsAppPath() : `/usr/bin/${appBinary}`);
     return;
   }
   if (options.action === 'open') {
@@ -222,6 +233,12 @@ App 尚未做 Apple Developer ID 签名及公证。安装不会自动启动 App�
       if (!options.appDir && !await exists(target)) target = join('/Applications', appName);
       if (!await exists(target) || inspectBundle(target) !== bundleId) throw new Error(`App not found. Run ${desktopCommand} install first.`);
       command('/usr/bin/open', [target], { stdio: 'inherit' });
+    } else if (process.platform === 'win32') {
+      const target = windowsAppPath();
+      if (!await regularFile(target)) throw new Error(`App not found at ${target}. Run ${desktopCommand} install or use the Start menu for a custom install location.`);
+      const child = spawn(target, [], { detached: true, stdio: 'ignore' });
+      await new Promise((resolve, reject) => { child.once('spawn', resolve); child.once('error', reject); });
+      child.unref();
     } else command(`/usr/bin/${appBinary}`, [], { stdio: 'inherit' });
     return;
   }
@@ -232,6 +249,10 @@ App 尚未做 Apple Developer ID 签名及公证。安装不会自动启动 App�
   if (process.platform === 'darwin') {
     const target = await installMacApp(archive, options);
     console.log(`已安装 / Installed: ${target}\n启动 / Open: ${desktopCommand} open`);
+  } else if (process.platform === 'win32') {
+    // Let the verified native installer present installation/upgrade choices.
+    command(archive, [], { stdio: 'inherit' });
+    console.log(`安装向导已关闭 / Installer closed. Open ${productName} from the Start menu after installation.`);
   } else {
     if (!process.stdin.isTTY) throw new Error(`A terminal is required for apt installation. Verified package: ${archive}\nRun: sudo apt install '${archive.replaceAll("'", "'\\''")}'`);
     const [program, args] = linuxInstallCommand(archive);

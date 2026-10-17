@@ -1,12 +1,12 @@
 {
   "name": "leanflip",
   "private": true,
-  "version": "0.3.9",
+  "version": "0.4.0",
   "type": "module",
   "scripts": {
     "dev": "pnpm tauri dev",
     "dev:renderer": "vite",
-    "dev:mock": "LEANFLIP_MOCK=1 vite",
+    "dev:mock": "vite --mode mock",
     "build:renderer": "vite build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",

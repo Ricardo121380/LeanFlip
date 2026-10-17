@@ -61,7 +61,7 @@ LeanFlip 把各家供应商的地址、密钥和模型存成一张张“卡片�
 
 ## 安装
 
-支持 **macOS Apple Silicon** 和 **Linux x86_64**。
+支持 **Windows 10 / 11 x64**、**macOS Apple Silicon** 和 **Linux x86_64**。
 
 **Homebrew**（macOS 推荐）
 
@@ -82,11 +82,14 @@ leanflip-app install   # 可选：同时安装桌面 App
 
 | 平台 | 桌面 App | 命令行与 TUI |
 | --- | --- | --- |
+| Windows 10 / 11 x64 | `windows-x64-setup.exe` | `windows-x64.zip` |
 | macOS Apple Silicon | `.dmg` | `macos-arm64.tar.gz` |
 | Linux x86_64 | `.deb`（Ubuntu 24.04 构建） | `linux-x64.tar.gz` |
 
 > [!WARNING]
 > App 和命令行暂未使用 Apple Developer ID 签名与公证，macOS 首次运行会被拦下：App 到“系统设置 → 隐私与安全性”点“仍要打开”；命令行执行 `xattr -d com.apple.quarantine leanflip`。
+
+Windows 安装程序支持中文和英文，默认安装到当前用户目录，缺少 WebView2 时会联网安装运行时。安装包暂未代码签名，首次运行可能出现 SmartScreen 提示；请核对 Release 的 `SHA256SUMS`。CLI 解压后在 PowerShell 中运行 `./leanflip.exe`，无需桌面 App。
 
 源码构建、校验下载与升级卸载见[使用手册 · 安装](docs/guide.md#安装)。
 
@@ -133,7 +136,7 @@ leanflip import live codex        # 导入当前客户端配置
 - **不经手请求**：AI 工具直接连接供应商，LeanFlip 只负责写配置。
 - **用量只读本机**：统计只读取各工具会话记录里的时间、模型和 token 数，不读对话内容，不上传。
 - **联网可预期**：测连通不发送密钥；获取模型列表、检查模型和中转额度查询会带上该卡片的 Key，只发往它自己的地址，不跟随重定向。额度自动刷新默认关闭，托管账号的后台刷新可在设置中关闭。
-- **写入有保护**：凭据文件权限收紧到 `0600`，每个文件首次写入前自动备份，写到一半中断可以恢复。
+- **写入有保护**：Unix 凭据文件权限收紧到 `0600`，Windows 使用所在用户目录的访问权限，每个文件首次写入前自动备份，写到一半中断可以恢复。
 
 > [!CAUTION]
 > `~/.leanflip/` 中保存着 API Key 和登录凭据，它不是加密保险箱。分享截图、日志或提交 Issue 前请移除敏感内容。

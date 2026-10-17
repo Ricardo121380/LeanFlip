@@ -255,9 +255,8 @@ fn device_flow_adds_plus_and_team_as_two_accounts_and_rejects_duplicates() {
     assert_eq!(w.mgr.list_accounts().len(), 3);
 
     // 库文件 0600，重新打开还在，默认账号不变。
-    let path = w.mgr.store_path();
     #[cfg(unix)]
-    assert_eq!(common::mode(&path), 0o600);
+    assert_eq!(common::mode(&w.mgr.store_path()), 0o600);
     let reopened = CodexOAuthManager::new(&w.sb.env, None).unwrap();
     assert_eq!(reopened.list_accounts().len(), 3);
     assert_eq!(

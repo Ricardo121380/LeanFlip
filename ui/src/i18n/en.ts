@@ -817,7 +817,7 @@ const en: Messages = {
     codexQuota15: "Every 15 minutes",
     codexQuota60: "Every hour",
     trayQuotaTitle: "Show usage in the menu bar",
-    trayQuotaTitleHint: "Shows the most strained usage among providers in use next to the LeanFlip icon. Shown on macOS; on Linux it depends on the panel, and some panels don't show text.",
+    trayQuotaTitleHint: "Shows the most strained usage among providers in use: beside the icon on macOS, in the tray tooltip on Windows, and depending on the panel on Linux.",
     refresh: "Background refresh of managed accounts",
     refreshHint: "Refresh when the last token is older than this many hours (0 = off)",
     refreshInvalid: "Enter a whole number of hours from 0 to 4294967295; 0 turns background refresh off.",

@@ -12,6 +12,10 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   build:
     name: Release (${{ matrix.platform }})
@@ -27,6 +31,10 @@ jobs:
             platform: macos-arm64
             target: aarch64-apple-darwin
             bundle: app,dmg
+          - os: windows-2022
+            platform: windows-x64
+            target: x86_64-pc-windows-msvc
+            bundle: nsis
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -75,8 +83,14 @@ jobs:
           test "$(target/release/leanflip --version)" = "leanflip $RELEASE_VERSION"
           target/release/leanflip --home "$RUNNER_TEMP/leanflip-release-smoke" status --json
           test ! -e "$RUNNER_TEMP/leanflip-release-smoke"
-          python3 scripts/check-cli-menu.py --binary target/release/leanflip
-          python3 scripts/check-cli-tui.py --binary target/release/leanflip
+          if [ "$RUNNER_OS" != Windows ]; then
+            python3 scripts/check-cli-menu.py --binary target/release/leanflip
+            python3 scripts/check-cli-tui.py --binary target/release/leanflip
+          fi
+      - name: Check Windows menu and TUI in ConPTY
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: python scripts/check-windows-terminal.py --binary target/release/leanflip.exe
       - name: Build optimized desktop packages
         run: pnpm tauri build --ci --bundles ${{ matrix.bundle }} -- --locked
       - name: Verify macOS bundle resource seal
@@ -84,7 +98,18 @@ jobs:
         run: |
           codesign --verify --deep --strict --verbose=2 target/release/bundle/macos/LeanFlip.app
           test -f target/release/bundle/macos/LeanFlip.app/Contents/_CodeSignature/CodeResources
+      - name: Verify Windows install, launch, upgrade and uninstall
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/check-windows-package.ps1 -BundleDirectory target/release/bundle/nsis
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Windows' && always()
+        with:
+          name: windows-release-smoke
+          path: target/windows-smoke.png
+          if-no-files-found: ignore
       - name: Assemble release assets
+        if: runner.os != 'Windows'
         env:
           PLATFORM: ${{ matrix.platform }}
         run: |
@@ -104,6 +129,17 @@ jobs:
             test "$(dpkg-deb -f "$1" Architecture)" = amd64
             cp "$1" "release-assets/leanflip_${RELEASE_VERSION}_${PLATFORM}.deb"
           fi
+      - name: Assemble Windows release assets
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force release-assets, "$env:RUNNER_TEMP/leanflip-package" | Out-Null
+          Copy-Item target/release/leanflip.exe, LICENSE "$env:RUNNER_TEMP/leanflip-package/"
+          Copy-Item crates/cli/README.md "$env:RUNNER_TEMP/leanflip-package/README.md"
+          Compress-Archive -Path "$env:RUNNER_TEMP/leanflip-package/*" -DestinationPath "release-assets/leanflip_${env:RELEASE_VERSION}_windows-x64.zip"
+          $installers = @(Get-ChildItem target/release/bundle/nsis/*-setup.exe)
+          if ($installers.Count -ne 1) { throw 'Expected exactly one NSIS installer' }
+          Copy-Item $installers[0] "release-assets/leanflip_${env:RELEASE_VERSION}_windows-x64-setup.exe"
       - uses: actions/upload-artifact@v4
         with:
           name: release-${{ matrix.platform }}
@@ -129,8 +165,8 @@ jobs:
       - name: Generate and verify checksums
         working-directory: release-assets
         run: |
-          test "$(find . -type f | wc -l)" -eq 4
-          sha256sum *.tar.gz *.deb *.dmg > SHA256SUMS
+          test "$(find . -type f | wc -l)" -eq 6
+          sha256sum *.tar.gz *.deb *.dmg *.zip *.exe > SHA256SUMS
           sha256sum --check SHA256SUMS
       - name: Package npm entry points for the same native release
         env:
@@ -140,7 +176,7 @@ jobs:
           node --test packages/npm/test/*.test.mjs
           npm pack ./packages/npm --ignore-scripts --pack-destination release-assets
           cd release-assets
-          sha256sum *.tar.gz *.deb *.dmg *.tgz > SHA256SUMS
+          sha256sum *.tar.gz *.deb *.dmg *.zip *.exe *.tgz > SHA256SUMS
           sha256sum --check SHA256SUMS
       - name: Create draft with packages and release notes
         env:

@@ -83,10 +83,12 @@ pub struct Env {
     pub gemini_dir: PathBuf,
     /// Grok Build 配置目录（默认 `~/.grok`）。
     pub grok_dir: PathBuf,
-    /// Claude Desktop 的普通配置目录（`Claude`）和第三方部署目录（`Claude-3p`）的父目录：
+    /// Claude Desktop 第三方部署目录（`Claude-3p`）的父目录：
     /// macOS `~/Library/Application Support`，Windows `%LOCALAPPDATA%`，Linux
     /// `$XDG_CONFIG_HOME`（默认 `~/.config`）。
     pub claude_desktop_root: PathBuf,
+    /// 普通 `Claude` 配置的父目录。Windows 使用 `%APPDATA%`，其他平台与 3p 相同。
+    pub claude_desktop_normal_root: PathBuf,
     /// OpenCode 配置目录（所有平台都是 `~/.config/opencode`，OpenCode 不按平台约定）。
     pub opencode_dir: PathBuf,
     /// OpenClaw 配置目录（`~/.openclaw`）。
@@ -110,6 +112,11 @@ impl Env {
             gemini_dir: home.join(".gemini"),
             grok_dir: home.join(".grok"),
             claude_desktop_root: default_desktop_root(&home),
+            claude_desktop_normal_root: if cfg!(windows) {
+                home.join("AppData").join("Roaming")
+            } else {
+                default_desktop_root(&home)
+            },
             opencode_dir: home.join(".config").join("opencode"),
             openclaw_dir: home.join(".openclaw"),
             hermes_dir: if cfg!(windows) {
@@ -140,6 +147,12 @@ impl Env {
             env.codex_dir = PathBuf::from(codex_home);
         }
         if cfg!(windows) {
+            if let Some(roaming) = std::env::var_os("APPDATA")
+                .map(PathBuf::from)
+                .filter(|path| path.is_absolute())
+            {
+                env.claude_desktop_normal_root = roaming;
+            }
             if let Some(local) = std::env::var_os("LOCALAPPDATA").filter(|v| !v.is_empty()) {
                 env.claude_desktop_root = PathBuf::from(&local);
                 let trimmed = local.to_string_lossy().trim().to_string();
@@ -154,6 +167,7 @@ impl Env {
                 .filter(|path| path.is_absolute())
             {
                 env.claude_desktop_root = xdg;
+                env.claude_desktop_normal_root = env.claude_desktop_root.clone();
             }
         }
         let trimmed_var = |name: &str| {
@@ -202,7 +216,7 @@ impl Env {
 
     /// `Claude/claude_desktop_config.json`。
     pub fn claude_desktop_config_path(&self) -> PathBuf {
-        self.claude_desktop_root
+        self.claude_desktop_normal_root
             .join("Claude")
             .join("claude_desktop_config.json")
     }
@@ -288,6 +302,14 @@ pub struct DirOverrides {
 impl Env {
     /// 套上目录覆盖。空路径和相对路径忽略（避免把配置写到当前目录下）。
     pub fn with_overrides(mut self, overrides: &DirOverrides) -> Self {
+        // An explicit common root retains the existing custom-layout contract.
+        if let Some(root) = overrides
+            .claude_desktop_root
+            .as_ref()
+            .filter(|p| p.is_absolute())
+        {
+            self.claude_desktop_normal_root = root.clone();
+        }
         let pairs: [(&Option<PathBuf>, &mut PathBuf); 10] = [
             (&overrides.claude_dir, &mut self.claude_dir),
             (&overrides.codex_dir, &mut self.codex_dir),
@@ -434,13 +456,48 @@ mod tests {
 
     #[test]
     fn overrides_only_take_absolute_paths() {
-        let env = Env::with_home("/h").with_overrides(&DirOverrides {
-            codex_dir: Some("/custom/codex".into()),
+        let home = tempfile::tempdir().unwrap();
+        let custom = home.path().join("custom/codex");
+        let env = Env::with_home(home.path()).with_overrides(&DirOverrides {
+            codex_dir: Some(custom.clone()),
             hermes_dir: Some("relative".into()),
             ..DirOverrides::default()
         });
-        assert_eq!(env.codex_dir, PathBuf::from("/custom/codex"));
-        assert_eq!(env.hermes_dir, Env::with_home("/h").hermes_dir);
-        assert_eq!(env.data_dir, PathBuf::from("/h").join(DATA_DIR_NAME));
+        assert_eq!(env.codex_dir, custom);
+        assert_eq!(env.hermes_dir, Env::with_home(home.path()).hermes_dir);
+        assert_eq!(env.data_dir, home.path().join(DATA_DIR_NAME));
+    }
+
+    #[test]
+    fn desktop_roots_follow_the_platform_and_explicit_override() {
+        let home = tempfile::tempdir().unwrap();
+        let env = Env::with_home(home.path());
+        if cfg!(windows) {
+            assert_eq!(
+                env.claude_desktop_config_path(),
+                home.path()
+                    .join("AppData/Roaming/Claude/claude_desktop_config.json")
+            );
+            assert_eq!(
+                env.claude_desktop_3p_config_path(),
+                home.path()
+                    .join("AppData/Local/Claude-3p/claude_desktop_config.json")
+            );
+        } else {
+            assert_eq!(env.claude_desktop_normal_root, env.claude_desktop_root);
+        }
+        let root = home.path().join("custom");
+        let env = env.with_overrides(&DirOverrides {
+            claude_desktop_root: Some(root.clone()),
+            ..Default::default()
+        });
+        assert_eq!(
+            env.claude_desktop_config_path(),
+            root.join("Claude/claude_desktop_config.json")
+        );
+        assert_eq!(
+            env.claude_desktop_3p_config_path(),
+            root.join("Claude-3p/claude_desktop_config.json")
+        );
     }
 }

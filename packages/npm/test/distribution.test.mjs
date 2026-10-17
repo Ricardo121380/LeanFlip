@@ -20,6 +20,7 @@ await writeFile(join(fixture, 'release.json'), JSON.stringify({
   platforms: {
     'darwin-arm64': { cli: fixtureAsset('leanflip_0.2.0_macos-arm64.tar.gz'), app: fixtureAsset('leanflip_0.2.0_macos-arm64.dmg') },
     'linux-x64': { cli: fixtureAsset('leanflip_0.2.0_linux-x64.tar.gz'), app: fixtureAsset('leanflip_0.2.0_linux-x64.deb') },
+    'win32-x64': { cli: fixtureAsset('leanflip_0.4.0_windows-x64.zip'), app: fixtureAsset('leanflip_0.4.0_windows-x64-setup.exe') },
   },
 }));
 const { bundleId, linuxInstallCommand, parseDesktopArgs, selectAsset, validateExistingApp, verifiedDownload } = await import(pathToFileURL(join(fixture, 'lib/distribution.js')));
@@ -36,7 +37,9 @@ function asset(body) {
 test('chooses the matching release and rejects unsupported OS/CPU pairs', () => {
   assert.match(selectAsset('cli', 'darwin', 'arm64').name, /macos-arm64\.tar\.gz$/);
   assert.match(selectAsset('app', 'linux', 'x64').name, /linux-x64\.deb$/);
-  for (const [platform, arch] of [['darwin', 'x64'], ['linux', 'arm64'], ['win32', 'x64']]) {
+  assert.match(selectAsset('cli', 'win32', 'x64').name, /windows-x64\.zip$/);
+  assert.match(selectAsset('app', 'win32', 'x64').name, /windows-x64-setup\.exe$/);
+  for (const [platform, arch] of [['darwin', 'x64'], ['linux', 'arm64'], ['win32', 'arm64']]) {
     assert.throws(() => selectAsset('cli', platform, arch), /Unsupported platform/);
   }
 });
@@ -102,14 +105,14 @@ test('app replacement requires an explicit flag and the correct bundle identity'
   await assert.rejects(validateExistingApp(path, false, () => bundleId), /--replace/);
   assert.equal(await validateExistingApp(path, true, () => bundleId), true);
   await assert.rejects(validateExistingApp(path, true, () => 'other.app'), /unrelated/);
-  await symlink(path, join(dir, 'Link.app'));
+  await symlink(path, join(dir, 'Link.app'), process.platform === 'win32' ? 'junction' : 'dir');
   await assert.rejects(validateExistingApp(join(dir, 'Link.app'), true, () => bundleId), /symlink/);
 });
 
 test('desktop arguments reject unknown options and missing directory values', () => {
   assert.equal(parseDesktopArgs([]).action, 'help');
   assert.equal(parseDesktopArgs(['--version']).action, 'version');
-  assert.deepEqual(parseDesktopArgs(['install', '--app-dir', '/tmp/Apps', '--replace']), { action: 'install', appDir: '/tmp/Apps', replace: true });
+  assert.deepEqual(parseDesktopArgs(['install', '--app-dir', join(tmpdir(), 'Apps'), '--replace']), { action: 'install', appDir: join(tmpdir(), 'Apps'), replace: true });
   for (const args of [['unknown'], ['install', '--output', '.'], ['install', '--app-dir'], ['install', '--app-dir', 'relative'], ['download', '--output'], ['open', '--replace']]) {
     assert.throws(() => parseDesktopArgs(args));
   }

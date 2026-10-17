@@ -2,7 +2,7 @@
 
 `leanflip` 与桌面 App 共用同一服务层、供应商库和目录覆盖设置，不需要运行桌面 App 或安装 WebView。
 
-预编译安装包会随下一个正式版本发布，目前请从源码构建（需要 Rust stable，不需要 Node.js 或桌面依赖）。以下命令适用于从源码构建：
+[正式 Release](https://github.com/Ricardo121380/LeanFlip/releases/latest) 提供 Windows 10/11 x64 ZIP、macOS ARM64 和 Linux x64 压缩包。Windows 解压后在 PowerShell 中运行 `./leanflip.exe`；也可用 `npm install -g leanflip` 安装命令入口。以下命令适用于从源码构建（需要 Rust stable，不需要 Node.js 或桌面依赖）：
 
 ```sh
 cargo build --release --locked --bin leanflip

@@ -820,7 +820,7 @@ const zh = {
     codexQuota15: "每 15 分钟",
     codexQuota60: "每小时",
     trayQuotaTitle: "在状态栏显示额度",
-    trayQuotaTitleHint: "在 LeanFlip 图标旁显示正在用的供应商里最紧张的一项。macOS 上会显示；Linux 取决于桌面面板，有的面板不显示文字。",
+    trayQuotaTitleHint: "显示正在用的供应商里最紧张的一项。macOS 显示在图标旁；Windows 悬停托盘图标可见；Linux 取决于桌面面板。",
     refresh: "托管账号后台刷新",
     refreshHint: "距上次取得令牌超过这么多小时就刷新（0 = 关闭）",
     refreshInvalid: "请输入 0 到 4294967295 之间的整数小时数；0 表示关闭后台刷新。",

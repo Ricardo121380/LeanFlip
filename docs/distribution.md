@@ -4,7 +4,7 @@ Homebrew Cask 与 npm 安装器共用 GitHub Release 的原生二进制。它们
 
 ## 名称
 
-发布附件使用 `leanflip_VERSION_PLATFORM` 文件名：CLI 压缩包里是 `leanflip`，桌面包里是 `LeanFlip.app`（主二进制 `leanflip-app`）。`prepare-distribution.mjs` 生成 `leanflip` npm 包（`leanflip` / `leanflip-app` 两个命令）和同名的两个 Homebrew Cask。桌面二进制名称和应用 identifier 直接取自 `crates/app/tauri.conf.json`，安装器和 Cask 不会与实际构建不一致。npm 安装器所需的全部名称都写在 `release.json` 里，代码里没有写死。
+发布附件使用 `leanflip_VERSION_PLATFORM` 文件名：CLI 压缩包里是 `leanflip`（Windows 为 `leanflip.exe`），macOS 桌面包里是 `LeanFlip.app`（主二进制 `leanflip-app`），Windows 安装程序包含 `leanflip-app.exe`。`prepare-distribution.mjs` 生成 `leanflip` npm 包（`leanflip` / `leanflip-app` 两个命令）和同名的两个 Homebrew Cask。桌面二进制名称和应用 identifier 直接取自 `crates/app/tauri.conf.json`，安装器和 Cask 不会与实际构建不一致。npm 安装器所需的全部名称都写在 `release.json` 里，代码里没有写死。
 
 `packages/npm/release.json` 和 `Casks/` 必须与某个已发布的原生版本一一对应：发布后由脚本从正式附件生成并提交，不要手改。仓库里没有 `release.json` 时，`Package managers` 工作流只运行安装器单元测试，跳过真实下载和 Homebrew 安装。生成时脚本会删除不属于本次发布的 Cask，`--check` 发现残留会报错；v0.1.0 不能重新生成。
 
@@ -26,7 +26,7 @@ macOS 的 App 和 CLI 当前均未做 Developer ID 签名及公证。真实用�
 
 ## 更新原生版本与校验值
 
-先完成新的原生 Release 构建，把四份原生附件及 `SHA256SUMS` 下载到一个目录。例如：
+先完成新的原生 Release 构建，把六份原生附件（Windows EXE / ZIP、macOS DMG / CLI tar.gz、Linux DEB / CLI tar.gz）及 `SHA256SUMS` 下载到一个目录。例如：
 
 ```sh
 mkdir -p target/distribution-assets
@@ -54,9 +54,9 @@ npm pack ./packages/npm --ignore-scripts --pack-destination target/npm
 
 包内只包含两个启动入口、安装器、版本与校验元数据、文档和许可证。没有运行时 npm 依赖，没有 `postinstall`，不需要执行安装脚本。
 
-首次运行 `leanflip` 时下载并校验原生 CLI，缓存后转交完整参数、标准输入输出和终端交互。桌面安装器通过 `leanflip-app install` 显式运行；macOS 复制到用户应用目录，Linux 调用系统 apt 安装。缓存默认位于 `~/.cache/leanflip/`，可通过绝对路径 `XDG_CACHE_HOME` 调整。
+首次运行 `leanflip` 时下载并校验原生 CLI，缓存后转交完整参数、标准输入输出和终端交互。桌面安装器通过 `leanflip-app install` 显式运行；macOS 复制到用户应用目录，Linux 调用系统 apt 安装，Windows 打开当前用户 NSIS 安装向导。缓存默认位于 `~/.cache/leanflip/`，可通过绝对路径 `XDG_CACHE_HOME` 调整。
 
-`.github/workflows/distribution.yml` 会在 macOS 和 Linux 打包并安装 npm 包，运行原生 CLI 和伪终端菜单检查；同时验证桌面下载、macOS 安装与替换，以及 Homebrew 实际安装。
+`.github/workflows/distribution.yml` 会在 Windows、macOS 和 Linux 打包并安装 npm 包，运行原生 CLI；macOS/Linux 另运行伪终端菜单检查；同时验证桌面下载、Windows 安装/启动/替换/卸载、macOS 安装与替换，以及 Homebrew 实际安装。
 
 发布工作流会在 Release 草稿中附带与同版本原生程序匹配的 npm `.tgz`，并纳入 `SHA256SUMS`。它不调用 `npm publish`；发布到 npm 由正式发布 Release 后的 `npm-publish.yml` 完成，见下一节。
 
