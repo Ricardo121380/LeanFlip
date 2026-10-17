@@ -34,10 +34,19 @@ pub use scene::{
     SceneStatus, SceneStep, SceneSuggestion, SceneUndo, SceneView, ToolOutcome, ToolPreview,
 };
 
-/// 给前端的错误：一句话（按界面语言选中文 / 英文）。
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
-#[serde(transparent)]
-pub struct ApiError(pub String, #[serde(skip)] &'static str);
+/// 给前端的错误：稳定错误码用于恢复指引，原始消息保留用于诊断。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApiError(pub String, &'static str);
+
+impl Serialize for ApiError {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        let mut value = serializer.serialize_struct("ApiError", 2)?;
+        value.serialize_field("message", &self.0)?;
+        value.serialize_field("code", self.1)?;
+        value.end()
+    }
+}
 
 impl ApiError {
     pub fn from_core(error: AppError, english: bool) -> Self {

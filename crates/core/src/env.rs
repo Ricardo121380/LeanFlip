@@ -12,7 +12,7 @@ use crate::live::engine::DeviceStore;
 /// LeanFlip 的数据目录名（和 CC Switch 的 `~/.cc-switch` 分开，两者可以并存）。
 pub const DATA_DIR_NAME: &str = ".leanflip";
 /// 0.1.x 版本使用的数据目录名。没迁移前继续使用；[`migrate_legacy_data_dir`] 把它改名为
-/// [`DATA_DIR_NAME`]，并在原处留一个符号链接。
+/// [`DATA_DIR_NAME`]，并在原处留一个符号链接；Windows 保留旧目录供两个版本共用。
 pub const LEGACY_DATA_DIR_NAME: &str = ".cc-switch-lite";
 
 /// `home` 下实际使用的数据目录：新目录存在就用它；只有旧目录（还没迁移）时继续用旧目录，
@@ -31,6 +31,7 @@ pub fn data_dir_in(home: &Path) -> PathBuf {
 /// 把旧数据目录改名为新目录（同一文件系统内的原子改名，锁、journal 和备份一起搬走），
 /// 然后在旧位置放一个指向新目录的相对符号链接，仍在运行或仍被使用的旧版本继续读写同一份数据。
 /// 新目录已存在、旧目录不存在或旧位置本身是链接时什么都不做；可以重复调用。
+/// Windows 暂不改名：继续使用旧目录，避免没有兼容链接时破坏旧版本读写。
 /// 返回是否发生了迁移。
 pub fn migrate_legacy_data_dir(home: &Path) -> Result<bool, AppError> {
     let current = home.join(DATA_DIR_NAME);
@@ -46,27 +47,31 @@ pub fn migrate_legacy_data_dir(home: &Path) -> Result<bool, AppError> {
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(false),
         Err(error) => return Err(AppError::io(&legacy, error)),
     }
-    // Prepare the compatibility link first, so the old path is missing only between two renames.
-    #[cfg(unix)]
-    let link = {
-        let link = home.join(format!("{LEGACY_DATA_DIR_NAME}.leanflip-link"));
-        let _ = std::fs::remove_file(&link);
-        std::os::unix::fs::symlink(DATA_DIR_NAME, &link).map_err(|e| AppError::io(&link, e))?;
-        link
-    };
-    if let Err(error) = std::fs::rename(&legacy, &current) {
-        #[cfg(unix)]
-        let _ = std::fs::remove_file(&link);
-        return Err(AppError::io(&legacy, error));
+    #[cfg(not(unix))]
+    {
+        Ok(false)
     }
     #[cfg(unix)]
-    if let Err(error) = std::fs::rename(&link, &legacy) {
-        // The data moved; only the convenience link for old versions is missing.
-        let _ = std::fs::remove_file(&link);
-        log::warn!("could not link the previous data directory to the new one: {error}");
+    {
+        // Prepare the compatibility link first, so the old path is missing only between two renames.
+        let link = {
+            let link = home.join(format!("{LEGACY_DATA_DIR_NAME}.leanflip-link"));
+            let _ = std::fs::remove_file(&link);
+            std::os::unix::fs::symlink(DATA_DIR_NAME, &link).map_err(|e| AppError::io(&link, e))?;
+            link
+        };
+        if let Err(error) = std::fs::rename(&legacy, &current) {
+            let _ = std::fs::remove_file(&link);
+            return Err(AppError::io(&legacy, error));
+        }
+        if let Err(error) = std::fs::rename(&link, &legacy) {
+            // The data moved; only the convenience link for old versions is missing.
+            let _ = std::fs::remove_file(&link);
+            log::warn!("could not link the previous data directory to the new one: {error}");
+        }
+        log::info!("moved the data directory to {}", current.display());
+        Ok(true)
     }
-    log::info!("moved the data directory to {}", current.display());
-    Ok(true)
 }
 
 /// 一台设备上的路径集合。
@@ -392,6 +397,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn an_unmigrated_legacy_directory_stays_in_use_until_it_is_moved() {
         let dir = tempfile::tempdir().unwrap();
         let legacy = dir.path().join(LEGACY_DATA_DIR_NAME);
@@ -424,6 +430,27 @@ mod tests {
             );
         }
         assert!(!migrate_legacy_data_dir(dir.path()).unwrap(), "idempotent");
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn windows_keeps_the_legacy_path_readable_and_shared() {
+        let dir = tempfile::tempdir().unwrap();
+        let legacy = dir.path().join(LEGACY_DATA_DIR_NAME);
+        std::fs::create_dir_all(legacy.join("backups")).unwrap();
+        let path = legacy.join("providers.json");
+        std::fs::write(&path, r#"{"version":1}"#).unwrap();
+        assert!(!migrate_legacy_data_dir(dir.path()).unwrap());
+        let env = Env::with_home(dir.path());
+        assert_eq!(env.data_dir, legacy);
+        assert!(!dir.path().join(DATA_DIR_NAME).exists());
+        assert_eq!(
+            std::fs::read(&path).unwrap(),
+            std::fs::read(env.store_path()).unwrap()
+        );
+        std::fs::write(env.store_path(), "updated").unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "updated");
+        assert!(!migrate_legacy_data_dir(dir.path()).unwrap());
     }
 
     #[test]

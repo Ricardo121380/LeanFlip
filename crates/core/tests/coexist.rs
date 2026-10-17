@@ -46,6 +46,7 @@ fn opencode_add_and_remove_keep_comments_and_other_entries() {
     sb.write(&path, OPENCODE);
     assert_eq!(sb.env.opencode_config_path(), path, "jsonc preferred");
 
+    sb.trust(Tool::OpenCode, &opencode_v1("https://r"));
     coexist::add_provider(
         &sb.env,
         Tool::OpenCode,
@@ -94,6 +95,7 @@ fn opencode_native_v2_cards_go_to_providers_and_invalid_ones_are_refused() {
     v2.meta
         .extra
         .insert("opencodeConfigFormat".into(), json!("v2"));
+    sb.trust(Tool::OpenCode, &v2.settings_config);
     coexist::add_provider(&sb.env, Tool::OpenCode, v2, true).unwrap();
     let live = sb.json(&sb.env.opencode_config_path());
     assert_eq!(live["$schema"], "https://opencode.ai/config.json");
@@ -138,6 +140,7 @@ fn opencode_import_reads_v1_and_valid_v2_and_is_repeatable() {
     // 编辑导入的 V2 卡写回 providers（不会写进 provider 段）。
     let mut b = data.provider(Tool::OpenCode, "b").unwrap().clone();
     b.settings_config = json!({"package": "z"});
+    sb.trust(Tool::OpenCode, &b.settings_config);
     switch::update_provider(&sb.env, Tool::OpenCode, b)
         .unwrap()
         .expect("in live");
@@ -153,6 +156,7 @@ fn opencode_import_reads_v1_and_valid_v2_and_is_repeatable() {
 fn adding_a_card_never_overwrites_a_different_live_entry() {
     let sb = Sandbox::new();
     sb.write(&sb.env.opencode_config_path(), OPENCODE);
+    sb.trust(Tool::OpenCode, &opencode_v1("https://other"));
     let err = coexist::add_provider(
         &sb.env,
         Tool::OpenCode,

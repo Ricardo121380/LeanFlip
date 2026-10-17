@@ -135,6 +135,8 @@ def check(binary):
             "id": "relay", "name": "Relay",
             "settingsConfig": {"npm": "@ai-sdk/openai-compatible", "options": {"baseURL": "https://example.com", "apiKey": "fixture-tui-hidden-token"}, "models": {"model": {}}},
         })
+        review = menu.command(binary, home, ["provider", "trust-commands", "opencode", "relay", "--json"])
+        menu.command(binary, home, ["provider", "trust-commands", "opencode", "relay", "--approve", review["fingerprint"], "--json"])
         for enabled in (True, False):
             with start(binary, home, "opencode", width=80) as terminal:
                 assert finish(terminal, "\ryq") == 0

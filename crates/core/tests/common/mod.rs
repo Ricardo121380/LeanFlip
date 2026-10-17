@@ -58,6 +58,12 @@ impl Sandbox {
         store::add_provider(&self.env, tool, provider).unwrap();
     }
 
+    pub fn trust(&self, tool: Tool, settings: &Value) {
+        let preview = leanflip_core::command_trust::preview(&self.env, tool, settings).unwrap();
+        leanflip_core::command_trust::approve(&self.env, tool, settings, &preview.fingerprint)
+            .unwrap();
+    }
+
     pub fn current(&self, tool: Tool) -> Option<String> {
         store::load(&self.env)
             .unwrap()

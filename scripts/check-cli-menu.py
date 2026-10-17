@@ -133,6 +133,8 @@ def check(binary):
                 "baseURL": "https://example.com", "apiKey": "fixture-secret-do-not-print",
             }, "models": {"model": {}}},
         })
+        review = command(binary, home, ["provider", "trust-commands", "opencode", "relay", "--json"])
+        command(binary, home, ["provider", "trust-commands", "opencode", "relay", "--approve", review["fingerprint"], "--json"])
         with Terminal(binary, ["--home", str(home)]) as terminal:
             terminal.expect("选择工具")
             terminal.send("claude\r")

@@ -177,6 +177,64 @@ pub fn update<R>(
     Ok(result)
 }
 
+/// Replay only the intended card edits, preserving unrelated concurrent changes.
+pub(crate) fn apply_changes(
+    data: &mut StoreData,
+    changes: &[crate::state::ProviderChange],
+) -> Result<(), AppError> {
+    for change in changes {
+        let card = change
+            .after
+            .as_ref()
+            .or(change.before.as_ref())
+            .ok_or_else(|| AppError::Config("Empty journaled provider change".into()))?;
+        if change
+            .before
+            .as_ref()
+            .is_some_and(|before| before.id != card.id)
+        {
+            return Err(AppError::Config("Journaled provider ID changed".into()));
+        }
+        let current = data.provider(change.tool, &card.id);
+        if current == change.after.as_ref() {
+            continue; // The target may have committed before the journal was cleared.
+        }
+        if current != change.before.as_ref() {
+            return Err(AppError::Conflict(format!(
+                "{} provider {} changed during the operation",
+                change.tool, card.id
+            )));
+        }
+        let app = data.app_mut(change.tool);
+        if change.after.is_none() && app.current.as_deref() == Some(&card.id) {
+            return Err(AppError::InvalidInput(format!(
+                "{} 是 {} 的当前供应商，先切到别的供应商再删除",
+                card.id, change.tool
+            )));
+        }
+        if let Some(index) = app.providers.iter().position(|p| p.id == card.id) {
+            if let Some(after) = &change.after {
+                app.providers[index] = after.clone();
+            } else {
+                app.providers.remove(index);
+            }
+        } else if let Some(after) = &change.after {
+            app.providers.push(after.clone());
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn commit_changes(
+    env: &Env,
+    changes: &[crate::state::ProviderChange],
+) -> Result<(), AppError> {
+    if changes.is_empty() {
+        return Ok(());
+    }
+    update(env, |data| apply_changes(data, changes))
+}
+
 /// 落定当前指针。可以重复执行（崩溃恢复会再跑一次）；指向的卡已经被删掉时照样记下，
 /// 读的时候 [`AppProviders::current_provider`] 会是 `None`。
 pub fn set_current(env: &Env, tool: Tool, id: &str) -> Result<(), AppError> {

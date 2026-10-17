@@ -26,6 +26,7 @@ use crate::store;
 /// 落定一次操作的目标状态：指针写进供应商库，写入记录写进 `live-state.json`。
 /// 可以重复执行（崩溃恢复可能再跑一次）。
 pub(crate) fn commit_target(env: &Env, tool: Tool, target: &PendingTarget) -> Result<(), AppError> {
+    store::commit_changes(env, &target.providers)?;
     if let Some(id) = target.pointer.as_deref() {
         store::set_current(env, tool, id)?;
     }

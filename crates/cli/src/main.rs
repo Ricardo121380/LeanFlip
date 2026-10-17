@@ -62,7 +62,7 @@ impl From<ApiError> for CliError {
             "io" => "Cannot access a required file. Check paths and permissions.",
             "serialization" => "Configuration could not be serialized; the operation failed.",
             "codex.oauth.live_sync_failed" => "Account credentials were refreshed and saved, but the Codex client could not be synchronized. Check the client path and permissions; the new credentials were retained.",
-            "provider.command_confirmation_required" => "Executable credential commands need local approval. Review them with leanflip provider trust-commands <tool> <provider-id> before activating this card.",
+            "provider.command_confirmation_required" => "Executable credential commands or provider packages need local approval. Save the card without activating it, then review it with leanflip provider trust-commands <tool> <provider-id> before activation.",
             "backup.paths_confirmation_required" => "Preview directory destinations, then pass --confirm-paths with the displayed fingerprint to restore them.",
             "scene.not_found" => "The scene was not found. Run leanflip scene list to see scene names.",
             "scene.invalid" => "The scene is invalid. Edit it in the LeanFlip App and retry.",
@@ -726,13 +726,15 @@ fn run(cli: Cli) -> Result<Output, CliError> {
                         )?;
                         return Ok(Output::done(
                             lang,
-                            "已在本机授权这些凭据命令；尚未切换供应商。",
-                            "Credential commands approved on this machine; provider not activated.",
+                            "已在本机授权这些命令或供应商包及其连接配置；尚未切换供应商。",
+                            "Commands or provider packages and their connection settings approved on this machine; provider not activated.",
                         ));
                     }
-                    let commands = serde_json::to_string_pretty(&review.commands)
-                        .map_err(|_| CliError::io())?;
-                    let text = format!("{}\n{}\n\n{}\n--approve {}", lang.text("客户端会以你的权限执行以下凭据命令：", "The client will execute these credential commands with your permissions:"), clean(&commands), lang.text("确认信任后，在同一命令后追加：", "After reviewing and trusting them, repeat this command with:"), review.fingerprint);
+                    let commands = serde_json::to_string_pretty(
+                        &json!({"commands": review.commands, "destinations": review.destinations}),
+                    )
+                    .map_err(|_| CliError::io())?;
+                    let text = format!("{}\n{}\n\n{}\n--approve {}", lang.text("客户端会以你的权限执行以下命令或供应商包，请同时核对目标地址：", "The client will execute these commands or provider packages with your permissions. Review their destinations too:"), clean(&commands), lang.text("确认信任后，在同一命令后追加：", "After reviewing and trusting them, repeat this command with:"), review.fingerprint);
                     Ok(Output::new(json!(review), text))
                 }
                 ProviderCommand::Edit { tool, provider_id } => {

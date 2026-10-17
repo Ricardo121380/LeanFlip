@@ -44,6 +44,9 @@ fn setup() -> Sandbox {
     sb.add(Tool::Claude, claude("b"));
     sb.add(Tool::OpenCode, opencode("x"));
     sb.add(Tool::OpenCode, opencode("y"));
+    for id in ["x", "y"] {
+        sb.trust(Tool::OpenCode, &opencode(id).settings_config);
+    }
     switch::switch(&sb.env, Tool::Claude, "a").unwrap();
     coexist::write_to_live(&sb.env, Tool::OpenCode, "x").unwrap();
     sb

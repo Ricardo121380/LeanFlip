@@ -2,8 +2,24 @@ import { useEffect } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { api, errorMessage, type OpResult, type ToolId, type ToolProviders } from "@/lib/api";
+import { api, errorMessage, errorDetails, type OpResult, type ToolId, type ToolProviders } from "@/lib/api";
+import i18n from "@/i18n";
 import { TOOLS } from "@/lib/tools";
+
+function showActionError(error: unknown) {
+  toast.error(errorMessage(error), {
+    action: {
+      label: i18n.t("common.copyErrorDetails"),
+      onClick: async () => {
+        try {
+          await navigator.clipboard.writeText(errorDetails(error));
+        } catch {
+          toast.error(i18n.t("common.copyErrorFailed"));
+        }
+      },
+    },
+  });
+}
 
 export const keys = {
   overview: ["overview"] as const,
@@ -60,7 +76,7 @@ export function useQuotaRefresh() {
   return useMutation({
     mutationFn: (keys?: string[]) => api.quotaRefresh(keys),
     onSuccess: (view) => client.setQueryData(keys.quota, view),
-    onError: (error) => toast.error(errorMessage(error)),
+    onError: (error) => showActionError(error),
   });
 }
 
@@ -108,7 +124,7 @@ export function useAction<TArgs, TResult>(fn: (args: TArgs) => Promise<TResult>,
       }
       onSuccess?.(result, args);
     },
-    onError: (error) => toast.error(errorMessage(error)),
+    onError: (error) => showActionError(error),
     onSettled: () => refreshAll(client),
   });
 }
@@ -176,7 +192,7 @@ export function useSwitchProvider({ optimistic = false }: { optimistic?: boolean
     },
     onError: (error, args, context) => {
       if (context?.before) client.setQueryData(keys.providers(args.tool), context.before);
-      toast.error(errorMessage(error));
+      showActionError(error);
     },
     onSettled: () => refreshAll(client),
   });
@@ -213,7 +229,7 @@ export function useToggleLive({ optimistic = false }: { optimistic?: boolean } =
     },
     onError: (error, args, context) => {
       if (context?.before) client.setQueryData(keys.providers(args.tool), context.before);
-      toast.error(errorMessage(error));
+      showActionError(error);
     },
     onSettled: () => refreshAll(client),
   });

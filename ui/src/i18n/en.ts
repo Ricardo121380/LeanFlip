@@ -1,6 +1,20 @@
 import type { Messages } from "./zh";
 
 const en: Messages = {
+  errors: {
+    unknown: "The operation did not finish. Retry, or copy the error details for troubleshooting.",
+    io: "Unable to read or save configuration. Close programs using the files, check directory permissions and free disk space, then retry.",
+    conflict: "Configuration changed during this operation. Refresh the page, review the latest settings, then retry.",
+    json: "The configuration contains invalid JSON. Correct it or restore a backup, then retry. The original file will not be overwritten.",
+    serialization: "Unable to save the configuration. Check your edits and copy the error details for troubleshooting.",
+    codex: { oauth: {
+      workspace_mismatch: "The local Codex login uses a different workspace from the selected account. Check the workspace on the Codex accounts page and sign in to the correct account before retrying.",
+      reauth_workspace_mismatch: "This sign-in uses a different workspace from the original account. Sign in to the original workspace or add it as a new account.",
+      refresh_rejected: "The Codex login has expired. Sign in to this account again on the Codex accounts page, then retry.",
+      device_expired: "The sign-in code expired or was cancelled. Start a new sign-in and authorize it before the code expires.",
+    } },
+  },
+
   config: {
   "commonTitle": "Common configuration",
   "commonHint": "Shared preferences for every provider of this agent. Saving writes them to the client configuration.",
@@ -472,10 +486,10 @@ const en: Messages = {
     model: "Model {{model}}",
   },
   editor: {
-    commandTitle: "Allow executable credential helpers?",
-    commandHint: "The client will run these commands with your permissions to obtain credentials. Approve only commands you recognize and trust. Consent stays on this machine; changed commands require a new review.",
-    commandApprove: "Trust and allow these commands",
-    commandNotice: "This card contains credential commands. Review and approve them when saving.",
+    commandTitle: "Allow commands or provider packages?",
+    commandHint: "The client will run these commands or provider packages with your permissions. Review the code references and destinations. Consent stays on this machine; changes to commands, packages or related connection settings require a new review.",
+    commandApprove: "Trust and allow execution",
+    commandNotice: "This card contains credential commands or provider packages. Review the references and destinations when saving.",
     addHint: "Start from a preset or a blank configuration. Nothing changes in the client until you save.",
     editHint: "Edit this provider. If it is active, saving also updates the client configuration.",
     presetsError: "Presets could not load. You can still use a custom configuration.",
@@ -1068,7 +1082,11 @@ const en: Messages = {
     linkedFailed: "Couldn’t update {{name}}: {{reason}}",
     linkedUnknown: "Couldn’t read some tools’ providers, so their linked cards weren’t checked: {{reason}}",
   },
-  common: { undo: "Undo", cancel: "Cancel", confirm: "OK", loading: "Loading…", retry: "Retry", close: "Close", warnings: "Notes", separator: ", " },
+  common: {
+    copyErrorDetails: "Copy details",
+    copyErrorFailed: "Unable to copy. Please retry.",
+    undo: "Undo", cancel: "Cancel", confirm: "OK", loading: "Loading…", retry: "Retry", close: "Close", warnings: "Notes", separator: ", ",
+  },
 };
 
 export default en;

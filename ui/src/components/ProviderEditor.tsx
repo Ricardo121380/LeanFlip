@@ -315,15 +315,14 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
   });
   const ignoredFields = checked !== null ? (ignored.data ?? []) : [];
 
-  const hasCredentialCommands = parsed.ok && (
-    (tool === "claude" && ["apiKeyHelper", "awsAuthRefresh", "awsCredentialExport", "gcpAuthRefresh"].some((key) => parsed.value[key] != null && parsed.value[key] !== "")) ||
-    (tool === "codex" && Object.values(readToml(String(parsed.value.config ?? ""))?.model_providers ?? {}).some((provider) => provider && typeof provider === "object" && "auth" in provider && provider.auth && typeof provider.auth === "object" && "command" in provider.auth))
-  );
+  // The backend owns executable-field detection, including OpenCode model overrides.
+  const reviewEnabled = parsed.ok && ["claude", "codex", "opencode"].includes(tool);
   const credentialCommands = useQuery({
     queryKey: ["credential-commands", tool, settingsKey],
     queryFn: () => api.credentialCommands(tool, parsed.ok ? parsed.value : {}),
-    enabled: hasCredentialCommands && step === "form",
+    enabled: reviewEnabled && step === "form",
   });
+  const hasCredentialCommands = Object.keys(credentialCommands.data?.commands ?? {}).length > 0;
   const needsCommandApproval = hasCredentialCommands && credentialCommands.data?.approved === false;
 
   // 检测都用编辑中的配置，不需要先保存。地址或密钥在结果出来后又改过，就标成“可能已过期”；
@@ -480,12 +479,12 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
       if (showLogin) next = applyLoginSource(next, loginSource);
       if (!official) next = applyQuotaSettings(next, quota);
 
-      if (hasCredentialCommands) {
+      if (reviewEnabled) {
         const review = await api.credentialCommands(tool, next.settingsConfig);
         if (!review.approved) {
           const accepted = await confirm({
             title: t("editor.commandTitle"),
-            description: <><span>{t("editor.commandHint")}</span><code className="mt-3 block max-h-64 overflow-auto whitespace-pre-wrap break-all rounded border p-3 text-xs">{JSON.stringify(review.commands, null, 2)}</code></>,
+            description: <><span>{t("editor.commandHint")}</span><code className="mt-3 block max-h-64 overflow-auto whitespace-pre-wrap break-all rounded border p-3 text-xs">{JSON.stringify({ ...review.commands, ...review.destinations }, null, 2)}</code></>,
             confirmLabel: t("editor.commandApprove"),
           });
           if (!accepted) return;
@@ -509,7 +508,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
     }
   }
 
-  const canSave = step === "form" && parsed.ok && !fieldError && routesOk && (editing ? dirty || needsCommandApproval : id.trim() !== "") && (!hasCredentialCommands || credentialCommands.isSuccess) && !saving && !krillLoginPending;
+  const canSave = step === "form" && parsed.ok && !fieldError && routesOk && (editing ? dirty || needsCommandApproval : id.trim() !== "") && (!reviewEnabled || credentialCommands.isSuccess) && !saving && !krillLoginPending;
   const keyUrl = preset?.apiKeyUrl;
   const keyAction = keyUrl ? (
     <button type="button" className="inline-flex items-center gap-1 text-xs text-primary hover:underline" onClick={() => void openKeyPage(keyUrl)}>
@@ -877,7 +876,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
           )}
         </fieldset>
 
-        {hasCredentialCommands && <p role={credentialCommands.isError ? "alert" : undefined} className="shrink-0 px-6 py-2 text-sm text-amber-700 dark:text-amber-300">{credentialCommands.isError ? errorMessage(credentialCommands.error) : t("editor.commandNotice")}</p>}
+        {(hasCredentialCommands || (reviewEnabled && credentialCommands.isError)) && <p role={credentialCommands.isError ? "alert" : undefined} className="shrink-0 px-6 py-2 text-sm text-amber-700 dark:text-amber-300">{credentialCommands.isError ? errorMessage(credentialCommands.error) : t("editor.commandNotice")}</p>}
         <DialogFooter className="shrink-0 flex-wrap items-center gap-y-2 border-t bg-muted/40 px-6 py-3.5">
           <div className="mr-auto flex min-w-0 flex-1 basis-56 flex-col gap-1 text-xs text-muted-foreground">
             {step === "form" && !editing && (
