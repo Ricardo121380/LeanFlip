@@ -1,5 +1,6 @@
 // 后端命令的类型化封装（命令定义见 crates/app/src/commands.rs）。
 import { invoke } from "@tauri-apps/api/core";
+import i18n from "@/i18n";
 
 export type ToolId =
   | "claude"
@@ -524,7 +525,7 @@ export const api = {
   /** 配置里不会写入客户端的字段（目前只有 Claude 会过滤）。 */
   claudeOnboardingPath: () => invoke<string>("claude_onboarding_path"),
   completeClaudeOnboarding: (expectedPath: string) => invoke<OpResult>("complete_claude_onboarding", { expectedPath }),
-  credentialCommands: (tool: ToolId, settingsConfig: Record<string, unknown>) => invoke<{ commands: Record<string, unknown>; fingerprint: string; approved: boolean }>("credential_commands", { tool, settingsConfig }),
+  credentialCommands: (tool: ToolId, settingsConfig: Record<string, unknown>) => invoke<{ commands: Record<string, unknown>; destinations: Record<string, unknown>; fingerprint: string; approved: boolean }>("credential_commands", { tool, settingsConfig }),
   approveCredentialCommands: (tool: ToolId, settingsConfig: Record<string, unknown>, fingerprint: string) => invoke<void>("approve_credential_commands", { tool, settingsConfig, fingerprint }),
   ignoredFields: (tool: ToolId, settingsConfig: Record<string, unknown>) => invoke<string[]>("ignored_fields", { tool, settingsConfig }),
   // 以下三个会访问供应商，只在用户点击时调用。
@@ -589,9 +590,20 @@ export const api = {
   openUrl: (url: string) => invoke<void>("open_url", { url }),
 };
 
-/** 后端错误是一个字符串（`ApiError`）。 */
+/** Structured backend errors use recovery copy; legacy and local errors stay readable. */
 export function errorMessage(error: unknown): string {
+  if (error && typeof error === "object" && "code" in error && "message" in error) {
+    const key = typeof error.code === "string" ? `errors.${error.code}` : "";
+    if (key && i18n.exists(key)) return i18n.t(key);
+    if (typeof error.message === "string") return error.message;
+  }
   if (typeof error === "string") return error;
   if (error instanceof Error) return error.message;
-  return JSON.stringify(error);
+  return JSON.stringify(error) ?? i18n.t("errors.unknown");
+}
+
+/** Original details are available for support without putting them in the primary toast. */
+export function errorDetails(error: unknown): string {
+  if (error && typeof error === "object" && "message" in error && typeof error.message === "string") return error.message;
+  return typeof error === "string" ? error : error instanceof Error ? error.message : JSON.stringify(error) ?? "";
 }

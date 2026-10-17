@@ -10,7 +10,9 @@ export function fakeBackend(handlers: Record<string, Handler>) {
   const calls: { cmd: string; args?: Record<string, unknown> }[] = [];
   const invoke = vi.fn(async (cmd: string, args?: Record<string, unknown>) => {
     calls.push({ cmd, args });
-    const handler = handlers[cmd];
+    const handler = handlers[cmd] ?? (cmd === "credential_commands"
+      ? () => ({ commands: {}, destinations: {}, fingerprint: "fixture-empty", approved: true })
+      : undefined);
     if (!handler) throw new Error(`unexpected command ${cmd}`);
     return handler(args);
   });

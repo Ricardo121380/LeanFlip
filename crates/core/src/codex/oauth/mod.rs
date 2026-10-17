@@ -307,11 +307,11 @@ impl CodexOAuthManager {
     }
     fn write_lock(&self) -> Result<std::fs::File, AppError> {
         let lock = lock_file(&self.env.data_file("codex_oauth_auth.json.lock"), true)?;
-        // Complete a previous deletion before another account mutation reads the store.
+        // Complete a previous account transaction before another mutation reads the store.
         // High-level callers also hold the service lock, as for all client writes.
-        if crate::state::pending(&self.env.device_store(), Tool::Codex.as_str())?
-            .is_some_and(|pending| pending.op == "oauth-remove")
-        {
+        if crate::state::pending(&self.env.device_store(), Tool::Codex.as_str())?.is_some_and(
+            |pending| matches!(pending.op.as_str(), "oauth-remove" | "ccswitch-import"),
+        ) {
             crate::switch::settle(&self.env, Tool::Codex)?;
         }
         Ok(lock)
@@ -584,8 +584,23 @@ impl CodexOAuthManager {
         accounts: Vec<AccountData>,
         default: Option<String>,
     ) -> Result<Vec<String>, AppError> {
+        self.import_accounts_with_providers(accounts, default, None)
+    }
+    pub(crate) fn import_accounts_with_providers(
+        &self,
+        accounts: Vec<AccountData>,
+        default: Option<String>,
+        providers: Option<Vec<crate::state::ProviderChange>>,
+    ) -> Result<Vec<String>, AppError> {
         let _local = held(&self.serial);
         let _disk = self.write_lock()?;
+        let commit =
+            |target: &PendingTarget| crate::switch::commit_target(&self.env, Tool::Codex, target);
+        let transaction = providers
+            .as_ref()
+            .map(|_| AppWrite::begin(self.env.device_store(), Tool::Codex.as_str(), &commit))
+            .transpose()?;
+        let before = read_current(&self.store_path())?;
         let mut db = self.snapshot()?;
         let mut added = Vec::new();
         for account in accounts {
@@ -601,7 +616,35 @@ impl CodexOAuthManager {
         if db.default_account_id.is_none() {
             db.default_account_id = default.filter(|id| db.accounts.contains_key(id));
         }
-        if !added.is_empty() {
+        if let Some(transaction) = transaction {
+            let providers = providers.unwrap_or_default();
+            crate::store::apply_changes(&mut crate::store::load(&self.env)?, &providers)?;
+            db.version = STORE_VERSION;
+            db.fix_default();
+            let patch = Guarded {
+                expected_pre: digest(before.as_deref()),
+                then: WholeFile::Write(
+                    serde_json::to_vec_pretty(&db)
+                        .map_err(|source| AppError::JsonSerialize { source })?,
+                ),
+            };
+            let files = if added.is_empty() {
+                Vec::new()
+            } else {
+                vec![FileChange {
+                    file: LiveFile::private(self.store_path()),
+                    patch: &patch,
+                }]
+            };
+            transaction.run(
+                "ccswitch-import",
+                &files,
+                PendingTarget {
+                    providers,
+                    ..PendingTarget::default()
+                },
+            )?;
+        } else if !added.is_empty() {
             self.save(&mut db)?;
         }
         Ok(added)

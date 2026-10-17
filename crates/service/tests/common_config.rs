@@ -478,6 +478,12 @@ fn model_budgets_write_to_the_right_provider_and_preserve_common_preferences() {
             .save_common_config(tool, &snap.revision, common.clone())
             .unwrap();
         let settings = json!({"npm":"@ai-sdk/anthropic","api":"anthropic-messages","options":{"baseURL":"https://qa.invalid","apiKey":"fake"},"models":{"vendor/model.v1":{"limit":{"context":200000,"output":64000},"reasoning":true},"other":{}}});
+        if tool == Tool::OpenCode {
+            let review = service.credential_commands(tool, &settings).unwrap();
+            service
+                .approve_credential_commands(tool, &settings, &review.fingerprint)
+                .unwrap();
+        }
         service
             .add_provider(
                 tool,

@@ -40,8 +40,15 @@ fn home() -> Home {
             .unwrap();
     }
     for id in ["x", "y"] {
+        let card = opencode(id);
+        let review = service
+            .credential_commands(Tool::OpenCode, &card.settings_config)
+            .unwrap();
         service
-            .add_provider(Tool::OpenCode, opencode(id), id == "x")
+            .approve_credential_commands(Tool::OpenCode, &card.settings_config, &review.fingerprint)
+            .unwrap();
+        service
+            .add_provider(Tool::OpenCode, card, id == "x")
             .unwrap();
     }
     service.switch_provider(Tool::Claude, "a").unwrap();

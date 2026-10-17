@@ -1,6 +1,6 @@
 # 名称与历史兼容标识
 
-当前版本为 `0.3.7`，产品名称为 LeanFlip（简切）。已发布的 v0.1.0 使用另一套名字；它的发布包保持原样，当前分支不再携带它的安装器元数据。
+当前版本为 `0.4.1`，产品名称为 LeanFlip（简切）。已发布的 v0.1.0 使用另一套名字；它的发布包保持原样，当前分支不再携带它的安装器元数据。
 
 | 标识 | 用途 |
 | --- | --- |
@@ -10,7 +10,7 @@
 | `dev.leanflip.desktop` | 桌面应用 identifier；Cask 的 `uninstall quit` 和 npm 安装器的替换检查都从 `tauri.conf.json` 生成 |
 | `leanflip-core` / `leanflip-service` / `leanflip-app` / `leanflip-cli` | Rust 包名 |
 | `LEANFLIP_HOME` | 调试用的 home 覆盖变量 |
-| `~/.leanflip` | 数据目录。0.1.x 的旧数据目录在 App 启动或 CLI 首次写入时整体改名迁移，原处留下相对符号链接，仍在运行的旧版本可以继续读写；迁移前只读命令继续读取旧目录 |
+| `~/.leanflip` | 数据目录。macOS/Linux 的 0.1.x 旧数据目录在 App 启动或 CLI 首次写入时整体改名迁移，原处留下相对符号链接；Windows 若只有 `.cc-switch-lite` 则继续共用旧目录，不自动改名，以保留旧版本访问能力。新安装使用 `.leanflip`；只读命令不执行迁移 |
 | `leanflip-backup`（版本 1） | 加密备份内的格式标识，三端通用 |
 | `__leanflip_redacted__` | 前端显示的隐藏凭据占位符，只在内存和前后端传输中出现，从不写盘 |
 | `.cc-switch` / `cc-switch.db` | 源应用 CC Switch 的只读迁移格式，与本应用数据目录不同 |

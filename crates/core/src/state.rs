@@ -78,8 +78,17 @@ pub struct PendingTarget {
     pub pointer: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub written: Option<Written>,
+    /// Guarded card edits committed with the client/account write, including recovery.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub providers: Vec<ProviderChange>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ProviderChange {
+    pub tool: crate::Tool,
+    pub before: Option<crate::Provider>,
+    pub after: Option<crate::Provider>,
 }
 impl PendingTarget {
     pub fn pointer(pointer: Option<String>) -> Self {
@@ -89,7 +98,10 @@ impl PendingTarget {
         }
     }
     pub fn is_empty(&self) -> bool {
-        self.pointer.is_none() && self.written.is_none() && self.extra.is_empty()
+        self.pointer.is_none()
+            && self.written.is_none()
+            && self.providers.is_empty()
+            && self.extra.is_empty()
     }
 }
 pub mod op {

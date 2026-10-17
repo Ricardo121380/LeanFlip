@@ -478,6 +478,7 @@ const handlers: Record<string, (args: Args) => unknown> = {
     provider.meta = meta;
     return null;
   },
+  credential_commands: () => ({ commands: {}, destinations: {}, fingerprint: "mock-empty", approved: true }),
   codex_set_default: (a) => { accounts = accounts.map((x) => ({ ...x, isDefault: x.id === a!.id })); return null; },
   codex_remove_account: (a) => { accounts = accounts.filter((x) => x.id !== a!.id); return null; },
   codex_set_login_ref: () => ok,

@@ -178,6 +178,14 @@ fn changed_confirmation_is_rejected_without_overwriting_external_edits() {
 #[test]
 fn coexist_toggles_and_unreadable_state_keep_the_native_safety_contract() {
     let dir = fixture(Tool::OpenCode);
+    let service = service(dir.path());
+    let settings = provider("alpha", Tool::OpenCode).settings_config;
+    let review = service
+        .credential_commands(Tool::OpenCode, &settings)
+        .unwrap();
+    service
+        .approve_credential_commands(Tool::OpenCode, &settings, &review.fingerprint)
+        .unwrap();
     let mut app = App::new(Some(dir.path()), Language::En, Some(Tool::OpenCode));
     for enabled in [true, false] {
         app.prepare(false);
@@ -186,7 +194,7 @@ fn coexist_toggles_and_unreadable_state_keep_the_native_safety_contract() {
             .unwrap();
         app.apply(pending);
         assert_eq!(
-            service(dir.path())
+            service
                 .list_providers(Tool::OpenCode)
                 .unwrap()
                 .in_live
@@ -491,6 +499,17 @@ fn wizard_templates_can_save_and_activate_each_supported_tool_without_overwritin
         draft.key = "fixture-wizard-key".into();
         draft.model = "fixture-model".into();
         draft.activate = true;
+        if tool == Tool::OpenCode {
+            assert!(draft.save(&service, Language::En).is_err());
+            assert!(!service.env().opencode_dir.join("opencode.json").exists());
+            let settings = crate::creation::provider(&draft)
+                .unwrap_or_else(|e| panic!("{}", e.message))
+                .settings_config;
+            let review = service.credential_commands(tool, &settings).unwrap();
+            service
+                .approve_credential_commands(tool, &settings, &review.fingerprint)
+                .unwrap();
+        }
         draft
             .save(&service, Language::En)
             .unwrap_or_else(|e| panic!("{tool}: {}", e.message));

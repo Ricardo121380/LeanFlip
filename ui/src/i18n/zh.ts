@@ -1,4 +1,18 @@
 const zh = {
+  errors: {
+    unknown: "操作未完成，请重试；若仍失败，请复制错误详情用于排查。",
+    io: "无法读写配置文件。请关闭占用文件的程序，检查配置目录权限和剩余磁盘空间后重试。",
+    conflict: "配置在操作期间发生了变化。请刷新当前页面，确认最新配置后再试。",
+    json: "配置文件格式有误。请修正 JSON，或从备份恢复后重试；原文件不会被覆盖。",
+    serialization: "无法保存配置。请检查编辑内容，复制错误详情用于排查。",
+    codex: { oauth: {
+      workspace_mismatch: "本机 Codex 登录的工作区与所选账号不一致。请在 Codex 账号页核对工作区，重新登录正确账号后重试。",
+      reauth_workspace_mismatch: "重新登录的工作区与原账号不同。请选择原工作区重新登录，或将其添加为新账号。",
+      refresh_rejected: "Codex 登录已失效。请在 Codex 账号页重新登录此账号后重试。",
+      device_expired: "登录码已过期或取消。请重新发起登录，并在有效期内完成授权。",
+    } },
+  },
+
   config: {
   "commonTitle": "通用配置",
   "commonHint": "同一 Agent 的所有供应商共享这些设置。保存后直接写入客户端配置，切换供应商时保留。",
@@ -475,10 +489,10 @@ const zh = {
     model: "模型 {{model}}",
   },
   editor: {
-    commandTitle: "允许客户端执行凭据命令？",
-    commandHint: "以下命令会由客户端在获取凭据时以你的权限执行。仅授权你认识并信任的命令；授权仅保存在本机，命令改变后需要重新确认。",
-    commandApprove: "我信任并允许这些命令",
-    commandNotice: "此卡片包含凭据命令，保存时会展示命令并确认授权。",
+    commandTitle: "允许客户端执行命令或加载供应商包？",
+    commandHint: "以下命令或供应商包会由客户端以你的权限运行。请确认执行内容及目标地址可信；授权仅保存在本机，命令、包或相关连接配置变化后需要重新确认。",
+    commandApprove: "我信任并允许执行",
+    commandNotice: "此卡片包含凭据命令或供应商包，保存时会展示内容和目标地址并确认授权。",
     addHint: "从预设或空白配置开始填写；保存前不会改动客户端。",
     editHint: "修改这个供应商。如果它正在使用，保存后会同步更新客户端配置。",
     presetsError: "预设加载失败，仍可使用自定义配置。",
@@ -1071,7 +1085,11 @@ const zh = {
     linkedFailed: "{{name}} 更新失败：{{reason}}",
     linkedUnknown: "有工具的供应商没读出来，那里的关联卡没法检查：{{reason}}",
   },
-  common: { undo: "撤销", cancel: "取消", confirm: "确定", loading: "加载中…", retry: "重试", close: "关闭", warnings: "提示", separator: "、" },
+  common: {
+    copyErrorDetails: "复制详情",
+    copyErrorFailed: "复制失败，请重试。",
+    undo: "撤销", cancel: "取消", confirm: "确定", loading: "加载中…", retry: "重试", close: "关闭", warnings: "提示", separator: "、",
+  },
 };
 
 export default zh;

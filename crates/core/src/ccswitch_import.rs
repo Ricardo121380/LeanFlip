@@ -27,6 +27,9 @@ pub const DB_FILENAME: &str = "cc-switch.db";
 pub const LEGACY_CONFIG: &str = "config.json";
 pub const ACCOUNTS_FILENAME: &str = "codex_oauth_auth.json";
 
+#[cfg(test)]
+mod transaction_tests;
+
 pub fn default_dir(env: &Env) -> PathBuf {
     env.home.join(".cc-switch")
 }
@@ -160,13 +163,14 @@ pub fn apply(
     tools: &[Tool],
     oauth: Option<&CodexOAuthManager>,
 ) -> Result<Report, AppError> {
+    // A retry must settle the previous account/card transaction before taking a new snapshot.
+    if oauth.is_some() && tools.contains(&Tool::Codex) {
+        crate::switch::settle(env, Tool::Codex)?;
+    }
     let scan = scan(env, dir)?;
     let mut report = Report::default();
-    if let Some(manager) = oauth.filter(|_| tools.contains(&Tool::Codex)) {
-        let (accounts, default) = CodexOAuthManager::read_store_file(&dir.join(ACCOUNTS_FILENAME))?;
-        report.accounts_added = manager.import_accounts(accounts, default)?;
-    }
-    store::update(env, |data| {
+    let import = |data: &mut store::StoreData| {
+        let mut changes = Vec::new();
         for candidate in scan.candidates {
             if !tools.contains(&candidate.tool) {
                 continue;
@@ -186,11 +190,24 @@ pub fn apply(
             if provider.sort_index.is_none() {
                 provider.sort_index = Some(app.providers.len() as i64);
             }
+            changes.push(crate::state::ProviderChange {
+                tool: candidate.tool,
+                before: None,
+                after: Some(provider.clone()),
+            });
             app.providers.push(provider);
             report.created.push((candidate.tool, id));
         }
-        Ok(())
-    })?;
+        Ok(changes)
+    };
+    if let Some(manager) = oauth.filter(|_| tools.contains(&Tool::Codex)) {
+        let changes = import(&mut store::load(env)?)?;
+        let (accounts, default) = CodexOAuthManager::read_store_file(&dir.join(ACCOUNTS_FILENAME))?;
+        report.accounts_added =
+            manager.import_accounts_with_providers(accounts, default, Some(changes))?;
+    } else {
+        store::update(env, import)?;
+    }
     Ok(report)
 }
 

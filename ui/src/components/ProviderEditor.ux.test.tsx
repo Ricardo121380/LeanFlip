@@ -12,8 +12,8 @@ import { ProviderEditor } from "./ProviderEditor";
 
 const saved: Provider = { id: "existing", name: "Existing", settingsConfig: { env: { ANTHROPIC_BASE_URL: "https://example.com" } } };
 const presets = [{ name: "First", settingsConfig: { env: {} } }, { name: "Second", settingsConfig: { env: {} } }];
-function mount(provider: Provider | null = saved, handlers: Record<string, Handler> = {}, extra: { template?: Provider; tool?: "claude" | "codex" } = {}) {
-  const backend = fakeBackend({ ignored_fields: () => [], ...handlers });
+function mount(provider: Provider | null = saved, handlers: Record<string, Handler> = {}, extra: { template?: Provider; tool?: "claude" | "codex" | "opencode" } = {}) {
+  const backend = fakeBackend({ ignored_fields: () => [], credential_commands: () => ({ commands: {}, destinations: {}, fingerprint: "empty", approved: true }), ...handlers });
   mock.invoke = backend.invoke;
   function Host() {
     const [open, setOpen] = useState(true);
@@ -267,9 +267,34 @@ it("reviews executable credential commands before local approval and saving; can
   expect(backend.calls.filter((call) => ["approve_credential_commands", "update_provider"].includes(call.cmd))).toHaveLength(0);
   await userEvent.click(save);
   dialog = await screen.findByRole("alertdialog");
-  await userEvent.click(within(dialog).getByRole("button", { name: "我信任并允许这些命令" }));
+  await userEvent.click(within(dialog).getByRole("button", { name: "我信任并允许执行" }));
   await screen.findByText("Editor closed");
   const writes = backend.calls.filter((call) => ["approve_credential_commands", "update_provider"].includes(call.cmd));
   expect(writes.map((call) => call.cmd)).toEqual(["approve_credential_commands", "update_provider"]);
   expect(writes[0].args).toEqual({ tool: "claude", settingsConfig: config, fingerprint: "fixture-command-hash" });
+});
+
+it("reviews OpenCode packages and destinations before saving and blocks a failed review", async () => {
+  const settings = { package: "fixture-provider", settings: { baseURL: "https://trusted.invalid" }, models: { m: {} } };
+  let approved = false;
+  const { backend } = mount({ id: "existing", name: "OpenCode fixture", settingsConfig: settings }, {
+    credential_commands: () => ({ commands: { package: "fixture-provider" }, destinations: { "settings.baseURL": "https://trusted.invalid" }, fingerprint: "package-hash", approved }),
+    approve_credential_commands: () => { approved = true; },
+    update_provider: () => ({ changed: [], warnings: [] }),
+  }, { tool: "opencode" });
+  await screen.findByText(/此卡片包含凭据命令或供应商包/);
+  await userEvent.click(screen.getByRole("button", { name: "保存" }));
+  const dialog = await screen.findByRole("alertdialog");
+  expect(within(dialog).getByText(/fixture-provider/)).toHaveTextContent("https://trusted.invalid");
+  await userEvent.click(within(dialog).getByRole("button", { name: "我信任并允许执行" }));
+  await screen.findByText("Editor closed");
+  expect(backend.calls.filter(c => ["approve_credential_commands", "update_provider"].includes(c.cmd)).map(c => c.cmd)).toEqual(["approve_credential_commands", "update_provider"]);
+});
+
+it("cannot save supported tools when executable configuration review fails", async () => {
+  const { backend } = mount(saved, { credential_commands: () => { throw new Error("review unavailable"); } });
+  await screen.findByText("review unavailable");
+  await userEvent.type(screen.getByLabelText("名称"), " changed");
+  expect(screen.getByRole("button", { name: "保存" })).toBeDisabled();
+  expect(backend.calls.some(c => c.cmd === "update_provider")).toBe(false);
 });

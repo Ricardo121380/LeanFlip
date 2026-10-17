@@ -36,6 +36,19 @@ impl Sandbox {
         success(self.run(args))
     }
 
+    fn trust(&self, tool: &str, id: &str) {
+        let review = self.ok(&["provider", "trust-commands", tool, id, "--json"]);
+        self.ok(&[
+            "provider",
+            "trust-commands",
+            tool,
+            id,
+            "--approve",
+            review["fingerprint"].as_str().unwrap(),
+            "--json",
+        ]);
+    }
+
     fn input(&self, args: &[&str], provider: &Value) -> Value {
         let mut child = self
             .command(args)
@@ -237,6 +250,14 @@ fn provider_input_switch_and_coexist_commands_share_the_store() {
         &["provider", "add", "opencode", "--file", "-", "--json"],
         &open,
     );
+    let blocked = sb.run(&["enable", "opencode", "relay", "--json"]);
+    assert!(!blocked.status.success());
+    let error: Value = serde_json::from_slice(&blocked.stderr).unwrap();
+    assert_eq!(
+        error["error"]["code"],
+        "provider.command_confirmation_required"
+    );
+    sb.trust("opencode", "relay");
     sb.ok(&["enable", "opencode", "relay", "--json"]);
     assert_eq!(
         sb.ok(&["list", "opencode", "--json"])["providers"][0]["enabled"],
@@ -776,6 +797,7 @@ fn scene_sandbox() -> Sandbox {
     }
     for id in ["x", "y"] {
         store::add_provider(&sb.env, Tool::OpenCode, opencode(id)).unwrap();
+        sb.trust("opencode", id);
     }
     leanflip_core::switch::switch(&sb.env, Tool::Claude, "a").unwrap();
     leanflip_core::coexist::write_to_live(&sb.env, Tool::OpenCode, "x").unwrap();

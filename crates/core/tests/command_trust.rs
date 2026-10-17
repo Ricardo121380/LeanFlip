@@ -118,3 +118,103 @@ fn claude_onboarding_is_explicit_preserves_preferences_and_backs_up_original() {
     assert!(switch::claude::complete_onboarding(&sb.env).is_err());
     assert_eq!(sb.read(&path), "{malformed");
 }
+
+#[test]
+fn consent_is_revoked_when_destinations_or_codex_request_context_change() {
+    for (tool, original, changes) in [
+        (
+            Tool::Claude,
+            json!({"apiKeyHelper":"fixture-helper", "apiBaseUrl":"https://trusted.invalid", "env":{}}),
+            vec![
+                json!({"apiKeyHelper":"fixture-helper", "apiBaseUrl":"https://other.invalid", "env":{}}),
+                json!({"apiKeyHelper":"fixture-helper", "apiBaseUrl":"https://trusted.invalid", "env":{"ANTHROPIC_BASE_URL":"https://other.invalid"}}),
+            ],
+        ),
+        (
+            Tool::Codex,
+            json!({"auth":{}, "config":"model_provider='r'\n[model_providers.r]\nbase_url='https://trusted.invalid'\n[model_providers.r.auth]\ncommand='fixture-helper'\n"}),
+            vec![
+                json!({"auth":{}, "config":"model_provider='r'\n[model_providers.r]\nbase_url='https://other.invalid'\n[model_providers.r.auth]\ncommand='fixture-helper'\n"}),
+                json!({"auth":{}, "config":"model_provider='r'\n[model_providers.r]\nbase_url='https://trusted.invalid'\nhttp_headers={X-Tenant='other'}\nquery_params={tenant='other'}\n[model_providers.r.auth]\ncommand='fixture-helper'\n"}),
+                json!({"auth":{}, "config":"model_provider='r'\nopenai_base_url='https://other.invalid'\n[model_providers.r]\nbase_url='https://trusted.invalid'\n[model_providers.r.auth]\ncommand='fixture-helper'\n"}),
+            ],
+        ),
+    ] {
+        let sb = Sandbox::new();
+        let review = command_trust::preview(&sb.env, tool, &original).unwrap();
+        assert!(!review.destinations.is_empty());
+        command_trust::approve(&sb.env, tool, &original, &review.fingerprint).unwrap();
+        for changed in changes {
+            let next = command_trust::preview(&sb.env, tool, &changed).unwrap();
+            assert!(!next.approved);
+            assert_ne!(next.fingerprint, review.fingerprint);
+            assert!(
+                command_trust::require(&sb.env, tool, &Provider::new("r", "Relay", changed))
+                    .is_err()
+            );
+        }
+    }
+}
+
+#[test]
+fn approvals_from_before_destination_binding_require_a_new_review() {
+    let sb = Sandbox::new();
+    let settings = json!({"apiKeyHelper":"fixture-helper", "env":{"ANTHROPIC_BASE_URL":"https://trusted.invalid"}});
+    let commands = std::collections::BTreeMap::from([("apiKeyHelper", json!("fixture-helper"))]);
+    let old_bytes =
+        leanflip_core::fsutil::sorted_json_bytes(&(Tool::Claude, commands, settings.get("env")))
+            .unwrap();
+    let old_fingerprint = leanflip_core::live::engine::digest(Some(&old_bytes)).unwrap();
+    sb.write(
+        &sb.env.data_file("trusted-credential-commands.json"),
+        &json!([old_fingerprint]).to_string(),
+    );
+    assert!(
+        !command_trust::preview(&sb.env, Tool::Claude, &settings)
+            .unwrap()
+            .approved
+    );
+}
+
+#[test]
+fn opencode_package_consent_covers_every_live_write_and_model_override() {
+    use leanflip_core::coexist;
+    let variants = [
+        json!({"npm":"fixture-provider", "options":{"baseURL":"https://trusted.invalid"}, "models":{"m":{}}}),
+        json!({"package":"fixture-provider", "settings":{"baseURL":"https://trusted.invalid"}, "models":{"m":{}}}),
+        json!({"providers":{"relay":{"package":"fixture-provider", "models":{"m":{"package":"fixture-model"}}}}}),
+        json!({"provider":{"relay":{"npm":"fixture-provider", "models":{"m":{"provider":{"npm":"fixture-model"}}}}}}),
+    ];
+    for settings in variants {
+        let sb = Sandbox::new();
+        let card = Provider::new("relay", "Relay", settings);
+        let review =
+            command_trust::preview(&sb.env, Tool::OpenCode, &card.settings_config).unwrap();
+        assert!(!review.approved);
+        assert!(review.commands.values().any(|v| v == "fixture-provider"));
+        assert!(coexist::add_provider(&sb.env, Tool::OpenCode, card.clone(), true).is_err());
+        assert!(!sb.env.opencode_config_path().exists());
+        coexist::add_provider(&sb.env, Tool::OpenCode, card.clone(), false).unwrap();
+        assert!(coexist::activate(&sb.env, Tool::OpenCode, &card.id).is_err());
+        assert!(coexist::write_to_live(&sb.env, Tool::OpenCode, &card.id).is_err());
+        command_trust::approve(
+            &sb.env,
+            Tool::OpenCode,
+            &card.settings_config,
+            &review.fingerprint,
+        )
+        .unwrap();
+        coexist::activate(&sb.env, Tool::OpenCode, &card.id).unwrap();
+        let before = sb.read(&sb.env.opencode_config_path());
+        let mut changed = card.clone();
+        // A model override must revoke consent even when the provider package is unchanged.
+        changed.settings_config["models"] = json!({"m":{"package":"changed-model"}});
+        assert!(
+            !command_trust::preview(&sb.env, Tool::OpenCode, &changed.settings_config)
+                .unwrap()
+                .approved
+        );
+        assert!(coexist::update_provider(&sb.env, Tool::OpenCode, changed).is_err());
+        assert_eq!(sb.read(&sb.env.opencode_config_path()), before);
+    }
+}

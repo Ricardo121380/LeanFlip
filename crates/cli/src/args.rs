@@ -169,7 +169,7 @@ pub enum Import {
 pub enum ProviderCommand {
     /// Create a provider interactively, with a hidden key and a final preview.
     Create { tool: ToolArg },
-    /// Review executable credential helpers; approve only the displayed fingerprint.
+    /// Review executable helpers, provider packages and destinations; approve the displayed fingerprint.
     TrustCommands {
         tool: ToolArg,
         provider_id: String,

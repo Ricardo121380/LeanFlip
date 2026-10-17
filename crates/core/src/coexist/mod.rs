@@ -16,7 +16,7 @@ use crate::live::engine::LiveFile;
 use crate::live::patch::LivePatch;
 use crate::operation::{AppWrite, FileChange, OperationReport};
 use crate::provider::{Provider, Tool};
-use crate::state::PendingTarget;
+use crate::state::{PendingTarget, ProviderChange};
 use crate::store;
 
 /// 操作名（记在 pending 意图里）。
@@ -192,9 +192,14 @@ fn run(
     tool: Tool,
     op: &str,
     change: EntryChange<'_>,
+    providers: Vec<ProviderChange>,
 ) -> Result<OperationReport, AppError> {
+    if let Some(provider) = change.provider {
+        crate::command_trust::require(env, tool, provider)?;
+    }
     let commit = |target: &PendingTarget| crate::switch::commit_target(env, tool, target);
     let write = AppWrite::begin(env.device_store(), tool.as_str(), &commit)?;
+    store::apply_changes(&mut store::load(env)?, &providers)?;
     // MCode 自己写配置时用一个目录锁（proper-lockfile）；拿着它写，不和 MCode 打架。
     let _mcode_lock = if tool == Tool::Mcode {
         Some(mcode::DirLock::acquire(&env.mcode_config_path())?)
@@ -208,7 +213,10 @@ fn run(
             file: live_file(env, tool),
             patch: patch.as_ref(),
         }],
-        PendingTarget::pointer(None),
+        PendingTarget {
+            providers,
+            ..PendingTarget::default()
+        },
     )
 }
 
@@ -230,6 +238,7 @@ pub fn write_to_live(env: &Env, tool: Tool, id: &str) -> Result<OperationReport,
         tool,
         op::WRITE,
         upsert(&provider, WriteMode::Replace, false),
+        Vec::new(),
     )
 }
 
@@ -243,6 +252,7 @@ pub fn activate(env: &Env, tool: Tool, id: &str) -> Result<OperationReport, AppE
         tool,
         op::ACTIVATE,
         upsert(&provider, WriteMode::Replace, tool == Tool::Hermes),
+        Vec::new(),
     )
 }
 
@@ -278,12 +288,13 @@ pub fn remove_from_live(
             mode: WriteMode::Replace,
             activate: false,
         },
+        Vec::new(),
     )
     .map(Some)
 }
 
 /// 新加一张卡；`add_to_live` 时同时写进客户端配置（同名不同内容的条目会被拒绝）。
-/// 写客户端配置失败时库里不加；库写失败时把刚写进去的条目撤掉。
+/// 客户端写入和卡片变更属于同一恢复日志；发布后中断会在重试或启动时完成。
 pub fn add_provider(
     env: &Env,
     tool: Tool,
@@ -299,25 +310,23 @@ pub fn add_provider(
             provider.id
         )));
     }
-    let report = if add_to_live {
-        let existed = live_entries(env, tool)?.contains_key(&provider.id);
-        let report = run(
+    if add_to_live {
+        run(
             env,
             tool,
             op::ADD,
             upsert(&provider, WriteMode::CreateOnly, false),
-        )?;
-        Some((report, existed))
+            vec![ProviderChange {
+                tool,
+                before: None,
+                after: Some(provider.clone()),
+            }],
+        )
+        .map(Some)
     } else {
-        None
-    };
-    if let Err(error) = store::add_provider(env, tool, provider.clone()) {
-        if let Some((_, false)) = report {
-            let _ = remove_from_live(env, tool, &provider.id);
-        }
-        return Err(error);
+        store::add_provider(env, tool, provider)?;
+        Ok(None)
     }
-    Ok(report.map(|(report, _)| report))
 }
 
 /// 编辑一张卡。卡在客户端配置里时同时改写那个条目；写入被拒绝时库里也不改。
@@ -327,28 +336,53 @@ pub fn update_provider(
     provider: Provider,
 ) -> Result<Option<OperationReport>, AppError> {
     ensure_coexist(tool)?;
-    let _old = card(env, tool, &provider.id)?;
+    let old = card(env, tool, &provider.id)?;
     validate(tool, &provider)?;
-    let report = if live_entries(env, tool)?.contains_key(&provider.id) {
-        Some(run(
+    if live_entries(env, tool)?.contains_key(&provider.id) {
+        run(
             env,
             tool,
             op::WRITE,
             upsert(&provider, WriteMode::Replace, false),
-        )?)
+            vec![ProviderChange {
+                tool,
+                before: Some(old),
+                after: Some(provider.clone()),
+            }],
+        )
+        .map(Some)
     } else {
-        None
-    };
-    store::replace_provider(env, tool, provider)?;
-    Ok(report)
+        store::replace_provider(env, tool, provider)?;
+        Ok(None)
+    }
 }
 
 /// 删除一张卡：先从客户端配置里移出（在里面的话），再删卡。
 pub fn delete_provider(env: &Env, tool: Tool, id: &str) -> Result<Provider, AppError> {
     ensure_coexist(tool)?;
-    card(env, tool, id)?;
-    remove_from_live(env, tool, id)?;
-    store::remove_provider(env, tool, id)
+    let old = card(env, tool, id)?;
+    if live_entries(env, tool)?.contains_key(id) {
+        run(
+            env,
+            tool,
+            op::REMOVE,
+            EntryChange {
+                provider: None,
+                id,
+                edit: Edit::Remove,
+                mode: WriteMode::Replace,
+                activate: false,
+            },
+            vec![ProviderChange {
+                tool,
+                before: Some(old.clone()),
+                after: None,
+            }],
+        )?;
+        Ok(old)
+    } else {
+        store::remove_provider(env, tool, id)
+    }
 }
 
 /// 按客户端配置补卡：live 里有、库里没有的条目各建一张卡（可以重复调用，已有的卡
@@ -407,6 +441,8 @@ fn imported_card(tool: Tool, id: &str, mut value: Value) -> Provider {
     Provider::new(id, name, value)
 }
 
+#[cfg(test)]
+mod transaction_tests;
 #[cfg(test)]
 mod tests {
     //! 并存式写入的崩溃注入：发布后崩溃前滚，发布前崩溃丢弃；都不碰指针。

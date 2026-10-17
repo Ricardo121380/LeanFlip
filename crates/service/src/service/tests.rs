@@ -287,6 +287,12 @@ fn switches_and_toggles_are_written_to_the_switch_log() {
         "Router",
         json!({"npm": "@ai-sdk/openai-compatible", "options": {"baseURL": "https://r"}, "models": {"m": {}}}),
     );
+    let review = service
+        .credential_commands(Tool::OpenCode, &card.settings_config)
+        .unwrap();
+    service
+        .approve_credential_commands(Tool::OpenCode, &card.settings_config, &review.fingerprint)
+        .unwrap();
     service.add_provider(Tool::OpenCode, card, true).unwrap();
     service
         .set_in_live(Tool::OpenCode, "router", false)
@@ -323,6 +329,12 @@ fn coexist_toggle_writes_and_removes_entries() {
         json!({"npm": "@ai-sdk/openai-compatible", "name": "Relay",
                "options": {"baseURL": "https://r", "apiKey": "sk"}, "models": {"m": {}}}),
     );
+    let review = service
+        .credential_commands(Tool::OpenCode, &card.settings_config)
+        .unwrap();
+    service
+        .approve_credential_commands(Tool::OpenCode, &card.settings_config, &review.fingerprint)
+        .unwrap();
     service.add_provider(Tool::OpenCode, card, false).unwrap();
     assert!(service
         .list_providers(Tool::OpenCode)
@@ -727,10 +739,13 @@ fn cli_open_honors_desktop_paths_and_rejects_broken_settings() {
 }
 
 #[test]
-fn structured_error_codes_preserve_the_desktop_string_wire_format() {
+fn desktop_errors_expose_codes_and_preserve_diagnostic_messages() {
     let error = ApiError::from_core(AppError::Conflict("changed".into()), true);
     assert_eq!(error.code(), "conflict");
-    assert_eq!(serde_json::to_value(&error).unwrap(), json!(error.0));
+    assert_eq!(
+        serde_json::to_value(&error).unwrap(),
+        json!({"code":"conflict", "message":error.0})
+    );
     let localized = ApiError::from_core(AppError::localized("test.code", "中", "English"), true);
     assert_eq!(localized.code(), "test.code");
     assert_eq!(localized.0, "English");
