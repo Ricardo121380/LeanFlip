@@ -1144,6 +1144,15 @@ impl Service {
                 error: Some("noEndpoint".into()),
             });
         };
+        if quota::relay::is_krill_address(&address) {
+            return Ok(quota::relay::QuotaDetect {
+                steps: Vec::new(),
+                adapter: None,
+                snapshot: None,
+                key: None,
+                error: Some("noKrillJwt".into()),
+            });
+        }
         let key = quota::relay::source_key(&quota::relay::query_base(&address), &secret);
         let per_usd = quota::relay::QuotaSettings {
             quota_per_usd,

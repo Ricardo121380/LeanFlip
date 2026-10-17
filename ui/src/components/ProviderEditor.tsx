@@ -26,7 +26,7 @@ import { ModelRoutesEditor } from "@/components/ModelRoutesEditor";
 import { ConnectionCheck, ProbeLine, type ProbeSlot } from "@/components/ProviderProbe";
 import { applyRoutes, routeErrors, routesOf } from "@/lib/routes";
 import { loginChoices, loginHelp } from "@/lib/login-choices";
-import { adapterName, applyQuotaSettings, DEFAULT_QUOTA_PER_USD, quotaSettingsOf, RELAY_ADAPTERS } from "@/lib/quota";
+import { adapterName, applyQuotaSettings, DEFAULT_QUOTA_PER_USD, quotaSettingsOf, quotaForAddress } from "@/lib/quota";
 import { QuotaDetectDialog } from "@/components/QuotaDetectDialog";
 import { QuotaDetails } from "@/components/QuotaDetails";
 import { api, errorMessage, type AccountInfo, type LoginSummary, type ProbeResult, type Provider, type QuotaDetect, type QuotaSettings, type ToolId } from "@/lib/api";
@@ -198,43 +198,62 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
     return toEditorText(meta.editor, settings);
   });
   const [loginSource, setLoginSource] = useState(loginSourceOf(source));
-  const [quota, setQuota] = useState<QuotaSettings | null>(() => {
+  const connection = readConnection(tool, text, isOfficial({ category }));
+  const ready = connection.state === "ready" ? connection : null;
+  const quotaBaseUrl = String(ready?.values.baseUrl ?? "");
+  const [quotaAddress, setQuotaAddress] = useState(quotaBaseUrl);
+  const [quotaSettings, setQuota] = useState<QuotaSettings | null>(() => {
     const settings = quotaSettingsOf(source);
     if (copying && settings?.adapter === "krill") return null;
+    if (copying && settings) delete settings.krillJwt;
     if (copying && settings?.accountToken === REDACTED) {
       const { accountToken: _token, accountUserId: _user, ...rest } = settings;
       return rest;
     }
     return settings;
   });
+  const quota = quotaForAddress(quotaSettings, quotaBaseUrl, quotaAddress);
   const [detecting, setDetecting] = useState(false);
   const [krillLoginPending, setKrillLoginPending] = useState(false);
   const [krillLoginError, setKrillLoginError] = useState<string | null>(null);
   const [krillDetected, setKrillDetected] = useState<QuotaDetect | null>(null);
-  const krillLoginActive = useRef(false);
+  const krillLoginActive = useRef<symbol | null>(null);
   useEffect(() => () => {
     if (krillLoginActive.current) {
-      krillLoginActive.current = false;
+      krillLoginActive.current = null;
       void api.quotaKrillLoginCancel().catch(() => {});
     }
   }, []);
   const loginKrill = async () => {
-    krillLoginActive.current = true;
+    const attempt = Symbol();
+    krillLoginActive.current = attempt;
     setKrillLoginPending(true);
     setKrillLoginError(null);
     try {
       const result = await api.quotaKrillLogin(tool);
-      if (!krillLoginActive.current) return;
+      if (krillLoginActive.current !== attempt) return;
+      setQuotaAddress(quotaBaseUrl);
       setQuota((q) => ({ ...(q ?? { refreshMinutes: 15 }), adapter: "krill", krillJwt: result.credential }));
       setKrillDetected(result.detected);
       toast.success(t("editor.krillLoginSuccess"));
     } catch (error) {
-      if (krillLoginActive.current) setKrillLoginError(errorMessage(error));
+      if (krillLoginActive.current === attempt) setKrillLoginError(errorMessage(error));
     } finally {
-      if (krillLoginActive.current) setKrillLoginPending(false);
-      krillLoginActive.current = false;
+      if (krillLoginActive.current === attempt) {
+        setKrillLoginPending(false);
+        krillLoginActive.current = null;
+      }
     }
   };
+  useEffect(() => {
+    setKrillDetected(null);
+    setKrillLoginError(null);
+    if (krillLoginActive.current) {
+      krillLoginActive.current = null;
+      setKrillLoginPending(false);
+      void api.quotaKrillLoginCancel().catch(() => {});
+    }
+  }, [quotaBaseUrl]);
   const [routes, setRoutes] = useState(() => routesOf(source));
   const [apply, setApply] = useState(false);
   const [checkModel, setCheckModel] = useState("");
@@ -282,8 +301,6 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
   const loginOptions = useMemo(() => loginChoices(logins, accounts, loginSource, t), [logins, accounts, loginSource, t]);
   const showRoutes = tool === "claude-desktop" && !official;
   const routesOk = !showRoutes || routeErrors(routes).every((e) => e === null);
-  const connection = readConnection(tool, text, official);
-  const ready = connection.state === "ready" ? connection : null;
   const connectionFields = ready?.fields.filter((f) => f.group === "connection") ?? [];
   const modelFields = ready?.fields.filter((f) => f.group === "models" && !(tool === "grokbuild" && f.id === "contextWindow" && shortcuts.length > 0)) ?? [];
 
@@ -634,32 +651,20 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
           title={t("editor.quotaTitle")}
           hint={t("editor.quotaHint")}
           aside={
-            <Button type="button" size="sm" variant="outline" disabled={saving || krillLoginPending || !parsed.ok} onClick={() => quota?.adapter === "krill" && !quota.krillJwt ? void loginKrill() : setDetecting(true)}>
+            <Button type="button" size="sm" variant="outline" disabled={saving || krillLoginPending || !parsed.ok || quota?.adapter === "off"} onClick={() => quota?.adapter === "krill" && !quota.krillJwt ? void loginKrill() : setDetecting(true)}>
               {t(quota?.adapter === "krill" && !quota.krillJwt ? "editor.krillLogin" : "editor.quotaDetect")}
             </Button>
           }
         >
           <div className="grid gap-x-3 gap-y-4 sm:grid-cols-2">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="pe-quota-adapter">{t("editor.quotaAdapter")}</Label>
-              <NativeSelect
-                id="pe-quota-adapter"
-                disabled={krillLoginPending}
-                value={quota?.adapter ?? ""}
-                onChange={(e) => {
-                  const adapter = e.target.value as QuotaSettings["adapter"] | "";
-                  setQuota((q) => {
-                    const next: QuotaSettings = { ...(q ?? { refreshMinutes: 0 }) };
-                    if (adapter) next.adapter = adapter;
-                    else delete next.adapter;
-                    return next;
-                  });
-                }}
-              >
-                <option value="">{t("editor.quotaAdapterUnset")}</option>
-                {RELAY_ADAPTERS.map((adapter) => <option key={adapter} value={adapter}>{adapterName(adapter)}</option>)}
-                <option value="off">{t("editor.quotaAdapterOff")}</option>
-              </NativeSelect>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="pe-quota-enabled" className="flex items-center gap-2">
+                <Checkbox id="pe-quota-enabled" checked={quota?.adapter !== "off"} disabled={krillLoginPending} onCheckedChange={(enabled) => setQuota((q) => ({ ...(q ?? { refreshMinutes: 0 }), adapter: enabled ? undefined : "off" }))} />
+                {t("editor.quotaEnabled")}
+              </Label>
+              <p role="status" className="text-xs leading-5 text-muted-foreground">
+                {quota?.adapter === "off" ? t("editor.quotaAdapterOff") : quota?.adapter ? t("editor.quotaAdapted", { platform: adapterName(quota.adapter) }) : t("editor.quotaAutomatic")}
+              </p>
             </div>
             {quota?.adapter !== "off" && (
               <div className="flex flex-col gap-1.5">
@@ -682,6 +687,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
               <div className="flex flex-col gap-1.5 sm:col-span-2">
                 <p className="text-sm font-medium">{t(quota.krillJwt ? "editor.krillConnected" : "editor.krillNotConnected")}</p>
                 <p className="text-xs leading-5 text-muted-foreground">{t("editor.krillLoginHint")}</p>
+                {navigator.platform.startsWith("Mac") && <Note>{t("editor.krillPasskeyLimit")}</Note>}
                 {krillLoginPending ? <div className="flex items-center gap-2 text-sm" role="status">
                   <Loader2 className="size-4 animate-spin" /> {t("editor.krillLoginWaiting")}
                   <Button type="button" size="sm" variant="ghost" onClick={() => void api.quotaKrillLoginCancel().catch((error) => setKrillLoginError(errorMessage(error)))}>{t("common.cancel")}</Button>
@@ -733,7 +739,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
           quotaPerUsd={quota?.quotaPerUsd}
           krill={quota?.adapter === "krill" ? { jwt: quota.krillJwt, providerId: provider?.id } : undefined}
           account={quota?.adapter !== "krill" && quota?.accountToken ? { settings: quota, providerId: provider?.id } : undefined}
-          onUse={(adapter) => setQuota((q) => ({ ...(q ?? { refreshMinutes: 0 }), adapter }))}
+          onUse={(adapter) => { setQuotaAddress(quotaBaseUrl); setQuota((q) => ({ ...(q ?? { refreshMinutes: 0 }), adapter })); }}
           onClose={() => setDetecting(false)}
         />
       )}
