@@ -100,6 +100,9 @@ pub struct QuotaSettings {
     /// 兼容要求 New-Api-User 请求头的旧版 NewAPI。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub account_user_id: Option<u64>,
+    /// Optional same-origin prefix; explicit selection skips automatic root probing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub query_base_url: Option<String>,
 }
 
 impl QuotaSettings {
@@ -122,8 +125,37 @@ impl QuotaSettings {
             .unwrap_or(DEFAULT_QUOTA_PER_USD)
     }
 
-    /// 保存前检查：已识别平台、刷新间隔、换算比例和用户 ID。
+    /// Resolve an explicit same-origin prefix without changing the model connection.
+    pub(crate) fn query_address(&self, model: &Url) -> Result<QueryAddress, String> {
+        let Some(base) = self
+            .query_base_url
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+        else {
+            return Ok(model.into());
+        };
+        let mut url = parse_query_base(base)?;
+        if origin(&url) != origin(model) || is_krill_address(model) {
+            return Err(
+                "额度查询基址必须与模型地址同源 / Query base must share the model URL's origin"
+                    .into(),
+            );
+        }
+        url.set_path(&format!("{}/", url.path().trim_end_matches('/')));
+        Ok(QueryAddress::Explicit(url))
+    }
+
+    /// 保存前检查：平台、刷新间隔、换算比例、用户 ID 和查询基址。
     pub fn validate(&self) -> Result<(), String> {
+        if let Some(base) = self
+            .query_base_url
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+        {
+            parse_query_base(base)?;
+        }
         if self.account_user_id == Some(0) {
             return Err("用户 ID 必须大于 0 / User ID must be positive".into());
         }
@@ -170,14 +202,77 @@ pub(crate) fn query_base(address: &Url) -> Url {
     base
 }
 
-fn endpoints(adapter: RelayAdapter, address: &Url) -> Vec<Url> {
+fn parse_query_base(value: &str) -> Result<Url, String> {
+    let invalid = || {
+        "额度查询基址必须是无凭据、查询参数或片段的 HTTP(S) 地址 / Query base must be an HTTP(S) URL without credentials, query or fragment".to_string()
+    };
+    let url = Url::parse(value).map_err(|_| invalid())?;
+    if !matches!(url.scheme(), "http" | "https")
+        || url.host_str().is_none()
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+        || value.chars().any(|c| c.is_whitespace() || c.is_control())
+    {
+        return Err(invalid());
+    }
+    Ok(url)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum QueryAddress {
+    Automatic(Url),
+    Explicit(Url),
+}
+impl From<&Url> for QueryAddress {
+    fn from(url: &Url) -> Self {
+        Self::Automatic(url.clone())
+    }
+}
+impl From<&QueryAddress> for QueryAddress {
+    fn from(value: &QueryAddress) -> Self {
+        value.clone()
+    }
+}
+impl QueryAddress {
+    fn url(&self) -> &Url {
+        match self {
+            Self::Automatic(url) | Self::Explicit(url) => url,
+        }
+    }
+    fn cache_base(&self) -> Url {
+        match self {
+            Self::Automatic(url) => query_base(url),
+            Self::Explicit(url) => url.clone(),
+        }
+    }
+    pub(crate) fn cache_key(&self, secret: &str) -> String {
+        let key = source_key(&self.cache_base(), secret);
+        match self {
+            Self::Automatic(_) => key,
+            Self::Explicit(_) => format!("{key}:explicit"),
+        }
+    }
+}
+
+fn endpoints(adapter: RelayAdapter, address: impl Into<QueryAddress>) -> Vec<Url> {
     if adapter == RelayAdapter::Krill {
         return vec![Url::parse(KRILL_URL).expect("static Krill URL")];
     }
     path_endpoints(address, adapter.path())
 }
 
-fn path_endpoints(address: &Url, path: &str) -> Vec<Url> {
+fn path_endpoints(address: impl Into<QueryAddress>, path: &str) -> Vec<Url> {
+    let address = address.into();
+    let address = match &address {
+        QueryAddress::Explicit(base) => {
+            return vec![base
+                .join(path.trim_start_matches('/'))
+                .expect("static quota path")]
+        }
+        QueryAddress::Automatic(url) => url,
+    };
     let root = origin(address).join(path).expect("static quota path");
     let prefixed = query_base(address)
         .join(path.trim_start_matches('/'))
@@ -255,12 +350,13 @@ fn get_with_user(
 pub(crate) fn fetch(
     client: &Client,
     adapter: RelayAdapter,
-    address: &Url,
+    address: impl Into<QueryAddress>,
     key: &str,
     per_usd: f64,
     now_ms: i64,
 ) -> Result<QuotaSnapshot, Failure> {
-    let urls = endpoints(adapter, address);
+    let address = address.into();
+    let urls = endpoints(adapter, &address);
     let mut result = fetch_at(client, adapter, urls[0].clone(), key, per_usd, now_ms);
     if result.as_ref().is_err_and(try_next_endpoint) && urls.len() > 1 {
         result = fetch_at(client, adapter, urls[1].clone(), key, per_usd, now_ms);
@@ -370,15 +466,16 @@ pub(crate) fn detect_krill(client: &Client, jwt: &str, now_ms: i64) -> QuotaDete
 /// 依次试各平台的额度接口，认出一个就停。
 pub(crate) fn detect(
     client: &Client,
-    address: &Url,
+    address: impl Into<QueryAddress>,
     key: &str,
     per_usd: f64,
     now_ms: i64,
 ) -> (Vec<DetectStep>, Option<(RelayAdapter, QuotaSnapshot)>) {
+    let address = address.into();
     let mut steps = Vec::new();
     let mut found = None;
     for adapter in RelayAdapter::ALL {
-        let urls = endpoints(adapter, address);
+        let urls = endpoints(adapter, &address);
         if found.is_some() {
             steps.push(DetectStep {
                 adapter,
@@ -611,7 +708,7 @@ fn parse_newapi(v: &Value, per_usd: f64, now_ms: i64) -> Option<QuotaSnapshot> {
 pub(crate) struct RelayCard {
     pub user: QuotaUser,
     pub key: String,
-    pub address: Url,
+    pub address: QueryAddress,
     pub secret: String,
     pub adapter: Option<RelayAdapter>,
     pub per_usd: f64,
@@ -658,6 +755,11 @@ pub(crate) fn relay_cards(
                     crate::probe::address_and_key(*tool, &p.settings_config)?;
                 (address, model_key)
             };
+            let address = if adapter == Some(RelayAdapter::Krill) {
+                QueryAddress::Automatic(address)
+            } else {
+                settings.query_address(&address).ok()?
+            };
             Some(RelayCard {
                 user: QuotaUser {
                     tool: *tool,
@@ -668,9 +770,9 @@ pub(crate) fn relay_cards(
                 key: if account_query {
                     account::key(&address, &secret, settings.account_user_id)
                 } else if adapter == Some(RelayAdapter::Krill) {
-                    source_key(&origin(&address), &secret)
+                    source_key(&origin(address.url()), &secret)
                 } else {
-                    source_key(&query_base(&address), &secret)
+                    address.cache_key(&secret)
                 },
                 address,
                 secret,
@@ -706,7 +808,7 @@ pub(crate) fn relay_sources(
         sources.push(QuotaSource {
             key: card.key.clone(),
             kind: QuotaKind::Relay,
-            label: card.address.host_str().map(str::to_string),
+            label: card.address.url().host_str().map(str::to_string),
             account_id: None,
             login: None,
             adapter: card.adapter,

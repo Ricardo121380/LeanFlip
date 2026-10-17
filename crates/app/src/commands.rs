@@ -143,9 +143,10 @@ pub async fn quota_detect(
     tool: Tool,
     settings_config: serde_json::Value,
     quota_per_usd: Option<f64>,
+    query_base_url: Option<String>,
 ) -> ApiResult<leanflip_service::quota::relay::QuotaDetect> {
     let result = blocking(&state, move |s| {
-        s.quota_detect(tool, &settings_config, quota_per_usd)
+        s.quota_detect_with_base(tool, &settings_config, quota_per_usd, query_base_url)
     })
     .await;
     crate::tray::rebuild(&app);
@@ -598,6 +599,46 @@ pub async fn save_common_config(
 ) -> ApiResult<OpResult> {
     mutating(&app, &state, move |s| {
         s.save_common_config(tool, &revision, config)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn credential_commands(
+    state: State<'_, AppState>,
+    tool: Tool,
+    settings_config: serde_json::Value,
+) -> ApiResult<leanflip_core::command_trust::CommandPreview> {
+    blocking(&state, move |service| {
+        service.credential_commands(tool, &settings_config)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn approve_credential_commands(
+    state: State<'_, AppState>,
+    tool: Tool,
+    settings_config: serde_json::Value,
+    fingerprint: String,
+) -> ApiResult<()> {
+    blocking(&state, move |service| {
+        service.approve_credential_commands(tool, &settings_config, &fingerprint)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn claude_onboarding_path(state: State<'_, AppState>) -> ApiResult<std::path::PathBuf> {
+    blocking(&state, |service| Ok(service.claude_onboarding_path())).await
+}
+#[tauri::command]
+pub async fn complete_claude_onboarding(
+    state: State<'_, AppState>,
+    expected_path: std::path::PathBuf,
+) -> ApiResult<leanflip_service::service::OpResult> {
+    blocking(&state, move |service| {
+        service.complete_claude_onboarding(&expected_path)
     })
     .await
 }

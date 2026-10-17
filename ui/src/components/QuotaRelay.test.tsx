@@ -295,3 +295,18 @@ describe("Relay usage lookup in the provider editor", () => {
     expect(screen.queryByRole("heading", { name: "额度查询" })).not.toBeInTheDocument();
   });
 });
+
+it("uses and saves an explicit quota prefix without changing the model connection", async () => {
+  const { backend } = mount(relay, { quota_detect: () => found, update_provider: () => ({ changed: [], warnings: [] }) });
+  await userEvent.type(screen.getByLabelText("额度查询基址（可选）"), "https://gw.example.com/billing/");
+  await userEvent.click(screen.getByRole("button", { name: "查询额度" }));
+  const dialog = await screen.findByRole("dialog", { name: "识别 公司网关 的额度接口" });
+  await within(dialog).findByRole("button", { name: "完成" });
+  expect(backend.calls.find((call) => call.cmd === "quota_detect")?.args).toMatchObject({ queryBaseUrl: "https://gw.example.com/billing/", settingsConfig: relay.settingsConfig });
+  await userEvent.click(within(dialog).getByRole("button", { name: "完成" }));
+  await userEvent.click(screen.getByRole("button", { name: "保存" }));
+  await screen.findByText("Editor closed");
+  const saved = backend.calls.find((call) => call.cmd === "update_provider")?.args?.provider as Provider;
+  expect(saved.meta?.leanflipQuota).toMatchObject({ queryBaseUrl: "https://gw.example.com/billing/" });
+  expect(saved.settingsConfig).toEqual(relay.settingsConfig);
+});

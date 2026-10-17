@@ -49,6 +49,19 @@ fn codex_auth_sources_remain_separate_from_native_login() {
                 Provider::new("native", "Native", json!({"auth":{},"config":""})).official(),
             );
             sandbox.add(Tool::Codex,Provider::new("gateway","Gateway",json!({"auth":{},"config":format!("model_provider='test-route'\n[model_providers.test-route]\nbase_url='https://example.invalid/v1'\nwire_api='responses'\n{credential}\n")})));
+            if credential.starts_with("auth") {
+                use leanflip_core::command_trust;
+                let data = store::load_readonly(&sandbox.env).unwrap();
+                let settings = &data
+                    .provider(Tool::Codex, "gateway")
+                    .unwrap()
+                    .settings_config;
+                let review = command_trust::preview(&sandbox.env, Tool::Codex, settings).unwrap();
+                assert!(!review.approved);
+                assert!(switch::switch(&sandbox.env, Tool::Codex, "gateway").is_err());
+                command_trust::approve(&sandbox.env, Tool::Codex, settings, &review.fingerprint)
+                    .unwrap();
+            }
             store::set_current(&sandbox.env, Tool::Codex, "native").unwrap();
             switch::switch(&sandbox.env, Tool::Codex, "gateway").unwrap();
             let config = sandbox.read(&sandbox.env.codex_config_path());

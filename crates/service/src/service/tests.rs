@@ -781,3 +781,23 @@ fn deleting_a_card_settles_its_pending_activation_first() {
     assert!(data.provider(Tool::Claude, "b").is_some());
     assert_eq!(data.current(Tool::Claude).unwrap().id, "b");
 }
+
+#[test]
+fn corrupt_settings_stop_startup_before_recovery_or_default_path_writes() {
+    let sb = Sandbox::new();
+    let env = sb.env();
+    sb.write(&settings::path(&env.data_dir), "{truncated-secret");
+    sb.write(&env.claude_settings_path(), "{\"model\":\"keep\"}");
+    assert!(Service::start(env.clone(), None).is_err());
+    assert!(Service::open(env.clone(), None).is_err());
+    assert_eq!(
+        std::fs::read_to_string(env.claude_settings_path()).unwrap(),
+        "{\"model\":\"keep\"}"
+    );
+    assert!(!env.device_store().state_path().exists());
+    assert!(!env.codex_dir.exists());
+    assert_eq!(
+        std::fs::read_to_string(settings::path(&env.data_dir)).unwrap(),
+        "{truncated-secret"
+    );
+}

@@ -269,6 +269,10 @@ fn gemini_cards(env: &Env) -> Result<(Vec<Provider>, String), AppError> {
         false,
     );
     if projection.env.is_empty() {
+        let mut official = official;
+        if let Some(model) = &projection.model_name {
+            official.settings_config["config"] = json!({"model": {"name": model}});
+        }
         return Ok((vec![official], OFFICIAL_ID.to_string()));
     }
     let env_row: serde_json::Map<String, Value> = projection

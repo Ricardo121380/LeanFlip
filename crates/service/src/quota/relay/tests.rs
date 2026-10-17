@@ -638,6 +638,7 @@ fn service_detects_configures_shares_one_source_and_refreshes() {
         krill_jwt: None,
         account_token: None,
         account_user_id: None,
+        query_base_url: None,
     };
     service
         .quota_configure(Tool::Claude, "corp", Some(settings.clone()))
@@ -846,4 +847,75 @@ fn auto_refresh_runs_only_when_a_card_interval_has_passed() {
     // 失败后也要等满一个间隔，不会每分钟重试。
     assert!(!service.quota_refresh_due().unwrap());
     assert_eq!(seen.lock().unwrap().len(), 2);
+}
+
+#[test]
+fn explicit_query_base_is_used_for_detection_refresh_and_isolated_cache() {
+    let (host, seen) = serve(vec![
+        (200, "", sub2api_limited().to_string()),
+        (200, "", sub2api_limited().to_string()),
+    ]);
+    let (_dir, env) = sandbox();
+    let service = Service::open(env.clone(), None).unwrap();
+    let config = json!({"env":{"ANTHROPIC_BASE_URL":format!("{host}/models/v1"),"ANTHROPIC_AUTH_TOKEN":"fixture-model-key"}});
+    let base = format!("{host}/billing/v1/"); // An explicit /v1 is part of the prefix, not stripped.
+    let found = service
+        .quota_detect_with_base(Tool::Claude, &config, None, Some(base.clone()))
+        .unwrap();
+    assert_eq!(found.adapter, Some(RelayAdapter::Sub2api));
+    let mut card = Provider::new("explicit", "Explicit", config);
+    card.meta.extra.insert(
+        META_QUOTA.into(),
+        json!({"adapter":"sub2api","refreshMinutes":0,"queryBaseUrl":base}),
+    );
+    service
+        .add_provider(Tool::Claude, card.clone(), false)
+        .unwrap();
+    let cards = relay_cards(&[(Tool::Claude, &card)], &|_, _| false);
+    assert_eq!(Some(cards[0].key.clone()), found.key);
+    let default_key = source_key(
+        &query_base(&Url::parse(&format!("{host}/models/v1")).unwrap()),
+        "fixture-model-key",
+    );
+    assert_ne!(cards[0].key, default_key);
+    let view = service.quota_refresh(None).unwrap();
+    assert!(view.sources[0].error.is_none());
+    let requests = seen.lock().unwrap();
+    assert_eq!(requests.len(), 2);
+    assert!(requests
+        .iter()
+        .all(|request| request[0].starts_with("GET /billing/v1/v1/usage ")));
+}
+
+#[test]
+fn explicit_query_base_rejects_other_origins_and_credential_bearing_urls() {
+    let model = Url::parse("https://example.com/models/v1").unwrap();
+    for base in [
+        "https://other.example/billing",
+        "http://example.com/billing",
+        "https://user:secret@example.com/",
+        "https://example.com/?token=secret",
+        "https://example.com/#secret",
+        "file:///tmp/quota",
+    ] {
+        let settings = QuotaSettings {
+            query_base_url: Some(base.into()),
+            ..Default::default()
+        };
+        assert!(settings.query_address(&model).is_err(), "{base}");
+    }
+    let settings = QuotaSettings {
+        query_base_url: Some("https://example.com/billing/".into()),
+        ..Default::default()
+    };
+    let explicit = settings.query_address(&model).unwrap();
+    assert_eq!(
+        endpoints(RelayAdapter::Newapi, &explicit)[0].as_str(),
+        "https://example.com/billing/api/usage/token/"
+    );
+    assert_ne!(
+        explicit.cache_key("fixture"),
+        QueryAddress::Automatic(Url::parse("https://example.com/billing/").unwrap())
+            .cache_key("fixture")
+    );
 }

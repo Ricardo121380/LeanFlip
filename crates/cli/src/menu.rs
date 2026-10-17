@@ -76,6 +76,7 @@ fn tool_label(summary: &ToolSummary, lang: Language) -> String {
 
 #[derive(Debug, PartialEq, Eq)]
 enum ProviderAction {
+    Create,
     Switch(String),
     SetEnabled(String, bool),
     Current,
@@ -152,6 +153,10 @@ fn provider_items(list: &ToolProviders, lang: Language) -> Vec<Item> {
         });
     }
     items.extend([
+        Item {
+            label: lang.text("新建供应商", "Create provider").into(),
+            action: ProviderAction::Create,
+        },
         Item {
             label: lang
                 .text(
@@ -333,6 +338,7 @@ impl Menu<'_> {
                         self.execute(Command::Provider { action: crate::args::ProviderCommand::Edit { tool: tool.into(), provider_id:list.providers[index].id.clone() } })?;
                     }
                 },
+                ProviderAction::Create => self.execute(Command::Provider { action: crate::args::ProviderCommand::Create { tool: tool.into() } })?,
                 ProviderAction::Paths => self.execute(Command::Paths { tool: Some(tool.into()) })?,
                 ProviderAction::Back => return Ok(()),
             }
@@ -595,6 +601,7 @@ mod tests {
         assert_eq!(
             actions,
             [
+                ProviderAction::Create,
                 ProviderAction::Import,
                 ProviderAction::Paths,
                 ProviderAction::Back

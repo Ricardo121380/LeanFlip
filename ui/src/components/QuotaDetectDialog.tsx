@@ -39,6 +39,7 @@ export function QuotaDetectDialog({
   name,
   settingsConfig,
   quotaPerUsd,
+  queryBaseUrl,
   krill,
   account,
   onUse,
@@ -49,6 +50,7 @@ export function QuotaDetectDialog({
   name: string;
   settingsConfig: Record<string, unknown>;
   quotaPerUsd?: number;
+  queryBaseUrl?: string;
   krill?: { jwt?: string; providerId?: string };
   account?: { settings: QuotaSettings; providerId?: string };
   onUse: (adapter: RelayAdapter) => void | Promise<void>;
@@ -61,7 +63,7 @@ export function QuotaDetectDialog({
   const opener = useRef(document.activeElement instanceof HTMLElement ? document.activeElement : null);
   const detect = useQuery({
     queryKey: [krill ? "quota-krill-detect" : "quota-detect", queryId],
-    queryFn: () => krill ? api.quotaKrillDetect(tool, krill.jwt, krill.providerId) : account ? api.quotaAccountDetect(tool, settingsConfig, account.settings, account.providerId) : api.quotaDetect(tool, settingsConfig, quotaPerUsd),
+    queryFn: () => krill ? api.quotaKrillDetect(tool, krill.jwt, krill.providerId) : account ? api.quotaAccountDetect(tool, settingsConfig, account.settings, account.providerId) : api.quotaDetect(tool, settingsConfig, quotaPerUsd, queryBaseUrl),
     retry: false,
     gcTime: 0,
     staleTime: Infinity,

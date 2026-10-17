@@ -355,3 +355,29 @@ fn grok_invalid_card_is_refused_and_nothing_is_written() {
         .clone();
     assert!(switch::preflight(&data, Tool::GrokBuild, &bad).is_err());
 }
+
+#[test]
+fn gemini_imported_official_login_restores_its_model() {
+    let sb = Sandbox::new();
+    sb.write(&sb.env.gemini_settings_path(), r#"{"model":{"name":"official-model","maxSessionTurns":20},"security":{"auth":{"selectedType":"oauth-personal"}}}"#);
+    import_live(&sb.env, Tool::Gemini).unwrap();
+    let official = sb.current(Tool::Gemini).unwrap();
+    sb.add(
+        Tool::Gemini,
+        gemini(
+            "relay",
+            "https://example.invalid",
+            "fake-key",
+            "relay-model",
+        ),
+    );
+    switch::switch(&sb.env, Tool::Gemini, "relay").unwrap();
+    switch::switch(&sb.env, Tool::Gemini, &official).unwrap();
+    let settings = sb.json(&sb.env.gemini_settings_path());
+    assert_eq!(settings["model"]["name"], "official-model");
+    assert_eq!(settings["model"]["maxSessionTurns"], 20);
+    assert_eq!(
+        settings["security"]["auth"]["selectedType"],
+        "oauth-personal"
+    );
+}

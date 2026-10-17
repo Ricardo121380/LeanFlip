@@ -50,7 +50,7 @@ brew install --cask ricardo121380/leanflip/leanflip-app   # 桌面 App（macOS A
 brew install --cask ricardo121380/leanflip/leanflip       # 命令行与 TUI（macOS Apple Silicon、Linux x86_64）
 ```
 
-Homebrew 安装的 App 同样没有签名，第一次打开的处理方法见下文的“macOS 首次打开”。命令行如果第一次运行被拦下，执行 `xattr -d com.apple.quarantine "$(brew --prefix)/bin/leanflip"`。
+Homebrew 安装的 App 同样没有 Apple Developer ID 签名与公证，第一次打开的处理方法见下文的“macOS 首次打开”。命令行如果第一次运行被拦下，执行 `xattr -d com.apple.quarantine "$(brew --prefix)/bin/leanflip"`。
 
 ### 用 npm 安装
 
@@ -80,7 +80,7 @@ leanflip-app install   # 可选：下载并安装桌面 App
 同一页面的 `SHA256SUMS` 可用于校验下载：在下载目录执行 `shasum -a 256 -c SHA256SUMS --ignore-missing`（Linux 用 `sha256sum -c SHA256SUMS --ignore-missing`）。
 
 > [!WARNING]
-> **macOS 首次打开：** App 和命令行目前没有 Apple 签名与公证，第一次运行会被系统拦下。确认文件来自本项目 Releases 页面后：
+> **macOS 首次打开：** App 和命令行目前没有 Apple Developer ID 签名与公证，第一次运行会被系统拦下。确认文件来自本项目 Releases 页面后：
 >
 > - App：先打开一次，看到提示后进入“系统设置 → 隐私与安全性”，在页面下方点“仍要打开”。
 > - 命令行：在解压目录执行 `xattr -d com.apple.quarantine leanflip`，去掉下载隔离标记后再运行。
@@ -864,3 +864,21 @@ pnpm presets
 | [`Casks`](../Casks) / [`packages/npm`](../packages/npm) | Homebrew Cask 与 npm 安装器；配方和安装器元数据由发布脚本生成 |
 
 当前源码以 [MIT License](../LICENSE) 发布。实现依据、兼容边界及核查记录见[独立实现记录](engineering/independent-core.md)，保留的历史标识及原因见[兼容说明](engineering/compatibility.md)。早期 v0.1.0 发布包适用其随附的许可证与通知。第三方依赖适用各自的许可证。
+
+
+### 凭据脚本、恢复路径与首次启动
+
+包含 Claude `apiKeyHelper`、AWS/GCP 认证脚本或 Codex `auth.command` 的卡片，在写入客户端前需要本机授权。编辑卡片并保存可以查看、确认具体命令；CLI 使用 `leanflip provider trust-commands <tool> <id>` 预览。授权不随导入或备份迁移，命令及相关执行环境变化后需再次确认。
+
+完整备份的本机目录仍默认不恢复。选择恢复目录前，检查各工具的当前位置、目标位置、符号链接实际目标，以及位于用户目录之外的提示；后续切换可能向这些位置写入凭据。CLI 的 `--restore-paths` 需要配合本次预览返回的 `--confirm-paths` 指纹，目录变更后需重新预览。
+
+设置页的 Claude 首次启动操作只在确认后修改默认 `~/.claude.json` 的 `hasCompletedOnboarding`，不随切换自动执行。自定义 `CLAUDE_CONFIG_DIR` 需按实际客户端路径自行配置。CLI 对应 `leanflip claude-onboarding`（预览）和 `leanflip claude-onboarding --apply`（应用）。
+
+构建中的 macOS App 使用 ad-hoc 资源签名并校验完整性，用于避免资源封印缺失；这不等于 Developer ID 签名或 Apple 公证，不能据此保证 Gatekeeper 放行。
+
+
+### 中转额度查询基址
+
+卡片编辑器的“额度查询基址”允许指定 `meta.leanflipQuota.queryBaseUrl`，例如模型地址为 `https://example.com/models/v1`、额度服务在 `https://example.com/billing/`。填入 `https://example.com/billing/` 后，sub2api 查询 `/billing/v1/usage`，NewAPI 查询 `/billing/api/usage/token/`；独立用户令牌也使用相应前缀的账户接口。显式前缀原样保留，不会自动剥离其中的 `/v1`。
+
+留空时仍先查询根路径，失败后再尝试模型地址的子路径前缀。显式填写后只查询指定前缀。基址必须与模型地址同源（协议、主机、端口相同），不能包含 URL 用户名、密码、查询参数或片段；Krill 仍使用固定官网接口。不同查询基址独立缓存，不修改模型调用地址或密钥。

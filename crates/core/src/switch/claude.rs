@@ -107,6 +107,7 @@ pub fn write(
     op: &str,
     pending: PendingTarget,
 ) -> Result<OperationReport, AppError> {
+    crate::command_trust::require(env, Tool::Claude, target)?;
     validate(target)?;
     validate_capacity(target)?;
     let commit = |target: &PendingTarget| super::commit_target(env, Tool::Claude, target);
@@ -129,5 +130,27 @@ pub fn write(
             patch: &patch,
         }],
         pending,
+    )
+}
+
+/// Explicit one-shot onboarding action. Never called from provider switching.
+pub fn complete_onboarding(env: &Env) -> Result<OperationReport, AppError> {
+    use crate::live::patch::{json::JsonPatch, KeyPath};
+    let commit = |target: &PendingTarget| super::commit_target(env, Tool::Claude, target);
+    let transaction = AppWrite::begin(env.device_store(), Tool::Claude.as_str(), &commit)?;
+    let patch = JsonPatch {
+        set: vec![(
+            KeyPath::new(&["hasCompletedOnboarding"]),
+            serde_json::json!(true),
+        )],
+        ..Default::default()
+    };
+    transaction.run(
+        "claude-onboarding",
+        &[FileChange {
+            file: LiveFile::private(env.home.join(".claude.json")),
+            patch: &patch,
+        }],
+        PendingTarget::default(),
     )
 }

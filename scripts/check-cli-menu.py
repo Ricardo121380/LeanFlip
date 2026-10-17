@@ -253,7 +253,7 @@ def check(binary):
         with Terminal(binary, ["--home", str(home), "menu", "gemini"]) as terminal:
             terminal.expect("还没有供应商")
             terminal.expect("选择供应商或操作")
-            terminal.send("\r")
+            terminal.send("\x1b[B\r")
             terminal.expect("确认操作")
             terminal.send("\r")
             terminal.expect("已导入")
@@ -264,6 +264,39 @@ def check(binary):
         assert command(binary, home, ["list", "gemini", "--json"])["providers"]
         assert gemini.read_text() == "GEMINI_API_KEY=fixture-secret-do-not-print\n"
         print("PASS: empty-state import saves providers without changing the client")
+
+        wizard = Path(root) / "wizard"
+        wizard.mkdir()
+        for accept in (False, True):
+            with Terminal(binary, ["--home", str(wizard), "--lang", "en", "menu", "claude"]) as terminal:
+                terminal.expect("Choose a provider or action")
+                terminal.send("\r")
+                terminal.expect("Name")
+                terminal.send("Team Relay\r")
+                terminal.expect("team-relay")
+                terminal.send("\r")
+                terminal.expect("Base URL")
+                terminal.send("https://example.com/v1\r")
+                terminal.expect("API Key (hidden; optional)")
+                terminal.wait_secure_input()
+                terminal.send("fixture-wizard-hidden-key\r")
+                terminal.expect("Model (optional)")
+                terminal.send("fixture-model\r")
+                terminal.expect("Activate after saving?")
+                terminal.send("\r")
+                terminal.expect("Save provider?")
+                terminal.send("y" if accept else "\r")
+                terminal.expect("Provider created." if accept else "Cancelled; nothing changed.")
+                terminal.expect("Choose a provider or action")
+                terminal.send("\x1b")
+                terminal.expect("Choose a tool")
+                assert terminal.leave(english=True) == 0
+                assert b"fixture-wizard-hidden-key" not in terminal.output
+            if not accept: assert not list(wizard.iterdir()), "Cancelled creation wrote data"
+        cards = command(binary, wizard, ["list", "claude", "--json"])["providers"]
+        assert cards[0]["id"] == "team-relay" and not cards[0]["current"]
+        assert not (wizard / ".claude").exists()
+        print("PASS: menu creation generates editable IDs, masks keys, previews and saves without activation")
 
         empty = Path(root) / "empty"
         empty.mkdir()

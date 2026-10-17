@@ -16,6 +16,11 @@ pub(super) struct Draft {
     initial_url: String,
     pub key: String,
     pub clear_key: bool,
+    pub creating: bool,
+    pub id: String,
+    generated_id: String,
+    pub model: String,
+    pub activate: bool,
 }
 impl Draft {
     pub fn new(tool: Tool, provider: Provider) -> Self {
@@ -34,15 +39,81 @@ impl Draft {
             url,
             key: String::new(),
             clear_key: false,
+            creating: false,
+            id: String::new(),
+            generated_id: "custom".into(),
+            model: String::new(),
+            activate: false,
+        }
+    }
+    pub fn creation(tool: Tool) -> Self {
+        let mut draft = Self::new(tool, Provider::new("custom", "", serde_json::json!({})));
+        draft.creating = true;
+        draft.id = "custom".into();
+        draft.info.editable = true;
+        draft
+    }
+    pub fn suggest_id(&mut self) {
+        if self.creating && self.id == self.generated_id {
+            self.id = crate::creation::suggest_id(&self.name);
+            self.generated_id = self.id.clone();
         }
     }
     pub fn dirty(&self) -> bool {
+        if self.creating {
+            return !self.name.is_empty()
+                || !self.url.is_empty()
+                || !self.key.is_empty()
+                || !self.model.is_empty()
+                || self.id != "custom"
+                || self.activate;
+        }
         self.name != self.expected.name
             || self.url != self.initial_url
             || !self.key.is_empty()
             || self.clear_key
     }
     pub fn summary(&self, paths: &[std::path::PathBuf], lang: Language) -> String {
+        if self.creating {
+            return format!(
+                "{} · {}\n{}: {}\nID: {}\nBase URL: {}\nAPI Key: {}\n{}: {}\n{}\n{}",
+                menu::name(self.tool),
+                lang.text("新建供应商", "Create provider"),
+                lang.text("名称", "Name"),
+                clean(&self.name),
+                clean(&self.id),
+                safe_url(&self.url),
+                if self.key.is_empty() {
+                    lang.text("未配置", "Not set")
+                } else {
+                    lang.text("已输入（内容隐藏）", "Entered (hidden)")
+                },
+                lang.text("模型", "Model"),
+                if self.model.is_empty() {
+                    match self.tool {
+                        Tool::Codex => "gpt-5.5",
+                        Tool::GrokBuild => "grok-4.5",
+                        _ => lang.text("客户端默认 / 未设置", "Client default / not set"),
+                    }
+                } else {
+                    &self.model
+                },
+                if self.activate {
+                    lang.text("保存并立即启用，将写入：", "Save and activate; writes:")
+                } else {
+                    lang.text("仅保存卡片，不启用。", "Save the card without activation.")
+                },
+                if self.activate {
+                    paths
+                        .iter()
+                        .map(|p| clean(&p.display().to_string()))
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                } else {
+                    String::new()
+                }
+            );
+        }
         let endpoint = if self.url == self.initial_url {
             self.info
                 .base_url
@@ -61,6 +132,17 @@ impl Draft {
             lang.text("保存供应商；如果正在使用，会同步以下客户端配置。不会切换到未使用的供应商。", "Save the provider; if it is active, these client files are synchronized. Inactive providers are not activated."), paths.iter().map(|path|clean(&path.display().to_string())).collect::<Vec<_>>().join("\n"))
     }
     pub fn save(&mut self, service: &Service, lang: Language) -> Result<Output, CliError> {
+        if self.creating {
+            let result =
+                service.add_provider(self.tool, crate::creation::provider(self)?, self.activate)?;
+            self.key.clear();
+            return Ok(Output::operation(
+                result,
+                lang,
+                "供应商已创建。",
+                "Provider created.",
+            ));
+        }
         let update = ConnectionUpdate {
             name: self.name.clone(),
             base_url: (self.url != self.initial_url).then(|| self.url.trim().to_owned()),

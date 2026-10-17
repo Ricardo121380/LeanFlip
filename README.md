@@ -86,7 +86,7 @@ leanflip-app install   # 可选：同时安装桌面 App
 | Linux x86_64 | `.deb`（Ubuntu 24.04 构建） | `linux-x64.tar.gz` |
 
 > [!WARNING]
-> App 和命令行暂未做 Apple 签名与公证，macOS 首次运行会被拦下：App 到“系统设置 → 隐私与安全性”点“仍要打开”；命令行执行 `xattr -d com.apple.quarantine leanflip`。
+> App 和命令行暂未使用 Apple Developer ID 签名与公证，macOS 首次运行会被拦下：App 到“系统设置 → 隐私与安全性”点“仍要打开”；命令行执行 `xattr -d com.apple.quarantine leanflip`。
 
 源码构建、校验下载与升级卸载见[使用手册 · 安装](docs/guide.md#安装)。
 

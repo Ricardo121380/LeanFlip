@@ -12,7 +12,13 @@ use crate::{
     env::Env,
     error::AppError,
     fsutil,
-    live::engine::{lock_file, read_current},
+    live::{
+        engine::{digest, lock_file, read_current, LiveFile},
+        patch::{Guarded, WholeFile},
+    },
+    operation::{AppWrite, FileChange},
+    provider::Tool,
+    state::PendingTarget,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -300,7 +306,15 @@ impl CodexOAuthManager {
         Accounts::read(&self.store_path())
     }
     fn write_lock(&self) -> Result<std::fs::File, AppError> {
-        lock_file(&self.env.data_file("codex_oauth_auth.json.lock"), true)
+        let lock = lock_file(&self.env.data_file("codex_oauth_auth.json.lock"), true)?;
+        // Complete a previous deletion before another account mutation reads the store.
+        // High-level callers also hold the service lock, as for all client writes.
+        if crate::state::pending(&self.env.device_store(), Tool::Codex.as_str())?
+            .is_some_and(|pending| pending.op == "oauth-remove")
+        {
+            crate::switch::settle(&self.env, Tool::Codex)?;
+        }
+        Ok(lock)
     }
     fn save(&self, db: &mut Accounts) -> Result<(), AppError> {
         db.version = STORE_VERSION;
@@ -596,35 +610,65 @@ impl CodexOAuthManager {
         let db = Accounts::read(path)?;
         Ok((db.accounts.into_values().collect(), db.default_account_id))
     }
-    fn remove_from(&self, db: &mut Accounts, id: &str) -> Result<(), AppError> {
-        db.account(id)?;
-        crate::switch::settle(&self.env, crate::provider::Tool::Codex)?;
-        live::clear_live_for_account(&self.env, id)?;
-        db.accounts.remove(id);
-        self.save(db)?;
+    fn remove_accounts(&self, id: Option<&str>) -> Result<(), AppError> {
+        let _local = held(&self.serial);
+        let _disk = self.write_lock()?;
+        let commit =
+            |target: &PendingTarget| crate::switch::commit_target(&self.env, Tool::Codex, target);
+        let transaction = AppWrite::begin(self.env.device_store(), Tool::Codex.as_str(), &commit)?;
+        let before = read_current(&self.store_path())?;
+        let mut db = self.snapshot()?;
+        let ids = match id {
+            Some(id) => {
+                db.account(id)?;
+                vec![id.to_string()]
+            }
+            None => db.accounts.keys().cloned().collect(),
+        };
+        for id in &ids {
+            db.accounts.remove(id);
+        }
+        db.version = STORE_VERSION;
+        db.fix_default();
+        let store_patch = Guarded {
+            expected_pre: digest(before.as_deref()),
+            then: if id.is_none() {
+                WholeFile::Delete
+            } else {
+                WholeFile::Write(
+                    serde_json::to_vec_pretty(&db)
+                        .map_err(|source| AppError::JsonSerialize { source })?,
+                )
+            },
+        };
+        let live = live::prepare_account_removal(&self.env, &ids)?;
+        // Stage all files before publishing any. The account store is committed first;
+        // subsequent failures retain the existing journal for startup/retry recovery.
+        let mut changes = vec![FileChange {
+            file: LiveFile::private(self.store_path()),
+            patch: &store_patch,
+        }];
+        changes.extend(live.iter().map(|(file, patch)| FileChange {
+            file: file.clone(),
+            patch,
+        }));
+        transaction.run("oauth-remove", &changes, PendingTarget::default())?;
         let mut runtime = held(&self.runtime);
-        runtime.access.remove(id);
-        runtime
-            .devices
-            .retain(|_, attempt| attempt.target.as_deref() != Some(id));
+        runtime.access.retain(|account, _| !ids.contains(account));
+        runtime.devices.retain(|_, attempt| {
+            id.is_some()
+                && !attempt
+                    .target
+                    .as_ref()
+                    .is_some_and(|target| ids.contains(target))
+        });
         Ok(())
     }
     pub fn remove_account(&self, id: &str) -> Result<(), AppError> {
-        let _local = held(&self.serial);
-        let _disk = self.write_lock()?;
-        let mut db = self.snapshot()?;
-        self.remove_from(&mut db, id)
+        self.remove_accounts(Some(id))
     }
     pub fn clear_all(&self) -> Result<(), AppError> {
-        let _local = held(&self.serial);
-        let _disk = self.write_lock()?;
-        let mut db = self.snapshot()?;
-        for id in db.accounts.keys().cloned().collect::<Vec<_>>() {
-            self.remove_from(&mut db, &id)?;
-        }
-        fsutil::delete_file(&self.store_path())?;
-        held(&self.runtime).devices.clear();
-        Ok(())
+        self.remove_accounts(None)
     }
     fn observed(&self, db: &Accounts, id: &str) -> Result<Option<live::LiveRefresh>, AppError> {
         let account = db.account(id)?;
@@ -915,3 +959,6 @@ impl CodexOAuthManager {
         held(&self.runtime).access.clear();
     }
 }
+
+#[cfg(test)]
+mod removal_tests;

@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Input, NativeSelect } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { QueryState } from "@/components/QueryState";
 import { useAction, useSettings } from "@/hooks/queries";
 import { api, errorMessage, type AppSettings, type DirOverrides, type SettingsView } from "@/lib/api";
@@ -76,6 +77,13 @@ export function SettingsPage({ onLeaveStateChange }: { onLeaveStateChange?: (sta
       if (result.dirsChanged) toast.info(t("settings.dirsApplied"));
     },
   );
+  const [confirm, confirmDialog] = useConfirm();
+  const onboarding = useAction(async () => {
+    const path = await api.claudeOnboardingPath();
+    if (!await confirm({ title: t("settings.onboarding"), description: t("settings.onboardingConfirm", { path }), confirmLabel: t("settings.onboardingApply") })) return;
+    await api.completeClaudeOnboarding(path);
+    toast.success(t("settings.onboardingDone"));
+  });
   const dirty = form !== null && !sameDraft(form.draft, form.baseline);
 
   useEffect(() => {
@@ -220,7 +228,13 @@ export function SettingsPage({ onLeaveStateChange }: { onLeaveStateChange?: (sta
           </Card>
           <p className="break-all font-mono text-xs text-muted-foreground">{t("settings.dataDir", { path: data.dataDir })}</p>
         </section>
+        <section className="flex flex-col gap-2" aria-labelledby="claude-onboarding-title">
+          <h2 id="claude-onboarding-title" className="font-medium">{t("settings.onboarding")}</h2>
+          <p className="text-xs leading-relaxed text-muted-foreground">{t("settings.onboardingHint")}</p>
+          <Button type="button" variant="outline" className="self-start" disabled={onboarding.isPending} onClick={() => onboarding.mutate()}>{t("settings.onboardingApply")}</Button>
+        </section>
       </fieldset>
+      {confirmDialog}
       <p className="text-xs text-muted-foreground" aria-label={t("settings.version")}>LeanFlip v{version}</p>
 
       <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t bg-background py-4">

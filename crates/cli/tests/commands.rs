@@ -961,3 +961,56 @@ fn quota_reads_local_data_without_writes_and_refresh_reports_failures() {
     assert!(source["error"]["code"].is_string(), "{refreshed}");
     assert_eq!(source["snapshot"]["balance"]["remaining"], 12.3);
 }
+
+#[test]
+fn completions_work_for_all_shells_even_with_broken_settings_without_any_writes() {
+    let sb = Sandbox::new();
+    sb.write(
+        &sb.env.home.join(".cc-switch-lite/settings.json"),
+        "{broken",
+    );
+    let before = snapshot(&sb.env.home);
+    for shell in ["bash", "zsh", "fish", "powershell", "elvish"] {
+        let output = sb.run(&["completions", shell]);
+        assert!(
+            output.status.success(),
+            "{shell}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let script = String::from_utf8(output.stdout).unwrap();
+        assert!(
+            script.contains("leanflip") && script.contains("provider"),
+            "{shell}"
+        );
+    }
+    assert_eq!(snapshot(&sb.env.home), before);
+}
+
+#[test]
+fn onboarding_preview_does_not_write_and_apply_preserves_existing_preferences() {
+    let sb = Sandbox::new();
+    let path = sb.env.home.join(".claude.json");
+    sb.write(&path, r#"{"theme":"dark","hasCompletedOnboarding":false}"#);
+    let before = snapshot(&sb.env.home);
+    let preview = sb.ok(&["claude-onboarding", "--json"]);
+    assert_eq!(preview["path"], path.to_string_lossy().as_ref());
+    assert_eq!(snapshot(&sb.env.home), before);
+    sb.ok(&["claude-onboarding", "--apply", "--json"]);
+    let changed: Value = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+    assert_eq!(
+        changed,
+        json!({"theme":"dark","hasCompletedOnboarding":true})
+    );
+}
+
+#[test]
+fn creation_wizard_rejects_json_without_consuming_credentials_or_writing() {
+    let sb = Sandbox::new();
+    let before = snapshot(&sb.env.home);
+    let result = sb.run(&["provider", "create", "claude", "--json"]);
+    assert!(!result.status.success());
+    assert!(String::from_utf8(result.stderr)
+        .unwrap()
+        .contains("interactive_terminal"));
+    assert_eq!(snapshot(&sb.env.home), before);
+}

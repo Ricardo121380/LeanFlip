@@ -18,11 +18,10 @@ fn path(adapter: RelayAdapter) -> Option<&'static str> {
     }
 }
 
-pub(crate) fn key(address: &Url, token: &str, user_id: Option<u64>) -> String {
-    source_key(
-        &query_base(address),
-        &serde_json::to_string(&("account", token, user_id)).expect("string tuple"),
-    )
+pub(crate) fn key(address: impl Into<QueryAddress>, token: &str, user_id: Option<u64>) -> String {
+    address
+        .into()
+        .cache_key(&serde_json::to_string(&("account", token, user_id)).expect("string tuple"))
 }
 
 pub(crate) fn parse(
@@ -93,17 +92,18 @@ fn fetch_at(
 pub(crate) fn fetch(
     client: &Client,
     adapter: RelayAdapter,
-    address: &Url,
+    address: impl Into<QueryAddress>,
     token: &str,
     user_id: Option<u64>,
     per_usd: f64,
     now: i64,
 ) -> Result<QuotaSnapshot, Failure> {
+    let address = address.into();
     let path = path(adapter).ok_or(Failure {
         code: "format",
         status: None,
     })?;
-    let urls = path_endpoints(address, path);
+    let urls = path_endpoints(&address, path);
     let mut result = fetch_at(
         client,
         adapter,
@@ -129,15 +129,16 @@ pub(crate) fn fetch(
 
 pub(crate) fn detect(
     client: &Client,
-    address: &Url,
+    address: impl Into<QueryAddress>,
     token: &str,
     user_id: Option<u64>,
     per_usd: f64,
     now: i64,
 ) -> (Vec<DetectStep>, Option<(RelayAdapter, QuotaSnapshot)>) {
+    let address = address.into();
     let mut steps = Vec::new();
     for adapter in [RelayAdapter::Newapi, RelayAdapter::Sub2api] {
-        for url in path_endpoints(address, path(adapter).expect("account adapter")) {
+        for url in path_endpoints(&address, path(adapter).expect("account adapter")) {
             let result = fetch_at(client, adapter, url.clone(), token, user_id, per_usd, now);
             let (outcome, status, code) = match &result {
                 Ok(_) => (StepOutcome::Hit, Some(200), None),
@@ -327,7 +328,7 @@ mod tests {
         ]);
         let (_, found) = detect(
             &client,
-            &address.parse().unwrap(),
+            &address.parse::<Url>().unwrap(),
             "user-access",
             Some(9),
             500_000.0,
@@ -345,7 +346,7 @@ mod tests {
         assert!(fetch(
             &client,
             RelayAdapter::Newapi,
-            &address.parse().unwrap(),
+            &address.parse::<Url>().unwrap(),
             "user-access",
             None,
             500_000.0,
@@ -354,4 +355,32 @@ mod tests {
         .is_err());
         assert_eq!(seen.lock().unwrap().len(), 1);
     }
+}
+
+#[cfg(test)]
+#[test]
+fn explicit_account_base_uses_only_the_reviewed_prefix() {
+    let (host, seen) = crate::quota::test_server::serve(vec![(
+        200,
+        "",
+        serde_json::json!({"success":true,"data":{"quota":5_000_000}}).to_string(),
+    )]);
+    let settings = QuotaSettings {
+        query_base_url: Some(format!("{host}/account-center/")),
+        ..Default::default()
+    };
+    let address = settings
+        .query_address(&Url::parse(&format!("{host}/models/v1")).unwrap())
+        .unwrap();
+    let client = super::super::codex_remote::client().unwrap();
+    let (_, found) = detect(
+        &client,
+        &address,
+        "fixture-account-token",
+        Some(7),
+        500_000.0,
+        1,
+    );
+    assert_eq!(found.unwrap().0, RelayAdapter::Newapi);
+    assert!(seen.lock().unwrap()[0][0].starts_with("GET /account-center/api/user/self "));
 }

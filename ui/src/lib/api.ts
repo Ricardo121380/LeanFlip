@@ -218,6 +218,7 @@ export interface QuotaSettings {
   krillJwt?: string;
   accountToken?: string;
   accountUserId?: number;
+  queryBaseUrl?: string;
 }
 
 export interface DetectStep {
@@ -298,6 +299,8 @@ export interface BackupPreview {
   existingAccounts: number;
   hasSettings: boolean;
   hasPaths: boolean;
+  paths: { tool: ToolId; current: string[]; target: string[]; resolvedTarget: string[]; outsideHome: boolean }[];
+  pathsFingerprint: string;
   /** 备份里的场景个数。 */
   scenes?: number;
 }
@@ -307,6 +310,7 @@ export interface RestoreOptions {
   accounts: boolean;
   settings: boolean;
   paths: boolean;
+  pathsConfirmation?: string;
   /** 恢复备份里的场景（引用的供应商改了 ID 时跟着改）。 */
   scenes: boolean;
   duplicate: DuplicatePolicy;
@@ -518,6 +522,10 @@ export const api = {
   overview: () => invoke<ToolSummary[]>("get_overview"),
   listProviders: (tool: ToolId) => invoke<ToolProviders>("list_providers", { tool }),
   /** 配置里不会写入客户端的字段（目前只有 Claude 会过滤）。 */
+  claudeOnboardingPath: () => invoke<string>("claude_onboarding_path"),
+  completeClaudeOnboarding: (expectedPath: string) => invoke<OpResult>("complete_claude_onboarding", { expectedPath }),
+  credentialCommands: (tool: ToolId, settingsConfig: Record<string, unknown>) => invoke<{ commands: Record<string, unknown>; fingerprint: string; approved: boolean }>("credential_commands", { tool, settingsConfig }),
+  approveCredentialCommands: (tool: ToolId, settingsConfig: Record<string, unknown>, fingerprint: string) => invoke<void>("approve_credential_commands", { tool, settingsConfig, fingerprint }),
   ignoredFields: (tool: ToolId, settingsConfig: Record<string, unknown>) => invoke<string[]>("ignored_fields", { tool, settingsConfig }),
   // 以下三个会访问供应商，只在用户点击时调用。
   probeLatency: (tool: ToolId, settingsConfig: Record<string, unknown>) => invoke<ProbeResult>("probe_latency", { tool, settingsConfig }),
@@ -554,8 +562,8 @@ export const api = {
   /** 联网查询托管账号的额度；不传 `accounts` 查全部。 */
   quotaRefresh: (keys?: string[]) => invoke<QuotaView>("quota_refresh", { keys: keys ?? null }),
   /** 用这份配置里的地址和 Key 识别中转站平台（联网，只在用户点击时调用）。 */
-  quotaDetect: (tool: ToolId, settingsConfig: Record<string, unknown>, quotaPerUsd?: number) =>
-    invoke<QuotaDetect>("quota_detect", { tool, settingsConfig, quotaPerUsd: quotaPerUsd ?? null }),
+  quotaDetect: (tool: ToolId, settingsConfig: Record<string, unknown>, quotaPerUsd?: number, queryBaseUrl?: string) =>
+    invoke<QuotaDetect>("quota_detect", { tool, settingsConfig, quotaPerUsd: quotaPerUsd ?? null, ...(queryBaseUrl ? { queryBaseUrl } : {}) }),
   quotaKrillDetect: (tool: ToolId, jwt?: string, providerId?: string) =>
     invoke<QuotaDetect>("quota_krill_detect", { tool, jwt: jwt ?? null, providerId: providerId ?? null }),
   quotaKrillLogin: (tool: ToolId) => invoke<{ credential: string; detected: QuotaDetect }>("quota_krill_login", { tool }),

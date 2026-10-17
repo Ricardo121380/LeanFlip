@@ -248,6 +248,7 @@ pub fn run(
     prepared: &Prepared,
     pending: PendingTarget,
 ) -> Result<OperationReport, AppError> {
+    crate::command_trust::require(env, Tool::Codex, &planned.target)?;
     let commit = |target: &PendingTarget| super::commit_target(env, Tool::Codex, target);
     let transaction = AppWrite::begin(env.device_store(), Tool::Codex.as_str(), &commit)?;
     if &crate::store::load(env)? != data {

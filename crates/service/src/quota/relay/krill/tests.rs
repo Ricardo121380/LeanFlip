@@ -185,7 +185,7 @@ fn settings_preserve_hidden_jwt_without_changing_model_credentials() {
     );
     let cards = relay_cards(&[(Tool::Claude, stored)], &|_, _| true);
     assert_eq!(cards[0].secret, "test-login-jwt");
-    assert_eq!(cards[0].address.as_str(), KRILL_URL);
+    assert_eq!(cards[0].address.url().as_str(), KRILL_URL);
     assert!(!cards[0].key.contains("test-login-jwt"));
     // 关闭查询只停用，不删除已连接账户；重新开启不需要再登录。
     for adapter in ["off", "krill"] {
@@ -312,7 +312,7 @@ fn base_url_adapts_krill_and_never_uses_model_or_account_keys_as_login() {
     let cards = relay_cards(&[(Tool::Claude, &card)], &|_, _| false);
     assert_eq!(cards[0].adapter, Some(RelayAdapter::Krill));
     assert_eq!(cards[0].secret, "login-only");
-    assert_eq!(cards[0].address.as_str(), KRILL_URL);
+    assert_eq!(cards[0].address.url().as_str(), KRILL_URL);
     assert!(!cards[0].account_query);
     let dir = tempfile::tempdir().unwrap();
     let service = Service::start(Env::with_home(dir.path()), None).unwrap();
@@ -335,5 +335,5 @@ fn a_non_krill_url_does_not_inherit_the_previous_krill_account() {
     let cards = relay_cards(&[(Tool::Claude, &card)], &|_, _| false);
     assert_eq!(cards[0].adapter, None);
     assert_eq!(cards[0].secret, "model-key");
-    assert_eq!(cards[0].address.host_str(), Some("other.example"));
+    assert_eq!(cards[0].address.url().host_str(), Some("other.example"));
 }

@@ -180,6 +180,7 @@ export function quotaSettingsOf(provider?: Provider): QuotaSettings | null {
   if (value.adapter === "sub2api" || value.adapter === "newapi" || value.adapter === "krill" || value.adapter === "off") settings.adapter = value.adapter;
   if (typeof value.quotaPerUsd === "number" && value.quotaPerUsd > 0) settings.quotaPerUsd = value.quotaPerUsd;
   if (typeof value.krillJwt === "string") settings.krillJwt = value.krillJwt;
+  if (typeof value.queryBaseUrl === "string" && value.queryBaseUrl.trim()) settings.queryBaseUrl = value.queryBaseUrl.trim();
   if (typeof value.accountToken === "string") settings.accountToken = value.accountToken;
   if (typeof value.accountUserId === "number" && value.accountUserId > 0) settings.accountUserId = value.accountUserId;
   return settings;
@@ -189,9 +190,10 @@ export function quotaSettingsOf(provider?: Provider): QuotaSettings | null {
 export function applyQuotaSettings(provider: Provider, settings: QuotaSettings | null): Provider {
   const meta = { ...(provider.meta ?? {}) };
   delete meta[QUOTA_META];
-  if (settings && (settings.adapter || settings.refreshMinutes > 0 || settings.quotaPerUsd !== undefined || settings.accountToken)) {
+  if (settings && (settings.adapter || settings.refreshMinutes > 0 || settings.quotaPerUsd !== undefined || settings.accountToken || settings.queryBaseUrl)) {
     const value: QuotaSettings = { refreshMinutes: settings.refreshMinutes };
     if (settings.adapter) value.adapter = settings.adapter;
+    if (settings.adapter !== "krill" && settings.queryBaseUrl?.trim()) value.queryBaseUrl = settings.queryBaseUrl.trim();
     if (settings.quotaPerUsd !== undefined) value.quotaPerUsd = settings.quotaPerUsd;
     if ((settings.adapter === "krill" || settings.adapter === "off") && settings.krillJwt?.trim()) value.krillJwt = settings.krillJwt.trim();
     if (settings.adapter !== "krill" && settings.accountToken?.trim()) {

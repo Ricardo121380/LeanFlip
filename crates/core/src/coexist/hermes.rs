@@ -188,6 +188,10 @@ impl HermesPatch<'_> {
                 }
                 if let Some(index) = position {
                     for (key, value) in providers[index].as_object().into_iter().flatten() {
+                        // Credentials belong to the card: omission must clear the old key.
+                        if matches!(key.as_str(), "api_key" | "apiKey") {
+                            continue;
+                        }
                         entry
                             .as_object_mut()
                             .unwrap()
