@@ -68,6 +68,11 @@ jobs:
           npm pack ./packages/npm --ignore-scripts --pack-destination "$RUNNER_TEMP/npm-package"
           npm install --global --prefix "$RUNNER_TEMP/npm-prefix" "$RUNNER_TEMP"/npm-package/*.tgz --ignore-scripts --no-audit --no-fund
           echo "$RUNNER_TEMP/npm-prefix/bin" >> "$GITHUB_PATH"
+      - name: Select menu smoke test for the pinned release
+        run: |
+          version="$(node --input-type=module -e "import { manifest } from './packages/npm/lib/distribution.js'; if (!/^\d+\.\d+\.\d+$/.test(manifest.version)) throw new Error('Invalid release version'); console.log(manifest.version)")"
+          git fetch --no-tags --depth=1 origin "refs/tags/v$version"
+          git show FETCH_HEAD:scripts/check-cli-menu.py > "$RUNNER_TEMP/check-cli-menu.py"
       - name: Verify the installed native CLI and terminal menu
         run: |
           "$PACKAGE_CLI" --version
@@ -75,7 +80,7 @@ jobs:
           test ! -e "$RUNNER_TEMP/leanflip-smoke"
           "$PACKAGE_APP" --help
           if [ "$PACKAGE_CLI" = leanflip ]; then
-            python3 scripts/check-cli-menu.py --binary "$RUNNER_TEMP/npm-prefix/bin/$PACKAGE_CLI"
+            python3 "$RUNNER_TEMP/check-cli-menu.py" --binary "$RUNNER_TEMP/npm-prefix/bin/$PACKAGE_CLI"
           fi
       - name: Verify desktop download
         run: '"$PACKAGE_APP" download --output "$RUNNER_TEMP/desktop-package"'
