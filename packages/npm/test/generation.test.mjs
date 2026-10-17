@@ -64,8 +64,10 @@ test('installers extract the named CLI and show the matching product without dow
     await writeFile(join(fixture, 'package.json'), '{"type":"module"}');
     const executable = process.platform === 'win32' ? `${name}.exe` : name;
     await writeFile(join(fixture, 'native', executable), `#!/bin/sh\nprintf '${name}-fixture\\n'\n`, { mode: 0o755 });
-    const archive = `${name}.tar.gz`;
-    execFileSync('tar', ['-czf', join(fixture, archive), '-C', join(fixture, 'native'), executable]);
+    const windows = process.platform === 'win32';
+    const archive = `${name}.${windows ? 'zip' : 'tar.gz'}`;
+    const tar = windows ? join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe') : 'tar';
+    execFileSync(tar, [windows ? '-acf' : '-czf', join(fixture, archive), '-C', join(fixture, 'native'), executable]);
     const digest = createHash('sha256').update(await readFile(join(fixture, archive))).digest('hex');
     const cache = join(fixture, 'cache', 'leanflip', version, digest);
     await mkdir(cache, { recursive: true });

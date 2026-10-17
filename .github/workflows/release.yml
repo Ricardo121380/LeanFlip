@@ -98,6 +98,12 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: ./scripts/check-windows-package.ps1 -BundleDirectory target/release/bundle/nsis
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Windows' && always()
+        with:
+          name: windows-release-smoke
+          path: target/windows-smoke.png
+          if-no-files-found: ignore
       - name: Assemble release assets
         if: runner.os != 'Windows'
         env:

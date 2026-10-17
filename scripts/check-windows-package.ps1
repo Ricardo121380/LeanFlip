@@ -18,6 +18,8 @@ function Run-Installer([string]$Path, [string[]]$Arguments) {
 }
 
 $previousHome = $env:LEANFLIP_HOME
+$previousLocal = $env:LOCALAPPDATA
+$previousWebviewArgs = $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS
 try {
     # /D must be the last NSIS argument; spaces are part of the directory value.
     Run-Installer $installers[0].FullName @('/S', "/D=$installDir")
@@ -26,6 +28,8 @@ try {
     $version = (Get-Content package.json | ConvertFrom-Json).version
     if ((Get-Item $binary).VersionInfo.ProductVersion -ne $version) { throw 'Installed version mismatch' }
     $env:LEANFLIP_HOME = $fixtureHome
+    $env:LOCALAPPDATA = Join-Path $fixtureHome 'AppData/Local'
+    $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=9230'
     # Do not inherit tool-specific directories from the runner's environment.
     foreach ($name in @('CODEX_HOME', 'HERMES_HOME', 'PI_CODING_AGENT_DIR', 'MINIMAX_DATA_DIR', 'MAVIS_DATA_DIR')) {
         Remove-Item "Env:$name" -ErrorAction SilentlyContinue
@@ -44,10 +48,14 @@ try {
         $app.Refresh()
         if ($app.HasExited -or -not $app.Responding) { throw 'Desktop is not responding' }
         Write-Output "Installed desktop $version opened a responding LeanFlip window"
+        node scripts/check-windows-webview.mjs 9230 $fixtureHome
+        if ($LASTEXITCODE -ne 0) { throw 'Installed WebView smoke failed' }
     } finally {
         if (-not $app.HasExited) { Stop-Process -Id $app.Id -Force }
         $app.WaitForExit()
     }
+    $env:LOCALAPPDATA = $previousLocal
+    $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = $previousWebviewArgs
     Run-Installer $installers[0].FullName @('/S', "/D=$installDir")
     if (-not (Test-Path $binary)) { throw 'Upgrade removed the executable' }
     $uninstaller = Join-Path $installDir 'uninstall.exe'
@@ -60,5 +68,7 @@ try {
     Write-Output 'Windows install, startup, replacement and uninstall passed; user data preserved'
 } finally {
     $env:LEANFLIP_HOME = $previousHome
+    $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = $previousWebviewArgs
+    $env:LOCALAPPDATA = $previousLocal
     Remove-Item $root -Recurse -Force -ErrorAction SilentlyContinue
 }

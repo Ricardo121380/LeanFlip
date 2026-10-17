@@ -54,7 +54,7 @@ Homebrew 安装的 App 同样没有 Apple Developer ID 签名与公证，第一�
 
 ### 用 npm 安装
 
-需要 Node.js 20 或更新版本，支持 macOS Apple Silicon 和 Linux x86_64：
+需要 Node.js 20 或更新版本，支持 Windows 10 / 11 x64、macOS Apple Silicon 和 Linux x86_64：
 
 ```sh
 npm install -g leanflip
@@ -62,7 +62,7 @@ leanflip --version
 leanflip-app install   # 可选：下载并安装桌面 App
 ```
 
-第一次运行 `leanflip` 时会从本项目 Releases 下载对应版本的原生程序，并按包内固定的 SHA256 校验。`leanflip-app install` 在 macOS 上默认装到 `~/Applications`，在 Linux 上调用 `apt` 安装 DEB。更多选项见 [npm 包说明](../packages/npm/README.md)。
+第一次运行 `leanflip` 时会从本项目 Releases 下载对应版本的原生程序，并按包内固定的 SHA256 校验。`leanflip-app install` 在 macOS 上默认装到 `~/Applications`，在 Linux 上调用 `apt` 安装 DEB，在 Windows 上打开当前用户安装向导。更多选项见 [npm 包说明](../packages/npm/README.md)。
 
 ### 下载安装包
 
@@ -70,9 +70,12 @@ leanflip-app install   # 可选：下载并安装桌面 App
 
 | 平台 | 桌面 App | 命令行与 TUI |
 | --- | --- | --- |
+| Windows 10 / 11 x64 | `leanflip_版本_windows-x64-setup.exe` | `leanflip_版本_windows-x64.zip` |
 | macOS Apple Silicon（M 系列） | `leanflip_版本_macos-arm64.dmg` | `leanflip_版本_macos-arm64.tar.gz` |
 | Linux x86_64（Ubuntu 24.04 构建） | `leanflip_版本_linux-x64.deb` | `leanflip_版本_linux-x64.tar.gz` |
 
+- **Windows App**：运行 `windows-x64-setup.exe`，默认安装到 `%LOCALAPPDATA%\LeanFlip`。安装向导提供中文和英文，缺少 WebView2 时会联网下载运行时；安装完成后从开始菜单打开。
+- **Windows CLI / TUI**：解压 ZIP，在 PowerShell / Windows Terminal 运行 `./leanflip.exe` 或 `./leanflip.exe tui`；希望在任意目录运行时，把解压目录加入当前用户的 PATH。原生程序不需要 Node.js。
 - **macOS App**：打开 `.dmg`，把 `LeanFlip.app` 拖入“应用程序”。
 - **Linux App**：在下载目录执行 `sudo apt install ./leanflip_版本_linux-x64.deb`，依赖由包管理器安装。其他发行版尚未验证。
 - **命令行**：解压 `.tar.gz` 后得到 `leanflip`，直接运行 `./leanflip`，或按下文放进 `~/.local/bin`。命令行不需要 Node.js 或桌面 App。
@@ -84,6 +87,8 @@ leanflip-app install   # 可选：下载并安装桌面 App
 >
 > - App：先打开一次，看到提示后进入“系统设置 → 隐私与安全性”，在页面下方点“仍要打开”。
 > - 命令行：在解压目录执行 `xattr -d com.apple.quarantine leanflip`，去掉下载隔离标记后再运行。
+
+Windows 可执行 `Get-FileHash .\leanflip_版本_windows-x64-setup.exe -Algorithm SHA256`，与 `SHA256SUMS` 中对应条目比较；ZIP 同样校验。Windows 安装包暂未代码签名，可能触发 SmartScreen。当前发布的是 x64 原生程序，不提供 ARM64 或 32 位构建。
 
 ### 构建命令行与 TUI
 
@@ -103,6 +108,8 @@ mkdir -p "$HOME/.local/bin"
 install -m 755 target/release/leanflip "$HOME/.local/bin/leanflip"
 export PATH="$HOME/.local/bin:$PATH"
 ```
+
+Windows 可运行 `cargo install --path crates/cli --locked`，二进制安装到 `%USERPROFILE%\.cargo\bin`；Rust 工具链需选择 MSVC，并安装 Visual Studio Build Tools 的“使用 C++ 的桌面开发”与 Windows SDK。
 
 上面的 `export` 只对当前终端生效。要让新终端也能找到命令，把 `export PATH="$HOME/.local/bin:$PATH"` 加入 Shell 启动文件，例如 zsh 的 `~/.zshrc` 或交互式 bash 的 `~/.bashrc`。
 
@@ -125,9 +132,14 @@ CI=true pnpm tauri build --ci --bundles app,dmg -- --locked
 
 # Linux：生成 DEB
 pnpm tauri build --ci --bundles deb -- --locked
+
+# Windows（PowerShell / cmd）：生成 NSIS 安装程序
+pnpm tauri build --ci --bundles nsis -- --locked
 ```
 
-产物位于 `target/release/bundle/`。macOS 上把 `LeanFlip.app` 拖入“应用程序”即可；Linux 使用 `sudo apt install ./生成的文件.deb`。
+Windows 桌面构建还需要 WebView2 运行时，构建工具要求见 [Tauri Windows 前置条件](https://v2.tauri.app/start/prerequisites/#windows)。
+
+产物位于 `target/release/bundle/`，Windows 安装程序在其中的 `nsis/` 目录。macOS 上把 `LeanFlip.app` 拖入“应用程序”即可；Linux 使用 `sudo apt install ./生成的文件.deb`。
 
 ## 第一次使用
 
@@ -211,7 +223,7 @@ leanflip menu codex           # 在菜单中选择供应商
 - **macOS 通行密钥限制**：Krill 内嵌官网登录窗口暂不支持 LinuxDO 通行密钥，可使用 LinuxDO 密码或 Krill 邮箱验证码登录。已连接账户可继续查询；当前版本尚未实现系统浏览器授权后自动回到 LeanFlip。
 - 用户访问令牌和 Krill 登录凭据随卡片保存在本机供应商库（Unix 文件权限为 `0600`），未额外加密；读取卡片时只返回占位符，额度缓存和错误不含凭据。Krill 登录成功但尚未保存时，凭据仅留在后端内存，30 分钟后失效。复制卡片不复制隐藏的账户凭据；关闭“启用额度查询”并保存会保留连接，再次开启无需重新填写凭据。更换站点地址时需重新填写已保存的用户访问令牌。包含供应商库的备份也应按账号凭据保管。
 - 联网查询只在你点刷新、查询额度、完成 Krill 登录，或开启自动刷新时发生：中转卡在卡片上设置（每 15 分钟或每小时），托管 Codex 账号在设置里的“托管 Codex 账号自动刷新额度”设置。距上次结果（包括本机会话记录里的）满一个间隔才查，同一来源一分钟内最多查一次。结果缓存在 `~/.leanflip/quota-cache.json`，只有数字和来源标识，Key 只存哈希。
-- 设置里打开“在状态栏显示额度”后，macOS 菜单栏的 LeanFlip 图标旁会显示正在用的供应商里最紧张的一项；默认关闭。Linux 上是否显示取决于桌面面板。
+- 设置里打开“在状态栏显示额度”后，macOS 菜单栏的 LeanFlip 图标旁会显示正在用的供应商里最紧张的一项；默认关闭。Linux 上是否显示取决于桌面面板；Windows 悬停托盘图标可查看额度，详细额度在托盘菜单中。
 - 暂不支持 Claude 订阅额度和 Gemini CLI。
 - 命令行用 `leanflip quota` 查看同样的数据，默认只读本机记录和缓存；`leanflip quota --refresh` 联网查询一次，`--json` 输出完整结果。
 
@@ -622,7 +634,7 @@ leanflip paths codex
 | Codex | `~/.codex/config.toml`、`~/.codex/auth.json` |
 | Gemini CLI | `~/.gemini/.env`、`~/.gemini/settings.json` |
 | Grok Build | `~/.grok/config.toml` |
-| Claude Desktop | macOS 的 `~/Library/Application Support/Claude/` 和 `Claude-3p/`；Linux 的对应配置根目录下同名目录 |
+| Claude Desktop | macOS 的 `~/Library/Application Support/Claude/` 和 `Claude-3p/`；Windows 的 `%LOCALAPPDATA%` 下同名目录；Linux 的对应配置根目录下同名目录 |
 | OpenCode | `~/.config/opencode/opencode.jsonc`，已有该文件时优先；否则 `opencode.json` |
 | OpenClaw | `~/.openclaw/openclaw.json` |
 | Hermes | `~/.hermes/config.yaml` |
@@ -631,7 +643,9 @@ leanflip paths codex
 
 普通运行会遵循 `CODEX_HOME`、`HERMES_HOME`、`PI_CODING_AGENT_DIR`、`MINIMAX_DATA_DIR` / `MAVIS_DATA_DIR` 等已支持的路径环境变量，再应用 App 保存的目录覆盖。自定义配置目录时，建议在 App 中设置后运行 `leanflip paths` 核对。
 
-写入含凭据的客户端文件时，Unix 权限统一收紧到 `0600`；新建文件同样使用 `0600`。Gemini 的无凭据 `settings.json` 保留已有权限。原子写入会跟随文件及目录符号链接，在真实目标目录中暂存并替换目标，保留链接本身。
+Windows 中 `~` 对应 `%USERPROFILE%`，LeanFlip 数据位于 `%USERPROFILE%\.leanflip`；Hermes 默认使用 `%LOCALAPPDATA%\hermes`。设置里的自定义目录需填写完整盘符路径或 UNC 共享路径。Windows 原生客户端和 WSL 的配置目录彼此独立，请核对页面显示的路径。
+
+写入含凭据的客户端文件时，Unix 权限统一收紧到 `0600`；新建文件同样使用 `0600`。Windows 文件继承所在目录的 ACL，不等同于 Unix 的 `0600`，请把配置保存在受当前用户权限保护的目录。Gemini 的无凭据 `settings.json` 保留已有权限。原子写入会跟随文件及目录符号链接，在真实目标目录中暂存并替换目标，保留链接本身。
 
 Claude Code 的供应商只管理连接、鉴权、模型及已支持的供应商参数；`permissions`、`hooks`、`env.API_TIMEOUT_MS`、`env.DISABLE_TELEMETRY` 等字段保留客户端原值。保存、切换和导入预览会提示被忽略的字段名，不显示字段值。
 
@@ -792,8 +806,9 @@ cargo build --release --locked --bin leanflip
 > 卸载 App 或命令行不会自动还原已经写入客户端的配置。若希望回到官方或其他供应商，请在卸载前先完成切换。
 
 - Homebrew：`brew uninstall --cask ricardo121380/leanflip/leanflip-app ricardo121380/leanflip/leanflip`，不再需要时 `brew untap ricardo121380/leanflip`。
-- npm：`npm uninstall -g leanflip` 只移除命令；用 `leanflip-app` 装的 App 按下面 macOS / Linux 的方式删除，下载缓存在 `~/.cache/leanflip/`。
+- npm：`npm uninstall -g leanflip` 只移除命令；用 `leanflip-app` 装的 App 按下面 Windows / macOS / Linux 的方式删除，下载缓存在 `~/.cache/leanflip/`。
 - 命令行：删除自己安装的 `leanflip` 二进制，例如 `~/.local/bin/leanflip`。
+- Windows App：在“设置 → 应用 → 已安装的应用”中卸载 LeanFlip；独立 CLI 删除解压目录即可，用户配置保留。
 - macOS App：从“应用程序”中移除 LeanFlip。
 - Linux DEB：执行 `sudo apt remove lean-flip`（软件包名是 `lean-flip`）。
 
@@ -832,14 +847,14 @@ env -u CODEX_HOME -u HERMES_HOME -u PI_CODING_AGENT_DIR \
 
 演示目录包含假的供应商和账号，不能当作可用的在线服务凭据。
 
-终端界面的伪终端检查需要先构建命令行，只依赖 Python 3 标准库，使用临时 HOME：
+macOS / Linux 终端界面的伪终端检查需要先构建命令行，只依赖 Python 3 标准库，使用临时 HOME：
 
 ```sh
 python3 scripts/check-cli-menu.py --binary target/release/leanflip
 python3 scripts/check-cli-tui.py --binary target/release/leanflip
 ```
 
-- [检查工作流](../.github/workflows/ci.yml)：主分支 push 和 PR 时运行类型检查、前端测试、Rust 测试、Clippy，以及 Linux / macOS 桌面打包验证；命令行单独构建、检查并上传压缩包。
+- [检查工作流](../.github/workflows/ci.yml)：主分支 push 和 PR 时运行类型检查、前端测试、Rust 测试、Clippy，以及 Windows / Linux / macOS 桌面打包验证；命令行单独构建、检查并上传压缩包。
 - [发布工作流](../.github/workflows/release.yml)：版本标签触发正式 App / 命令行构建，校验版本与架构，生成 SHA256 文件并创建草稿 Release。
 - [分发维护说明](distribution.md)：Homebrew、npm 安装器和发布流程。
 

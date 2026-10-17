@@ -104,3 +104,9 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: ./scripts/check-windows-package.ps1 -BundleDirectory target/debug/bundle/nsis
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Windows' && always()
+        with:
+          name: windows-desktop-smoke
+          path: target/windows-smoke.png
+          if-no-files-found: ignore

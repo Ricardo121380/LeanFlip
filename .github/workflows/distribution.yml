@@ -3,9 +3,9 @@ name: Package managers
 on:
   push:
     branches: [main]
-    paths: ['packages/npm/**', 'Casks/**', 'scripts/prepare-distribution.mjs', '.github/workflows/distribution.yml', '.github/workflows/release.yml']
+    paths: ['packages/npm/**', 'Casks/**', 'scripts/prepare-distribution.mjs', 'scripts/check-windows-*.ps1', 'scripts/check-windows-*.mjs', '.github/workflows/distribution.yml', '.github/workflows/release.yml']
   pull_request:
-    paths: ['packages/npm/**', 'Casks/**', 'scripts/prepare-distribution.mjs', '.github/workflows/distribution.yml', '.github/workflows/release.yml']
+    paths: ['packages/npm/**', 'Casks/**', 'scripts/prepare-distribution.mjs', 'scripts/check-windows-*.ps1', 'scripts/check-windows-*.mjs', '.github/workflows/distribution.yml', '.github/workflows/release.yml']
   workflow_dispatch:
 
 permissions:

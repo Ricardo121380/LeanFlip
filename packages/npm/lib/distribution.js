@@ -90,7 +90,8 @@ export async function ensureCli() {
   try {
     // Extract only the expected member; never execute archive-provided scripts.
     // Windows ships bsdtar, which can also extract the Windows ZIP asset.
-    command('tar', ['-xf', archive, '-C', staging, executable]);
+    const tar = process.platform === 'win32' ? join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe') : 'tar';
+    command(tar, ['-xf', archive, '-C', staging, executable]);
     const extracted = join(staging, executable);
     const stat = await lstat(extracted);
     if (!stat.isFile() || stat.nlink !== 1) throw new Error(`The CLI archive does not contain a regular ${cliName} executable.`);
@@ -215,7 +216,7 @@ macOS ARM64: 默认安装到 ~/Applications，--app-dir 可指定绝对路径。
 Linux x64: install 使用 apt（普通用户通过 sudo）；系统会提示确认和密码。
 Windows x64: install 打开当前用户安装向导；path/open 使用默认的 %LOCALAPPDATA%\\${productName} 目录。
 Windows 安装包尚未做代码签名，首次运行可能显示 SmartScreen 提示。
-App 尚未做 Apple Developer ID 签名及公证。安装不会自动启动 App。
+macOS App 尚未做 Apple Developer ID 签名及公证。Windows 安装向导可选择完成后启动。
 文档 / Documentation: ${manifest.homepage}#readme`);
     return;
   }

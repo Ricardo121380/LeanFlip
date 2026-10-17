@@ -532,9 +532,18 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
         let Some(tray) = handle.tray_by_id(TRAY_ID) else {
             return;
         };
-        // Windows 不支持图标旁的文字；Linux 只在部分面板上显示。
+        // Windows uses the hover tooltip; macOS/Linux can show text beside the icon.
         if last.as_ref().map(|m| &m.title) != Some(&next.title) {
-            if let Err(err) = tray.set_title(next.title.as_deref()) {
+            let result = if cfg!(windows) {
+                let tooltip = next.title.as_ref().map_or_else(
+                    || "LeanFlip".to_owned(),
+                    |title| format!("LeanFlip · {title}"),
+                );
+                tray.set_tooltip(Some(tooltip))
+            } else {
+                tray.set_title(next.title.as_deref())
+            };
+            if let Err(err) = result {
                 log::warn!("tray title: {err}");
             }
         }
