@@ -149,6 +149,8 @@ def check(binary, entry=None):
         before = {str(p.relative_to(home)): p.read_bytes() for p in home.rglob('*') if p.is_file()}
         with Terminal([*args, 'menu', 'claude']) as terminal:
             terminal.expect('Fixture')
+            terminal.send('\x1b')
+            terminal.expect('Choose a tool')
             terminal.finish('\x1b')
         with Terminal([*args, 'menu', 'claude']) as terminal:
             terminal.expect('Fixture')
