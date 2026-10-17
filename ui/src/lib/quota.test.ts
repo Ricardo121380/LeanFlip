@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import i18n from "@/i18n";
 import type { Provider, QuotaSnapshot, QuotaView } from "./api";
-import { agoText, applyQuotaSettings, creditsText, errorText, meterWidth, moneyText, quotaBrief, quotaSettingsOf, resetText, sourceFor, sourcesByCard, windowLabel, windowLevel } from "./quota";
+import { agoText, applyQuotaSettings, creditsText, errorText, isKrillBaseUrl, meterWidth, moneyText, quotaBrief, quotaForAddress, quotaSettingsOf, resetText, sourceFor, sourcesByCard, windowLabel, windowLevel } from "./quota";
 
 describe("home quota brief", () => {
   const t = i18n.getFixedT("zh");
@@ -35,6 +35,31 @@ describe("home quota brief", () => {
 });
 
 describe("relay quota helpers", () => {
+  it("matches official Krill API hosts without accepting lookalikes or URL credentials", () => {
+    for (const host of ["api.krill-code.net", "api-slb.krill-code.net", "api-slb.krill-ai.net", "api.cdn-krill-ai.com", "api.krill-ai.com"]) {
+      expect(isKrillBaseUrl(`https://${host}:443/codex/v1`)).toBe(true);
+    }
+    for (const url of ["", "bad", "http://api.krill-code.net", "https://api.krill-code.net:444", "https://user@api.krill-code.net", "https://api.krill-code.net.evil.test", "https://evil.test/?krill-code.net", "https://other.krill-code.net"]) {
+      expect(isKrillBaseUrl(url)).toBe(false);
+    }
+  });
+
+  it("adapts from the URL and retains independent credentials without reusing a stale platform", () => {
+    const original = { adapter: "newapi" as const, refreshMinutes: 15, accountToken: "__leanflip_redacted__" };
+    expect(quotaForAddress(original, "https://iceberg.example/v1", "https://iceberg.example/v1")).toEqual(original);
+    expect(quotaForAddress(original, "https://different.example/v1", "https://iceberg.example/v1")).toEqual({ refreshMinutes: 15, accountToken: "__leanflip_redacted__" });
+    expect(quotaForAddress(null, "https://api.krill-code.net/codex/v1", "")).toEqual({ adapter: "krill", refreshMinutes: 0 });
+    expect(quotaForAddress({ adapter: "krill", refreshMinutes: 15, krillJwt: "hidden" }, "https://different.example/v1", "https://api.krill-code.net/codex/v1")).toEqual({ refreshMinutes: 15 });
+  });
+
+  it("turning checks off retains the account connection for later re-enabling", () => {
+    const card: Provider = { id: "r", name: "R", settingsConfig: {} };
+    for (const credential of [{ krillJwt: "hidden" }, { accountToken: "hidden", accountUserId: 7 }]) {
+      const off = { adapter: "off" as const, refreshMinutes: 15, ...credential };
+      expect(quotaSettingsOf(applyQuotaSettings(card, off))).toEqual(off);
+    }
+  });
+
   it("round-trips Krill settings and removes its JWT when the adapter changes", () => {
     const card: Provider = { id: "r", name: "R", settingsConfig: {} };
     const settings = { adapter: "krill" as const, refreshMinutes: 15, krillJwt: "test-login-jwt" };

@@ -150,6 +150,27 @@ export function adapterName(adapter: RelayAdapter): string {
   return { newapi: "NewAPI", sub2api: "sub2api", krill: "Krill" }[adapter];
 }
 
+/** Krill 使用固定官网账户；其他自部署平台查询同一 Base URL 的接口后识别。 */
+export function isKrillBaseUrl(address: string): boolean {
+  try {
+    const url = new URL(address.trim());
+    return url.protocol === "https:" && !url.username && !url.password && !url.port
+      && ["api.krill-code.net", "api-slb.krill-code.net", "api-slb.krill-ai.net", "api.cdn-krill-ai.com", "api.krill-ai.com"].includes(url.hostname);
+  } catch { return false; }
+}
+
+/** 已识别的平台只对识别时的地址有效，改地址后不能沿用旧平台。 */
+export function quotaForAddress(settings: QuotaSettings | null, address: string, detectedAddress: string): QuotaSettings | null {
+  if (settings?.adapter === "off") return settings;
+  const next = { ...(settings ?? { refreshMinutes: 0 }) };
+  if (isKrillBaseUrl(address)) next.adapter = "krill";
+  else {
+    delete next.krillJwt;
+    if (next.adapter === "krill" || address.trim() !== detectedAddress.trim()) delete next.adapter;
+  }
+  return settings || next.adapter ? next : null;
+}
+
 /** 卡片上的额度设置；没有或格式不对时为空。 */
 export function quotaSettingsOf(provider?: Provider): QuotaSettings | null {
   const raw = provider?.meta?.[QUOTA_META];
@@ -172,8 +193,8 @@ export function applyQuotaSettings(provider: Provider, settings: QuotaSettings |
     const value: QuotaSettings = { refreshMinutes: settings.refreshMinutes };
     if (settings.adapter) value.adapter = settings.adapter;
     if (settings.quotaPerUsd !== undefined) value.quotaPerUsd = settings.quotaPerUsd;
-    if (settings.adapter === "krill" && settings.krillJwt?.trim()) value.krillJwt = settings.krillJwt.trim();
-    if (settings.adapter !== "krill" && settings.adapter !== "off" && settings.accountToken?.trim()) {
+    if ((settings.adapter === "krill" || settings.adapter === "off") && settings.krillJwt?.trim()) value.krillJwt = settings.krillJwt.trim();
+    if (settings.adapter !== "krill" && settings.accountToken?.trim()) {
       value.accountToken = settings.accountToken.trim();
       if (settings.accountUserId !== undefined) value.accountUserId = settings.accountUserId;
     }

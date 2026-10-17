@@ -39,6 +39,24 @@ pub const DEFAULT_QUOTA_PER_USD: f64 = 500_000.0;
 const MAX_BODY: u64 = 4 * 1024 * 1024;
 pub(crate) const KRILL_URL: &str = "https://www.krill-code.com/api/subscription";
 
+/// 只识别已知官方模型入口，不用卡片名称、任意子域或 URL 中的字符串匹配。
+pub(crate) fn is_krill_address(url: &Url) -> bool {
+    url.scheme() == "https"
+        && url.port_or_known_default() == Some(443)
+        && url.username().is_empty()
+        && url.password().is_none()
+        && matches!(
+            url.host_str(),
+            Some(
+                "api.krill-code.net"
+                    | "api-slb.krill-code.net"
+                    | "api-slb.krill-ai.net"
+                    | "api.cdn-krill-ai.com"
+                    | "api.krill-ai.com"
+            )
+        )
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum RelayAdapter {
@@ -104,7 +122,7 @@ impl QuotaSettings {
             .unwrap_or(DEFAULT_QUOTA_PER_USD)
     }
 
-    /// 保存前检查：平台、刷新间隔、换算比例及 Krill 登录凭据。
+    /// 保存前检查：已识别平台、刷新间隔、换算比例和用户 ID。
     pub fn validate(&self) -> Result<(), String> {
         if self.account_user_id == Some(0) {
             return Err("用户 ID 必须大于 0 / User ID must be positive".into());
@@ -124,14 +142,7 @@ impl QuotaSettings {
         {
             return Err("quota per USD must be positive".into());
         }
-        if self.adapter() == Some(RelayAdapter::Krill)
-            && self
-                .krill_jwt
-                .as_deref()
-                .is_none_or(|jwt| jwt.trim().is_empty())
-        {
-            return Err("请先登录 Krill / Sign in to Krill first".into());
-        }
+        // 平台由地址自动识别；尚未登录也允许保存卡片，查询时再引导连接。
         Ok(())
     }
 }
@@ -622,7 +633,12 @@ pub(crate) fn relay_cards(
             if settings.adapter.as_deref() == Some("off") {
                 return None;
             }
-            let adapter = settings.adapter();
+            let model_address = account::address(*tool, p)?;
+            let adapter = if is_krill_address(&model_address) {
+                Some(RelayAdapter::Krill)
+            } else {
+                settings.adapter().filter(|a| *a != RelayAdapter::Krill)
+            };
             let account_token = settings
                 .account_token
                 .as_deref()

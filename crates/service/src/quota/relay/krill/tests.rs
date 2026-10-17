@@ -187,6 +187,32 @@ fn settings_preserve_hidden_jwt_without_changing_model_credentials() {
     assert_eq!(cards[0].secret, "test-login-jwt");
     assert_eq!(cards[0].address.as_str(), KRILL_URL);
     assert!(!cards[0].key.contains("test-login-jwt"));
+    // 关闭查询只停用，不删除已连接账户；重新开启不需要再登录。
+    for adapter in ["off", "krill"] {
+        service
+            .quota_configure(
+                Tool::Claude,
+                "krill",
+                Some(QuotaSettings {
+                    adapter: Some(adapter.into()),
+                    krill_jwt: Some(redact::PLACEHOLDER.into()),
+                    ..Default::default()
+                }),
+            )
+            .unwrap();
+        let data = store::load_readonly(&env).unwrap();
+        assert_eq!(
+            QuotaSettings::of(data.provider(Tool::Claude, "krill").unwrap())
+                .unwrap()
+                .krill_jwt
+                .as_deref(),
+            Some("test-login-jwt")
+        );
+        assert_eq!(
+            service.quota_overview().unwrap().sources.is_empty(),
+            adapter == "off"
+        );
+    }
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -218,7 +244,8 @@ fn settings_preserve_hidden_jwt_without_changing_model_credentials() {
                 ..Default::default()
             })
         )
-        .is_err());
+        .is_ok());
+    assert!(service.quota_overview().unwrap().sources.is_empty());
     service
         .quota_configure(Tool::Claude, "krill", None)
         .unwrap();
@@ -229,14 +256,18 @@ fn settings_preserve_hidden_jwt_without_changing_model_credentials() {
 
 #[test]
 fn same_krill_login_is_queried_once_across_model_endpoints() {
-    let mut a = Provider::new("a", "A", json!({}));
+    let mut a = Provider::new(
+        "a",
+        "A",
+        json!({"env":{"ANTHROPIC_BASE_URL":"https://api.krill-code.net/claude"}}),
+    );
     a.meta.extra.insert(
         META_QUOTA.into(),
         json!({"adapter":"krill","krillJwt":"test-login-jwt","refreshMinutes":15}),
     );
     let mut b = a.clone();
     b.id = "b".into();
-    b.settings_config = json!({"env":{"ANTHROPIC_BASE_URL":"https://different.invalid/v1","ANTHROPIC_AUTH_TOKEN":"other-model-key"}});
+    b.settings_config = json!({"auth":{"OPENAI_API_KEY":"other-model-key"},"config":"model_provider = \"krill\"\n[model_providers.krill]\nbase_url = \"https://api-slb.krill-ai.net/codex/v1\"\n"});
     let cards = relay_cards(&[(Tool::Claude, &a), (Tool::Codex, &b)], &|_, _| false);
     assert_eq!(cards.len(), 2);
     assert_eq!(cards[0].key, cards[1].key);
@@ -246,4 +277,63 @@ fn same_krill_login_is_queried_once_across_model_endpoints() {
     assert!(!serde_json::to_string(&sources)
         .unwrap()
         .contains("test-login-jwt"));
+}
+
+#[test]
+fn base_url_adapts_krill_and_never_uses_model_or_account_keys_as_login() {
+    for host in [
+        "api.krill-code.net",
+        "api-slb.krill-code.net",
+        "api-slb.krill-ai.net",
+        "api.cdn-krill-ai.com",
+        "api.krill-ai.com",
+    ] {
+        assert!(is_krill_address(
+            &Url::parse(&format!("https://{host}:443/codex/v1")).unwrap()
+        ));
+    }
+    for address in [
+        "http://api.krill-code.net",
+        "https://api.krill-code.net:444",
+        "https://user@api.krill-code.net",
+        "https://api.krill-code.net.evil.test",
+        "https://evil.test/?krill-code.net",
+        "https://other.krill-code.net",
+    ] {
+        assert!(!is_krill_address(&Url::parse(address).unwrap()));
+    }
+    let config = json!({"env":{"ANTHROPIC_BASE_URL":"https://api.krill-code.net/claude","ANTHROPIC_AUTH_TOKEN":"model-only"}});
+    let mut card = Provider::new("k", "K", config.clone());
+    assert!(relay_cards(&[(Tool::Claude, &card)], &|_, _| false).is_empty());
+    card.meta.extra.insert(
+        META_QUOTA.into(),
+        json!({"adapter":"newapi","accountToken":"account-only","krillJwt":"login-only"}),
+    );
+    let cards = relay_cards(&[(Tool::Claude, &card)], &|_, _| false);
+    assert_eq!(cards[0].adapter, Some(RelayAdapter::Krill));
+    assert_eq!(cards[0].secret, "login-only");
+    assert_eq!(cards[0].address.as_str(), KRILL_URL);
+    assert!(!cards[0].account_query);
+    let dir = tempfile::tempdir().unwrap();
+    let service = Service::start(Env::with_home(dir.path()), None).unwrap();
+    let result = service.quota_detect(Tool::Claude, &config, None).unwrap();
+    assert_eq!(result.error.as_deref(), Some("noKrillJwt"));
+    assert!(result.steps.is_empty());
+}
+
+#[test]
+fn a_non_krill_url_does_not_inherit_the_previous_krill_account() {
+    let mut card = Provider::new(
+        "k",
+        "Krill",
+        json!({"env":{"ANTHROPIC_BASE_URL":"https://other.example/v1","ANTHROPIC_AUTH_TOKEN":"model-key"}}),
+    );
+    card.meta.extra.insert(
+        META_QUOTA.into(),
+        json!({"adapter":"krill","krillJwt":"login-only"}),
+    );
+    let cards = relay_cards(&[(Tool::Claude, &card)], &|_, _| false);
+    assert_eq!(cards[0].adapter, None);
+    assert_eq!(cards[0].secret, "model-key");
+    assert_eq!(cards[0].address.host_str(), Some("other.example"));
 }

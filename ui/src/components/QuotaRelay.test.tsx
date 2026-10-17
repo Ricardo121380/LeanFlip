@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { StrictMode, useState } from "react";
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { fakeBackend, renderWithClient, type Handler } from "@/test/utils";
 import type { Provider, QuotaDetect } from "@/lib/api";
@@ -16,6 +16,7 @@ const relay: Provider = {
   name: "公司网关",
   settingsConfig: { env: { ANTHROPIC_BASE_URL: "https://gw.example.com", ANTHROPIC_AUTH_TOKEN: "sk-corp" } },
 };
+const krill: Provider = { ...relay, settingsConfig: { env: { ANTHROPIC_BASE_URL: "https://api.krill-code.net/codex/v1", ANTHROPIC_AUTH_TOKEN: "sk-corp" } } };
 const now = Date.now();
 const found: QuotaDetect = {
   steps: [
@@ -51,6 +52,44 @@ beforeEach(() => {
 });
 
 describe("Relay usage lookup in the provider editor", () => {
+  it("switches the connection UI by Base URL, with no editable platform selector", async () => {
+    const { backend } = mount({ ...relay, meta: { leanflipQuota: { adapter: "newapi", refreshMinutes: 15, accountToken: "__leanflip_redacted__" } } });
+    expect(screen.queryByLabelText("平台类型")).not.toBeInTheDocument();
+    expect(screen.getByText("已自动适配 NewAPI")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("请求地址"), { target: { value: "https://api-slb.krill-ai.net/codex/v1" } });
+    expect(screen.getByText("已自动适配 Krill")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "登录 Krill 获取额度" })).toBeEnabled();
+    expect(screen.queryByLabelText("用户访问令牌（可选）")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("请求地址"), { target: { value: "https://other.example/v1" } });
+    expect(screen.getByText("查询时自动识别当前 Base URL 的平台")).toBeInTheDocument();
+    expect(screen.getByLabelText("用户访问令牌（可选）")).toHaveValue("__leanflip_redacted__");
+    expect(backend.calls.some((c) => c.cmd.startsWith("quota_"))).toBe(false);
+  });
+
+  it("preserves a connected Krill account when checks are turned off and on", async () => {
+    mount({ ...krill, meta: { leanflipQuota: { adapter: "krill", refreshMinutes: 15, krillJwt: "__leanflip_redacted__" } } });
+    await userEvent.click(screen.getByRole("checkbox", { name: "启用额度查询" }));
+    expect(screen.getByRole("button", { name: "查询额度" })).toBeDisabled();
+    await userEvent.click(screen.getByRole("checkbox", { name: "启用额度查询" }));
+    expect(screen.getByText("已连接 Krill 账户")).toBeInTheDocument();
+    expect(screen.getByLabelText("自动刷新")).toHaveValue("15");
+  });
+
+  it("cancels sign-in on an address change and ignores a late completion", async () => {
+    let complete!: (result: unknown) => void;
+    const { backend } = mount(krill, {
+      quota_krill_login: () => new Promise((resolve) => { complete = resolve; }),
+      quota_krill_login_cancel: () => {},
+    });
+    await userEvent.click(screen.getByRole("button", { name: "登录 Krill 获取额度" }));
+    fireEvent.change(screen.getByLabelText("请求地址"), { target: { value: "https://other.example/v1" } });
+    expect(backend.calls.some((c) => c.cmd === "quota_krill_login_cancel")).toBe(true);
+    await act(async () => complete({ credential: "__leanflip_krill_login_late", detected: found }));
+    expect(screen.queryByText("已连接 Krill 账户")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "查询额度" })).toBeEnabled();
+    expect(screen.getByText("查询时自动识别当前 Base URL 的平台")).toBeInTheDocument();
+  });
+
   it("queries with a separate user access token and saves it without changing the model key", async () => {
     const account = { ...found, snapshot: { ...found.snapshot!, windows: [], balance: { unit: "USD", unlimited: false, accountRemaining: 123.45 } } };
     const { backend } = mount(relay, { quota_account_detect: () => account, update_provider: () => ({ changed: [], warnings: [] }) });
@@ -74,11 +113,12 @@ describe("Relay usage lookup in the provider editor", () => {
 
   it("lets users cancel website sign-in and retry without losing the existing card", async () => {
     let rejectLogin: (e: unknown) => void = () => {};
-    const { backend } = mount(relay, {
+    const { backend } = mount(krill, {
       quota_krill_login: () => new Promise((_resolve,reject) => { rejectLogin=reject; }),
       quota_krill_login_cancel: () => { rejectLogin(new Error("Krill 登录已取消")); },
     });
-    await userEvent.selectOptions(screen.getByLabelText("平台类型"), "krill");
+    expect(screen.queryByLabelText("平台类型")).not.toBeInTheDocument();
+    expect(screen.getByText("已自动适配 Krill")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "登录 Krill 获取额度" }));
     const status = await screen.findByText("等待完成官网登录…");
     expect(screen.getByRole("button", { name: "保存" })).toBeDisabled();
@@ -127,8 +167,9 @@ describe("Relay usage lookup in the provider editor", () => {
         fetchedAt: now, origin: "network", level: "ok", limitReached: false,
       },
     };
-    const { backend } = mount(relay, { quota_krill_login: () => ({ credential: "__leanflip_krill_login_test", detected: krillFound }), quota_krill_detect: () => krillFound, update_provider: () => ({ changed: [], warnings: [] }) });
-    await userEvent.selectOptions(screen.getByLabelText("平台类型"), "krill");
+    const { backend } = mount(krill, { quota_krill_login: () => ({ credential: "__leanflip_krill_login_test", detected: krillFound }), quota_krill_detect: () => krillFound, update_provider: () => ({ changed: [], warnings: [] }) });
+    expect(screen.queryByLabelText("平台类型")).not.toBeInTheDocument();
+    expect(screen.getByText("已自动适配 Krill")).toBeInTheDocument();
     expect(screen.queryByLabelText("Krill 登录 JWT")).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "登录 Krill 获取额度" }));
     await screen.findByText("已连接 Krill 账户");
@@ -151,12 +192,12 @@ describe("Relay usage lookup in the provider editor", () => {
     await userEvent.click(screen.getByRole("button", { name: "保存" }));
     await waitFor(() => expect(backend.calls.some((call) => call.cmd === "update_provider")).toBe(true));
     const saved = backend.calls.find((call) => call.cmd === "update_provider")!.args!.provider as Provider;
-    expect(saved.settingsConfig).toEqual(relay.settingsConfig);
+    expect(saved.settingsConfig).toEqual(krill.settingsConfig);
     expect(saved.meta?.leanflipQuota).toEqual({ adapter: "krill", refreshMinutes: 15, krillJwt: "__leanflip_krill_login_test" });
   });
 
   it("keeps a saved Krill credential hidden and explains how to replace an expired JWT", async () => {
-    const configured: Provider = { ...relay, meta: { leanflipQuota: { adapter: "krill", refreshMinutes: 0, krillJwt: "__leanflip_redacted__" } } };
+    const configured: Provider = { ...krill, meta: { leanflipQuota: { adapter: "krill", refreshMinutes: 0, krillJwt: "__leanflip_redacted__" } } };
     const { backend } = mount(configured, {
       quota_krill_detect: () => ({ steps: [{ adapter: "krill", url: "https://www.krill-code.com/api/subscription", outcome: "miss", status: 401, code: "krillAuth" }] }),
       update_provider: () => ({ changed: [], warnings: [] }),
@@ -168,17 +209,18 @@ describe("Relay usage lookup in the provider editor", () => {
     expect(await within(dialog).findByText("Krill 登录已过期或无权限，请在卡片额度设置中重新登录")).toBeInTheDocument();
     expect(within(dialog).queryByRole("button", { name: "使用 Krill" })).not.toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("button", { name: "取消" }));
-    await userEvent.selectOptions(screen.getByLabelText("平台类型"), "off");
+    await userEvent.click(screen.getByRole("checkbox", { name: "启用额度查询" }));
     await userEvent.click(screen.getByRole("button", { name: "保存" }));
     await waitFor(() => expect(backend.calls.some((call) => call.cmd === "update_provider")).toBe(true));
     const saved = backend.calls.find((call) => call.cmd === "update_provider")!.args!.provider as Provider;
-    expect(saved.meta?.leanflipQuota).toEqual({ adapter: "off", refreshMinutes: 0 });
+    expect(saved.meta?.leanflipQuota).toEqual({ adapter: "off", refreshMinutes: 0, krillJwt: "__leanflip_redacted__" });
   });
 
   it("detects the platform only when asked, shows what it found, and saves the choice on the card", async () => {
     const { backend } = mount(relay, { quota_detect: () => found, update_provider: () => ({ changed: [], warnings: [] }) });
     expect(screen.getByRole("heading", { name: "额度查询" })).toBeInTheDocument();
-    expect(screen.getByLabelText("平台类型")).toHaveValue("");
+    expect(screen.queryByLabelText("平台类型")).not.toBeInTheDocument();
+    expect(screen.getByText("查询时自动识别当前 Base URL 的平台")).toBeInTheDocument();
     expect(backend.calls.some((c) => c.cmd === "quota_detect")).toBe(false);
 
     await userEvent.click(screen.getByRole("button", { name: "查询额度" }));
@@ -202,7 +244,7 @@ describe("Relay usage lookup in the provider editor", () => {
     await userEvent.click(within(dialog).getByRole("button", { name: "完成" }));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "识别 公司网关 的额度接口" })).not.toBeInTheDocument());
     expect(screen.getByRole("button", { name: "查询额度" })).toHaveFocus();
-    expect(screen.getByLabelText("平台类型")).toHaveValue("newapi");
+    expect(screen.getByText("已自动适配 NewAPI")).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText("多少额度算 $1"), "1000000");
     expect(screen.getByLabelText("自动刷新")).toHaveValue("0");
     await userEvent.selectOptions(screen.getByLabelText("自动刷新"), "15");
@@ -240,9 +282,9 @@ describe("Relay usage lookup in the provider editor", () => {
   it("keeps an existing setting, can turn lookups off, and leaves official cards alone", async () => {
     const configured: Provider = { ...relay, meta: { leanflipQuota: { adapter: "sub2api", refreshMinutes: 0 } } };
     const { backend, unmount } = mount(configured, { update_provider: () => ({ changed: [], warnings: [] }) });
-    expect(screen.getByLabelText("平台类型")).toHaveValue("sub2api");
+    expect(screen.getByText("已自动适配 sub2api")).toBeInTheDocument();
     expect(screen.queryByLabelText("多少额度算 $1")).not.toBeInTheDocument();
-    await userEvent.selectOptions(screen.getByLabelText("平台类型"), "off");
+    await userEvent.click(screen.getByRole("checkbox", { name: "启用额度查询" }));
     await userEvent.click(screen.getByRole("button", { name: "保存" }));
     await waitFor(() => expect(backend.calls.some((c) => c.cmd === "update_provider")).toBe(true));
     const saved = backend.calls.find((c) => c.cmd === "update_provider")!.args!.provider as Provider;

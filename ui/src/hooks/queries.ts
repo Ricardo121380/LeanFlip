@@ -74,11 +74,12 @@ export function useSettings() {
 }
 
 /**
- * 数据变了：刷新除预设外的查询。`cancelRefetch: false` 让正在进行的请求直接复用，
+ * 数据变了：刷新持久数据查询，跳过预设和用户主动发起的额度探测。`cancelRefetch: false` 复用正在进行的请求，
  * 避免「操作完成 + 后端事件 + 文件监听」接连触发时反复取消重拉。
  */
 export function refreshAll(client: QueryClient) {
-  return client.invalidateQueries({ predicate: (q) => q.queryKey[0] !== "presets" }, { cancelRefetch: false });
+  // 用户主动打开的探测会写额度缓存；文件监听事件不能再次触发同一次探测。
+  return client.invalidateQueries({ predicate: (q) => !["presets", "quota-detect", "quota-krill-detect"].includes(String(q.queryKey[0])) }, { cancelRefetch: false });
 }
 
 /** 合并短时间内的多次调用，只在最后一次之后执行。 */
