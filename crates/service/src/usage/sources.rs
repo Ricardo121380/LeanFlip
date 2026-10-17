@@ -733,17 +733,47 @@ fn opencode_message(
     )
 }
 
+fn database_identity(path: &Path) -> Result<Value, String> {
+    let metadata = std::fs::metadata(path).map_err(text)?;
+    #[cfg(unix)]
+    let identity = {
+        use std::os::unix::fs::MetadataExt;
+        json!([metadata.dev(), metadata.ino()])
+    };
+    #[cfg(not(unix))]
+    let identity = json!(metadata
+        .created()
+        .ok()
+        .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
+        .map(|time| time.as_nanos().to_string()));
+    Ok(identity)
+}
+
 fn opencode_db(scan: &mut Scan, path: &Path) -> Result<(), String> {
     let key = format!("opencode:{}", path.display());
     let (size, mtime) = meta(path).unwrap_or_default();
     let progress = scan.progress(&key).map_err(text)?;
+    let identity = database_identity(path)?;
     let conn = open_readonly(path)?;
-    let mut stmt = conn
-        .prepare("SELECT id, time_created, time_updated, data FROM message WHERE time_updated > ?1 ORDER BY time_updated")
+    conn.execute_batch("BEGIN").map_err(text)?; // One read snapshot for the watermark and rows.
+    let max_updated: i64 = conn
+        .query_row(
+            "SELECT COALESCE(MAX(time_updated), 0) FROM message",
+            [],
+            |row| row.get(0),
+        )
         .map_err(text)?;
-    let mut rows = stmt.query([progress.offset]).map_err(text)?;
+    let replaced = progress.state != identity
+        || size < progress.size
+        || mtime < progress.mtime
+        || max_updated < progress.offset;
+    let offset = if replaced { 0 } else { progress.offset };
+    let mut stmt = conn
+        .prepare("SELECT id, time_created, time_updated, data FROM message WHERE time_updated >= ?1 ORDER BY time_updated")
+        .map_err(text)?;
+    let mut rows = stmt.query([offset]).map_err(text)?;
     let mut batch = Batch::default();
-    let mut latest = progress.offset;
+    let mut latest = offset;
     while let Some(row) = rows.next().map_err(text)? {
         let id: String = row.get(0).map_err(text)?;
         let created: i64 = row.get(1).map_err(text)?;
@@ -754,11 +784,14 @@ fn opencode_db(scan: &mut Scan, path: &Path) -> Result<(), String> {
             opencode_message(scan, &mut batch, &id, created, &m).map_err(text)?;
         }
     }
+    if database_identity(path)? != identity {
+        return Err("OpenCode database was replaced during the scan; retry".into());
+    }
     let progress = Progress {
         size,
         mtime,
         offset: latest,
-        state: Value::Null,
+        state: identity,
     };
     scan.commit(Tool::OpenCode, &key, &progress, batch)
         .map_err(text)

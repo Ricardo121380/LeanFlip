@@ -10,6 +10,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use tauri::{Emitter, Manager, WindowEvent};
+use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 use crate::service::Service;
 
@@ -144,10 +145,24 @@ pub fn run() {
             {
                 log::warn!("data directory migration skipped: {error}");
             }
-            let service = Arc::new(Service::start(
+            let service = match Service::start(
                 leanflip_core::Env::from_system(),
                 transport,
-            )?);
+            ) {
+                Ok(service) => Arc::new(service),
+                Err(error) => {
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.hide();
+                    }
+                    let handle = app.handle().clone();
+                    app.dialog()
+                        .message(format!("LeanFlip 无法安全启动，请修复下列文件后重试。\nLeanFlip could not start safely. Repair the file below and try again.\n\n{error}"))
+                        .title("LeanFlip")
+                        .kind(MessageDialogKind::Error)
+                        .show(move |_| handle.exit(1));
+                    return Ok(());
+                }
+            };
             app.manage(AppState(service.clone()));
             // 只放占位菜单，读取 Tool::ALL 的配置在托盘后台线程里做，不挡窗口显示。
             tray::create(app.handle())?;
@@ -182,6 +197,10 @@ pub fn run() {
             commands::save_common_config,
             commands::list_providers,
             commands::ignored_fields,
+            commands::claude_onboarding_path,
+            commands::complete_claude_onboarding,
+            commands::credential_commands,
+            commands::approve_credential_commands,
             commands::probe_latency,
             commands::probe_models,
             commands::probe_check,

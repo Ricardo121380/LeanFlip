@@ -6,7 +6,7 @@ import { BackupExport, BackupRestore } from "./BackupPanel";
 
 const backend = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: backend.invoke }));
-const preview = { createdAt: 100, items: [{ tool: "claude", id: "work", name: "Work", duplicate: false }], accounts: 2, existingAccounts: 1, hasSettings: true, hasPaths: true };
+const preview = { paths: [{ tool: "codex", current: ["/local/.codex/auth.json"], target: ["/external/codex/auth.json"], resolvedTarget: ["/external/codex/auth.json"], outsideHome: true }], pathsFingerprint: "fixture-paths-fingerprint", createdAt: 100, items: [{ tool: "claude", id: "work", name: "Work", duplicate: false }], accounts: 2, existingAccounts: 1, hasSettings: true, hasPaths: true };
 const restored = { providersAdded: 0, providersSkipped: 0, accountsAdded: 1, settingsRestored: true, dirsChanged: false, failures: [] };
 beforeEach(async () => {
   backend.invoke.mockReset();
@@ -97,4 +97,18 @@ it("shows backed-up scenes, restores them by default and reports the merge", asy
   await user.click(screen.getByRole("button", { name: "确认恢复所选内容" }));
   await waitFor(() => expect(fake.calls.find((call) => call.cmd === "backup_apply")?.args).toEqual({ options: { tools: [], accounts: false, settings: false, paths: false, scenes: true, duplicate: "skip" } }));
   expect(await screen.findByText("新增 1 个场景 · 跳过 1 个")).toBeInTheDocument();
+});
+
+it("shows concrete directory destinations and submits their reviewed fingerprint only when selected", async () => {
+  const fake = fakeBackend({ backup_load: () => preview, backup_apply: () => restored, backup_discard: () => null });
+  backend.invoke.mockImplementation(fake.invoke);
+  renderWithClient(<BackupRestore bytes={new Uint8Array()} fileName="fixture.leanflip" onBack={() => {}} />);
+  await userEvent.type(screen.getByLabelText("备份密码"), "fixture-password");
+  await userEvent.click(screen.getByRole("button", { name: "解密并预览" }));
+  const paths = await screen.findByRole("checkbox", { name: /同时恢复本机目录/ });
+  expect(screen.getByText(/\/external\/codex\/auth.json/)).toBeInTheDocument();
+  expect(paths).not.toBeChecked();
+  await userEvent.click(paths);
+  await userEvent.click(screen.getByRole("button", { name: "确认恢复所选内容" }));
+  await waitFor(() => expect(fake.calls.find((call) => call.cmd === "backup_apply")?.args).toMatchObject({ options: { paths: true, pathsConfirmation: "fixture-paths-fingerprint" } }));
 });

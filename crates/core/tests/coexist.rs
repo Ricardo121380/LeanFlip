@@ -511,3 +511,32 @@ fn first_write_backups_are_taken_for_coexist_files() {
         HERMES
     );
 }
+
+#[test]
+fn hermes_clearing_a_card_key_removes_live_credentials_but_preserves_preferences() {
+    let sb = Sandbox::new();
+    sb.write(&sb.env.hermes_config_path(), HERMES);
+    import_live(&sb.env, Tool::Hermes).unwrap();
+    let mut card = store::load(&sb.env)
+        .unwrap()
+        .provider(Tool::Hermes, "existing")
+        .unwrap()
+        .clone();
+    card.settings_config
+        .as_object_mut()
+        .unwrap()
+        .remove("api_key");
+    switch::update_provider(&sb.env, Tool::Hermes, card).unwrap();
+    let live: serde_yaml::Value =
+        serde_yaml::from_str(&sb.read(&sb.env.hermes_config_path())).unwrap();
+    let entry = &live["custom_providers"][0];
+    assert!(entry.get("api_key").is_none());
+    assert_eq!(entry["request_timeout_seconds"].as_u64(), Some(30));
+    assert!(store::load(&sb.env)
+        .unwrap()
+        .provider(Tool::Hermes, "existing")
+        .unwrap()
+        .settings_config
+        .get("api_key")
+        .is_none());
+}

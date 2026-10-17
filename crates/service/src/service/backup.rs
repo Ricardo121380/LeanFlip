@@ -102,6 +102,49 @@ pub struct BackupItem {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct BackupPath {
+    pub tool: Tool,
+    pub current: Vec<PathBuf>,
+    pub target: Vec<PathBuf>,
+    pub resolved_target: Vec<PathBuf>,
+    pub outside_home: bool,
+}
+
+fn directory_preview(base: &Env, current: &Env, overrides: &DirOverrides) -> Vec<BackupPath> {
+    let target = base.clone().with_overrides(overrides);
+    let home = std::fs::canonicalize(&base.home).unwrap_or_else(|_| base.home.clone());
+    Tool::ALL
+        .iter()
+        .map(|&tool| {
+            let paths = target.live_paths(tool);
+            let resolved_target: Vec<_> = paths
+                .iter()
+                .map(|path| {
+                    leanflip_core::fsutil::resolve_write_path(path).unwrap_or_else(|_| path.clone())
+                })
+                .collect();
+            let outside_home = resolved_target.iter().any(|path| !path.starts_with(&home));
+            BackupPath {
+                tool,
+                current: current.live_paths(tool),
+                target: paths,
+                resolved_target,
+                outside_home,
+            }
+        })
+        .collect()
+}
+fn directory_fingerprint(paths: &[BackupPath]) -> Result<String, AppError> {
+    Ok(
+        leanflip_core::live::engine::digest(Some(&leanflip_core::fsutil::sorted_json_bytes(
+            &paths,
+        )?))
+        .expect("present bytes"),
+    )
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BackupPreview {
     pub created_at: u64,
     pub items: Vec<BackupItem>,
@@ -109,6 +152,8 @@ pub struct BackupPreview {
     pub existing_accounts: usize,
     pub has_settings: bool,
     pub has_paths: bool,
+    pub paths: Vec<BackupPath>,
+    pub paths_fingerprint: String,
     pub scenes: usize,
 }
 
@@ -119,6 +164,7 @@ pub struct RestoreOptions {
     pub accounts: bool,
     pub settings: bool,
     pub paths: bool,
+    pub paths_confirmation: Option<String>,
     pub scenes: bool,
     pub duplicate: ccswitch_export::DuplicatePolicy,
 }
@@ -130,6 +176,7 @@ impl Default for RestoreOptions {
             accounts: true,
             settings: true,
             paths: false,
+            paths_confirmation: None,
             scenes: true,
             duplicate: ccswitch_export::DuplicatePolicy::Skip,
         }
@@ -399,6 +446,8 @@ impl Service {
                 duplicate: existing.provider(tool, &provider.id).is_some(),
             })
             .collect();
+        let paths = directory_preview(&self.base, &self.env(), &payload.app.dir_overrides);
+        let paths_fingerprint = directory_fingerprint(&paths).map_err(|e| self.err(e))?;
         let preview = BackupPreview {
             created_at: payload.created_at,
             items,
@@ -413,7 +462,10 @@ impl Service {
                 })
                 .count(),
             has_settings: true,
-            has_paths: payload.app.dir_overrides != DirOverrides::default(),
+            has_paths: payload.app.dir_overrides != DirOverrides::default()
+                || self.app_settings().dir_overrides != DirOverrides::default(),
+            paths,
+            paths_fingerprint,
             scenes: payload.providers.scenes.len(),
         };
         {
@@ -503,6 +555,16 @@ impl Service {
             {
                 return Err(self.err(AppError::InvalidInput("Backup paths do not match this operating system; restore without directory overrides".into())));
             }
+        }
+        if options.paths {
+            let paths = directory_preview(&self.base, &rt.env, &payload.app.dir_overrides);
+            let fingerprint = directory_fingerprint(&paths).map_err(|e| self.err(e))?;
+            if options.paths_confirmation.as_deref() != Some(&fingerprint) {
+                return Err(self.err(AppError::localized("backup.paths_confirmation_required",
+                    "请查看备份中的完整目标路径并确认；路径改变后需要重新预览。",
+                    "Review and confirm the full destination paths. Preview again if paths changed.")));
+            }
+            settings::validate(&payload.app).map_err(|e| self.err(e))?;
         }
         let mut report = RestoreReport::default();
         // Stages are idempotent merges. If a later disk write fails, report the

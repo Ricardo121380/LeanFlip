@@ -211,6 +211,55 @@ pub fn sync_live_after_refresh(
     }
     publish
 }
+/// Capture the exact owned files while the caller holds the Codex write lock.
+/// Guarded patches refuse to delete a login replaced by the client meanwhile.
+pub(super) fn prepare_account_removal(
+    env: &Env,
+    accounts: &[String],
+) -> Result<Vec<(crate::live::engine::LiveFile, crate::live::patch::Guarded)>, AppError> {
+    use crate::live::{
+        engine::LiveFile,
+        patch::{Guarded, WholeFile},
+    };
+    let marker_path = marker_path(env);
+    let marker_bytes = read_current(&marker_path)?;
+    let marker: Option<Marker> = marker_bytes
+        .as_deref()
+        .and_then(|bytes| serde_json::from_slice(bytes).ok());
+    let auth_path = env.codex_auth_path();
+    let auth_bytes = read_current(&auth_path)?;
+    let auth: Option<Value> = auth_bytes
+        .as_deref()
+        .map(|bytes| {
+            serde_json::from_slice(bytes).map_err(|error| AppError::json(&auth_path, error))
+        })
+        .transpose()?;
+    let mut changes = Vec::new();
+    if auth.as_ref().is_some_and(|auth| {
+        accounts
+            .iter()
+            .any(|id| auth_matches_marker(auth, marker.as_ref(), id))
+    }) {
+        changes.push((
+            LiveFile::private(auth_path),
+            Guarded {
+                expected_pre: digest(auth_bytes.as_deref()),
+                then: WholeFile::Delete,
+            },
+        ));
+    }
+    if marker.is_some_and(|marker| accounts.contains(&marker.account_id)) {
+        changes.push((
+            LiveFile::private(marker_path),
+            Guarded {
+                expected_pre: digest(marker_bytes.as_deref()),
+                then: WholeFile::Delete,
+            },
+        ));
+    }
+    Ok(changes)
+}
+
 pub fn clear_live_for_account(env: &Env, account: &str) -> Result<(), AppError> {
     let _lock = env.device_store().lock_app(Tool::Codex.as_str())?;
     let marker = read_marker(env);

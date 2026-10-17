@@ -183,6 +183,12 @@ pub(super) fn backup_preview(
         lang.text("场景", "Scenes"), if options.scenes { preview.scenes } else { 0 },
         if options.settings { lang.text("恢复应用设置", "Restore preferences") } else { lang.text("保留本机设置", "Keep local preferences") },
         lang.text("尚未恢复。追加 --apply 确认；--no-accounts / --no-settings 可排除相应内容，本机路径默认不恢复。", "Nothing restored. Add --apply; use --no-accounts / --no-settings to exclude scopes. Machine paths are excluded by default."));
+    let text = if options.paths {
+        let paths = backup_paths(preview, lang);
+        format!("{text}\n\n{paths}\n\n{}\n--confirm-paths {}", lang.text("后续切换会向上述位置写入含凭据的配置。确认后追加：", "Future switches write credential-bearing configuration to these paths. After reviewing, add:"), preview.paths_fingerprint)
+    } else {
+        text
+    };
     Output::new(
         json!({"preview": preview, "selection": {"tools":options.tools,"accounts":options.accounts,"settings":options.settings,"paths":options.paths,"scenes":options.scenes,"duplicate":options.duplicate}}),
         format!(
@@ -317,4 +323,49 @@ pub(super) fn restore(
     }
     let text = report_text(&report, lang);
     Ok(Output::new(json!(report), text))
+}
+
+pub(super) fn backup_paths(preview: &BackupPreview, lang: Language) -> String {
+    preview
+        .paths
+        .iter()
+        .map(|paths| {
+            format!(
+                "{}\n  {} -> {}{}{}",
+                paths.tool,
+                paths
+                    .current
+                    .iter()
+                    .map(|p| clean(&p.display().to_string()))
+                    .collect::<Vec<_>>()
+                    .join(" · "),
+                paths
+                    .target
+                    .iter()
+                    .map(|p| clean(&p.display().to_string()))
+                    .collect::<Vec<_>>()
+                    .join(" · "),
+                if paths.target != paths.resolved_target {
+                    format!(
+                        "\n  {} {}",
+                        lang.text("实际写入：", "Resolved:"),
+                        paths
+                            .resolved_target
+                            .iter()
+                            .map(|p| clean(&p.display().to_string()))
+                            .collect::<Vec<_>>()
+                            .join(" · ")
+                    )
+                } else {
+                    String::new()
+                },
+                if paths.outside_home {
+                    lang.text(" [用户目录之外]", " [outside home]")
+                } else {
+                    ""
+                }
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }

@@ -109,11 +109,22 @@ export function BackupRestore({ bytes, fileName, onBack, onBusyChange }: { bytes
         {scenes > 0 && <><label className="flex items-center gap-3 py-1 text-sm"><Checkbox checked={options.scenes} onCheckedChange={(checked) => setOptions((old) => ({ ...old, scenes: checked === true }))} />{t("backup.restoreScenes", { count: scenes })}</label>
         <p className="pl-7 text-xs text-muted-foreground">{t("backup.sceneMergeHint")}</p></>}
         <label className="flex items-center gap-3 py-1 text-sm"><Checkbox checked={options.settings} onCheckedChange={(checked) => setOptions((old) => ({ ...old, settings: checked === true, paths: checked === true && old.paths }))} />{t("backup.restorePreferences")}</label>
+        {preview.hasPaths && <div className="space-y-3 rounded-lg border p-3 text-xs">
+          <p className="text-sm font-medium">{t("backup.pathsReview")}</p>
+          {(preview.paths ?? []).map((path) => <div key={path.tool} className="space-y-1">
+            <strong>{TOOLS.find((tool) => tool.id === path.tool)?.label ?? path.tool}</strong>
+            <div className="break-all text-muted-foreground">{t("backup.pathsCurrent")} {path.current.join(" · ")}</div>
+            <div className="break-all">{t("backup.pathsTarget")} {path.target.join(" · ")}</div>
+            {path.resolvedTarget && JSON.stringify(path.resolvedTarget) !== JSON.stringify(path.target) && <div className="break-all">{t("backup.pathsResolved")} {path.resolvedTarget.join(" · ")}</div>}
+            {path.outsideHome && <p className="text-amber-700 dark:text-amber-300">{t("backup.pathsOutside")}</p>}
+          </div>)}
+          <p>{t("backup.pathsEffect")}</p>
+        </div>}
         {preview.hasPaths && <label className="flex items-center gap-3 py-1 text-sm"><Checkbox checked={options.paths} disabled={!options.settings} onCheckedChange={(checked) => setOptions((old) => ({ ...old, paths: checked === true }))} />{t("backup.restorePaths")}</label>}
       </fieldset>
       <div className="max-w-md space-y-1.5"><Label htmlFor="restore-duplicate">{t("backup.duplicate")}</Label><NativeSelect id="restore-duplicate" disabled={busy} value={options.duplicate} onChange={(event) => setOptions((old) => ({ ...old, duplicate: event.target.value as "skip" | "rename" }))}><option value="skip">{t("backup.skip")}</option><option value="rename">{t("backup.rename")}</option></NativeSelect></div>
       <p className="text-sm leading-6 text-muted-foreground">{t("backup.restoreHint")}</p>
-      <Button disabled={busy || !canRestore} onClick={() => void perform(async () => { setReport(await api.backupApply(options)); void refreshAll(client); })}>{busy && <Loader2 className="animate-spin" />}{t(busy ? "backup.restoring" : "backup.restore")}</Button>
+      <Button disabled={busy || !canRestore} onClick={() => void perform(async () => { setReport(await api.backupApply({ ...options, ...(options.paths ? { pathsConfirmation: preview.pathsFingerprint } : {}) })); void refreshAll(client); })}>{busy && <Loader2 className="animate-spin" />}{t(busy ? "backup.restoring" : "backup.restore")}</Button>
     </>}
     {report && <div role="status" className="space-y-2 rounded-xl border bg-card p-5"><h3 className="font-semibold">{t(report.failures.length ? "backup.partial" : "backup.restored")}</h3><p className="text-sm">{t("backup.report", { cards: report.providersAdded, skipped: report.providersSkipped, accounts: report.accountsAdded })}</p>{(report.scenesAdded ?? 0) + (report.scenesSkipped ?? 0) > 0 && <p className="text-sm">{t("backup.sceneReport", { added: report.scenesAdded ?? 0, skipped: report.scenesSkipped ?? 0 })}</p>}<p className="text-sm text-muted-foreground">{t("backup.noActivation")}</p>{report.failures.length > 0 && <p className="font-mono text-xs text-destructive">{report.failures.join(" · ")}</p>}</div>}
   </section>;

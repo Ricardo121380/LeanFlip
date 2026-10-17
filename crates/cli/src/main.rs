@@ -1,4 +1,5 @@
 mod args;
+mod creation;
 mod data;
 mod editor;
 mod menu;
@@ -61,6 +62,8 @@ impl From<ApiError> for CliError {
             "io" => "Cannot access a required file. Check paths and permissions.",
             "serialization" => "Configuration could not be serialized; the operation failed.",
             "codex.oauth.live_sync_failed" => "Account credentials were refreshed and saved, but the Codex client could not be synchronized. Check the client path and permissions; the new credentials were retained.",
+            "provider.command_confirmation_required" => "Executable credential commands need local approval. Review them with leanflip provider trust-commands <tool> <provider-id> before activating this card.",
+            "backup.paths_confirmation_required" => "Preview directory destinations, then pass --confirm-paths with the displayed fingerprint to restore them.",
             "scene.not_found" => "The scene was not found. Run leanflip scene list to see scene names.",
             "scene.invalid" => "The scene is invalid. Edit it in the LeanFlip App and retry.",
             _ => "The operation failed. Use the error code to identify the cause; configuration contents are withheld.",
@@ -319,6 +322,12 @@ fn open_service(home: Option<&Path>) -> Result<Service, CliError> {
 }
 
 fn run(cli: Cli) -> Result<Output, CliError> {
+    if let Command::Completions { shell } = &cli.command {
+        let mut script = Vec::new();
+        clap_complete::generate(*shell, &mut Cli::command(), "leanflip", &mut script);
+        let script = String::from_utf8(script).map_err(|_| CliError::io())?;
+        return Ok(Output::new(json!({"script": script}), script));
+    }
     let lang = cli.lang;
     let custom_home = cli.home.is_some();
     match &cli.command {
@@ -340,8 +349,21 @@ fn run(cli: Cli) -> Result<Output, CliError> {
     }
     let service = open_service(cli.home.as_deref())?;
     let result: Result<Output, CliError> = match cli.command {
+        Command::Completions { .. } => unreachable!("handled before opening configuration"),
         Command::Menu { .. } | Command::Tui { .. } => {
             unreachable!("interactive interfaces are dispatched before commands")
+        }
+        Command::ClaudeOnboarding { apply } => {
+            let path = service.claude_onboarding_path();
+            if apply {
+                return Ok(Output::operation(
+                    service.complete_claude_onboarding(&path)?,
+                    lang,
+                    "已标记 Claude 首次启动完成。",
+                    "Claude onboarding marked complete.",
+                ));
+            }
+            Ok(Output::new(json!({"path":path,"field":"hasCompletedOnboarding","value":true}), format!("{}\n{}", clean(&path.display().to_string()), lang.text("仅用于默认用户目录。追加 --apply 将 hasCompletedOnboarding 设为 true；保留其他字段，首次写入前备份原文件。不会自动登录。", "Default user directory only. Add --apply to set hasCompletedOnboarding=true, preserving other fields and backing up the original before its first write. Does not sign in."))))
         }
         Command::Status => {
             let tools = service.overview()?;
@@ -611,6 +633,7 @@ fn run(cli: Cli) -> Result<Output, CliError> {
                     no_providers,
                     no_settings,
                     restore_paths,
+                    confirm_paths,
                     duplicate,
                     tools,
                 },
@@ -626,6 +649,7 @@ fn run(cli: Cli) -> Result<Output, CliError> {
                 accounts: !no_accounts,
                 settings: !no_settings,
                 paths: restore_paths,
+                paths_confirmation: confirm_paths,
                 // Scenes point at cards, so they travel with the providers.
                 scenes: !no_providers,
                 duplicate: duplicate.into(),
@@ -677,6 +701,40 @@ fn run(cli: Cli) -> Result<Output, CliError> {
         }
         Command::Provider { action } => {
             match action {
+                ProviderCommand::Create { tool } => {
+                    if cli.json {
+                        return Err(CliError::input("interactive_terminal", "Interactive creation does not support --json; use provider add --file."));
+                    }
+                    creation::start(&service, tool.into(), lang)
+                }
+                ProviderCommand::TrustCommands {
+                    tool,
+                    provider_id,
+                    approve,
+                } => {
+                    let tool: Tool = tool.into();
+                    let data = leanflip_core::store::load_readonly(&service.env())?;
+                    let card = data
+                        .provider(tool, &provider_id)
+                        .ok_or_else(|| CliError::input("not_found", "Provider not found"))?;
+                    let review = service.credential_commands(tool, &card.settings_config)?;
+                    if let Some(fingerprint) = approve {
+                        service.approve_credential_commands(
+                            tool,
+                            &card.settings_config,
+                            &fingerprint,
+                        )?;
+                        return Ok(Output::done(
+                            lang,
+                            "已在本机授权这些凭据命令；尚未切换供应商。",
+                            "Credential commands approved on this machine; provider not activated.",
+                        ));
+                    }
+                    let commands = serde_json::to_string_pretty(&review.commands)
+                        .map_err(|_| CliError::io())?;
+                    let text = format!("{}\n{}\n\n{}\n--approve {}", lang.text("客户端会以你的权限执行以下凭据命令：", "The client will execute these credential commands with your permissions:"), clean(&commands), lang.text("确认信任后，在同一命令后追加：", "After reviewing and trusting them, repeat this command with:"), review.fingerprint);
+                    Ok(Output::new(json!(review), text))
+                }
                 ProviderCommand::Edit { tool, provider_id } => {
                     if cli.json {
                         return Err(CliError::input("interactive_terminal", "Interactive editing does not support --json; use provider update --file."));
@@ -926,15 +984,21 @@ fn main() -> ExitCode {
 /// location; read-only commands keep their promise not to create files.
 fn writes_data(command: &Command) -> bool {
     match command {
-        Command::Status | Command::List { .. } | Command::Paths { .. } | Command::Export { .. } => {
-            false
-        }
+        Command::Completions { .. }
+        | Command::Status
+        | Command::List { .. }
+        | Command::Paths { .. }
+        | Command::Export { .. } => false,
         Command::Import { source } => match source {
             Import::Local { apply, .. }
             | Import::Backup { apply, .. }
             | Import::File { apply, .. } => *apply,
             Import::Live { .. } => true,
         },
+        Command::ClaudeOnboarding { apply } => *apply,
+        Command::Provider {
+            action: ProviderCommand::TrustCommands { approve, .. },
+        } => approve.is_some(),
         Command::Accounts { action } => !matches!(action, AccountCommand::List),
         Command::Scene { action } => matches!(action, SceneCommand::Apply { .. }),
         Command::Quota { refresh } => *refresh,
@@ -951,7 +1015,7 @@ fn execute(cli: Cli) -> ExitCode {
     if matches!(
         &cli.command,
         Command::Provider {
-            action: ProviderCommand::Edit { .. }
+            action: ProviderCommand::Edit { .. } | ProviderCommand::Create { .. }
         }
     ) && !cli.json
         && menu::can_interact()

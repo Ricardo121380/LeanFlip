@@ -25,3 +25,5 @@ pub mod switch;
 pub use env::Env;
 pub use error::AppError;
 pub use provider::{Provider, Tool};
+
+pub mod command_trust;

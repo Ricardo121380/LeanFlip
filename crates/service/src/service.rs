@@ -290,10 +290,8 @@ impl Service {
     /// `base` 是没套覆盖的环境（`Env::from_system()` 或测试的临时 HOME）。会先补完 /
     /// 放弃上次没做完的写入。
     pub fn start(base: Env, transport: Option<Arc<dyn OAuthTransport>>) -> Result<Self, AppError> {
-        let app_settings = settings::load(&base.data_dir).unwrap_or_else(|err| {
-            log::warn!("app settings unreadable, using defaults: {err}");
-            AppSettings::default()
-        });
+        // Do not recover or write against default client paths when overrides cannot be read.
+        let app_settings = settings::load(&base.data_dir)?;
         let service = Self::initialize(base, transport, app_settings)?;
         let env = service.env();
         let _guard = env.device_store().lock_app("service")?;
@@ -451,7 +449,48 @@ impl Service {
             .collect()
     }
 
+    pub fn credential_commands(
+        &self,
+        tool: Tool,
+        settings: &serde_json::Value,
+    ) -> ApiResult<leanflip_core::command_trust::CommandPreview> {
+        leanflip_core::command_trust::preview(&self.env(), tool, settings).map_err(|e| self.err(e))
+    }
+
+    pub fn approve_credential_commands(
+        &self,
+        tool: Tool,
+        settings: &serde_json::Value,
+        fingerprint: &str,
+    ) -> ApiResult<()> {
+        let _guard = self.write_guard()?;
+        leanflip_core::command_trust::approve(&self.env(), tool, settings, fingerprint)
+            .map_err(|e| self.err(e))
+    }
+
     /// 编辑器实时提示：这份配置里不会写入客户端的字段。只读计算，不碰磁盘。
+    pub fn claude_onboarding_path(&self) -> PathBuf {
+        self.env().home.join(".claude.json")
+    }
+    pub fn complete_claude_onboarding(
+        &self,
+        expected_path: &std::path::Path,
+    ) -> ApiResult<OpResult> {
+        let _guard = self.write_guard()?;
+        let rt = self.runtime();
+        if expected_path != rt.env.home.join(".claude.json") {
+            return Err(self.err(AppError::Conflict(
+                "Claude onboarding path changed; review again".into(),
+            )));
+        }
+        self.settle(&rt, Tool::Claude)?;
+        self.noted(
+            switch::claude::complete_onboarding(&rt.env)
+                .map(|report| self.op_result(report))
+                .map_err(|e| self.err(e)),
+        )
+    }
+
     pub fn ignored_fields(&self, tool: Tool, settings_config: &serde_json::Value) -> Vec<String> {
         match tool {
             Tool::Claude => leanflip_core::live::project::claude::ignored_keys(settings_config),
@@ -650,6 +689,14 @@ impl Service {
         let rt = self.runtime();
         self.resolve_krill_login(&mut provider)?;
         self.check_incoming(&provider)?;
+        if let (Some(settings), Some(address)) = (
+            quota::relay::QuotaSettings::of(&provider),
+            quota::relay::account::address(tool, &provider),
+        ) {
+            settings
+                .query_address(&address)
+                .map_err(ApiError::message)?;
+        }
         if tool == Tool::Codex {
             switch::codex::validate_login_ref(&rt.env, &provider).map_err(|e| self.err(e))?;
         }
@@ -703,6 +750,14 @@ impl Service {
         redact::restore(tool, &mut provider, stored.as_ref());
         self.resolve_krill_login(&mut provider)?;
         self.check_incoming(&provider)?;
+        if let (Some(settings), Some(address)) = (
+            quota::relay::QuotaSettings::of(&provider),
+            quota::relay::account::address(tool, &provider),
+        ) {
+            settings
+                .query_address(&address)
+                .map_err(ApiError::message)?;
+        }
         if tool == Tool::Codex {
             switch::codex::validate_login_ref(&rt.env, &provider).map_err(|e| self.err(e))?;
         }
@@ -1135,6 +1190,15 @@ impl Service {
         settings_config: &serde_json::Value,
         quota_per_usd: Option<f64>,
     ) -> ApiResult<quota::relay::QuotaDetect> {
+        self.quota_detect_with_base(tool, settings_config, quota_per_usd, None)
+    }
+    pub fn quota_detect_with_base(
+        &self,
+        tool: Tool,
+        settings_config: &serde_json::Value,
+        quota_per_usd: Option<f64>,
+        query_base_url: Option<String>,
+    ) -> ApiResult<quota::relay::QuotaDetect> {
         let Some((address, secret)) = crate::probe::address_and_key(tool, settings_config) else {
             return Ok(quota::relay::QuotaDetect {
                 steps: Vec::new(),
@@ -1153,7 +1217,13 @@ impl Service {
                 error: Some("noKrillJwt".into()),
             });
         }
-        let key = quota::relay::source_key(&quota::relay::query_base(&address), &secret);
+        let address = quota::relay::QuotaSettings {
+            query_base_url,
+            ..Default::default()
+        }
+        .query_address(&address)
+        .map_err(ApiError::message)?;
+        let key = address.cache_key(&secret);
         let per_usd = quota::relay::QuotaSettings {
             quota_per_usd,
             ..Default::default()
@@ -1265,6 +1335,11 @@ impl Service {
                     redact::restore(tool, provider, Some(&stored));
                     if let Some(settings) = quota::relay::QuotaSettings::of(provider) {
                         settings.validate().map_err(AppError::InvalidInput)?;
+                        if let Some(address) = quota::relay::account::address(tool, provider) {
+                            settings
+                                .query_address(&address)
+                                .map_err(AppError::InvalidInput)?;
+                        }
                     }
                 }
                 None => {

@@ -31,7 +31,7 @@ cargo build --release --locked --bin leanflip
 
 - `Tab` / `←` / `→` 切换工具与供应商区域，`↑` / `↓` 或 `j` / `k` 移动。
 - `/` 搜索名称、ID 或 Base URL，`Enter` 完成搜索；再次 `Enter` 预览操作。确认默认取消，`Tab` 后回车或 `y` / `Y` 才执行。
-- `e` 编辑名称、Base URL 与 API Key；`b` 打开数据中心。
+- `n` 新建供应商；`e` 编辑名称、Base URL 与 API Key；`b` 打开数据中心。
 - `i` 导入当前客户端配置；`r` 重新读取最新状态；`p` / `d` 查看完整详情与路径；`?` / `F1` 查看帮助。
 - `Esc` 清除筛选、返回或关闭面板；`q` 退出（弹窗中先关闭）；`Ctrl+C` 退出并恢复终端。正在执行的写入会先完成再响应中断。
 - 宽窗口三栏、普通窗口两栏、窄窗口单栏；面板长内容用 `↑↓` / `PgUp` / `PgDn` 滚动。小于 44×12 时暂停操作并提示扩大窗口。
@@ -58,9 +58,44 @@ leanflip import backup workspace.leanflip # 解密并预览
 leanflip import backup workspace.leanflip --apply
 ```
 
-完整备份包含供应商、密钥、托管 Codex 账号与应用偏好。恢复支持 `--tool`、`--no-providers`、`--no-accounts`、`--no-settings`、`--duplicate skip|rename`。本机目录默认不恢复，仅在路径布局一致时使用 `--restore-paths`；客户端配置不会自动切换。独立客户端登录暂存不迁移，开机启动保留目标机器设置。
+完整备份包含供应商、密钥、托管 Codex 账号与应用偏好。恢复支持 `--tool`、`--no-providers`、`--no-accounts`、`--no-settings`、`--duplicate skip|rename`。本机目录默认不恢复。需要恢复时先带 `--restore-paths` 预览每个工具的当前路径、目标路径和符号链接实际目标，再把输出的 `--confirm-paths <指纹>` 与 `--apply` 一起传入；路径变化后旧确认失效。客户端配置不会自动切换。独立客户端登录暂存不迁移，开机启动保留目标机器设置。
 
 加密使用标准 age/scrypt，口令 10–4096 字符且不保存，遗失后无法恢复。脚本模式或 `--json` 需要 `--password-file FILE`（私有 UTF-8 文件）；不要把密码写入命令参数。已有备份文件不会覆盖，Unix 下新备份权限为 `0600`。完整范围和部分失败处理见[使用手册](../../docs/guide.md#加密完整备份与恢复)。
+
+## 交互新建供应商
+
+工具菜单的“新建供应商”、TUI 的 `n` 和 `leanflip provider create <tool>` 使用相同的卡片模板。填写名称、自动生成且可修改的 ID、Base URL、隐藏输入的 API Key 和可选模型后检查摘要。默认仅保存卡片；Menu 会单独询问是否立即启用，TUI 用 `Ctrl+A` 切换该选项，`Ctrl+S` 检查后确认。重复 ID 会报错，不会覆盖已有卡片。Codex/Grok 留空模型时分别使用模板默认值 `gpt-5.5` / `grok-4.5`，摘要会展示该值。
+
+## Shell 补全
+
+`leanflip completions <shell>` 输出静态补全脚本，支持 `bash`、`zsh`、`fish`、`powershell`、`elvish`，不读取或修改 LeanFlip 配置。例如：
+
+```sh
+# Bash 当前会话
+source <(leanflip completions bash)
+# Zsh：保存到已有 fpath 目录（该目录须在 compinit 之前加入 fpath）
+leanflip completions zsh > ~/.zfunc/_leanflip
+# Fish：保存到 completions 目录
+leanflip completions fish > ~/.config/fish/completions/leanflip.fish
+```
+
+重定向前请先创建相应目录。CLI 不会自动编辑 shell 启动文件。
+
+## 凭据命令授权
+
+Claude 的 `apiKeyHelper` 等认证命令、Codex 的 `model_providers.*.auth.command` 会由客户端执行。导入卡片可以保留这些字段，但写入客户端前必须在这台机器上授权。App 编辑卡片保存时展示命令；CLI 先预览，再传入预览指纹：
+
+```sh
+leanflip provider trust-commands codex work
+leanflip provider trust-commands codex work --approve <预览中显示的指纹>
+leanflip use codex work
+```
+
+授权本身不会执行命令或切换供应商。命令、参数、工作目录或 Claude 卡片环境变化后需要重新授权。授权记录保存在本机 `trusted-credential-commands.json`，不随卡片或加密备份迁移；换机后需要重新审阅。
+
+## Claude 首次启动
+
+`leanflip claude-onboarding` 只预览默认用户目录下的 `.claude.json`；追加 `--apply` 才把 `hasCompletedOnboarding` 设为 `true`，首次写入前备份原文件并保留其他字段。App 设置页也提供独立确认入口。此操作不会运行 Claude、登录账号，也不保证某个客户端版本不再显示其他登录提示。自定义 `CLAUDE_CONFIG_DIR` 不在此入口的范围内。
 
 ## 导入与供应商编辑
 

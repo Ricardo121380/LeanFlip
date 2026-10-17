@@ -315,6 +315,17 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
   });
   const ignoredFields = checked !== null ? (ignored.data ?? []) : [];
 
+  const hasCredentialCommands = parsed.ok && (
+    (tool === "claude" && ["apiKeyHelper", "awsAuthRefresh", "awsCredentialExport", "gcpAuthRefresh"].some((key) => parsed.value[key] != null && parsed.value[key] !== "")) ||
+    (tool === "codex" && Object.values(readToml(String(parsed.value.config ?? ""))?.model_providers ?? {}).some((provider) => provider && typeof provider === "object" && "auth" in provider && provider.auth && typeof provider.auth === "object" && "command" in provider.auth))
+  );
+  const credentialCommands = useQuery({
+    queryKey: ["credential-commands", tool, settingsKey],
+    queryFn: () => api.credentialCommands(tool, parsed.ok ? parsed.value : {}),
+    enabled: hasCredentialCommands && step === "form",
+  });
+  const needsCommandApproval = hasCredentialCommands && credentialCommands.data?.approved === false;
+
   // 检测都用编辑中的配置，不需要先保存。地址或密钥在结果出来后又改过，就标成“可能已过期”；
   // 只改模型不影响测连通和模型列表。
   const values = ready?.values ?? {};
@@ -469,6 +480,19 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
       if (showLogin) next = applyLoginSource(next, loginSource);
       if (!official) next = applyQuotaSettings(next, quota);
 
+      if (hasCredentialCommands) {
+        const review = await api.credentialCommands(tool, next.settingsConfig);
+        if (!review.approved) {
+          const accepted = await confirm({
+            title: t("editor.commandTitle"),
+            description: <><span>{t("editor.commandHint")}</span><code className="mt-3 block max-h-64 overflow-auto whitespace-pre-wrap break-all rounded border p-3 text-xs">{JSON.stringify(review.commands, null, 2)}</code></>,
+            confirmLabel: t("editor.commandApprove"),
+          });
+          if (!accepted) return;
+          await api.approveCredentialCommands(tool, next.settingsConfig, review.fingerprint);
+          void client.invalidateQueries({ queryKey: ["credential-commands"] });
+        }
+      }
       const result = editing
         ? await api.updateProvider(tool, next)
         : await api.addProvider(tool, next, apply);
@@ -485,7 +509,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
     }
   }
 
-  const canSave = step === "form" && parsed.ok && !fieldError && routesOk && (editing ? dirty : id.trim() !== "") && !saving && !krillLoginPending;
+  const canSave = step === "form" && parsed.ok && !fieldError && routesOk && (editing ? dirty || needsCommandApproval : id.trim() !== "") && (!hasCredentialCommands || credentialCommands.isSuccess) && !saving && !krillLoginPending;
   const keyUrl = preset?.apiKeyUrl;
   const keyAction = keyUrl ? (
     <button type="button" className="inline-flex items-center gap-1 text-xs text-primary hover:underline" onClick={() => void openKeyPage(keyUrl)}>
@@ -720,6 +744,11 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
               </div>
             )}
             {quota?.adapter !== "krill" && quota?.adapter !== "off" && <div className="flex flex-col gap-2 sm:col-span-2">
+              <Label htmlFor="pe-query-base">{t("editor.quotaQueryBase")}</Label>
+              <Input id="pe-query-base" type="url" placeholder="https://example.com/relay/" value={quota?.queryBaseUrl ?? ""} onChange={(e) => setQuota((q) => ({ ...(q ?? { refreshMinutes: 0 }), adapter: undefined, queryBaseUrl: e.target.value }))} />
+              <p className="text-xs leading-5 text-muted-foreground">{t("editor.quotaQueryBaseHint")}</p>
+            </div>}
+            {quota?.adapter !== "krill" && quota?.adapter !== "off" && <div className="flex flex-col gap-2 sm:col-span-2">
               <Label htmlFor="pe-account-token">{t("editor.accountToken")}</Label>
               <Input id="pe-account-token" type="password" autoComplete="off" spellCheck={false} value={quota?.accountToken ?? ""} onFocus={(e) => e.currentTarget.select()} onChange={(e) => setQuota((q) => ({ ...(q ?? { refreshMinutes: 0 }), accountToken: e.target.value }))} />
               <p className="text-xs leading-5 text-muted-foreground">{t("editor.accountTokenHint")}</p>
@@ -737,6 +766,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
           name={name.trim() || t("editor.quotaThisCard")}
           settingsConfig={parsed.value}
           quotaPerUsd={quota?.quotaPerUsd}
+          queryBaseUrl={quota?.queryBaseUrl}
           krill={quota?.adapter === "krill" ? { jwt: quota.krillJwt, providerId: provider?.id } : undefined}
           account={quota?.adapter !== "krill" && quota?.accountToken ? { settings: quota, providerId: provider?.id } : undefined}
           onUse={(adapter) => { setQuotaAddress(quotaBaseUrl); setQuota((q) => ({ ...(q ?? { refreshMinutes: 0 }), adapter })); }}
@@ -847,6 +877,7 @@ export function ProviderEditor({ tool, open, onOpenChange, provider, template, e
           )}
         </fieldset>
 
+        {hasCredentialCommands && <p role={credentialCommands.isError ? "alert" : undefined} className="shrink-0 px-6 py-2 text-sm text-amber-700 dark:text-amber-300">{credentialCommands.isError ? errorMessage(credentialCommands.error) : t("editor.commandNotice")}</p>}
         <DialogFooter className="shrink-0 flex-wrap items-center gap-y-2 border-t bg-muted/40 px-6 py-3.5">
           <div className="mr-auto flex min-w-0 flex-1 basis-56 flex-col gap-1 text-xs text-muted-foreground">
             {step === "form" && !editing && (

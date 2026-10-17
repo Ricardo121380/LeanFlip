@@ -30,23 +30,42 @@ impl Editor {
             message: String::new(),
         }
     }
+    pub(super) fn creation(tool: Tool, paths: Vec<PathBuf>) -> Self {
+        let draft = Draft::creation(tool);
+        let mut editor = Self::new(tool, draft.expected.clone(), paths);
+        editor.draft = draft;
+        editor
+    }
+    fn count(&self) -> usize {
+        if self.draft.creating {
+            5
+        } else if self.draft.info.editable {
+            3
+        } else {
+            1
+        }
+    }
     fn text(&self) -> &str {
         match self.field {
             0 => &self.draft.name,
             1 => &self.draft.url,
-            _ => &self.draft.key,
+            2 => &self.draft.key,
+            3 => &self.draft.id,
+            _ => &self.draft.model,
         }
     }
     fn text_mut(&mut self) -> &mut String {
         match self.field {
             0 => &mut self.draft.name,
             1 => &mut self.draft.url,
-            _ => &mut self.draft.key,
+            2 => &mut self.draft.key,
+            3 => &mut self.draft.id,
+            _ => &mut self.draft.model,
         }
     }
     fn move_field(&mut self, delta: isize) {
-        let count = if self.draft.info.editable { 3 } else { 1 };
-        self.field = (self.field as isize + delta).rem_euclid(count) as usize;
+        let count = self.count();
+        self.field = (self.field as isize + delta).rem_euclid(count as isize) as usize;
         self.cursor = self.text().len();
     }
     pub(super) fn paste(&mut self, text: &str, lang: Language) {
@@ -56,6 +75,9 @@ impl Editor {
         let mut cursor = self.cursor;
         let accepted = input::insert(self.text_mut(), &mut cursor, text);
         self.cursor = cursor;
+        if self.field == 0 {
+            self.draft.suggest_id();
+        }
         if !accepted {
             self.message = lang
                 .text(
@@ -105,9 +127,7 @@ impl Editor {
             }
             KeyCode::Tab | KeyCode::Down => self.move_field(1),
             KeyCode::BackTab | KeyCode::Up => self.move_field(-1),
-            KeyCode::Enter if self.field < if self.draft.info.editable { 2 } else { 0 } => {
-                self.move_field(1)
-            }
+            KeyCode::Enter if self.field + 1 < self.count() => self.move_field(1),
             KeyCode::Enter => {
                 if !self.draft.dirty() {
                     return true;
@@ -123,6 +143,11 @@ impl Editor {
                     self.scroll = 0;
                 }
             }
+            KeyCode::Char('a')
+                if key.modifiers.contains(KeyModifiers::CONTROL) && self.draft.creating =>
+            {
+                self.draft.activate = !self.draft.activate;
+            }
             KeyCode::Char('k')
                 if key.modifiers.contains(KeyModifiers::CONTROL) && self.draft.info.editable =>
             {
@@ -136,6 +161,9 @@ impl Editor {
                 let mut cursor = self.cursor;
                 input::key(self.text_mut(), &mut cursor, key);
                 self.cursor = cursor;
+                if self.field == 0 {
+                    self.draft.suggest_id();
+                }
                 if self.field == 2 && !self.draft.key.is_empty() {
                     self.draft.clear_key = false;
                 }
@@ -177,7 +205,11 @@ impl Editor {
             Paragraph::new(Span::styled(
                 format!(
                     " {} / {}",
-                    lang.text("编辑供应商", "Edit provider"),
+                    if self.draft.creating {
+                        lang.text("新建供应商", "Create provider")
+                    } else {
+                        lang.text("编辑供应商", "Edit provider")
+                    },
                     name(self.draft.tool)
                 ),
                 accent(),
@@ -209,9 +241,17 @@ impl Editor {
             lang.text("名称", "Name").to_owned(),
             format!("Base URL  {url_hint}"),
             format!("API Key  {key_hint}"),
+            "ID".into(),
+            lang.text("模型（可留空）", "Model (optional)").into(),
         ];
-        let values = [&self.draft.name, &self.draft.url, &self.draft.key];
-        let count = if self.draft.info.editable { 3 } else { 1 };
+        let values = [
+            &self.draft.name,
+            &self.draft.url,
+            &self.draft.key,
+            &self.draft.id,
+            &self.draft.model,
+        ];
+        let count = self.count();
         let mut lines = vec![];
         for index in 0..count {
             lines.push(Line::from(Span::styled(
@@ -271,10 +311,27 @@ impl Editor {
             message,
         );
         frame.render_widget(
-            Paragraph::new(lang.text(
-                "Tab 字段  Enter 下一步  Ctrl+S 检查保存\nCtrl+K 清空密钥  Esc 取消",
-                "Tab field  Enter next  Ctrl+S review\nCtrl+K clear key  Esc cancel",
-            ))
+            Paragraph::new(if self.draft.creating {
+                format!(
+                    "{} · {}\n{}",
+                    lang.text("Ctrl+A 切换立即启用", "Ctrl+A toggle activation"),
+                    if self.draft.activate {
+                        lang.text("启用：是", "Activate: yes")
+                    } else {
+                        lang.text("启用：否", "Activate: no")
+                    },
+                    lang.text(
+                        "Tab 字段  Ctrl+S 检查保存  Esc 取消",
+                        "Tab field  Ctrl+S review  Esc cancel"
+                    )
+                )
+            } else {
+                lang.text(
+                    "Tab 字段  Enter 下一步  Ctrl+S 检查保存\nCtrl+K 清空密钥  Esc 取消",
+                    "Tab field  Enter next  Ctrl+S review\nCtrl+K clear key  Esc cancel",
+                )
+                .into()
+            })
             .style(muted()),
             footer,
         );

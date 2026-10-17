@@ -189,6 +189,26 @@ def check(binary):
         assert edited["settingsConfig"]["env"]["ANTHROPIC_AUTH_TOKEN"] == "fixture-edited-private-key"
         print("PASS: narrow-screen connection editing, bracketed paste, hidden keys and default cancellation")
 
+        wizard = Path(root) / "tui-wizard"
+        with start(binary, wizard, "claude") as terminal:
+            terminal.send("n")
+            expect_screen(terminal, "Create provider")
+            terminal.send("Team Relay\thttps://example.com/v1\tfixture-tui-wizard-key\x13")
+            expect_screen(terminal, "Confirm save")
+            expect_screen(terminal, "team-relay")
+            assert not wizard.exists(), "Creation preview wrote data"
+            terminal.send("\r")
+            expect_screen(terminal, "Create provider")
+            assert not wizard.exists()
+            terminal.send("\x13y")
+            expect_screen(terminal, "Provider created")
+            assert finish(terminal) == 0
+            assert b"fixture-tui-wizard-key" not in terminal.output
+        cards = menu.command(binary, wizard, ["list", "claude", "--json"])["providers"]
+        assert cards[0]["id"] == "team-relay" and not cards[0]["current"]
+        assert not (wizard / ".claude").exists()
+        print("PASS: TUI creation generates IDs, masks keys, defaults to cancel and does not auto-activate")
+
         source = home / ".cc-switch"
         source.mkdir()
         (source / "config.json").write_text(json.dumps({"claude": {"providers": {"local": {"name": "Local migration", "settingsConfig": {"env": {"ANTHROPIC_AUTH_TOKEN": "fixture-tui-hidden-token"}}}}}}))

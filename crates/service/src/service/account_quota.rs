@@ -1,8 +1,12 @@
 use super::*;
 use crate::quota::relay::{self, QuotaDetect, QuotaSettings};
 
-fn base(tool: Tool, provider: &Provider) -> Option<reqwest::Url> {
-    relay::account::address(tool, provider).map(|url| relay::query_base(&url))
+fn base(tool: Tool, provider: &Provider) -> Option<relay::QueryAddress> {
+    let url = relay::account::address(tool, provider)?;
+    QuotaSettings::of(provider)
+        .unwrap_or_default()
+        .query_address(&relay::query_base(&url))
+        .ok()
 }
 
 impl Service {
@@ -43,7 +47,10 @@ impl Service {
             redact::restore(tool, &mut draft, stored);
             settings = QuotaSettings::of(&draft).unwrap_or_default();
         }
-        let address = base(tool, &draft);
+        let address = relay::account::address(tool, &draft)
+            .map(|url| settings.query_address(&url))
+            .transpose()
+            .map_err(ApiError::message)?;
         let token = settings
             .account_token
             .as_deref()

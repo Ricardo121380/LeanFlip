@@ -190,6 +190,7 @@ export function HomePage({ mode, onNavigate }: { mode: HomeMode; onNavigate: (ha
           tool={detecting.tool}
           name={detecting.provider.name}
           settingsConfig={detecting.provider.settingsConfig}
+          queryBaseUrl={quotaSettingsOf(detecting.provider)?.queryBaseUrl}
           onUse={(adapter) => configureQuota(detecting, adapter)}
           onDisable={() => void configureQuota(detecting, "off").catch((error) => toast.error(errorMessage(error)))}
           onClose={() => setDetecting(null)}

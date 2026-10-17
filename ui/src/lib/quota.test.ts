@@ -152,3 +152,11 @@ describe("quota text", () => {
     expect(sourceFor(undefined, { accountId: "acc-1" })).toBeUndefined();
   });
 });
+
+it("preserves explicit query prefixes without an adapter and strips them for fixed Krill", () => {
+  const card: Provider = { id: "r", name: "R", settingsConfig: {} };
+  const settings = { refreshMinutes: 0, queryBaseUrl: " https://example.com/billing/ " };
+  const saved = applyQuotaSettings(card, settings);
+  expect(quotaSettingsOf(saved)?.queryBaseUrl).toBe("https://example.com/billing/");
+  expect(quotaSettingsOf(applyQuotaSettings(card, { ...settings, adapter: "krill" }))?.queryBaseUrl).toBeUndefined();
+});

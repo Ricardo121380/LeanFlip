@@ -164,6 +164,12 @@ const en: Messages = {
   }
 },
   backup: {
+    pathsResolved: "Resolved destination:",
+    pathsReview: "Client configuration destinations",
+    pathsCurrent: "Current:",
+    pathsTarget: "After restore:",
+    pathsOutside: "Destination is outside your home. Check who can access it.",
+    pathsEffect: "If you restore directories, future provider switches will write credential-bearing configuration to these locations.",
     exportTitle: "Take your workspace with you",
     exportHint: "One encrypted file preserves provider configurations, managed accounts and application preferences. Your passphrase unlocks it.",
     scope: { providers: "Providers, API keys and configuration", accounts: "Managed Codex accounts and login credentials", scenes: "Scenes (which provider each tool uses)", preferences: "Language, appearance, tray behavior and application preferences" },
@@ -466,6 +472,10 @@ const en: Messages = {
     model: "Model {{model}}",
   },
   editor: {
+    commandTitle: "Allow executable credential helpers?",
+    commandHint: "The client will run these commands with your permissions to obtain credentials. Approve only commands you recognize and trust. Consent stays on this machine; changed commands require a new review.",
+    commandApprove: "Trust and allow these commands",
+    commandNotice: "This card contains credential commands. Review and approve them when saving.",
     addHint: "Start from a preset or a blank configuration. Nothing changes in the client until you save.",
     editHint: "Edit this provider. If it is active, saving also updates the client configuration.",
     presetsError: "Presets could not load. You can still use a custom configuration.",
@@ -593,6 +603,8 @@ const en: Messages = {
     loginHelpManagedDefault: "Switching writes the default managed account's login. It follows the default you set on the Codex accounts page.",
     loginHelpManaged: "Switching writes this managed account's login. LeanFlip saves and refreshes its tokens.",
     loginHelpMissing: "The selected login is gone. Pick another one before switching.",
+    quotaQueryBase: "Quota query base (optional)",
+    quotaQueryBaseHint: "Leave blank to try the site root, then the card path prefix. An explicit URL uses only that prefix, such as /relay/, on the same origin as the model URL. Do not include endpoint suffixes such as /v1/usage.",
     quotaTitle: "Usage lookup",
     quotaHint: "Quota adapts to the Base URL automatically. Krill connects to its website account; other sites are detected as NewAPI / sub2api when queried.",
     quotaDetect: "Check quota",
@@ -779,6 +791,12 @@ const en: Messages = {
     done: "Done: {{created}} provider(s) added, {{skipped}} skipped.",
   },
   settings: {
+    onboarding: "Claude Code onboarding",
+    onboardingHint: "When using a relay, you can explicitly mark onboarding complete. Applies to the default ~/.claude.json only; configure custom CLAUDE_CONFIG_DIR paths separately. This does not sign in or start Claude.",
+    onboardingConfirm: "Set hasCompletedOnboarding to true in {{path}}. Other fields are preserved and the original file is backed up before its first write. Continue?",
+    onboardingApply: "Mark onboarding complete",
+    onboardingDone: "Claude onboarding marked complete.",
+
     version: "App version",
     title: "Settings",
     loading: "Loading settings…",

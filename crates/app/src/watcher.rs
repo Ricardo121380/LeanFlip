@@ -56,7 +56,7 @@ pub(crate) fn plan(env: &Env) -> BTreeSet<PathBuf> {
 
 fn is_own_temp_file(path: &Path) -> bool {
     let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-    name.ends_with(".lock") || name.contains(".tmp")
+    name.ends_with(".lock") || name.contains(".tmp") || name.starts_with(".leanflip-write-")
 }
 
 /// 文件可能刚被删除或还没创建，只规范化已存在的上级，再拼回剩余路径。
@@ -257,6 +257,9 @@ mod tests {
             "on the way to opencode"
         );
         assert!(is_relevant(&env, &env.data_dir.join("providers.json")));
+        for dir in [&env.data_dir, &env.claude_dir, &env.codex_dir] {
+            assert!(!is_relevant(&env, &dir.join(".leanflip-write-fixture")));
+        }
         assert!(!is_relevant(
             &env,
             &env.data_dir.join("providers.json.lock")

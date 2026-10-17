@@ -25,6 +25,11 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Command {
+    /// Print a shell completion script without reading or changing configuration.
+    Completions {
+        #[arg(value_enum)]
+        shell: clap_complete::Shell,
+    },
     /// Open a searchable menu; optionally start with a specific tool.
     #[command(alias = "ui")]
     Menu { tool: Option<ToolArg> },
@@ -32,6 +37,11 @@ pub enum Command {
     Tui { tool: Option<ToolArg> },
     /// Show stored selection and detected configuration paths for all tools.
     Status,
+    /// Preview the default Claude onboarding file; --apply explicitly marks it complete.
+    ClaudeOnboarding {
+        #[arg(long)]
+        apply: bool,
+    },
     /// List providers without exposing their configuration or credentials.
     List { tool: ToolArg },
     /// Activate a provider for a switch-style tool.
@@ -130,6 +140,9 @@ pub enum Import {
         no_settings: bool,
         #[arg(long, conflicts_with = "no_settings")]
         restore_paths: bool,
+        /// Fingerprint from the directory preview; required with --restore-paths --apply.
+        #[arg(long, requires = "restore_paths")]
+        confirm_paths: Option<String>,
         #[arg(long, value_enum, default_value = "skip")]
         duplicate: Duplicate,
         #[arg(long = "tool", value_delimiter = ',')]
@@ -154,6 +167,15 @@ pub enum Import {
 
 #[derive(Subcommand)]
 pub enum ProviderCommand {
+    /// Create a provider interactively, with a hidden key and a final preview.
+    Create { tool: ToolArg },
+    /// Review executable credential helpers; approve only the displayed fingerprint.
+    TrustCommands {
+        tool: ToolArg,
+        provider_id: String,
+        #[arg(long, value_name = "FINGERPRINT")]
+        approve: Option<String>,
+    },
     /// Edit a provider's name, Base URL and API Key in an interactive terminal.
     Edit { tool: ToolArg, provider_id: String },
     /// Save a new provider; does not activate it unless --activate is supplied.

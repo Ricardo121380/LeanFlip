@@ -162,6 +162,12 @@ const zh = {
   }
 },
   backup: {
+    pathsResolved: "解析后的写入位置：",
+    pathsReview: "客户端配置写入位置",
+    pathsCurrent: "当前：",
+    pathsTarget: "恢复后：",
+    pathsOutside: "目标位于用户目录之外，请确认该目录的访问权限。",
+    pathsEffect: "勾选恢复目录后，之后切换供应商会向这些位置写入含凭据的配置。",
     exportTitle: "把工作环境带到下一台设备",
     exportHint: "一份加密文件，保留完整的供应商配置、托管账号和应用偏好。只有密码可以解锁。",
     scope: {
@@ -469,6 +475,10 @@ const zh = {
     model: "模型 {{model}}",
   },
   editor: {
+    commandTitle: "允许客户端执行凭据命令？",
+    commandHint: "以下命令会由客户端在获取凭据时以你的权限执行。仅授权你认识并信任的命令；授权仅保存在本机，命令改变后需要重新确认。",
+    commandApprove: "我信任并允许这些命令",
+    commandNotice: "此卡片包含凭据命令，保存时会展示命令并确认授权。",
     addHint: "从预设或空白配置开始填写；保存前不会改动客户端。",
     editHint: "修改这个供应商。如果它正在使用，保存后会同步更新客户端配置。",
     presetsError: "预设加载失败，仍可使用自定义配置。",
@@ -596,6 +606,8 @@ const zh = {
     loginHelpManagedDefault: "切换时写入默认托管账号的登录。在 Codex 账号页换了默认账号，这里跟着变。",
     loginHelpManaged: "切换时写入这个托管账号的登录，token 由 LeanFlip 保存和刷新。",
     loginHelpMissing: "选中的登录已经不在了，切换前换一个。",
+    quotaQueryBase: "额度查询基址（可选）",
+    quotaQueryBaseHint: "留空时先查询站点根路径，再尝试卡片的路径前缀。填写时只使用指定前缀，例如 /relay/；必须与模型地址同源，不含 /v1/usage 等接口后缀。",
     quotaTitle: "额度查询",
     quotaHint: "根据 Base URL 自动适配额度接口。Krill 连接官网账户；其他站点查询时识别 NewAPI / sub2api。",
     quotaDetect: "查询额度",
@@ -782,6 +794,12 @@ const zh = {
     done: "导入完成：新增 {{created}} 个供应商，跳过 {{skipped}} 个。",
   },
   settings: {
+    onboarding: "Claude Code 首次启动",
+    onboardingHint: "使用中转服务时，可手动标记首次启动已完成。仅适用于默认用户目录 ~/.claude.json；自定义 CLAUDE_CONFIG_DIR 请按客户端实际路径配置。此操作不会登录账号或自动运行 Claude。",
+    onboardingConfirm: "将把 {{path}} 中的 hasCompletedOnboarding 设为 true。保留其他字段，首次写入前备份原文件。确认继续？",
+    onboardingApply: "标记首次启动已完成",
+    onboardingDone: "已标记 Claude 首次启动完成。",
+
     version: "应用版本",
     title: "设置",
     loading: "正在读取设置…",

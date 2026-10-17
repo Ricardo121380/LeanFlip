@@ -545,3 +545,74 @@ fn a_recorded_route_cannot_be_overridden_by_a_conflicting_switch_log() {
         ("codex-route:openai".into(), Attribution::Route)
     );
 }
+
+#[test]
+fn opencode_replaced_or_rewound_database_is_rescanned_without_duplicates() {
+    let (_dir, env) = env();
+    let directory = env.home.join(".local/share/opencode");
+    fs::create_dir_all(&directory).unwrap();
+    let path = directory.join("opencode.db");
+    let now = now_ms();
+    let create = |path: &Path, messages: &[(&str, i64)]| {
+        let db = Connection::open(path).unwrap();
+        db.execute_batch("CREATE TABLE IF NOT EXISTS message (id TEXT PRIMARY KEY, time_created INTEGER, time_updated INTEGER, data TEXT); DELETE FROM message;").unwrap();
+        for (id, updated) in messages {
+            let data = json!({"role":"assistant","providerID":"relay","modelID":"m","time":{"created":now,"completed":now},"tokens":{"input":10,"output":1}});
+            db.execute(
+                "INSERT INTO message VALUES (?1, ?2, ?3, ?4)",
+                rusqlite::params![id, now, updated, data.to_string()],
+            )
+            .unwrap();
+        }
+    };
+    create(&path, &[("old", 100)]);
+    assert_eq!(
+        sum(
+            &load(&env, &StoreData::default(), &no_live).unwrap(),
+            Tool::OpenCode
+        )
+        .4,
+        1
+    );
+    let replacement = directory.join("replacement");
+    // Include a newer row too: MAX(time_updated) alone cannot detect replacement.
+    create(
+        &replacement,
+        &[("old", 100), ("restored", 50), ("new", 200)],
+    );
+    fs::rename(replacement, &path).unwrap();
+    assert_eq!(
+        sum(
+            &load(&env, &StoreData::default(), &no_live).unwrap(),
+            Tool::OpenCode
+        )
+        .4,
+        3
+    );
+    create(&path, &[("rewound", 10)]);
+    assert_eq!(
+        sum(
+            &load(&env, &StoreData::default(), &no_live).unwrap(),
+            Tool::OpenCode
+        )
+        .4,
+        4
+    );
+    create(&path, &[("rewound", 10), ("same-timestamp", 10)]);
+    assert_eq!(
+        sum(
+            &load(&env, &StoreData::default(), &no_live).unwrap(),
+            Tool::OpenCode
+        )
+        .4,
+        5
+    );
+    assert_eq!(
+        sum(
+            &load(&env, &StoreData::default(), &no_live).unwrap(),
+            Tool::OpenCode
+        )
+        .4,
+        5
+    );
+}

@@ -284,3 +284,22 @@ describe("Account quota", () => {
     expect(screen.getByRole("button", { name: "额度 · 刚刚" })).toBeEnabled();
   });
 });
+
+it("changes Claude onboarding only after reviewing and confirming its exact path", async () => {
+  const { calls } = mount(<SettingsPage />, {
+    get_settings: () => settings(),
+    claude_onboarding_path: () => "/test/.claude.json",
+    complete_claude_onboarding: () => ({ changed: ["/test/.claude.json"], warnings: [] }),
+  });
+  const button = await screen.findByRole("button", { name: "标记首次启动已完成" });
+  expect(calls.some((call) => call.cmd === "complete_claude_onboarding")).toBe(false);
+  await userEvent.click(button);
+  let dialog = await screen.findByRole("alertdialog");
+  expect(dialog).toHaveTextContent("/test/.claude.json");
+  await userEvent.click(within(dialog).getByRole("button", { name: "取消" }));
+  expect(calls.some((call) => call.cmd === "complete_claude_onboarding")).toBe(false);
+  await userEvent.click(button);
+  dialog = await screen.findByRole("alertdialog");
+  await userEvent.click(within(dialog).getByRole("button", { name: "标记首次启动已完成" }));
+  await waitFor(() => expect(calls.find((call) => call.cmd === "complete_claude_onboarding")?.args).toEqual({ expectedPath: "/test/.claude.json" }));
+});

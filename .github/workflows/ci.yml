@@ -84,3 +84,8 @@ jobs:
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: Verify desktop packaging (no release)
         run: pnpm tauri build --debug --ci --bundles ${{ matrix.bundle }}
+      - name: Verify macOS bundle resource seal
+        if: runner.os == 'macOS'
+        run: |
+          codesign --verify --deep --strict --verbose=2 target/debug/bundle/macos/LeanFlip.app
+          test -f target/debug/bundle/macos/LeanFlip.app/Contents/_CodeSignature/CodeResources

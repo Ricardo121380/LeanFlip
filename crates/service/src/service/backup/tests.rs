@@ -213,9 +213,10 @@ fn scopes_and_duplicate_merges_preserve_existing_credentials() {
         "local-newer-refresh"
     );
     assert_eq!(service.app_settings().language, None);
-    service.backup_load(&bytes, PASSWORD).unwrap();
+    let preview = service.backup_load(&bytes, PASSWORD).unwrap();
     service
         .backup_apply(RestoreOptions {
+            paths_confirmation: Some(preview.paths_fingerprint),
             tools: vec![],
             accounts: false,
             settings: true,
@@ -404,5 +405,88 @@ fn restored_scenes_never_point_at_a_different_local_card() {
             .current
             .as_deref(),
         Some("work")
+    );
+}
+
+#[test]
+fn path_restore_requires_exact_current_preview_and_detects_stale_destinations() {
+    let (_source, _, bytes) = fixture();
+    let target = TempDir::new().unwrap();
+    let service = open(target.path());
+    let preview = service.backup_load(&bytes, PASSWORD).unwrap();
+    let codex = preview
+        .paths
+        .iter()
+        .find(|p| p.tool == Tool::Codex)
+        .unwrap();
+    assert_eq!(codex.current, service.env().live_paths(Tool::Codex));
+    assert_ne!(codex.current, codex.target);
+    assert!(codex.outside_home);
+    for confirmation in [None, Some("incorrect".into())] {
+        let error = service
+            .backup_apply(RestoreOptions {
+                paths: true,
+                paths_confirmation: confirmation,
+                ..Default::default()
+            })
+            .unwrap_err();
+        assert_eq!(error.code(), "backup.paths_confirmation_required");
+        assert!(store::load_readonly(&service.env())
+            .unwrap()
+            .providers(Tool::Claude)
+            .is_empty());
+        assert_eq!(
+            service.app_settings().dir_overrides,
+            DirOverrides::default()
+        );
+    }
+    let mut app = service.app_settings();
+    app.dir_overrides.codex_dir = Some(target.path().join("changed-since-preview"));
+    service
+        .save_settings(SettingsInput {
+            app,
+            keep_codex_login: false,
+        })
+        .unwrap();
+    let error = service
+        .backup_apply(RestoreOptions {
+            paths: true,
+            paths_confirmation: Some(preview.paths_fingerprint),
+            ..Default::default()
+        })
+        .unwrap_err();
+    assert_eq!(error.code(), "backup.paths_confirmation_required");
+    let fresh = service.backup_load(&bytes, PASSWORD).unwrap();
+    service
+        .backup_apply(RestoreOptions {
+            paths: true,
+            paths_confirmation: Some(fresh.paths_fingerprint),
+            ..Default::default()
+        })
+        .unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn directory_consent_changes_when_a_symlink_points_somewhere_else() {
+    let dir = TempDir::new().unwrap();
+    let env = Env::with_home(dir.path());
+    for name in ["one", "two"] {
+        fs::create_dir(dir.path().join(name)).unwrap();
+    }
+    let alias = dir.path().join("alias");
+    std::os::unix::fs::symlink(dir.path().join("one"), &alias).unwrap();
+    let overrides = DirOverrides {
+        codex_dir: Some(alias.clone()),
+        ..Default::default()
+    };
+    let before = directory_preview(&env, &env, &overrides);
+    fs::remove_file(&alias).unwrap();
+    std::os::unix::fs::symlink(dir.path().join("two"), &alias).unwrap();
+    let after = directory_preview(&env, &env, &overrides);
+    assert_eq!(before[1].target, after[1].target);
+    assert_ne!(
+        directory_fingerprint(&before).unwrap(),
+        directory_fingerprint(&after).unwrap()
     );
 }

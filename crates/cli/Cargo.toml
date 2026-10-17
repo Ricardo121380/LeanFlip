@@ -14,10 +14,13 @@ path = "src/main.rs"
 leanflip-core = { path = "../core" }
 leanflip-service = { path = "../service" }
 clap = { version = "4.5", features = ["derive"] }
+clap_complete = "4.5"
 dialoguer = { version = "0.12", default-features = false, features = ["fuzzy-select", "password"] }
 ctrlc = "3.5"
 ratatui = { version = "0.30.2", default-features = false, features = ["crossterm", "unstable-rendered-line-info"] }
 serde_json.workspace = true
+toml.workspace = true
+url = "2"
 zeroize.workspace = true
 unicode-width = "0.2"
 

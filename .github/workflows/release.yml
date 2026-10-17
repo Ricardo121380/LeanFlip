@@ -79,6 +79,11 @@ jobs:
           python3 scripts/check-cli-tui.py --binary target/release/leanflip
       - name: Build optimized desktop packages
         run: pnpm tauri build --ci --bundles ${{ matrix.bundle }} -- --locked
+      - name: Verify macOS bundle resource seal
+        if: runner.os == 'macOS'
+        run: |
+          codesign --verify --deep --strict --verbose=2 target/release/bundle/macos/LeanFlip.app
+          test -f target/release/bundle/macos/LeanFlip.app/Contents/_CodeSignature/CodeResources
       - name: Assemble release assets
         env:
           PLATFORM: ${{ matrix.platform }}

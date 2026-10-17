@@ -49,6 +49,8 @@ pub(super) struct DataPanel {
     has_accounts: bool,
     has_settings: bool,
     has_paths: bool,
+    paths_confirmation: Option<String>,
+    paths_review: String,
     duplicate: DuplicatePolicy,
     summary: String,
     message: String,
@@ -80,6 +82,8 @@ impl DataPanel {
             has_accounts: false,
             has_settings: false,
             has_paths: false,
+            paths_confirmation: None,
+            paths_review: String::new(),
             duplicate: DuplicatePolicy::Skip,
             summary: String::new(),
             message: String::new(),
@@ -139,6 +143,10 @@ impl DataPanel {
             accounts: self.accounts,
             settings: self.settings,
             paths: self.paths,
+            paths_confirmation: self
+                .paths
+                .then(|| self.paths_confirmation.clone())
+                .flatten(),
             duplicate: self.duplicate,
         }
     }
@@ -438,6 +446,8 @@ impl DataPanel {
         self.settings = settings;
         self.has_paths = paths;
         self.paths = false;
+        self.paths_confirmation = None;
+        self.paths_review.clear();
         self.duplicate = DuplicatePolicy::Skip;
         self.selection.select(Some(0));
         self.view = View::Preview;
@@ -517,6 +527,8 @@ impl DataPanel {
                         preview.has_settings,
                         preview.has_paths,
                     );
+                    self.paths_confirmation = Some(preview.paths_fingerprint.clone());
+                    self.paths_review = crate::data::backup_paths(&preview, self.lang);
                 } else {
                     let preview = self.service.export_load(&bytes, DuplicatePolicy::Skip)?;
                     let rows = preview
@@ -830,8 +842,9 @@ impl DataPanel {
             let mut dialog = Dialog::info(
                 self.lang.text("确认恢复范围", "Confirm restore scope"),
                 format!(
-                    "{}\n\n{scopes}\n\n{}",
+                    "{}\n\n{scopes}\n\n{}\n{}",
                     clean(&self.path),
+                    if self.paths { &self.paths_review } else { "" },
                     self.lang.text(
                         "客户端不会自动切换。本机已有账号凭据会保留。",
                         "Clients will not be switched. Existing account credentials are kept."

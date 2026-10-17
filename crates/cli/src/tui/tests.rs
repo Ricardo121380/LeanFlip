@@ -442,3 +442,71 @@ fn connection_editor_rejects_paths_changed_after_review() {
     assert_eq!(snapshot(dir.path()), before);
     assert!(render(&mut app, 120, 28).contains("Configuration paths changed"));
 }
+
+#[test]
+fn creation_wizard_masks_key_previews_and_defaults_to_no_activation() {
+    let dir = TempDir::new().unwrap();
+    let mut app = App::new(Some(dir.path()), Language::En, Some(Tool::Claude));
+    app.key(key(KeyCode::Char('n')));
+    app.paste("Work");
+    app.key(key(KeyCode::Tab));
+    app.paste("https://example.com");
+    app.key(key(KeyCode::Tab));
+    app.paste("fixture-new-card-key");
+    for (width, height) in [(44, 12), (80, 24), (120, 28)] {
+        assert!(!render(&mut app, width, height).contains("fixture-new-card-key"));
+    }
+    app.key(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::CONTROL));
+    assert!(snapshot(dir.path()).is_empty());
+    let screen = render(&mut app, 120, 28);
+    assert!(screen.contains("without activation"));
+    assert!(screen.contains("API Key: Entered (hidden)"));
+    app.key(key(KeyCode::Enter)); // cancel is default
+    assert!(snapshot(dir.path()).is_empty());
+    app.key(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::CONTROL));
+    app.key(key(KeyCode::Char('y')));
+    app.editor
+        .as_mut()
+        .unwrap()
+        .save(Some(dir.path()), Language::En)
+        .unwrap();
+    let saved = service(dir.path()).list_providers(Tool::Claude).unwrap();
+    assert_eq!(saved.providers[0].id, "work");
+    assert_eq!(
+        saved.providers[0].settings_config["env"]["ANTHROPIC_AUTH_TOKEN"],
+        "fixture-new-card-key"
+    );
+    assert!(saved.current.is_none());
+    assert!(!dir.path().join(".claude/settings.json").exists());
+}
+
+#[test]
+fn wizard_templates_can_save_and_activate_each_supported_tool_without_overwriting_duplicate_ids() {
+    for tool in Tool::ALL {
+        let dir = TempDir::new().unwrap();
+        let service = service(dir.path());
+        let mut draft = crate::editor::Draft::creation(tool);
+        draft.name = "Fixture".into();
+        draft.url = "https://example.com/v1".into();
+        draft.key = "fixture-wizard-key".into();
+        draft.model = "fixture-model".into();
+        draft.activate = true;
+        draft
+            .save(&service, Language::En)
+            .unwrap_or_else(|e| panic!("{tool}: {}", e.message));
+        let stored = leanflip_core::store::load_readonly(&service.env()).unwrap();
+        assert!(stored.provider(tool, "custom").is_some());
+        assert!(
+            service
+                .env()
+                .live_paths(tool)
+                .iter()
+                .any(|path| path.exists()),
+            "{tool}"
+        );
+        let before = snapshot(dir.path());
+        draft.name = "Must not overwrite".into();
+        assert!(draft.save(&service, Language::En).is_err());
+        assert_eq!(snapshot(dir.path()), before);
+    }
+}

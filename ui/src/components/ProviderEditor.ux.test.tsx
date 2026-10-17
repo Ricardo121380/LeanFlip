@@ -249,3 +249,27 @@ describe("Provider editor workflow", () => {
     expect((update.settingsConfig.env as Record<string, string>).CLAUDE_CODE_EFFORT_LEVEL).toBe("xhigh");
   });
 });
+
+it("reviews executable credential commands before local approval and saving; cancel writes nothing", async () => {
+  let approved = false;
+  const config = { env: { ANTHROPIC_BASE_URL: "https://example.com" }, apiKeyHelper: "fixture-helper --account work" };
+  const { backend } = mount({ ...saved, settingsConfig: config }, {
+    credential_commands: () => ({ commands: { apiKeyHelper: config.apiKeyHelper }, fingerprint: "fixture-command-hash", approved }),
+    approve_credential_commands: () => { approved = true; },
+    update_provider: () => ({ changed: [], warnings: [] }),
+  });
+  const save = screen.getByRole("button", { name: "保存" });
+  await screen.findByText(/此卡片包含凭据命令/);
+  await userEvent.click(save);
+  let dialog = await screen.findByRole("alertdialog");
+  expect(dialog).toHaveTextContent(config.apiKeyHelper);
+  await userEvent.click(within(dialog).getByRole("button", { name: "取消" }));
+  expect(backend.calls.filter((call) => ["approve_credential_commands", "update_provider"].includes(call.cmd))).toHaveLength(0);
+  await userEvent.click(save);
+  dialog = await screen.findByRole("alertdialog");
+  await userEvent.click(within(dialog).getByRole("button", { name: "我信任并允许这些命令" }));
+  await screen.findByText("Editor closed");
+  const writes = backend.calls.filter((call) => ["approve_credential_commands", "update_provider"].includes(call.cmd));
+  expect(writes.map((call) => call.cmd)).toEqual(["approve_credential_commands", "update_provider"]);
+  expect(writes[0].args).toEqual({ tool: "claude", settingsConfig: config, fingerprint: "fixture-command-hash" });
+});
