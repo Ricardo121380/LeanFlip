@@ -771,7 +771,9 @@ impl Service {
                 .find(|p| p.id == expected.id)
                 .ok_or_else(|| AppError::Conflict("Source provider no longer exists".into()))?;
             let mut current = redact::redact(tool, stored);
-            let mut expected = expected.clone();
+            // A just-saved editor still holds a temporary Krill login reference;
+            // compare both snapshots in their public, redacted representation.
+            let mut expected = redact::redact(tool, &expected);
             // A partial sync may already have attached this exact group.
             let old_link = current.meta.extra.remove("leanflipLink");
             expected.meta.extra.remove("leanflipLink");

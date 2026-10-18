@@ -130,6 +130,18 @@ mod tests {
         let wire = serde_json::to_string(&service.list_providers(Tool::Claude).unwrap()).unwrap();
         assert!(!wire.contains("test-private-login") && !wire.contains(&handle));
         assert!(wire.contains(redact::PLACEHOLDER));
+        service
+            .link_provider(Tool::Claude, provider.clone(), "new-krill-sync".into())
+            .unwrap();
+        assert_eq!(
+            store::load_readonly(&env)
+                .unwrap()
+                .provider(Tool::Claude, "krill")
+                .unwrap()
+                .meta
+                .extra[quota::relay::META_QUOTA]["krillJwt"],
+            "test-private-login"
+        );
         service.update_provider(Tool::Claude, provider).unwrap();
         let restarted = Service::start(env, None).unwrap();
         assert!(restarted.krill_credential(&handle).is_err());

@@ -140,3 +140,24 @@ fn renamed_import_is_counted_as_import_and_cannot_enable_background_quota_reques
         0
     );
 }
+
+#[test]
+fn active_codex_profile_stays_on_target_while_inactive_profile_keeps_foreign_route() {
+    let sb = Sandbox::new();
+    sb.write(&sb.env.codex_config_path(), "profile='active'\n[model_providers.custom]\nbase_url='https://handwritten.invalid/v1'\n[profiles.active]\nmodel_provider='custom'\n[profiles.saved]\nmodel_provider='custom'\n");
+    sb.add(Tool::Codex, codex("a"));
+    switch::switch(&sb.env, Tool::Codex, "a").unwrap();
+    let doc: toml::Value = sb.read(&sb.env.codex_config_path()).parse().unwrap();
+    assert_eq!(
+        doc["profiles"]["active"]["model_provider"].as_str(),
+        Some("custom")
+    );
+    assert_eq!(
+        doc["profiles"]["saved"]["model_provider"].as_str(),
+        Some("leanflip-legacy-1")
+    );
+    assert_eq!(
+        doc["model_providers"]["custom"]["base_url"].as_str(),
+        Some("https://a.invalid/v1")
+    );
+}

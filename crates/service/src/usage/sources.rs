@@ -316,7 +316,10 @@ fn read_lines(
             }
             break;
         }
-        let limit = match read_limit(scan, MAX_LINE_BYTES) {
+        let skipping = state["skippingOversizedLine"] == true;
+        let chunk_limit = if skipping { 64 * 1024 } else { MAX_LINE_BYTES };
+        let file_remaining = MAX_FILE_BYTES.saturating_sub((offset - progress.offset) as u64);
+        let limit = match read_limit(scan, chunk_limit.min(file_remaining)) {
             Ok(limit) => limit,
             Err(error) => {
                 deferred = Some(error);
@@ -333,11 +336,26 @@ fn read_lines(
             }
         };
         if read as u64 >= limit {
-            deferred = Some("Usage JSONL line or scan byte limit exceeded".into());
+            if skipping || limit == MAX_LINE_BYTES + 1 {
+                offset += read as i64;
+                state["skippingOversizedLine"] = Value::Bool(buf.last() != Some(&b'\n'));
+                deferred = Some(
+                    "Usage JSONL line exceeds the size limit; oversized record skipped".into(),
+                );
+                continue;
+            }
+            deferred = Some("Usage JSONL file or scan byte budget reached; remaining records will be read on the next scan".into());
             break;
         }
         if read == 0 {
             break;
+        }
+        if skipping {
+            offset += read as i64;
+            state["skippingOversizedLine"] = Value::Bool(buf.last() != Some(&b'\n'));
+            deferred =
+                Some("Usage JSONL line exceeds the size limit; oversized record skipped".into());
+            continue;
         }
         // A valid final JSON value is complete even without a trailing newline.
         // Keep incomplete tails pending so a later append can finish them.

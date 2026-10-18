@@ -719,7 +719,10 @@ fn oversized_usage_files_report_limits_and_do_not_prevent_other_files_from_loadi
     fs::create_dir_all(huge.parent().unwrap()).unwrap();
     let mut file = fs::File::create(&huge).unwrap();
     writeln!(file, "{}", claude_line(now_ms(), "before", "before", 10, 5)).unwrap();
-    file.set_len(super::sources::MAX_LINE_BYTES + 1024).unwrap();
+    file.set_len(super::sources::MAX_FILE_BYTES + 1024).unwrap();
+    let mut tail = fs::OpenOptions::new().append(true).open(&huge).unwrap();
+    writeln!(tail).unwrap();
+    writeln!(tail, "{}", claude_line(now_ms(), "after", "after", 10, 5)).unwrap();
     append(
         &env.claude_dir.join("projects/test/z-valid.jsonl"),
         &[claude_line(now_ms(), "m", "r", 10, 5)],
@@ -738,12 +741,24 @@ fn oversized_usage_files_report_limits_and_do_not_prevent_other_files_from_loadi
             Tool::Claude
         )
         .4,
-        2,
-        "valid records before an oversized line are committed exactly once"
+        3,
+        "an oversized line is skipped across scans and later records remain readable"
+    );
+    assert_eq!(
+        sum(
+            &load(&env, &StoreData::default(), &no_live).unwrap(),
+            Tool::Claude
+        )
+        .4,
+        3
     );
     for tool in [Tool::Claude, Tool::Gemini] {
         let source = result.sources.iter().find(|s| s.tool == tool).unwrap();
         assert_eq!(source.state, SourceState::Failed);
-        assert!(source.detail.as_deref().unwrap().contains("limit"));
+        let detail = source.detail.as_deref().unwrap();
+        assert!(
+            detail.contains("limit") || detail.contains("budget"),
+            "{detail}"
+        );
     }
 }

@@ -415,7 +415,9 @@ impl CodexConfigPatch {
                     edit.set.push((provider_path.child(&name), old.clone()));
                     if let Some(profiles) = doc.get("profiles").and_then(Item::as_table_like) {
                         for (profile, value) in profiles.iter() {
-                            if value.get("model_provider").and_then(Item::as_str) == Some(ROUTE_ID)
+                            if doc.get("profile").and_then(Item::as_str) != Some(profile)
+                                && value.get("model_provider").and_then(Item::as_str)
+                                    == Some(ROUTE_ID)
                             {
                                 edit.set.push((
                                     KeyPath::new(&["profiles", profile, "model_provider"]),
