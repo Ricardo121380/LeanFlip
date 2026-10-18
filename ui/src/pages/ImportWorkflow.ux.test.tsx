@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { fakeBackend, renderWithClient, type Handler } from "@/test/utils";
-import type { ExportPreview, ImportScan } from "@/lib/api";
+import type { ExportPreview, ImportScan, ProviderImportPreview } from "@/lib/api";
 
 const backend: { invoke: ReturnType<typeof vi.fn> | null } = { invoke: null };
 vi.mock("@tauri-apps/api/core", () => ({
@@ -16,6 +16,7 @@ import { ExportImport } from "./ExportImport";
 function use(handlers: Record<string, Handler>) {
   const fake = fakeBackend({
     get_settings: () => ({ app: {}, keepCodexLogin: false, dataDir: "/data", home: "/home", livePaths: {}, ccswitchDir: "/home/.cc-switch" }),
+    provider_import_discard: () => null,
     ...handlers,
   });
   backend.invoke = fake.invoke;
@@ -122,6 +123,112 @@ describe("local import source consistency", () => {
     await user.click(screen.getByRole("button", { name: "检测本机 CC Switch" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("请输入绝对路径");
     expect(fake.calls.some((call) => call.cmd === "ccswitch_scan")).toBe(false);
+  });
+});
+
+const providerPreview: ProviderImportPreview = {
+  previewId: 21, directory: "/source/ai-toolbox", found: true,
+  items: [
+    { index: 0, tool: "codex", name: "Codex Relay", skipReason: null, notes: [], needsApiKey: false },
+    { index: 1, tool: "claude", name: "Claude Team", skipReason: null, notes: [], needsApiKey: false },
+    { index: 2, tool: "codex", name: "Existing", skipReason: { code: "duplicate", zh: "已存在", en: "Already exists" }, notes: [], needsApiKey: false },
+  ],
+};
+
+describe("provider imports from Data & migration", () => {
+  it("imports selected AI Toolbox providers from a custom directory without completing onboarding", async () => {
+    const user = userEvent.setup();
+    const fake = use({ provider_import_scan: () => providerPreview, provider_import_apply: () => ({ created: [["codex", "relay"]], skipped: [], accountsAdded: [] }) });
+    renderWithClient(<ImportWizard />);
+    await user.click(screen.getByRole("radio", { name: /AI Toolbox/ }));
+    expect(screen.getByRole("heading", { name: "从本机 AI Toolbox 数据目录导入" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "检测本机 CC Switch" })).not.toBeInTheDocument();
+    await user.click(screen.getByText("配置在其他位置？"));
+    await user.type(screen.getByLabelText("来源数据目录"), "/custom/toolbox");
+    await user.click(screen.getByRole("button", { name: "扫描并预览" }));
+    expect(await screen.findByRole("checkbox", { name: /Existing/ })).toBeDisabled();
+    await user.click(screen.getByRole("checkbox", { name: /Claude Team/ }));
+    await user.click(screen.getByRole("button", { name: "导入所选 1 项" }));
+    await screen.findByText("已导入 1 项，跳过 0 项");
+    expect(fake.calls.find((call) => call.cmd === "provider_import_scan")?.args).toEqual({ source: "ai-toolbox", directory: "/custom/toolbox" });
+    expect(fake.calls.find((call) => call.cmd === "provider_import_apply")?.args).toEqual({ previewId: 21, selected: [{ index: 0, apiKey: undefined }] });
+    expect(fake.calls.some((call) => ["complete_onboarding", "ccswitch_apply"].includes(call.cmd))).toBe(false);
+  });
+
+  it("requires missing Superba keys and drops previews and private input on source or tab changes", async () => {
+    const user = userEvent.setup();
+    const fake = use({ provider_import_scan: () => ({ ...providerPreview, items: [{ ...providerPreview.items[0], needsApiKey: true }] }) });
+    renderWithClient(<ImportWizard />);
+    await user.click(screen.getByRole("radio", { name: /Superba/ }));
+    await user.click(screen.getByRole("button", { name: "扫描并预览" }));
+    const key = await screen.findByLabelText("Codex Relay 的 API Key");
+    expect(key).toHaveAttribute("type", "password");
+    expect(screen.getByRole("button", { name: "导入所选 1 项" })).toBeDisabled();
+    await user.type(key, "fixture-only");
+    expect(screen.getByRole("button", { name: "导入所选 1 项" })).toBeEnabled();
+    await user.click(screen.getByRole("radio", { name: /AI Toolbox/ }));
+    expect(screen.queryByLabelText("Codex Relay 的 API Key")).not.toBeInTheDocument();
+    await waitFor(() => expect(fake.calls.filter((call) => call.cmd === "provider_import_discard")).toHaveLength(1));
+    await user.click(screen.getByRole("radio", { name: /Superba/ }));
+    await user.click(screen.getByRole("button", { name: "扫描并预览" }));
+    expect(await screen.findByLabelText("Codex Relay 的 API Key")).toHaveValue("");
+    await user.type(screen.getByLabelText("Codex Relay 的 API Key"), "fixture-only");
+    await user.click(screen.getByRole("tab", { name: "导入文件" }));
+    await waitFor(() => expect(fake.calls.filter((call) => call.cmd === "provider_import_discard")).toHaveLength(3));
+    await user.click(screen.getByRole("tab", { name: "本机数据目录" }));
+    expect(screen.queryByRole("button", { name: /导入所选/ })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Codex Relay 的 API Key")).not.toBeInTheDocument();
+  });
+
+  it("locks migration navigation during scan and apply, then releases it after success", async () => {
+    const user = userEvent.setup();
+    let finishScan!: (value: ProviderImportPreview) => void;
+    let finishApply!: (value: unknown) => void;
+    const onBusyChange = vi.fn();
+    const fake = use({
+      provider_import_scan: () => new Promise<ProviderImportPreview>((resolve) => { finishScan = resolve; }),
+      provider_import_apply: () => new Promise((resolve) => { finishApply = resolve; }),
+    });
+    renderWithClient(<ImportWizard onBusyChange={onBusyChange} />);
+    await user.click(screen.getByRole("radio", { name: /Superba/ }));
+    await user.click(screen.getByRole("button", { name: "扫描并预览" }));
+    expect(screen.getByRole("radio", { name: /CC Switch/ })).toBeDisabled();
+    expect(screen.getByRole("tab", { name: "导入文件" })).toBeDisabled();
+    expect(onBusyChange).toHaveBeenLastCalledWith(true);
+    await act(async () => finishScan({ ...providerPreview, items: [{ ...providerPreview.items[0], needsApiKey: true }] }));
+    await user.type(await screen.findByLabelText("Codex Relay 的 API Key"), "fixture-key");
+    await user.click(screen.getByRole("button", { name: "导入所选 1 项" }));
+    expect(screen.getByRole("radio", { name: /AI Toolbox/ })).toBeDisabled();
+    expect(screen.getByRole("tab", { name: "导出备份" })).toBeDisabled();
+    expect(screen.getByLabelText("来源数据目录")).toBeDisabled();
+    expect(fake.calls.find((call) => call.cmd === "provider_import_apply")?.args).toEqual({ previewId: 21, selected: [{ index: 0, apiKey: "fixture-key" }] });
+    await act(async () => finishApply({ created: [["codex", "relay"]], skipped: [], accountsAdded: [] }));
+    await screen.findByText("已导入 1 项，跳过 0 项");
+    expect(screen.getByRole("tab", { name: "导出备份" })).toBeEnabled();
+    expect(onBusyChange).toHaveBeenLastCalledWith(false);
+    expect(screen.queryByLabelText("Codex Relay 的 API Key")).not.toBeInTheDocument();
+  });
+
+  it("invalidates previews after directory edits or scan failures and returns to the CC Switch flow", async () => {
+    const user = userEvent.setup();
+    let attempts = 0;
+    const fake = use({ provider_import_scan: () => { if (++attempts === 2) throw new Error("source unavailable"); return providerPreview; }, ccswitch_scan: () => scan });
+    renderWithClient(<ImportWizard />);
+    await user.click(screen.getByRole("radio", { name: /AI Toolbox/ }));
+    await user.click(screen.getByRole("button", { name: "扫描并预览" }));
+    await screen.findByRole("button", { name: "导入所选 2 项" });
+    await user.click(screen.getByText("配置在其他位置？"));
+    await user.type(screen.getByLabelText("来源数据目录"), "/other");
+    expect(screen.queryByRole("button", { name: /导入所选/ })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "扫描并预览" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("source unavailable");
+    expect(screen.queryByText("Codex Relay")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "扫描并预览" }));
+    await screen.findByRole("button", { name: "导入所选 2 项" });
+    await user.click(screen.getByRole("radio", { name: /CC Switch/ }));
+    await user.click(screen.getByRole("button", { name: "检测本机 CC Switch" }));
+    expect(await screen.findByRole("button", { name: "导入所选工具" })).toBeEnabled();
+    expect(fake.calls.some((call) => call.cmd === "ccswitch_scan")).toBe(true);
   });
 });
 

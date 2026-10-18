@@ -65,6 +65,20 @@ describe("first-run guide", () => {
     expect(screen.queryByText("Relay")).not.toBeInTheDocument();
   });
 
+  it("preserves the import preview when moving between guide steps", async () => {
+    renderWithClient(<OnboardingWizard onClose={vi.fn()} />);
+    await openImport();
+    await userEvent.click(screen.getByRole("checkbox", { name: /Team/ }));
+    await userEvent.type(screen.getByLabelText("Relay 的 API Key"), "fixture-key");
+    await userEvent.click(screen.getByRole("button", { name: "暂不导入，继续" }));
+    expect(screen.queryByRole("button", { name: "导入所选 1 项" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "上一步" }));
+    expect(screen.getByLabelText("Relay 的 API Key")).toHaveValue("fixture-key");
+    expect(screen.getByRole("checkbox", { name: /Team/ })).not.toBeChecked();
+    expect(screen.getByRole("button", { name: "导入所选 1 项" })).toBeEnabled();
+    expect(backend.invoke.mock.calls.filter(([command]) => command === "provider_import_scan")).toHaveLength(1);
+  });
+
   it("keeps selections on an import failure and permits retry", async () => {
     let failed = true;
     backend.invoke = fakeBackend({ provider_import_scan: () => ({ ...preview, items: [preview.items[1]] }), provider_import_apply: () => {

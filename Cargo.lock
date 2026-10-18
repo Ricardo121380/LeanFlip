@@ -3013,7 +3013,7 @@ checksum = "20870f649af7073d53e38067b2a84312175d56ea15217e1b15bc83506ec50afb"
 
 [[package]]
 name = "leanflip-app"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "chrono",
  "leanflip-core",
@@ -3036,7 +3036,7 @@ dependencies = [
 
 [[package]]
 name = "leanflip-cli"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "clap",
  "clap_complete",
@@ -3056,7 +3056,7 @@ dependencies = [
 
 [[package]]
 name = "leanflip-core"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -3078,7 +3078,7 @@ dependencies = [
 
 [[package]]
 name = "leanflip-service"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "age",
  "chrono",
