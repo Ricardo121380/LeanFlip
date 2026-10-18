@@ -2,6 +2,8 @@
 
 桌面端首次启动时展示三步向导：认识 LeanFlip、选择来源并导入 Provider、首次切换说明。支持中文、英文，以及从设置页重新打开。
 
+从 v0.4.4 起，日常迁移可直接进入“数据与迁移 → 本机数据目录”，选择 CC Switch、AI Toolbox 或 Superba。AI Toolbox、Superba 与向导共用扫描预览和逐项导入组件；CC Switch 在迁移页保留供应商及托管账号迁移流程。
+
 ## 首次启动判定
 
 在启动 Service 时检查 LeanFlip 数据目录。已有 `providers.json`、`app-settings.json` 或 `onboarding-v1.json` 的安装不自动弹窗。跳过、关闭或完成时原子保存 `onboarding-v1.json`；保存失败保留弹窗并显示错误。此标记独立于应用设置，不改目录覆盖、登录保留设置或客户端配置。
@@ -14,7 +16,7 @@
 | AI Toolbox | 平台应用数据目录下 `com.ai-toolbox/ai-toolbox.db`；支持 `app_paths.json` 的 `data_dir_override` | SQLite JSON/JSONB 中 Claude Code、Claude Desktop、Codex、Gemini CLI 的独立 Provider 记录 |
 | Superba | macOS `~/Library/Application Support/com.krill-code.Superba`；Windows `~/AppData/Local/krill-code/Superba/data`；Linux `~/.local/share/superba` | `profiles.json` schema 1 中 Codex API Provider；保留主地址、模型、推理强度、速度档位和全局上下文设置 |
 
-非默认 XDG 目录、便携安装和环境变量覆盖，可在向导中填写绝对数据目录。用户每次选择一个来源，扫描后逐项勾选；导入结束可以继续选择其他来源。
+非默认 XDG 目录、便携安装和环境变量覆盖，可在向导或迁移页中填写绝对数据目录。用户每次选择一个来源，扫描后逐项勾选；导入结束可以继续选择其他来源。
 
 AI Toolbox 的文件型工具使用客户端当前配置，不属于上述独立数据库 Provider 表；可以在相应 LeanFlip 工具页面导入当前配置。公共配置、额外设置、账号登录、原工具网关和自动切换策略不在向导迁移范围。
 
