@@ -62,7 +62,7 @@ function sameDraft(a: SettingsDraft, b: SettingsDraft) {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
-export function SettingsPage({ onLeaveStateChange }: { onLeaveStateChange?: (state: SettingsLeaveState) => void } = {}) {
+export function SettingsPage({ onLeaveStateChange, onOpenOnboarding }: { onLeaveStateChange?: (state: SettingsLeaveState) => void; onOpenOnboarding?: () => void } = {}) {
   const { t } = useTranslation();
   const { data, isError, error, refetch } = useSettings();
   const [form, setForm] = useState<SettingsForm | null>(null);
@@ -129,7 +129,7 @@ export function SettingsPage({ onLeaveStateChange }: { onLeaveStateChange?: (sta
 
   return (
     <form className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-6 lg:px-8" onSubmit={(event) => { event.preventDefault(); submit(); }}>
-      <h1 className="text-[22px] font-semibold tracking-tight">{t("settings.title")}</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3"><h1 className="text-[22px] font-semibold tracking-tight">{t("settings.title")}</h1>{onOpenOnboarding && <Button type="button" variant="outline" disabled={dirty || save.isPending} onClick={onOpenOnboarding}>{t("onboarding.reopen")}</Button>}</div>
 
       {isError && <QueryState state="error" title={t("settings.refreshError")} description={errorMessage(error)} onRetry={() => void refetch()} />}
 

@@ -5,6 +5,8 @@ import type { AccountInfo, LoginSummary, Provider, QuotaDetect, QuotaSnapshot, Q
 type Kind = "switch" | "coexist";
 interface MockTool { kind: Kind; paths: string[]; detected: boolean; current: string | null; inLive: string[]; providers: Provider[] }
 
+let onboardingNeeded = new URLSearchParams(window.location.search).has("onboarding");
+let importPreviewId = 0;
 const home = "/Users/demo";
 const tools: Record<ToolId, MockTool> = {
   claude: {
@@ -494,13 +496,21 @@ const handlers: Record<string, (args: Args) => unknown> = {
   codex_poll_login: () => ({ status: "pending" }),
   codex_cancel_login: () => true,
   get_settings: (): SettingsView => ({
-    app, keepCodexLogin: false, dataDir: `${home}/.leanflip`, home,
+    onboardingNeeded, app, keepCodexLogin: false, dataDir: `${home}/.leanflip`, home,
     livePaths: Object.fromEntries((Object.keys(tools) as ToolId[]).map((tool) => [tool, tools[tool].paths])),
     dirs: {}, ccswitchDir: `${home}/.cc-switch`,
   }),
   get_common_config: (a) => { const tool = a!.tool as ToolId; const state = commonConfigs[tool] ?? { config: {}, version: 0 }; return { ...state, revision: String(state.version), paths: tools[tool].paths.slice(0, 1), format: ["codex", "grokbuild"].includes(tool) ? "TOML" : "JSON" }; },
   save_common_config: (a) => { const tool = a!.tool as ToolId; const state = commonConfigs[tool] ?? { config: {}, version: 0 }; if (String(state.version) !== a!.revision) throw new Error("Configuration changed"); commonConfigs[tool] = { config: a!.config as Record<string, unknown>, version: state.version + 1 }; return ok; },
   save_settings: (a) => { app = (a!.input as { app: SettingsView["app"] }).app; return { dirsChanged: false }; },
+  complete_onboarding: () => { onboardingNeeded = false; return null; },
+  provider_import_discard: () => null,
+  provider_import_scan: (a) => ({ previewId: ++importPreviewId, directory: a?.directory || `${home}/demo/${a?.source}`, found: true, items: [
+    { index: 0, tool: "codex", name: "示例中转站", skipReason: null, notes: [], needsApiKey: a?.source === "superba" },
+    { index: 1, tool: "claude", name: "团队 Claude", skipReason: null, notes: [], needsApiKey: false },
+    { index: 2, tool: "codex", name: "登录账号", skipReason: { code: "login", zh: "请从账号入口登录", en: "Sign in through Accounts" }, notes: [], needsApiKey: false },
+  ] }),
+  provider_import_apply: (a) => ({ created: (a!.selected as { index: number }[]).map((item) => ["codex", `demo-${item.index}`]), skipped: [], accountsAdded: [] }),
   ccswitch_scan: () => ({ directory: `${home}/.cc-switch`, source: null, candidates: [], accounts: 0 }),
   open_url: () => null,
 };

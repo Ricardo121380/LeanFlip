@@ -270,6 +270,7 @@ export interface AppSettings {
 }
 
 export interface SettingsView {
+  onboardingNeeded?: boolean;
   app: AppSettings;
   keepCodexLogin: boolean;
   dataDir: string;
@@ -277,6 +278,14 @@ export interface SettingsView {
   livePaths: Record<string, string[]>;
   dirs: Record<string, string>;
   ccswitchDir: string;
+}
+
+export type ProviderImportSource = "cc-switch" | "ai-toolbox" | "superba";
+export interface ProviderImportPreview {
+  previewId: number;
+  directory: string;
+  found: boolean;
+  items: { index: number; tool: ToolId; name: string; skipReason: Reason | null; notes: Reason[]; needsApiKey: boolean }[];
 }
 
 export interface ImportCandidate {
@@ -578,6 +587,12 @@ export const api = {
   getSettings: () => invoke<SettingsView>("get_settings"),
   saveSettings: (app: AppSettings, keepCodexLogin: boolean) =>
     invoke<{ dirsChanged: boolean }>("save_settings", { input: { app, keepCodexLogin } }),
+  completeOnboarding: () => invoke<void>("complete_onboarding"),
+  providerImportScan: (source: ProviderImportSource, directory?: string) =>
+    invoke<ProviderImportPreview>("provider_import_scan", { source, directory: directory || null }),
+  providerImportApply: (previewId: number, selected: { index: number; apiKey?: string }[]) =>
+    invoke<ImportReport>("provider_import_apply", { previewId, selected }),
+  providerImportDiscard: () => invoke<void>("provider_import_discard"),
   ccswitchScan: (dir?: string) => invoke<ImportScan>("ccswitch_scan", { dir: dir ?? null }),
   ccswitchApply: (tools: ToolId[], dir?: string, accounts = true) =>
     invoke<ImportReport>("ccswitch_apply", { tools, dir: dir ?? null, accounts }),

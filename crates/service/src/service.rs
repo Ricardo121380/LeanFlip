@@ -25,6 +25,7 @@ mod account_quota;
 mod backup;
 mod connection;
 mod krill_login;
+mod onboarding;
 mod scene;
 pub use backup::{BackupItem, BackupPreview, RestoreOptions, RestoreReport, MAX_BACKUP_BYTES};
 pub use connection::{connection_info, ApiKeyChange, ConnectionInfo, ConnectionUpdate};
@@ -199,6 +200,7 @@ pub enum PollResult {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SettingsView {
+    pub onboarding_needed: bool,
     pub app: AppSettings,
     pub keep_codex_login: bool,
     pub data_dir: PathBuf,
@@ -250,6 +252,8 @@ pub struct Runtime {
 }
 
 pub struct Service {
+    onboarding_needed: std::sync::atomic::AtomicBool,
+    staged_provider_import: Mutex<(u64, Option<leanflip_core::provider_import::Scan>)>,
     /// 没套覆盖的环境。
     base: Env,
     transport: Option<Arc<dyn OAuthTransport>>,
@@ -326,9 +330,12 @@ impl Service {
         transport: Option<Arc<dyn OAuthTransport>>,
         app_settings: AppSettings,
     ) -> Result<Self, AppError> {
+        let onboarding_needed = onboarding::needed(&base)?;
         let env = base.clone().with_overrides(&app_settings.dir_overrides);
         let oauth = Arc::new(CodexOAuthManager::new(&env, transport.clone())?);
         Ok(Self {
+            onboarding_needed: std::sync::atomic::AtomicBool::new(onboarding_needed),
+            staged_provider_import: Mutex::new((0, None)),
             base,
             transport,
             runtime: RwLock::new(Arc::new(Runtime { env, oauth })),
@@ -1536,6 +1543,9 @@ impl Service {
         let rt = self.runtime();
         let data = store::load_readonly(&rt.env).map_err(|e| self.err(e))?;
         Ok(SettingsView {
+            onboarding_needed: self
+                .onboarding_needed
+                .load(std::sync::atomic::Ordering::Relaxed),
             app: self.app_settings(),
             keep_codex_login: data.settings.preserve_codex_official_auth_on_switch,
             data_dir: rt.env.data_dir.clone(),

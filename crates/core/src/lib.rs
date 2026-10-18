@@ -16,6 +16,7 @@ pub mod live;
 pub mod operation;
 pub mod promo;
 pub mod provider;
+pub mod provider_import;
 pub mod scene;
 pub mod scene_rules;
 pub mod state;
