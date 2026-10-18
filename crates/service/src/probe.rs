@@ -307,13 +307,29 @@ fn accepted(status: u16, bytes: &[u8], target: &Target) -> Result<(), Failure> {
     if !(200..300).contains(&status) {
         return Err(http_failure(status, bytes, &target.secrets()));
     }
-    if let Ok(value) = serde_json::from_slice::<Value>(bytes) {
-        if value.get("error").is_some_and(|e| !e.is_null()) {
-            let mut failure = http_failure(status, bytes, &target.secrets());
-            failure.code = "bad_response";
-            return Err(failure);
-        }
+    let invalid = || Failure {
+        code: "bad_response",
+        detail: None,
+        status: Some(status),
+    };
+    let value = serde_json::from_slice::<Value>(bytes).map_err(|_| invalid())?;
+    if value.get("error").is_some_and(|e| !e.is_null()) {
+        let mut failure = http_failure(status, bytes, &target.secrets());
+        failure.code = "bad_response";
+        return Err(failure);
     }
+    let valid = match target.protocol {
+        Protocol::Anthropic | Protocol::AnthropicV1 => {
+            value["type"] == "message" && value["content"].is_array()
+        }
+        Protocol::OpenAiChat => value["choices"].is_array(),
+        Protocol::OpenAiResponses => value["object"] == "response" && value["output"].is_array(),
+        Protocol::Gemini => value["candidates"].is_array(),
+    };
+    if !valid {
+        return Err(invalid());
+    }
+
     Ok(())
 }
 

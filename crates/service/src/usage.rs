@@ -230,6 +230,7 @@ pub(crate) struct Batch {
 pub(crate) struct Scan<'c> {
     tx: Transaction<'c>,
     records: Vec<(Tool, Record)>,
+    read_bytes: u64,
 }
 
 impl Scan<'_> {
@@ -605,6 +606,7 @@ pub fn load(
                 .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
                 .map_err(fail)?,
             records: Vec::new(),
+            read_bytes: 0,
         };
         let found = sources::scan_all(env, &mut scan);
         let mut totals: HashMap<(String, Tool, String, String, Attribution), Counts> =
@@ -751,6 +753,7 @@ fn reconcile_codex_routes(
     let mut replay = Scan {
         tx: scratch.transaction()?,
         records: vec![],
+        read_bytes: 0,
     };
     if sources::codex(env, &mut replay).is_err() {
         return Ok(());

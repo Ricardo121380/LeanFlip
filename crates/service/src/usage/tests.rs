@@ -616,3 +616,149 @@ fn opencode_replaced_or_rewound_database_is_rescanned_without_duplicates() {
         5
     );
 }
+
+#[test]
+fn complete_jsonl_tail_is_counted_once_without_waiting_for_a_newline() {
+    let (_dir, env) = env();
+    let path = env.claude_dir.join("projects/test/session.jsonl");
+    let first = claude_line(now_ms(), "m1", "r1", 10, 5).to_string();
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(&path, &first).unwrap();
+    assert_eq!(
+        sum(
+            &load(&env, &StoreData::default(), &no_live).unwrap(),
+            Tool::Claude
+        )
+        .4,
+        1
+    );
+    assert_eq!(
+        sum(
+            &load(&env, &StoreData::default(), &no_live).unwrap(),
+            Tool::Claude
+        )
+        .4,
+        1
+    );
+    fs::write(
+        &path,
+        format!("{first}\n{}\n", claude_line(now_ms(), "m2", "r2", 20, 7)),
+    )
+    .unwrap();
+    assert_eq!(
+        sum(
+            &load(&env, &StoreData::default(), &no_live).unwrap(),
+            Tool::Claude
+        ),
+        (30, 2000, 100, 12, 2)
+    );
+}
+#[test]
+fn nested_gemini_subagents_are_counted_without_including_unrelated_jsonl() {
+    let (_dir, env) = env();
+    let message = json!({"sessionId":"sub","messages":[{"id":"g1","type":"gemini","timestamp":iso(now_ms()),"model":"gemini","tokens":{"input":100,"output":10}}]});
+    let path = env.gemini_dir.join("tmp/project/chats/parent/child.jsonl");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(&path, format!("{message}\n")).unwrap();
+    let unrelated = env.gemini_dir.join("tmp/project/unrelated/child.jsonl");
+    fs::create_dir_all(unrelated.parent().unwrap()).unwrap();
+    fs::write(unrelated, format!("{message}\n")).unwrap();
+    let r = load(&env, &StoreData::default(), &no_live).unwrap();
+    assert_eq!(sum(&r, Tool::Gemini).4, 1);
+    assert_eq!(
+        sum(
+            &load(&env, &StoreData::default(), &no_live).unwrap(),
+            Tool::Gemini
+        )
+        .4,
+        1
+    );
+}
+#[test]
+fn hermes_request_totals_do_not_depend_on_scan_batching() {
+    let run = |split: bool, tokens_lag: bool| {
+        let (_dir, env) = env();
+        fs::create_dir_all(&env.hermes_dir).unwrap();
+        let db = Connection::open(env.hermes_dir.join("state.db")).unwrap();
+        db.execute_batch("CREATE TABLE sessions (id TEXT, model TEXT, billing_provider TEXT, started_at REAL, message_count INTEGER, input_tokens INTEGER, output_tokens INTEGER, cache_read_tokens INTEGER, cache_write_tokens INTEGER)").unwrap();
+        db.execute(
+            "INSERT INTO sessions VALUES ('s','fixture','fixture',?1,4,100,20,0,0)",
+            [(now_ms() / 1000) as f64],
+        )
+        .unwrap();
+        if split {
+            db.execute(
+                if tokens_lag {
+                    "UPDATE sessions SET message_count=3,input_tokens=0,output_tokens=0"
+                } else {
+                    "UPDATE sessions SET message_count=3,input_tokens=80,output_tokens=10"
+                },
+                [],
+            )
+            .unwrap();
+            load(&env, &StoreData::default(), &no_live).unwrap();
+            db.execute(
+                "UPDATE sessions SET message_count=4,input_tokens=100,output_tokens=20",
+                [],
+            )
+            .unwrap();
+        }
+        sum(
+            &load(&env, &StoreData::default(), &no_live).unwrap(),
+            Tool::Hermes,
+        )
+    };
+    assert_eq!(run(false, false), (100, 0, 0, 20, 2));
+    assert_eq!(run(true, false), run(false, false));
+    assert_eq!(run(true, true), run(false, false));
+}
+#[test]
+fn oversized_usage_files_report_limits_and_do_not_prevent_other_files_from_loading() {
+    let (_dir, env) = env();
+    let huge = env.claude_dir.join("projects/test/a-huge.jsonl");
+    fs::create_dir_all(huge.parent().unwrap()).unwrap();
+    let mut file = fs::File::create(&huge).unwrap();
+    writeln!(file, "{}", claude_line(now_ms(), "before", "before", 10, 5)).unwrap();
+    file.set_len(super::sources::MAX_FILE_BYTES + 1024).unwrap();
+    let mut tail = fs::OpenOptions::new().append(true).open(&huge).unwrap();
+    writeln!(tail).unwrap();
+    writeln!(tail, "{}", claude_line(now_ms(), "after", "after", 10, 5)).unwrap();
+    append(
+        &env.claude_dir.join("projects/test/z-valid.jsonl"),
+        &[claude_line(now_ms(), "m", "r", 10, 5)],
+    );
+    let whole = env.gemini_dir.join("tmp/project/chats/huge.json");
+    fs::create_dir_all(whole.parent().unwrap()).unwrap();
+    fs::File::create(whole)
+        .unwrap()
+        .set_len(super::sources::MAX_FILE_BYTES + 1)
+        .unwrap();
+    let result = load(&env, &StoreData::default(), &no_live).unwrap();
+    assert_eq!(sum(&result, Tool::Claude).4, 2);
+    assert_eq!(
+        sum(
+            &load(&env, &StoreData::default(), &no_live).unwrap(),
+            Tool::Claude
+        )
+        .4,
+        3,
+        "an oversized line is skipped across scans and later records remain readable"
+    );
+    assert_eq!(
+        sum(
+            &load(&env, &StoreData::default(), &no_live).unwrap(),
+            Tool::Claude
+        )
+        .4,
+        3
+    );
+    for tool in [Tool::Claude, Tool::Gemini] {
+        let source = result.sources.iter().find(|s| s.tool == tool).unwrap();
+        assert_eq!(source.state, SourceState::Failed);
+        let detail = source.detail.as_deref().unwrap();
+        assert!(
+            detail.contains("limit") || detail.contains("budget"),
+            "{detail}"
+        );
+    }
+}

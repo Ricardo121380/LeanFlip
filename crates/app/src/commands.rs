@@ -219,6 +219,17 @@ pub async fn add_provider(
 }
 
 #[tauri::command]
+pub async fn link_provider(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    tool: Tool,
+    expected: Provider,
+    link: String,
+) -> ApiResult<OpResult> {
+    mutating(&app, &state, move |s| s.link_provider(tool, expected, link)).await
+}
+
+#[tauri::command]
 pub async fn update_provider(
     app: AppHandle,
     state: State<'_, AppState>,

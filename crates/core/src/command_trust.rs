@@ -112,7 +112,9 @@ fn approved(env: &Env) -> Result<BTreeSet<String>, AppError> {
 }
 pub fn preview(env: &Env, tool: Tool, settings: &Value) -> Result<CommandPreview, AppError> {
     let commands = commands(tool, settings)?;
-    // Bind consent to the execution environment AND credential destination. Versioning
+    // Bind consent to configured execution settings and credential destinations.
+    // Clients resolve and execute helpers later: this is not executable pinning
+    // or runtime attestation of inherited PATH/cwd, scripts, or package contents. Versioning
     // deliberately invalidates approvals made before destination binding was introduced.
     let context = match tool {
         Tool::Claude => {

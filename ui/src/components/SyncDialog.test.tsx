@@ -34,7 +34,7 @@ function start() {
     probe_models: () => ({ ok: true, status: 200, latencyMs: 90, code: null, detail: null, endpoint: null, model: null, models: [{ id: "deepseek-chat" }, { id: "kimi-k2" }] }),
     probe_check: () => ({ ok: false, status: 404, latencyMs: 80, code: "not_found", detail: null, endpoint: null, model: "deepseek-chat", models: null }),
     add_provider: () => ({ changed: [], warnings: [] }),
-    update_provider: () => ({ changed: [], warnings: [] }),
+    link_provider: () => ({ changed: [], warnings: [] }),
   });
   backend.invoke = fake.invoke;
   const onClose = vi.fn();
@@ -89,10 +89,10 @@ describe("SyncDialog", () => {
     expect(link).toMatch(/^link-/);
     expect(added[1].provider.meta?.leanflipLink).toBe(link);
     expect(added[0].provider.settingsConfig).toMatchObject({ options: { baseURL: "https://relay.example.com/v1", apiKey: "sk-relay" }, models: { "deepseek-chat": {} } });
-    const updated = calls(fake, "update_provider") as { tool: ToolId; provider: Provider }[];
-    expect(updated).toHaveLength(1);
-    expect(updated[0].tool).toBe("codex");
-    expect(updated[0].provider.meta?.leanflipLink).toBe(link);
+    const linked = calls(fake, "link_provider") as { tool: ToolId; expected: Provider; link: string }[];
+    expect(linked).toHaveLength(1);
+    expect(linked[0]).toEqual({ tool: "codex", expected: relay, link });
+    expect(calls(fake, "update_provider")).toHaveLength(0);
     expect(toast.success).toHaveBeenCalledWith("已添加到 2 个工具");
   });
 
@@ -137,9 +137,9 @@ describe("SyncDialog", () => {
     const added = calls(fake, "add_provider") as { tool: ToolId; provider: Provider }[];
     expect(added.map((call) => call.tool)).toEqual(["openclaw", "grokbuild"]);
     expect(added[1].provider.meta?.leanflipLink).toBe(added[0].provider.meta?.leanflipLink);
-    const updated = calls(fake, "update_provider") as { provider: Provider }[];
-    expect(updated).toHaveLength(1);
-    expect(updated[0].provider.meta?.leanflipLink).toBe(added[0].provider.meta?.leanflipLink);
+    const linked = calls(fake, "link_provider") as { link: string }[];
+    expect(linked).toHaveLength(2);
+    expect(linked.every((call) => call.link === added[0].provider.meta?.leanflipLink)).toBe(true);
   });
 
   it("keeps edits made while a request is pending and drops checks for an older model", async () => {
@@ -176,4 +176,20 @@ describe("SyncDialog", () => {
     expect(within(row()).queryByRole("status")).not.toBeInTheDocument();
     expect(model).toHaveValue("deepseek-chat");
   });
+});
+
+it("rejects a stale source before adding any target cards", async () => {
+  const user = userEvent.setup();
+  const { fake, onClose } = start();
+  backend.invoke = vi.fn(async (cmd: string, args?: Record<string, unknown>) => {
+    if (cmd === "link_provider") throw "来源供应商已变化";
+    return fake.invoke(cmd, args);
+  });
+  const list = await screen.findByRole("list");
+  await user.click(within(list).getByRole("checkbox", { name: "OpenClaw" }));
+  await user.click(screen.getByRole("button", { name: "添加到 1 个工具" }));
+  await waitFor(() => expect(toast.error).toHaveBeenCalledWith("来源供应商已变化"));
+  expect(calls(fake, "add_provider")).toHaveLength(0);
+  expect(calls(fake, "update_provider")).toHaveLength(0);
+  expect(onClose).not.toHaveBeenCalled();
 });

@@ -52,6 +52,10 @@ pub fn provider_format(value: &Value, source: Option<Format>) -> Format {
         }
     })
 }
+pub fn format_of(provider: &Provider) -> Format {
+    provider_format(&provider.settings_config, stored(provider))
+}
+
 pub fn provider_fragment<'a>(
     id: &str,
     value: &'a Value,
@@ -72,10 +76,9 @@ pub fn provider_fragment<'a>(
     }
     Ok((value, provider_format(value, source)))
 }
-pub(crate) fn entries(
-    path: &Path,
-    text: &str,
-) -> Result<IndexMap<String, (Value, Format)>, AppError> {
+type ProviderEntries = IndexMap<String, (Value, Format)>;
+
+pub(crate) fn entries(path: &Path, text: &str) -> Result<ProviderEntries, AppError> {
     let value = parse_value(path, text, EMPTY)?;
     let mut result = IndexMap::new();
     for format in [Format::V1, Format::V2] {
@@ -87,6 +90,20 @@ pub(crate) fn entries(
     }
     Ok(result)
 }
+pub(crate) fn import_entries(
+    path: &Path,
+    text: &str,
+) -> Result<(ProviderEntries, Vec<String>), AppError> {
+    let value = parse_value(path, text, EMPTY)?;
+    let mut warnings = Vec::new();
+    for (id, entry) in entries_at(&value, &["providers"])? {
+        if let Err(error) = validate_native_provider(&id, &entry) {
+            warnings.push(error.to_string());
+        }
+    }
+    Ok((entries(path, text)?, warnings))
+}
+
 pub(crate) fn imported_card(id: &str, value: Value, format: Format) -> Provider {
     let name = value
         .get("name")
@@ -236,7 +253,6 @@ fn validate_object(value: &Value, shape: Shape, prefix: &str) -> Option<String> 
         }
     };
     let required: &[&str] = match shape {
-        Shape::Capabilities => &["tools", "input", "output"],
         Shape::Cost => &["input", "output"],
         Shape::Tier => &["type", "size"],
         Shape::Variant => &["id"],

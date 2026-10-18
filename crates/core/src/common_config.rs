@@ -148,7 +148,19 @@ fn revision(paths: &[PathBuf], contents: &[Option<Vec<u8>>]) -> String {
         .collect();
     digest(Some(&serde_json::to_vec(&entries).expect("paths"))).unwrap()
 }
+#[cfg(test)]
+std::thread_local! { static AFTER_SNAPSHOT: std::cell::RefCell<Option<Box<dyn FnOnce()>>> = const { std::cell::RefCell::new(None) }; }
+
 pub fn read(env: &Env, tool: Tool) -> Result<CommonConfig, AppError> {
+    read_snapshot(env, tool).map(|snapshot| snapshot.view)
+}
+
+struct Snapshot {
+    view: CommonConfig,
+    contents: Vec<Option<Vec<u8>>>,
+}
+
+fn read_snapshot(env: &Env, tool: Tool) -> Result<Snapshot, AppError> {
     let paths = paths(env, tool);
     let contents: Vec<_> = paths
         .iter()
@@ -173,12 +185,15 @@ pub fn read(env: &Env, tool: Tool) -> Result<CommonConfig, AppError> {
     .then(|| "opencode-v2".to_string());
     let config = preferences(tool, &root);
     let revision = revision(&paths, &contents);
-    Ok(CommonConfig {
-        config,
-        paths,
-        revision,
-        format: format(tool).into(),
-        variant,
+    Ok(Snapshot {
+        view: CommonConfig {
+            config,
+            paths,
+            revision,
+            format: format(tool).into(),
+            variant,
+        },
+        contents,
     })
 }
 fn diff(
@@ -372,18 +387,26 @@ pub fn save(
     };
     let commit = |target: &PendingTarget| crate::switch::commit_target(env, tool, target);
     let transaction = AppWrite::begin(env.device_store(), tool.as_str(), &commit)?;
-    let current = read(env, tool)?;
+    let Snapshot {
+        view: current,
+        contents,
+    } = read_snapshot(env, tool)?;
     if current.revision != expected {
         return Err(AppError::Conflict(
             "客户端配置已变化，请重新载入 / Client configuration changed; reload before saving"
                 .into(),
         ));
     }
+    #[cfg(test)]
+    AFTER_SNAPSHOT.with(|hook| {
+        if let Some(callback) = hook.borrow_mut().take() {
+            callback();
+        }
+    });
     validate_options(tool, &config, &current.config)?;
     crate::config_shortcuts::common(tool, &current.config, &config)?;
     let mut patches = Vec::new();
-    for path in &current.paths {
-        let before = read_current(path)?;
+    for (path, before) in current.paths.iter().zip(&contents) {
         let value = parse(tool, before.as_deref().unwrap_or_default())?;
         let merged =
             merge_common(Some(&value), Some(&current.config), Some(&config)).ok_or_else(invalid)?;
@@ -481,4 +504,35 @@ fn preserve_protected(tool: Tool, value: &Value) -> Value {
     let mut result = serde_json::Map::new();
     visit(tool, value, &mut Vec::new(), &mut result);
     Value::Object(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn external_edit_after_revision_check_is_not_used_as_the_patch_base() {
+        let dir = tempfile::tempdir().unwrap();
+        let env = Env::with_home(dir.path());
+        let path = env.claude_settings_path();
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, r#"{"theme":"old"}"#).unwrap();
+        let view = read(&env, Tool::Claude).unwrap();
+        let external = path.clone();
+        AFTER_SNAPSHOT.with(|hook| {
+            *hook.borrow_mut() = Some(Box::new(move || {
+                std::fs::write(external, r#"{"theme":"external"}"#).unwrap();
+            }))
+        });
+        assert!(save(
+            &env,
+            Tool::Claude,
+            &view.revision,
+            json!({"theme":"requested"})
+        )
+        .is_err());
+        assert_eq!(
+            std::fs::read_to_string(path).unwrap(),
+            r#"{"theme":"external"}"#
+        );
+    }
 }

@@ -112,3 +112,15 @@ it("shows concrete directory destinations and submits their reviewed fingerprint
   await userEvent.click(screen.getByRole("button", { name: "确认恢复所选内容" }));
   await waitFor(() => expect(fake.calls.find((call) => call.cmd === "backup_apply")?.args).toMatchObject({ options: { paths: true, pathsConfirmation: "fixture-paths-fingerprint" } }));
 });
+
+it("shows managed account bindings before restore and hides them for deselected tools", async () => {
+  const fake = fakeBackend({ backup_load: () => ({ ...preview, items: [{ tool: "codex", id: "managed", name: "Managed", duplicate: false, accountId: "account-fixture" }] }), backup_discard: () => null });
+  backend.invoke.mockImplementation(fake.invoke);
+  renderWithClient(<BackupRestore bytes={new Uint8Array([1])} fileName="fixture.leanflip" onBack={() => {}} />);
+  await userEvent.type(screen.getByLabelText("备份密码"), "fixture-password");
+  await userEvent.click(screen.getByRole("button", { name: "解密并预览" }));
+  expect(await screen.findByText("「Managed」需要托管账号：account-fixture")).toBeInTheDocument();
+  expect(fake.calls.some((call) => call.cmd === "backup_apply")).toBe(false);
+  await userEvent.click(screen.getByRole("checkbox", { name: /Codex/ }));
+  expect(screen.queryByText("「Managed」需要托管账号：account-fixture")).not.toBeInTheDocument();
+});

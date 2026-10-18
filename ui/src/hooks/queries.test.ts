@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { QueryClient, QueryObserver } from "@tanstack/react-query";
-import { debounce, refreshAll } from "./queries";
+import { createElement, type ReactNode } from "react";
+import { act, renderHook } from "@testing-library/react";
+import { toast } from "sonner";
+import { QueryClientProvider, QueryClient, QueryObserver } from "@tanstack/react-query";
+import { debounce, refreshAll, useAction } from "./queries";
 
 describe("refresh coalescing", () => {
   it("debounce runs once after a burst", () => {
@@ -49,4 +52,21 @@ describe("refresh coalescing", () => {
     unsubscribe();
     client.clear();
   });
+});
+
+it("shows import warnings before the page success callback for partial and empty imports", async () => {
+  const warning = vi.spyOn(toast, "warning").mockImplementation(() => 1);
+  const client = new QueryClient();
+  const success = vi.fn();
+  const { result } = renderHook(() => useAction(async (created: string[]) => ({ created, warnings: ["Invalid field: providers.bad.models.m.capabilities.tools"] }), success), {
+    wrapper: ({ children }: { children: ReactNode }) => createElement(QueryClientProvider, { client }, children),
+  });
+  for (const created of [["good"], []]) {
+    await act(async () => { await result.current.mutateAsync(created); });
+    expect(warning).toHaveBeenLastCalledWith("Invalid field: providers.bad.models.m.capabilities.tools");
+    expect(success).toHaveBeenLastCalledWith(expect.objectContaining({ created }), created);
+  }
+  expect(warning).toHaveBeenCalledTimes(2);
+  warning.mockRestore();
+  client.clear();
 });

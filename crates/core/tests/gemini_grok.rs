@@ -175,7 +175,8 @@ fn gemini_import_takes_only_key_fields() {
     assert_eq!(
         card.settings_config,
         json!({"env": {"GOOGLE_GEMINI_BASE_URL": "https://a.example", "GEMINI_API_KEY": "ka"},
-               "config": {"model": {"name": "m-a"}}})
+               "config": {"model": {"name": "m-a"},
+                          "security": {"auth": {"selectedType": "gemini-api-key"}}}})
     );
     // 导入不写 live。
     assert_eq!(sb.read(&sb.env.gemini_env_path()), GEMINI_ENV);

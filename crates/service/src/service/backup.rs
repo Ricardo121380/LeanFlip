@@ -98,6 +98,7 @@ pub struct BackupItem {
     pub id: String,
     pub name: String,
     pub duplicate: bool,
+    pub account_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -274,6 +275,7 @@ fn restore_scenes(
     let portable = |card: &leanflip_core::Provider| {
         let mut card = card.clone();
         card.set_codex_login_ref(None);
+        card.reset_imported_quota_refresh();
         card.id.clear();
         card
     };
@@ -444,6 +446,7 @@ impl Service {
                 id: provider.id.clone(),
                 name: provider.name.clone(),
                 duplicate: existing.provider(tool, &provider.id).is_some(),
+                account_id: provider.managed_codex_account().map(str::to_owned),
             })
             .collect();
         let paths = directory_preview(&self.base, &self.env(), &payload.app.dir_overrides);
@@ -537,7 +540,7 @@ impl Service {
         let rt = self.runtime();
         // Validate every destination before the first write. Later I/O failures
         // still return a partial report so completed merges are never hidden.
-        store::load_readonly(&rt.env).map_err(|e| self.err(e))?;
+        let existing = store::load_readonly(&rt.env).map_err(|e| self.err(e))?;
         let current_settings = if options.settings {
             Some(settings::load(&rt.env.data_dir).map_err(|e| self.err(e))?)
         } else {
@@ -565,6 +568,51 @@ impl Service {
                     "Review and confirm the full destination paths. Preview again if paths changed.")));
             }
             settings::validate(&payload.app).map_err(|e| self.err(e))?;
+        }
+        let mut required_accounts = Vec::new();
+        for tool in &options.tools {
+            for provider in payload.providers.providers(*tool) {
+                let Some(account_id) = provider.managed_codex_account() else {
+                    continue;
+                };
+                let mut next = provider.clone();
+                next.set_codex_login_ref(None);
+                next.reset_imported_quota_refresh();
+                if existing
+                    .provider(*tool, &provider.id)
+                    .is_some_and(|stored| {
+                        stored == &next
+                            || options.duplicate == ccswitch_export::DuplicatePolicy::Skip
+                    })
+                {
+                    continue;
+                }
+                required_accounts.push((account_id, &provider.name));
+            }
+        }
+        if !required_accounts.is_empty() {
+            let mut account_ids: HashSet<String> = rt
+                .oauth
+                .try_list_accounts()
+                .map_err(|e| self.err(e))?
+                .into_iter()
+                .map(|account| account.id)
+                .collect();
+            if options.accounts {
+                account_ids.extend(
+                    payload
+                        .accounts
+                        .iter()
+                        .map(|account| account.account_id.clone()),
+                );
+            }
+            for (account_id, name) in required_accounts {
+                if !account_ids.contains(account_id) {
+                    return Err(self.err(AppError::localized("backup.missing_account",
+                        format!("供应商「{name}」绑定的托管账号不在本机；请同时恢复账号或取消该工具。"),
+                        format!("Provider '{name}' requires a missing managed account. Restore accounts too, or deselect this tool."))));
+                }
+            }
         }
         let mut report = RestoreReport::default();
         // Stages are idempotent merges. If a later disk write fails, report the
@@ -595,6 +643,7 @@ impl Service {
                     for provider in payload.providers.providers(tool) {
                         let mut next = provider.clone();
                         next.set_codex_login_ref(None);
+                        next.reset_imported_quota_refresh();
                         if let Some(existing) = data.provider(tool, &next.id) {
                             if existing == &next
                                 || options.duplicate == ccswitch_export::DuplicatePolicy::Skip

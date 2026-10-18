@@ -70,8 +70,9 @@ pub fn projection(provider: &Provider) -> Result<GeminiProjection, AppError> {
                 .map(str::trim)
                 .filter(|s| !s.is_empty())
         };
-        let vertex = value("GOOGLE_GENAI_USE_VERTEXAI")
-            .is_some_and(|s| s == "1" || s.eq_ignore_ascii_case("true"));
+        let vertex = result.selected_type == Some("vertex-ai")
+            || value("GOOGLE_GENAI_USE_VERTEXAI")
+                .is_some_and(|s| s == "1" || s.eq_ignore_ascii_case("true"));
         if vertex {
             result.selected_type = Some("vertex-ai");
         }

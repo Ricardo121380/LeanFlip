@@ -591,7 +591,7 @@ fn run(cli: Cli) -> Result<Output, CliError> {
             source: Import::Live { tool },
         } => {
             let result = service.import_live(tool.into())?;
-            let text = if result.created.is_empty() {
+            let mut text = if result.created.is_empty() {
                 lang.text("没有新增供应商。当前配置可能已导入，或没有可导入的内容。", "No providers added. The current configuration may already be imported or contain nothing to import.").to_string()
             } else {
                 format!(
@@ -601,6 +601,9 @@ fn run(cli: Cli) -> Result<Output, CliError> {
                     lang.text("个供应商。", "provider(s).")
                 )
             };
+            for warning in &result.warnings {
+                text.push_str(&format!("\n{}", clean(warning)));
+            }
             Ok(Output::new(json!(result), text))
         }
         Command::Export {
@@ -734,7 +737,7 @@ fn run(cli: Cli) -> Result<Output, CliError> {
                         &json!({"commands": review.commands, "destinations": review.destinations}),
                     )
                     .map_err(|_| CliError::io())?;
-                    let text = format!("{}\n{}\n\n{}\n--approve {}", lang.text("客户端会以你的权限执行以下命令或供应商包，请同时核对目标地址：", "The client will execute these commands or provider packages with your permissions. Review their destinations too:"), clean(&commands), lang.text("确认信任后，在同一命令后追加：", "After reviewing and trusting them, repeat this command with:"), review.fingerprint);
+                    let text = format!("{}\n{}\n\n{}\n--approve {}", lang.text("授权仅绑定配置中的命令、包引用和地址，不锁定文件内容、继承的 PATH 或客户端运行目录。客户端会以你的权限执行，请核对：", "Approval covers configured references and destinations, not executable contents, inherited PATH or the client working directory. Review what the client will execute with your permissions:"), clean(&commands), lang.text("确认信任后，在同一命令后追加：", "After reviewing and trusting them, repeat this command with:"), review.fingerprint);
                     Ok(Output::new(json!(review), text))
                 }
                 ProviderCommand::Edit { tool, provider_id } => {

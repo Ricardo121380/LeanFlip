@@ -372,6 +372,14 @@ const handlers: Record<string, (args: Args) => unknown> = {
     }
     return ok;
   },
+  link_provider: (a) => {
+    const t = tools[a!.tool as ToolId];
+    const expected = a!.expected as Provider;
+    const current = t.providers.find((p) => p.id === expected.id);
+    if (!current) throw new Error("Source provider no longer exists");
+    current.meta = { ...current.meta, leanflipLink: a!.link };
+    return ok;
+  },
   update_provider: (a) => {
     const t = tools[a!.tool as ToolId];
     const provider = a!.provider as Provider;

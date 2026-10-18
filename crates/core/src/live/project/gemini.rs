@@ -37,11 +37,18 @@ impl GeminiProjection {
             .pointer("/config/model/name")
             .filter(|v| !v.is_null())
             .cloned();
-        selected.selected_type = Some(if official {
-            SELECTED_TYPE_OAUTH
-        } else {
-            SELECTED_TYPE_API_KEY
-        });
+        selected.selected_type = Some(
+            match settings
+                .pointer("/config/security/auth/selectedType")
+                .and_then(Value::as_str)
+            {
+                Some("vertex-ai") => "vertex-ai",
+                Some(SELECTED_TYPE_API_KEY) => SELECTED_TYPE_API_KEY,
+                Some(SELECTED_TYPE_OAUTH) => SELECTED_TYPE_OAUTH,
+                _ if official => SELECTED_TYPE_OAUTH,
+                _ => SELECTED_TYPE_API_KEY,
+            },
+        );
         selected
     }
     pub fn env_patch(&self) -> DotenvPatch {

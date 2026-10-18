@@ -215,3 +215,137 @@ fn key_references_are_configured_and_clearing_legacy_aliases_leaves_no_fallback(
     let cloud = card(json!({"env":{"CLAUDE_CODE_USE_BEDROCK":"1"}}));
     assert!(!connection_info(Tool::Claude, &cloud).editable);
 }
+
+#[test]
+fn clearing_codex_key_clears_imported_bearer_sources_and_live_credentials() {
+    let dir = tempfile::tempdir().unwrap();
+    let env = Env::with_home(dir.path());
+    let service = Service::open(env.clone(), None).unwrap();
+    let provider = card(
+        json!({"auth":{},"config":"model_provider='custom'\nexperimental_bearer_token='fixture-root'\n[model_providers.custom]\nbase_url='https://fixture.invalid/v1'\nexperimental_bearer_token='fixture-original'\n"}),
+    );
+    assert!(connection_info(Tool::Codex, &provider).api_key_set);
+    service.add_provider(Tool::Codex, provider, true).unwrap();
+    for key in [
+        ApiKeyChange::Set("fixture-replacement".into()),
+        ApiKeyChange::Clear,
+    ] {
+        let data = store::load_readonly(&env).unwrap();
+        let expected = redact::redact(Tool::Codex, data.provider(Tool::Codex, "work").unwrap());
+        service
+            .update_connection(
+                Tool::Codex,
+                &expected,
+                ConnectionUpdate {
+                    name: "Work".into(),
+                    base_url: None,
+                    api_key: key,
+                },
+            )
+            .unwrap();
+    }
+    let data = store::load_readonly(&env).unwrap();
+    let saved = data.provider(Tool::Codex, "work").unwrap();
+    assert!(!connection_info(Tool::Codex, saved).api_key_set);
+    for text in [
+        saved.settings_config["config"]
+            .as_str()
+            .unwrap()
+            .to_string(),
+        std::fs::read_to_string(env.codex_config_path()).unwrap(),
+    ] {
+        assert!(!text.contains("experimental_bearer_token"));
+        assert!(!text.contains("fixture-original"));
+        assert!(!text.contains("fixture-root"));
+        assert!(!text.contains("fixture-replacement"));
+    }
+}
+
+#[test]
+fn opencode_v2_connection_edits_update_the_native_live_fields() {
+    let dir = tempfile::tempdir().unwrap();
+    let env = Env::with_home(dir.path());
+    std::fs::create_dir_all(&env.opencode_dir).unwrap();
+    std::fs::write(env.opencode_config_path(),json!({"providers":{"work":{"settings":{"baseURL":"https://old.example/v1","apiKey":"fixture-old"},"models":{"m":{"capabilities":{"tools":false}}}}}}).to_string()).unwrap();
+    let service = Service::open(env.clone(), None).unwrap();
+    service.import_live(Tool::OpenCode).unwrap();
+    let data = store::load_readonly(&env).unwrap();
+    let provider = data.provider(Tool::OpenCode, "work").unwrap();
+    assert_eq!(
+        connection_info(Tool::OpenCode, provider)
+            .base_url
+            .as_deref(),
+        Some("https://old.example/v1")
+    );
+    service
+        .update_connection(
+            Tool::OpenCode,
+            &redact::redact(Tool::OpenCode, provider),
+            update(),
+        )
+        .unwrap();
+    let live: Value =
+        serde_json::from_slice(&std::fs::read(env.opencode_config_path()).unwrap()).unwrap();
+    assert_eq!(
+        live["providers"]["work"]["settings"]["baseURL"],
+        "https://new.example/v1"
+    );
+    assert_eq!(
+        live["providers"]["work"]["settings"]["apiKey"],
+        "replacement-test-key"
+    );
+    assert!(live["providers"]["work"].get("options").is_none());
+    assert_eq!(
+        live["providers"]["work"]["models"]["m"]["capabilities"]["tools"],
+        false
+    );
+}
+
+#[test]
+fn sync_link_checks_source_snapshot_and_never_rewrites_live_configuration() {
+    let dir = tempfile::tempdir().unwrap();
+    let env = Env::with_home(dir.path());
+    let service = Service::open(env.clone(), None).unwrap();
+    let provider = card(
+        json!({"env":{"ANTHROPIC_BASE_URL":"https://old.example","ANTHROPIC_AUTH_TOKEN":"fixture-old"}}),
+    );
+    service
+        .add_provider(Tool::Claude, provider.clone(), true)
+        .unwrap();
+    service
+        .update_connection(
+            Tool::Claude,
+            &redact::redact(Tool::Claude, &provider),
+            update(),
+        )
+        .unwrap();
+    let before = std::fs::read(env.claude_settings_path()).unwrap();
+    assert_eq!(
+        service
+            .link_provider(
+                Tool::Claude,
+                redact::redact(Tool::Claude, &provider),
+                "link-fixture".into()
+            )
+            .unwrap_err()
+            .code(),
+        "conflict"
+    );
+    assert_eq!(std::fs::read(env.claude_settings_path()).unwrap(), before);
+    let data = store::load_readonly(&env).unwrap();
+    let current = redact::redact(Tool::Claude, data.provider(Tool::Claude, "work").unwrap());
+    for _ in 0..2 {
+        service
+            .link_provider(Tool::Claude, current.clone(), "link-fixture".into())
+            .unwrap();
+    }
+    assert_eq!(std::fs::read(env.claude_settings_path()).unwrap(), before);
+    let data = store::load_readonly(&env).unwrap();
+    assert_eq!(
+        data.provider(Tool::Claude, "work").unwrap().meta.extra["leanflipLink"],
+        "link-fixture"
+    );
+    assert!(service
+        .link_provider(Tool::Claude, current, "different-link".into())
+        .is_err());
+}

@@ -217,6 +217,7 @@ pub fn run() {
             commands::switch_provider,
             commands::add_provider,
             commands::update_provider,
+            commands::link_provider,
             commands::delete_provider,
             commands::set_in_live,
             commands::list_scenes,
