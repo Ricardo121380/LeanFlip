@@ -295,7 +295,7 @@ export interface ImportScan {
 
 export interface BackupPreview {
   createdAt: number;
-  items: { tool: ToolId; id: string; name: string; duplicate: boolean }[];
+  items: { tool: ToolId; id: string; name: string; duplicate: boolean; accountId?: string | null }[];
   accounts: number;
   existingAccounts: number;
   hasSettings: boolean;
@@ -538,11 +538,12 @@ export const api = {
   switchProvider: (tool: ToolId, id: string) => invoke<OpResult>("switch_provider", { tool, id }),
   addProvider: (tool: ToolId, provider: Provider, addToLive: boolean) =>
     invoke<OpResult>("add_provider", { tool, provider, addToLive }),
+  linkProvider: (tool: ToolId, expected: Provider, link: string) => invoke<OpResult>("link_provider", { tool, expected, link }),
   updateProvider: (tool: ToolId, provider: Provider) => invoke<OpResult>("update_provider", { tool, provider }),
   deleteProvider: (tool: ToolId, id: string) => invoke<void>("delete_provider", { tool, id }),
   setInLive: (tool: ToolId, id: string, enabled: boolean) =>
     invoke<OpResult>("set_in_live", { tool, id, enabled }),
-  importLive: (tool: ToolId) => invoke<{ created: string[] }>("import_live", { tool }),
+  importLive: (tool: ToolId) => invoke<{ created: string[]; warnings?: string[] }>("import_live", { tool }),
   listScenes: () => invoke<SceneList>("list_scenes"),
   /** 把现在的状态记成一个还没保存的场景；不传 `tools` 时取所有有卡的工具。 */
   captureScene: (tools?: ToolId[]) => invoke<Scene>("capture_scene", { tools: tools ?? null }),

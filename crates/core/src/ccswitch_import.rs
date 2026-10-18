@@ -514,6 +514,7 @@ pub(crate) fn to_provider(tool: Tool, value: Value) -> Option<Provider> {
         strip_codex_login(&mut provider.settings_config);
     }
     strip_oauth_env(&mut provider.settings_config);
+    provider.reset_imported_quota_refresh();
     Some(provider)
 }
 

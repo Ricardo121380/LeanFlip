@@ -186,6 +186,7 @@ fn recovery_message(outcome: &RecoveryOutcome, english: bool) -> String {
 #[serde(rename_all = "camelCase")]
 pub struct ImportLiveResult {
     pub created: Vec<String>,
+    pub warnings: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -749,6 +750,48 @@ impl Service {
         self.noted(run().map_err(|e| self.err(e)))
     }
 
+    /// Attach a sync group without rewriting provider credentials or live files.
+    /// Check the dialog's snapshot before any target cards are added.
+    pub fn link_provider(
+        &self,
+        tool: Tool,
+        expected: Provider,
+        link: String,
+    ) -> ApiResult<OpResult> {
+        if link.is_empty() || link.len() > 200 {
+            return Err(self.err(AppError::InvalidInput("Invalid provider link".into())));
+        }
+        let _guard = self.write_guard()?;
+        let rt = self.runtime();
+        store::update(&rt.env, |data| {
+            let stored = data
+                .app_mut(tool)
+                .providers
+                .iter_mut()
+                .find(|p| p.id == expected.id)
+                .ok_or_else(|| AppError::Conflict("Source provider no longer exists".into()))?;
+            let mut current = redact::redact(tool, stored);
+            let mut expected = expected.clone();
+            // A partial sync may already have attached this exact group.
+            let old_link = current.meta.extra.remove("leanflipLink");
+            expected.meta.extra.remove("leanflipLink");
+            if current != expected || old_link.as_ref().is_some_and(|v| v.as_str() != Some(&link)) {
+                return Err(AppError::localized(
+                    "conflict",
+                    "来源供应商已变化，请重新打开同步窗口。",
+                    "The source provider changed. Reopen the sync dialog.",
+                ));
+            }
+            stored.meta.extra.insert(
+                "leanflipLink".into(),
+                serde_json::Value::String(link.clone()),
+            );
+            Ok(())
+        })
+        .map_err(|e| self.err(e))?;
+        Ok(OpResult::default())
+    }
+
     pub fn update_provider(&self, tool: Tool, mut provider: Provider) -> ApiResult<OpResult> {
         let _guard = self.write_guard()?;
         let rt = self.runtime();
@@ -821,7 +864,10 @@ impl Service {
         let rt = self.runtime();
         self.settle(&rt, tool)?;
         let result = import::import_live(&rt.env, tool)
-            .map(|r| ImportLiveResult { created: r.created })
+            .map(|r| ImportLiveResult {
+                created: r.created,
+                warnings: r.warnings,
+            })
             .map_err(|e| self.err(e));
         self.noted(result)
     }

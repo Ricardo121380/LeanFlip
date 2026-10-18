@@ -38,6 +38,7 @@ pub const OFFICIAL_ID: &str = "official";
 pub struct ImportReport {
     /// 新建的卡的 id。
     pub created: Vec<String>,
+    pub warnings: Vec<String>,
     /// 当前指针。
     pub current: Option<String>,
 }
@@ -71,6 +72,7 @@ pub fn import_live(env: &Env, tool: Tool) -> Result<ImportReport, AppError> {
                     || crate::switch::status::matches_live(env, data, tool, saved).unwrap_or(false))
         }) {
             return Ok(ImportReport {
+                warnings: Vec::new(),
                 created: vec![],
                 current: data.app(tool).and_then(|app| app.current.clone()),
             });
@@ -94,6 +96,7 @@ pub fn import_live(env: &Env, tool: Tool) -> Result<ImportReport, AppError> {
             app.providers.push(card);
             app.current = Some(id.clone());
             return Ok(ImportReport {
+                warnings: Vec::new(),
                 created: vec![id.clone()],
                 current: Some(id),
             });
@@ -105,6 +108,7 @@ pub fn import_live(env: &Env, tool: Tool) -> Result<ImportReport, AppError> {
         }
         app.current = Some(current.clone());
         Ok(ImportReport {
+            warnings: Vec::new(),
             created,
             current: Some(current),
         })
@@ -141,6 +145,7 @@ fn equivalent_capture(tool: Tool, saved: &Provider, captured: &Provider) -> Resu
                     exclusive: p.exclusive,
                     outgoing: vec![],
                     retired: vec![],
+                    previous_route: None,
                 };
                 let bytes = patch.apply(std::path::Path::new("config.toml"), Some(b""))?;
                 let parsed: toml::Value = std::str::from_utf8(&bytes)
@@ -265,14 +270,19 @@ fn gemini_cards(env: &Env) -> Result<(Vec<Provider>, String), AppError> {
         _ => json!({}),
     };
     let projection = GeminiProjection::of(
-        &json!({ "env": Value::Object(live_env), "config": settings }),
+        &json!({ "env": Value::Object(live_env), "config": &settings }),
         false,
     );
+    let mut config = json!({});
+    if let Some(model) = &projection.model_name {
+        config["model"] = json!({"name": model});
+    }
+    if let Some(selected) = settings.pointer("/security/auth/selectedType") {
+        config["security"] = json!({"auth": {"selectedType": selected}});
+    }
     if projection.env.is_empty() {
         let mut official = official;
-        if let Some(model) = &projection.model_name {
-            official.settings_config["config"] = json!({"model": {"name": model}});
-        }
+        official.settings_config["config"] = config;
         return Ok((vec![official], OFFICIAL_ID.to_string()));
     }
     let env_row: serde_json::Map<String, Value> = projection
@@ -280,10 +290,6 @@ fn gemini_cards(env: &Env) -> Result<(Vec<Provider>, String), AppError> {
         .iter()
         .map(|(key, value)| (key.clone(), Value::String(value.clone())))
         .collect();
-    let mut config = json!({});
-    if let Some(model) = &projection.model_name {
-        config = json!({ "model": { "name": model } });
-    }
     let imported = Provider::new(
         IMPORTED_ID,
         "当前配置 (Imported)",

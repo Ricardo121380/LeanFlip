@@ -63,19 +63,59 @@ export function getTomlValue(text: string, table: TablePath, key: string): unkno
   return node && typeof node === "object" ? (node as Record<string, unknown>)[key] : undefined;
 }
 
+// Track complete TOML statements so examples inside strings and arrays are never
+// mistaken for keys or table headers. Ranges include a multiline value in full.
+function statementRanges(lines: string[]): { start: number; end: number }[] {
+  const ranges: { start: number; end: number }[] = [];
+  let quote = "";
+  let depth = 0;
+  let start = -1;
+  for (let row = 0; row < lines.length; row++) {
+    const line = lines[row];
+    if (start === -1 && !/^\s*(?:#|$)/.test(line)) start = row;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (quote) {
+        if (quote[0] === '"' && ch === "\\") { i++; continue; }
+        if (line.startsWith(quote, i)) {
+          let length = quote.length;
+          if (length === 3) while (line[i + length] === quote[0]) length++;
+          i += length - 1;
+          quote = "";
+        }
+      } else if (ch === "#") {
+        break;
+      } else if (ch === '"' || ch === "'") {
+        quote = line.startsWith(ch.repeat(3), i) ? ch.repeat(3) : ch;
+        i += quote.length - 1;
+      } else if (ch === "[" || ch === "{") {
+        depth++;
+      } else if (ch === "]" || ch === "}") {
+        depth--;
+      }
+    }
+    if (start !== -1 && !quote && depth === 0) {
+      ranges.push({ start, end: row + 1 });
+      start = -1;
+    }
+  }
+  return ranges;
+}
+
 /** 设置或删除（value 为空字符串 / undefined）一个键，返回新文本。 */
 export function setTomlValue(text: string, table: TablePath, key: string, value: string | number | boolean | undefined): string {
   const lines = text.split("\n");
+  const statements = statementRanges(lines);
   const remove = value === undefined || value === "";
   // Locate the table's line range [start, end).
   let start = 0;
   let end = lines.length;
   let headerIndex = -1;
   if (table) {
-    const found = lines.findIndex((line) => {
-      const match = HEADER.exec(line);
+    const found = statements.find(({ start }) => {
+      const match = HEADER.exec(lines[start]);
       return match ? sameTable(splitKey(match[1]), table) : false;
-    });
+    })?.start ?? -1;
     if (found === -1) {
       if (remove) return text;
       const body = text.endsWith("\n") || text === "" ? text : `${text}\n`;
@@ -85,24 +125,24 @@ export function setTomlValue(text: string, table: TablePath, key: string, value:
     headerIndex = found;
     start = found + 1;
   }
-  const next = lines.findIndex((line, index) => index >= start && (HEADER.test(line) || /^\s*\[\[/.test(line)));
+  const next = statements.find((range) => range.start >= start && (HEADER.test(lines[range.start]) || /^\s*\[\[/.test(lines[range.start])))?.start ?? -1;
   if (next !== -1) end = next;
 
   const keyPattern = new RegExp(`^\\s*(?:${escapeRegExp(key)}|"${escapeRegExp(key)}"|'${escapeRegExp(key)}')\\s*=`);
-  const existing = lines.findIndex((line, index) => index >= start && index < end && keyPattern.test(line));
-  if (existing !== -1) {
-    if (remove) lines.splice(existing, 1);
+  const existing = statements.find((range) => range.start >= start && range.start < end && keyPattern.test(lines[range.start]));
+  if (existing) {
+    if (remove) lines.splice(existing.start, existing.end - existing.start);
     else {
-      const indent = /^\s*/.exec(lines[existing])![0];
-      lines[existing] = `${indent}${keyLiteral(key)} = ${valueLiteral(value!)}`;
+      const indent = /^\s*/.exec(lines[existing.start])![0];
+      lines.splice(existing.start, existing.end - existing.start, `${indent}${keyLiteral(key)} = ${valueLiteral(value!)}`);
     }
     return lines.join("\n");
   }
   if (remove) return text;
   // Insert after the last key line in the table, so new keys sit with their siblings.
   let insertAt = table ? headerIndex + 1 : 0;
-  for (let index = start; index < end; index++) {
-    if (/^\s*[^#\s[].*=/.test(lines[index])) insertAt = index + 1;
+  for (const range of statements) {
+    if (range.start >= start && range.start < end && /^\s*[^#\s[].*=/.test(lines[range.start])) insertAt = range.end;
   }
   lines.splice(insertAt, 0, `${keyLiteral(key)} = ${valueLiteral(value!)}`);
   return lines.join("\n");

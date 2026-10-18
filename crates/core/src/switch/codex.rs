@@ -156,6 +156,12 @@ pub fn plan(
                 .unwrap_or_default(),
             route,
             retired: CatalogFacts::read(data).routes,
+            previous_route: previous
+                .and_then(|p| projection(p).ok())
+                .and_then(|p| match p.route {
+                    Route::Custom { table, .. } => Some(table),
+                    _ => None,
+                }),
         },
         stamp,
         target: target.clone(),

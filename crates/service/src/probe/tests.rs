@@ -372,7 +372,13 @@ fn grok_and_coexist_targets_map_their_protocols() {
 
 #[test]
 fn effort_levels_are_probed_after_a_baseline_and_rejections_mark_unsupported() {
-    let ok = || (200, "", json!({"output":[]}).to_string());
+    let ok = || {
+        (
+            200,
+            "",
+            json!({"object":"response","output":[]}).to_string(),
+        )
+    };
     let rejected = || {
         (400, "", json!({"error":{"message":"Unsupported value: 'reasoning.effort' does not support this value"}}).to_string())
     };
@@ -443,4 +449,33 @@ fn effort_parameters_follow_each_protocol() {
             .get("reasoning")
             .is_none()
     );
+}
+
+#[test]
+fn checks_reject_login_pages_empty_json_and_another_protocol() {
+    for body in ["<html>Login</html>", "{}", r#"{"choices":[]}"#] {
+        let (base, _) = serve(vec![(200, "", body.into())]);
+        let target = at(
+            &base,
+            "/v1",
+            Protocol::Anthropic,
+            Auth::ApiKey("fixture-key".into()),
+        );
+        let result = check_with(&local(), &target, Some("fixture"));
+        assert!(!result.ok, "{body}");
+        assert_eq!(result.code.as_deref(), Some("bad_response"));
+    }
+    for (protocol, body) in [
+        (Protocol::Anthropic, json!({"type":"message","content":[]})),
+        (
+            Protocol::OpenAiResponses,
+            json!({"object":"response","output":[]}),
+        ),
+        (Protocol::OpenAiChat, json!({"choices":[]})),
+        (Protocol::Gemini, json!({"candidates":[]})),
+    ] {
+        let (base, _) = serve(vec![(200, "", body.to_string())]);
+        let target = at(&base, "/v1", protocol, Auth::Bearer("fixture-key".into()));
+        assert!(check_with(&local(), &target, Some("fixture")).ok);
+    }
 }

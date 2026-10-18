@@ -490,3 +490,150 @@ fn directory_consent_changes_when_a_symlink_points_somewhere_else() {
         directory_fingerprint(&after).unwrap()
     );
 }
+
+#[test]
+fn restore_requires_managed_bindings_to_resolve_before_writing_any_providers() {
+    let (_source, source, _bytes) = fixture();
+    let mut provider =
+        Provider::new("managed", "Managed", json!({"auth":{},"config":""})).official();
+    provider.meta.auth_binding = Some(leanflip_core::provider::AuthBinding {
+        auth_provider: "codex_oauth".into(),
+        account_id: Some("account-fixture".into()),
+    });
+    store::add_provider(&source.env(), Tool::Codex, provider).unwrap();
+    let bytes = source.backup_export(PASSWORD).unwrap();
+    let target = TempDir::new().unwrap();
+    let service = open(target.path());
+    let preview = service.backup_load(&bytes, PASSWORD).unwrap();
+    assert_eq!(
+        preview
+            .items
+            .iter()
+            .find(|p| p.id == "managed")
+            .unwrap()
+            .account_id
+            .as_deref(),
+        Some("account-fixture")
+    );
+    let error = service
+        .backup_apply(RestoreOptions {
+            accounts: false,
+            ..Default::default()
+        })
+        .unwrap_err();
+    assert_eq!(error.code(), "backup.missing_account");
+    assert!(store::load_readonly(&service.env())
+        .unwrap()
+        .providers(Tool::Claude)
+        .is_empty());
+    assert!(store::load_readonly(&service.env())
+        .unwrap()
+        .providers(Tool::Codex)
+        .is_empty());
+    service
+        .runtime()
+        .oauth
+        .import_accounts(vec![account("fixture-target-refresh")], None)
+        .unwrap();
+    let report = service
+        .backup_apply(RestoreOptions {
+            accounts: false,
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(report.providers_added, 2);
+    assert_eq!(report.accounts_added, 0);
+    assert_eq!(
+        store::load_readonly(&service.env())
+            .unwrap()
+            .provider(Tool::Codex, "managed")
+            .unwrap()
+            .managed_codex_account(),
+        Some("account-fixture")
+    );
+}
+#[test]
+fn restored_cards_cannot_start_background_quota_requests_without_local_opt_in() {
+    let source = TempDir::new().unwrap();
+    let service = open(source.path());
+    let mut provider = card("relay", "fictional-key");
+    provider.settings_config["env"]["ANTHROPIC_BASE_URL"] = json!("http://127.0.0.1:1");
+    provider.meta.extra.insert(
+        quota::relay::META_QUOTA.into(),
+        json!({"adapter":"newapi","refreshMinutes":5}),
+    );
+    service.add_provider(Tool::Claude, provider, false).unwrap();
+    let mut scene = Scene {
+        name: "Quota scene".into(),
+        ..Scene::default()
+    };
+    scene
+        .tools
+        .insert("claude".into(), scene::SceneTool::current("relay"));
+    service.save_scene(scene).unwrap();
+    let bytes = service.backup_export(PASSWORD).unwrap();
+    let target = TempDir::new().unwrap();
+    let restored = open(target.path());
+    restored.backup_load(&bytes, PASSWORD).unwrap();
+    let report = restored.backup_apply(RestoreOptions::default()).unwrap();
+    assert_eq!(report.scenes_added, 1);
+    assert!(!restored.quota_refresh_due().unwrap());
+    let data = store::load_readonly(&restored.env()).unwrap();
+    assert_eq!(
+        data.provider(Tool::Claude, "relay").unwrap().meta.extra[quota::relay::META_QUOTA]
+            ["refreshMinutes"],
+        0
+    );
+    restored
+        .quota_configure(
+            Tool::Claude,
+            "relay",
+            Some(quota::relay::QuotaSettings {
+                adapter: Some("newapi".into()),
+                refresh_minutes: 5,
+                ..Default::default()
+            }),
+        )
+        .unwrap();
+    assert_eq!(
+        store::load_readonly(&restored.env())
+            .unwrap()
+            .provider(Tool::Claude, "relay")
+            .unwrap()
+            .meta
+            .extra[quota::relay::META_QUOTA]["refreshMinutes"],
+        5
+    );
+}
+
+#[test]
+fn restore_does_not_require_accounts_for_managed_cards_it_will_skip() {
+    let (_source, source, _bytes) = fixture();
+    let mut provider =
+        Provider::new("managed", "Managed", json!({"auth":{},"config":""})).official();
+    provider.meta.auth_binding = Some(leanflip_core::provider::AuthBinding {
+        auth_provider: "codex_oauth".into(),
+        account_id: Some("missing-fixture-account".into()),
+    });
+    store::add_provider(&source.env(), Tool::Codex, provider.clone()).unwrap();
+    let bytes = source.backup_export(PASSWORD).unwrap();
+    for duplicate in [
+        ccswitch_export::DuplicatePolicy::Skip,
+        ccswitch_export::DuplicatePolicy::Rename,
+    ] {
+        let target = TempDir::new().unwrap();
+        let service = open(target.path());
+        store::add_provider(&service.env(), Tool::Codex, provider.clone()).unwrap();
+        service.backup_load(&bytes, PASSWORD).unwrap();
+        let report = service
+            .backup_apply(RestoreOptions {
+                accounts: false,
+                duplicate,
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(report.providers_added, 1);
+        assert_eq!(report.providers_skipped, 1);
+        assert_eq!(report.accounts_added, 0);
+    }
+}

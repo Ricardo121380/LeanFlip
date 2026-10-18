@@ -147,7 +147,6 @@ export function SyncDialog({ source, onClose }: { source: SyncSource; onClose: (
   const [saving, setSaving] = useState(false);
   // 一个对话框只用一个关联 ID：部分失败后重试，新加的卡和之前加的、和来源都在同一组。
   const link = useRef(linkOf(source.provider) ?? newLink());
-  const sourceLinked = useRef(Boolean(linkOf(source.provider)));
 
   useEffect(() => {
     let alive = true;
@@ -184,6 +183,7 @@ export function SyncDialog({ source, onClose }: { source: SyncSource; onClose: (
     setSaving(true);
     let added = 0;
     try {
+      await api.linkProvider(source.tool, source.provider, link.current);
       for (const target of chosen) {
         const state = stateOf(target);
         const card = withLink(withModel(target.tool, target.provider!, state.model), link.current);
@@ -195,16 +195,10 @@ export function SyncDialog({ source, onClose }: { source: SyncSource; onClose: (
           toast.error(t("sync.addFailed", { tool: toolMeta(target.tool).label, reason: errorMessage(error) }));
         }
       }
-      if (added > 0 && !sourceLinked.current) {
-        try {
-          await api.updateProvider(source.tool, withLink(source.provider, link.current));
-          sourceLinked.current = true;
-        } catch (error) {
-          toast.error(errorMessage(error));
-        }
-      }
       if (added > 0) toast.success(t("sync.added", { count: added }));
       if (added === chosen.length) onClose();
+    } catch (error) {
+      toast.error(errorMessage(error));
     } finally {
       setSaving(false);
       void refreshAll(client);

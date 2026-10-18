@@ -5,7 +5,7 @@
 //! 验证过（`tested: false`）。
 
 use std::fs::File;
-use std::io::{BufRead, BufReader, Seek, SeekFrom};
+use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
@@ -14,6 +14,22 @@ use rusqlite::{Connection, OpenFlags};
 use serde_json::{json, Value};
 
 use super::{Batch, Counts, Progress, Record, Scan, SourceState, SourceStatus, Who};
+
+// Bound allocation and work per scan. Append-only logs resume at their saved
+// offset; rewritten JSON files over the limit are reported instead of loaded.
+pub(super) const MAX_LINE_BYTES: u64 = 8 * 1024 * 1024;
+pub(super) const MAX_FILE_BYTES: u64 = 32 * 1024 * 1024;
+const MAX_SCAN_BYTES: u64 = 128 * 1024 * 1024;
+fn read_limit(scan: &Scan, max: u64) -> Result<u64, String> {
+    let remaining = MAX_SCAN_BYTES.saturating_sub(scan.read_bytes);
+    if remaining == 0 {
+        return Err(
+            "Usage scan byte budget reached; remaining records will be read on the next scan"
+                .into(),
+        );
+    }
+    Ok(max.min(remaining) + 1)
+}
 
 type Run = fn(&Env, &mut Scan) -> Result<(), String>;
 
@@ -291,10 +307,41 @@ fn read_lines(
     let mut batch = Batch::default();
     let mut offset = progress.offset;
     let mut buf = Vec::new();
+    let mut deferred = None;
     loop {
         buf.clear();
-        let read = reader.read_until(b'\n', &mut buf).map_err(text)?;
-        if read == 0 || buf.last() != Some(&b'\n') {
+        if (offset - progress.offset) as u64 >= MAX_FILE_BYTES {
+            if offset < size {
+                deferred = Some("Usage JSONL file byte budget reached; remaining records will be read on the next scan".into());
+            }
+            break;
+        }
+        let limit = match read_limit(scan, MAX_LINE_BYTES) {
+            Ok(limit) => limit,
+            Err(error) => {
+                deferred = Some(error);
+                break;
+            }
+        };
+        let read = (&mut reader).take(limit).read_until(b'\n', &mut buf);
+        scan.read_bytes += buf.len() as u64;
+        let read = match read {
+            Ok(read) => read,
+            Err(error) => {
+                deferred = Some(text(error));
+                break;
+            }
+        };
+        if read as u64 >= limit {
+            deferred = Some("Usage JSONL line or scan byte limit exceeded".into());
+            break;
+        }
+        if read == 0 {
+            break;
+        }
+        // A valid final JSON value is complete even without a trailing newline.
+        // Keep incomplete tails pending so a later append can finish them.
+        if buf.last() != Some(&b'\n') && serde_json::from_slice::<Value>(&buf).is_err() {
             break;
         }
         offset += read as i64;
@@ -316,7 +363,8 @@ fn read_lines(
         offset,
         state,
     };
-    scan.commit(tool, key, &progress, batch).map_err(text)
+    scan.commit(tool, key, &progress, batch).map_err(text)?;
+    deferred.map_or(Ok(()), Err)
 }
 
 /// 整份重写的文件：大小或修改时间变了才重读，重复的记录靠去重键跳过。
@@ -334,9 +382,23 @@ fn read_whole(
     if progress.size == size && progress.mtime == mtime {
         return Ok(());
     }
-    let content = std::fs::read_to_string(path).map_err(text)?;
+    if size as u64 > MAX_FILE_BYTES {
+        return Err("Usage JSON file exceeds the 32 MiB size limit".into());
+    }
+    let limit = read_limit(scan, MAX_FILE_BYTES)?;
+    let mut content = Vec::new();
+    let read = File::open(path)
+        .map_err(text)?
+        .take(limit)
+        .read_to_end(&mut content);
+    scan.read_bytes += content.len() as u64;
+    read.map_err(text)?;
+    if content.len() as u64 >= limit {
+        return Err("Usage JSON file or scan byte limit exceeded".into());
+    }
+    let content = std::str::from_utf8(&content).map_err(text)?;
     let mut batch = Batch::default();
-    each(scan, &mut batch, &content).map_err(text)?;
+    each(scan, &mut batch, content).map_err(text)?;
     let progress = Progress {
         size,
         mtime,
@@ -592,12 +654,13 @@ fn gemini_message(
 }
 
 fn gemini(env: &Env, scan: &mut Scan) -> Result<(), String> {
-    let paths = files(&env.gemini_dir.join("tmp"), 2, &|p| {
+    let root = env.gemini_dir.join("tmp");
+    let paths = files(&root, 8, &|p| {
         let in_chats = p
-            .parent()
-            .and_then(|d| d.file_name())
-            .and_then(|n| n.to_str())
-            == Some("chats");
+            .ancestors()
+            .skip(1)
+            .take_while(|d| *d != root)
+            .any(|d| d.file_name().and_then(|n| n.to_str()) == Some("chats"));
         (in_chats && (has_ext(p, "json") || has_ext(p, "jsonl")))
             || (name_of(p).starts_with("session-") && has_ext(p, "json"))
     });
@@ -1008,26 +1071,30 @@ fn hermes_db(scan: &mut Scan, path: &Path) -> Result<(), String> {
         if before == now {
             continue;
         }
-        let d: Vec<i64> = (0..5).map(|i| (now[i] - before[i]).max(0)).collect();
+        let d: Vec<i64> = (0..5)
+            .map(|i| now[i].saturating_sub(before[i]).max(0))
+            .collect();
+        let requests = |messages: i64| messages.max(0) / 2 + messages.max(0) % 2;
         let counts = Counts {
             input: d[1],
             output: d[2],
             cache_read: d[3],
             cache_write: d[4],
             // message_count 包括用户消息，大约一半是模型回复。
-            requests: (d[0] + 1) / 2,
+            requests: (requests(now[0]) - requests(before[0])).max(0),
         };
         let who = provider
             .filter(|p| !p.trim().is_empty())
             .map(Who::Exact)
             .unwrap_or(Who::Unknown);
         let mut batch = Batch::default();
-        scan.add(
-            &mut batch,
-            None,
-            record((started * 1000.0) as i64, &model, who, counts),
-        )
-        .map_err(text)?;
+        // Message counts and token totals can arrive in different scans.
+        // Preserve request-only deltas before advancing the session checkpoint.
+        if !counts.is_empty() || counts.requests > 0 {
+            batch
+                .records
+                .push(record((started * 1000.0) as i64, &model, who, counts));
+        }
         let progress = Progress {
             size: 0,
             mtime: 0,

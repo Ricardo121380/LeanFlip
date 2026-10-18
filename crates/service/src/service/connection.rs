@@ -37,7 +37,8 @@ fn invalid() -> AppError {
         "Enter a valid name and HTTP(S) Base URL without credentials, a query or fragment.",
     )
 }
-fn json_paths(tool: Tool, config: &Value) -> (&'static str, &'static str) {
+fn json_paths(tool: Tool, provider: &Provider) -> (&'static str, &'static str) {
+    let config = &provider.settings_config;
     match tool {
         Tool::Claude | Tool::ClaudeDesktop => (
             "/env/ANTHROPIC_BASE_URL",
@@ -56,6 +57,11 @@ fn json_paths(tool: Tool, config: &Value) -> (&'static str, &'static str) {
             },
         ),
         Tool::Gemini => ("/env/GOOGLE_GEMINI_BASE_URL", "/env/GEMINI_API_KEY"),
+        Tool::OpenCode
+            if coexist::opencode::format_of(provider) == coexist::opencode::Format::V2 =>
+        {
+            ("/settings/baseURL", "/settings/apiKey")
+        }
         Tool::OpenCode | Tool::Mcode => ("/options/baseURL", "/options/apiKey"),
         Tool::Hermes => (
             if config.get("base_url").is_some() || config.get("baseUrl").is_none() {
@@ -140,6 +146,17 @@ fn raw(tool: Tool, provider: &Provider) -> Result<(String, bool), AppError> {
             config
                 .pointer("/auth/OPENAI_API_KEY")
                 .and_then(Value::as_str)
+                .filter(|key| !key.trim().is_empty())
+                .or_else(|| {
+                    table
+                        .get("experimental_bearer_token")
+                        .and_then(toml_edit::Item::as_str)
+                })
+                .or_else(|| {
+                    document
+                        .get("experimental_bearer_token")
+                        .and_then(toml_edit::Item::as_str)
+                })
         } else {
             table
                 .get("api_key")
@@ -151,7 +168,7 @@ fn raw(tool: Tool, provider: &Provider) -> Result<(String, bool), AppError> {
     if !config.is_object() {
         return Err(unsupported());
     }
-    let (url, key) = json_paths(tool, config);
+    let (url, key) = json_paths(tool, provider);
     Ok((
         config
             .pointer(url)
@@ -291,6 +308,10 @@ fn patch(tool: Tool, provider: &mut Provider, update: ConnectionUpdate) -> Resul
                 }
             }
         } else {
+            if !matches!(update.api_key, ApiKeyChange::Keep) {
+                table.remove("experimental_bearer_token");
+                document.remove("experimental_bearer_token");
+            }
             match update.api_key {
                 ApiKeyChange::Keep => {}
                 ApiKeyChange::Set(key) => set_json(
@@ -305,7 +326,7 @@ fn patch(tool: Tool, provider: &mut Provider, update: ConnectionUpdate) -> Resul
         }
         provider.settings_config["config"] = Value::String(document.to_string());
     } else {
-        let (url_path, key_path) = json_paths(tool, &provider.settings_config);
+        let (url_path, key_path) = json_paths(tool, provider);
         if let Some(url) = update.base_url {
             if tool == Tool::Hermes {
                 set_json(&mut provider.settings_config, "/base_url", None)?;

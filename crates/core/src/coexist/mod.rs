@@ -390,6 +390,7 @@ pub fn delete_provider(env: &Env, tool: Tool, id: &str) -> Result<Provider, AppE
 pub fn import_live(env: &Env, tool: Tool) -> Result<ImportReport, AppError> {
     ensure_coexist(tool)?;
     crate::switch::settle(env, tool)?;
+    let mut warnings = Vec::new();
     let cards: Vec<Provider> = match tool {
         Tool::OpenCode => {
             let path = live_path(env, tool);
@@ -398,7 +399,9 @@ pub fn import_live(env: &Env, tool: Tool) -> Result<ImportReport, AppError> {
                 .as_deref()
                 .map(String::from_utf8_lossy)
                 .unwrap_or_default();
-            opencode::entries(&path, &text)?
+            let (entries, problems) = opencode::import_entries(&path, &text)?;
+            warnings = problems;
+            entries
                 .into_iter()
                 .map(|(id, (value, format))| opencode::imported_card(&id, value, format))
                 .collect()
@@ -419,6 +422,7 @@ pub fn import_live(env: &Env, tool: Tool) -> Result<ImportReport, AppError> {
         }
         Ok(ImportReport {
             created,
+            warnings,
             current: None,
         })
     })

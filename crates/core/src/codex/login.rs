@@ -160,12 +160,10 @@ pub fn plan(input: AuthInput<'_>) -> AuthPlan {
             let id = input
                 .leaving_official_ref
                 .map(str::to_string)
-                .or_else(|| login_id(leaving))
-                .or_else(|| vault.last.clone());
+                .or_else(|| login_id(leaving));
             if let Some(id) = id {
                 vault.remove(&id);
             }
-            vault.last = None;
         }
     }
     let mut next = None;

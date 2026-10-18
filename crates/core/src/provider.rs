@@ -200,6 +200,18 @@ impl Provider {
             .filter(|id| !id.is_empty())
     }
 
+    /// Background network activity is a device-local choice, not portable card data.
+    pub fn reset_imported_quota_refresh(&mut self) {
+        if let Some(quota) = self
+            .meta
+            .extra
+            .get_mut("leanflipQuota")
+            .and_then(Value::as_object_mut)
+        {
+            quota.insert("refreshMinutes".into(), Value::from(0));
+        }
+    }
+
     pub fn set_codex_login_ref(&mut self, identity: Option<&str>) {
         match identity.map(str::trim).filter(|id| !id.is_empty()) {
             Some(id) => {

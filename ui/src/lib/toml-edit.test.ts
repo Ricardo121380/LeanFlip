@@ -52,3 +52,31 @@ describe("toml-edit", () => {
     expect(getTomlValue(next, null, "model")).toBe('a "quoted" \\ name');
   });
 });
+
+it.each(['"""', "'''"])("ignores keys and headers inside %s strings", (quote) => {
+  const instructions = `Example:\nmodel = "example"\n[model_providers.custom]\nbase_url = "https://example.invalid"\n`;
+  const source = `developer_instructions = ${quote}\n${instructions}${quote}\nmodel = "real"\n[model_providers.custom]\nbase_url = "https://old.invalid"\n`;
+  const model = setTomlValue(source, null, "model", "new");
+  expect(getTomlValue(model, null, "model")).toBe("new");
+  expect(getTomlValue(model, null, "developer_instructions")).toBe(instructions);
+  const url = setTomlValue(model, ["model_providers", "custom"], "base_url", "https://new.invalid");
+  expect(getTomlValue(url, ["model_providers", "custom"], "base_url")).toBe("https://new.invalid");
+  expect(getTomlValue(url, null, "developer_instructions")).toBe(instructions);
+});
+
+it("inserts after complete multiline values and removes an entire multiline assignment", () => {
+  const source = `developer_instructions = """\nmodel = "example"\n"""\nmodels = [\n  "one",\n  "two",\n]\n`;
+  const next = setTomlValue(source, null, "model", "actual");
+  expect(getTomlValue(next, null, "model")).toBe("actual");
+  expect(getTomlValue(next, null, "models")).toEqual(["one", "two"]);
+  const removed = setTomlValue(next, null, "developer_instructions", undefined);
+  expect(readToml(removed)).toMatchObject({ model: "actual", models: ["one", "two"] });
+  expect(removed).not.toContain("example");
+});
+
+it("does not interpret escaped quotes and comments as multiline delimiters", () => {
+  const source = '# """ comment\nlabel = "escaped \\" quote"\nmodel = "real"\n';
+  const next = setTomlValue(source, null, "model", "new");
+  expect(getTomlValue(next, null, "model")).toBe("new");
+  expect(getTomlValue(next, null, "label")).toBe('escaped " quote');
+});

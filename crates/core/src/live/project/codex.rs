@@ -66,6 +66,7 @@ pub struct CodexConfigPatch {
     pub outgoing: Vec<(String, Atom)>,
     pub route: RouteWrite,
     pub retired: Vec<KnownTable>,
+    pub previous_route: Option<Table>,
 }
 fn invalid(message: &str) -> AppError {
     AppError::localized(
@@ -320,6 +321,20 @@ pub fn foreign_catalog(doc: &DocumentMut) -> Option<&Atom> {
         })
     })
 }
+fn route_value(entry: &Item) -> Option<toml::Value> {
+    let mut doc = DocumentMut::new();
+    doc["route"] = entry.clone();
+    let mut value = doc
+        .to_string()
+        .parse::<toml::Value>()
+        .ok()?
+        .get("route")?
+        .clone();
+    // This field is stamped from the current login state, not owned by the card.
+    value.as_table_mut()?.remove("requires_openai_auth");
+    Some(value)
+}
+
 impl CodexConfigPatch {
     pub fn apply_to(&self, path: &Path, doc: &mut DocumentMut) -> Result<(), LiveWriteError> {
         let (selector, table) = match &self.route {
@@ -341,6 +356,19 @@ impl CodexConfigPatch {
                 .collect(),
             ..Default::default()
         };
+        if !self
+            .top
+            .iter()
+            .chain(&self.exclusive)
+            .any(|(key, _)| key == MODEL_CATALOG_JSON)
+        {
+            if let Some(pointer) = foreign_catalog(doc) {
+                edit.set.push((
+                    KeyPath::new(&[MODEL_CATALOG_JSON]),
+                    Item::Value(pointer.clone()),
+                ));
+            }
+        }
         for (key, value) in self.top.iter().chain(&self.exclusive) {
             edit.set
                 .push((KeyPath::root().child(key), Item::Value(value.clone())));
@@ -367,6 +395,37 @@ impl CodexConfigPatch {
         let provider_path = KeyPath::new(&["model_providers"]);
         if let Some(providers) = doc.get("model_providers").and_then(Item::as_table_like) {
             let mut reserved = Vec::new();
+            if let (Some((ROUTE_ID, next)), Some(old)) = (table, providers.get(ROUTE_ID)) {
+                let old_value = route_value(old);
+                let known = old_value == route_value(&Item::Table(next.clone()))
+                    || self.previous_route.as_ref().is_some_and(|previous| {
+                        old_value == route_value(&Item::Table(previous.clone()))
+                    });
+                if !known {
+                    // Keep a foreign table intact under a distinct name; never merge
+                    // its headers, env_key or query credentials into the new route.
+                    let name = (1..)
+                        .map(|n| format!("leanflip-legacy-{n}"))
+                        .find(|name| {
+                            providers
+                                .get(name)
+                                .is_none_or(|entry| route_value(entry) == old_value)
+                        })
+                        .expect("an unused provider name");
+                    edit.set.push((provider_path.child(&name), old.clone()));
+                    if let Some(profiles) = doc.get("profiles").and_then(Item::as_table_like) {
+                        for (profile, value) in profiles.iter() {
+                            if value.get("model_provider").and_then(Item::as_str) == Some(ROUTE_ID)
+                            {
+                                edit.set.push((
+                                    KeyPath::new(&["profiles", profile, "model_provider"]),
+                                    toml_edit::value(&name),
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
             for (id, entry) in providers.iter() {
                 let placeholder = entry
                     .get("experimental_bearer_token")

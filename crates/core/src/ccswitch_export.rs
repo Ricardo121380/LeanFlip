@@ -446,6 +446,7 @@ fn plan(data: &StoreData, parsed: &ParsedExport, policy: DuplicatePolicy) -> Vec
                     continue;
                 }
                 DuplicatePolicy::Rename => {
+                    item.status = ItemStatus::Import;
                     let ids: HashSet<String> = taken
                         .iter()
                         .filter(|(t, _)| *t == tool)

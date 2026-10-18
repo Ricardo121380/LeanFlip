@@ -1036,3 +1036,24 @@ fn creation_wizard_rejects_json_without_consuming_credentials_or_writing() {
         .contains("interactive_terminal"));
     assert_eq!(snapshot(&sb.env.home), before);
 }
+
+#[test]
+fn invalid_opencode_import_entries_report_safe_warnings_in_human_and_json_output() {
+    let sb = Sandbox::new();
+    sb.write(&sb.env.opencode_config_path(), json!({"providers":{
+        "good":{"settings":{"baseURL":"https://fixture.invalid/v1"},"models":{"m":{"capabilities":{"tools":false}}}},
+        "bad\u{1b}[31m":{"settings":{"apiKey":"fixture-private-key"},"models":{"m":{"capabilities":{"tools":"wrong-type"}}}}
+    }}).to_string());
+    let output = sb.run(&["import", "live", "opencode"]);
+    assert!(output.status.success());
+    let human = String::from_utf8(output.stdout).unwrap();
+    assert!(human.contains("capabilities.tools"));
+    assert!(!human.contains('\u{1b}'));
+    assert!(!human.contains("fixture-private-key"));
+    let data = sb.ok(&["import", "live", "opencode", "--json"]);
+    assert_eq!(data["warnings"].as_array().unwrap().len(), 1);
+    assert!(data["warnings"][0]
+        .as_str()
+        .unwrap()
+        .contains("capabilities.tools"));
+}
