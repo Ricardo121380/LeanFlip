@@ -816,3 +816,95 @@ fn corrupt_settings_stop_startup_before_recovery_or_default_path_writes() {
         "{truncated-secret"
     );
 }
+
+#[test]
+fn onboarding_is_new_install_only_and_completion_persists_without_changing_settings() {
+    let sb = Sandbox::new();
+    let service = sb.service();
+    assert!(service.settings().unwrap().onboarding_needed);
+    let app_before = service.app_settings();
+    service.complete_onboarding().unwrap();
+    assert!(!service.settings().unwrap().onboarding_needed);
+    assert_eq!(service.app_settings(), app_before);
+    assert!(!settings::path(&sb.env().data_dir).exists());
+    assert!(!sb.env().store_path().exists());
+    drop(service);
+    assert!(!sb.service().settings().unwrap().onboarding_needed);
+
+    let existing = Sandbox::new();
+    settings::save(&existing.env().data_dir, &AppSettings::default()).unwrap();
+    assert!(!existing.service().settings().unwrap().onboarding_needed);
+    let cli_user = Sandbox::new();
+    store::add_provider(
+        &cli_user.env(),
+        Tool::Claude,
+        claude_card("old", "https://old.example"),
+    )
+    .unwrap();
+    assert!(!cli_user.service().settings().unwrap().onboarding_needed);
+}
+
+#[test]
+fn provider_import_uses_private_preview_snapshot_and_rejects_stale_scan() {
+    use leanflip_core::provider_import::{Selection, Source};
+    let sb = Sandbox::new();
+    let service = sb.service();
+    let dir = sb.home.join(".cc-switch");
+    let source = dir.join("config.json");
+    sb.write(
+        &source,
+        &json!({"claude":{"providers":{"relay":claude_card("relay", "https://original.example")}}})
+            .to_string(),
+    );
+    let preview = service
+        .provider_import_scan(Source::CcSwitch, None)
+        .unwrap();
+    assert!(!serde_json::to_string(&preview)
+        .unwrap()
+        .contains("sk-relay"));
+    sb.write(
+        &source,
+        &json!({"claude":{"providers":{"relay":claude_card("relay", "https://changed.example")}}})
+            .to_string(),
+    );
+    service
+        .provider_import_apply(
+            preview.preview_id,
+            vec![Selection {
+                index: 0,
+                api_key: None,
+            }],
+        )
+        .unwrap();
+    let data = store::load(&sb.env()).unwrap();
+    assert_eq!(
+        data.providers(Tool::Claude)[0].settings_config["env"]["ANTHROPIC_BASE_URL"],
+        "https://original.example"
+    );
+    assert!(data.current(Tool::Claude).is_none());
+    assert!(service
+        .provider_import_scan(Source::Superba, Some(PathBuf::from("relative")))
+        .is_err());
+    assert!(service
+        .provider_import_apply(
+            preview.preview_id,
+            vec![Selection {
+                index: 0,
+                api_key: None
+            }]
+        )
+        .is_err());
+    let fresh = service
+        .provider_import_scan(Source::CcSwitch, None)
+        .unwrap();
+    service.provider_import_discard();
+    assert!(service
+        .provider_import_apply(
+            fresh.preview_id,
+            vec![Selection {
+                index: 0,
+                api_key: None
+            }]
+        )
+        .is_err());
+}

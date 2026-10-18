@@ -653,3 +653,38 @@ pub async fn complete_claude_onboarding(
     })
     .await
 }
+
+#[tauri::command]
+pub async fn complete_onboarding(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> ApiResult<()> {
+    mutating(&app, &state, |s| s.complete_onboarding()).await
+}
+
+#[tauri::command]
+pub async fn provider_import_scan(
+    state: State<'_, AppState>,
+    source: leanflip_core::provider_import::Source,
+    directory: Option<std::path::PathBuf>,
+) -> ApiResult<leanflip_core::provider_import::Preview> {
+    blocking(&state, move |s| s.provider_import_scan(source, directory)).await
+}
+
+#[tauri::command]
+pub async fn provider_import_apply(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    preview_id: u64,
+    selected: Vec<leanflip_core::provider_import::Selection>,
+) -> ApiResult<ccswitch_import::Report> {
+    mutating(&app, &state, move |s| {
+        s.provider_import_apply(preview_id, selected)
+    })
+    .await
+}
+
+#[tauri::command]
+pub fn provider_import_discard(state: State<'_, AppState>) {
+    state.0.provider_import_discard();
+}

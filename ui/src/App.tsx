@@ -24,6 +24,7 @@ import { BrandMark } from "@/components/BrandMark";
 
 // 不常用的页面按需加载。
 const CodexAccountsPage = lazy(() => import("@/pages/CodexAccountsPage").then((m) => ({ default: m.CodexAccountsPage })));
+const OnboardingWizard = lazy(() => import("@/components/OnboardingWizard").then((m) => ({ default: m.OnboardingWizard })));
 const ImportWizard = lazy(() => import("@/pages/ImportWizard").then((m) => ({ default: m.ImportWizard })));
 const SettingsPage = lazy(() => import("@/pages/SettingsPage").then((m) => ({ default: m.SettingsPage })));
 const StatsPage = lazy(() => import("@/pages/StatsPage").then((m) => ({ default: m.StatsPage })));
@@ -59,6 +60,8 @@ export default function App() {
   const [view, setView] = useState<View>(() => viewFromHash(window.location.hash));
   const [confirm, confirmDialog] = useConfirm();
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
+  useEffect(() => { if (settings?.onboardingNeeded) setOnboardingOpen(true); }, [settings?.onboardingNeeded]);
   const main = useRef<HTMLElement>(null);
   const accepted = useRef<NavigationEntry>({ hash: window.location.hash, index: historyIndex() ?? 0, managed: true });
   const observed = useRef(accepted.current);
@@ -182,12 +185,12 @@ export default function App() {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "k") {
         event.preventDefault();
-        setPaletteOpen((open) => !open);
+        if (!onboardingOpen) setPaletteOpen((open) => !open);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [onboardingOpen]);
 
   const navButton = (active: boolean) =>
     cn(
@@ -305,10 +308,11 @@ export default function App() {
           {view.type === "tool" && <ToolPage key={view.tool} tool={view.tool} />}
           {view.type === "codex" && <CodexAccountsPage />}
           {view.type === "import" && <ImportWizard onBusyChange={onImportBusyChange} />}
-          {view.type === "settings" && <SettingsPage onLeaveStateChange={onSettingsLeaveState} />}
+          {view.type === "settings" && <SettingsPage onLeaveStateChange={onSettingsLeaveState} onOpenOnboarding={() => setOnboardingOpen(true)} />}
         </Suspense>
       </main>
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} onNavigate={(hash) => requestNavigation({ kind: "link", hash })} />
+      {onboardingOpen && <Suspense fallback={null}><OnboardingWizard onClose={() => setOnboardingOpen(false)} /></Suspense>}
       {confirmDialog}
     </div>
     </ScenesProvider>

@@ -15,7 +15,7 @@ vi.mock("@/pages/HomePage", () => ({
     </>
   ),
 }));
-vi.mock("@/pages/SettingsPage", () => ({ SettingsPage: () => <h1>Settings content</h1> }));
+vi.mock("@/pages/SettingsPage", () => ({ SettingsPage: ({ onOpenOnboarding }: { onOpenOnboarding?: () => void }) => <><h1>Settings content</h1><button onClick={onOpenOnboarding}>使用向导</button></> }));
 
 import App from "./App";
 
@@ -81,4 +81,25 @@ describe("App navigation", () => {
     act(() => window.history.back());
     expect(await screen.findByRole("heading", { name: "home:map" })).toBeInTheDocument();
   });
+});
+
+
+it("opens the guide only for a new install, remembers dismissal, and allows reopening", async () => {
+  let needed = true;
+  backend.invoke = fakeBackend({
+    get_overview: () => [], get_recovery_notices: () => [],
+    get_settings: () => ({ app: { language: "zh" }, onboardingNeeded: needed }),
+    complete_onboarding: () => { needed = false; }, provider_import_discard: () => null,
+  }).invoke;
+  const first = renderWithClient(<App />);
+  await screen.findByRole("dialog", { name: "欢迎使用 LeanFlip" });
+  await userEvent.click(screen.getByRole("button", { name: "跳过向导" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  first.unmount();
+  renderWithClient(<App />);
+  await waitFor(() => expect(backend.invoke).toHaveBeenCalledWith("get_settings"));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("link", { name: "设置" }));
+  await userEvent.click(await screen.findByRole("button", { name: "使用向导" }));
+  await screen.findByRole("dialog", { name: "欢迎使用 LeanFlip" });
 });

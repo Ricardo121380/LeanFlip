@@ -124,6 +124,14 @@ pub struct Report {
 
 /// 只读扫描。`dir` 不存在时返回空结果。
 pub fn scan(env: &Env, dir: &Path) -> Result<Scan, AppError> {
+    let mut scan = scan_cards(env, dir)?;
+    let (accounts, _) = CodexOAuthManager::read_store_file(&dir.join(ACCOUNTS_FILENAME))?;
+    scan.accounts = accounts.len();
+    Ok(scan)
+}
+
+/// Provider-only onboarding must not read the separate login-account store.
+pub(crate) fn scan_cards(env: &Env, dir: &Path) -> Result<Scan, AppError> {
     let db = dir.join(DB_FILENAME);
     let legacy = dir.join(LEGACY_CONFIG);
     let (source, rows) = if db.is_file() {
@@ -147,12 +155,11 @@ pub fn scan(env: &Env, dir: &Path) -> Result<Scan, AppError> {
             }
         })
         .collect();
-    let (accounts, _) = CodexOAuthManager::read_store_file(&dir.join(ACCOUNTS_FILENAME))?;
     Ok(Scan {
         directory: dir.to_path_buf(),
         source,
         candidates,
-        accounts: accounts.len(),
+        accounts: 0,
     })
 }
 
@@ -219,7 +226,11 @@ fn duplicate_reason() -> Reason {
     )
 }
 
-fn skip_reason(data: &store::StoreData, tool: Tool, provider: &Provider) -> Option<Reason> {
+pub(crate) fn skip_reason(
+    data: &store::StoreData,
+    tool: Tool,
+    provider: &Provider,
+) -> Option<Reason> {
     if data.provider(tool, &provider.id).is_some() {
         return Some(duplicate_reason());
     }
