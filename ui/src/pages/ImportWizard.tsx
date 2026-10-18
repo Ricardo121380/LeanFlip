@@ -9,8 +9,9 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ProviderImportPanel, ProviderImportSourcePicker } from "@/components/ProviderImportPanel";
 import { useSettings, refreshAll } from "@/hooks/queries";
-import { api, errorMessage, reasonText, type ImportReport, type ImportScan, type ToolId } from "@/lib/api";
+import { api, errorMessage, reasonText, type ImportReport, type ImportScan, type ProviderImportSource, type ToolId } from "@/lib/api";
 import { TOOLS, toolMeta } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 import { ExportImport } from "./ExportImport";
@@ -21,6 +22,8 @@ export function ImportWizard({ onBusyChange }: { onBusyChange?: (busy: boolean) 
   const client = useQueryClient();
   const settings = useSettings().data;
   const [source, setSource] = useState("local");
+  const [localSource, setLocalSource] = useState<ProviderImportSource>("cc-switch");
+  const [providerBusy, setProviderBusy] = useState(false);
   const [dir, setDir] = useState("");
   const [scannedDir, setScannedDir] = useState<string | undefined>();
   const [scan, setScan] = useState<ImportScan | null>(null);
@@ -31,7 +34,7 @@ export function ImportWizard({ onBusyChange }: { onBusyChange?: (busy: boolean) 
   const [fileBusy, setFileBusy] = useState(false);
   const [includeAccounts, setIncludeAccounts] = useState(true);
   const pending = useRef(false);
-  const busy = operation !== null;
+  const busy = operation !== null || providerBusy;
 
   useEffect(() => {
     onBusyChange?.(busy || fileBusy);
@@ -116,6 +119,8 @@ export function ImportWizard({ onBusyChange }: { onBusyChange?: (busy: boolean) 
           <Tabs.Trigger value="backup" disabled={busy || fileBusy} className="inline-flex min-h-9 items-center gap-2 rounded-md px-3 text-sm font-medium text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm"><ShieldCheck className="h-4 w-4" aria-hidden="true" />{t("backup.exportTab")}</Tabs.Trigger>
         </Tabs.List>
         <Tabs.Content value="local" forceMount hidden={source !== "local"} className="min-w-0 space-y-5 focus-visible:outline-none">
+          <ProviderImportSourcePicker value={localSource} disabled={busy || fileBusy} onChange={(next) => { setLocalSource(next); changeDir(""); }} />
+          {localSource === "cc-switch" ? <>
           <div className="flex flex-wrap items-start justify-between gap-5 rounded-xl border bg-card p-5">
             <div className="max-w-xl"><FolderSearch className="mb-4 size-7 text-primary" aria-hidden="true" /><h2 className="text-lg font-semibold">{t("wizard.localTitle")}</h2>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">{t("backup.localHint")}</p></div>
@@ -179,6 +184,14 @@ export function ImportWizard({ onBusyChange }: { onBusyChange?: (busy: boolean) 
               <Button variant="outline" size="sm" disabled={busy} onClick={() => void runScan()}><RefreshCw />{t("wizard.scanAgain")}</Button>
             </div>
           </Card>}
+          </> : <>
+            <div className="rounded-xl border bg-card p-5">
+              <FolderSearch className="mb-4 size-7 text-primary" aria-hidden="true" />
+              <h2 className="text-lg font-semibold">{t("wizard.providerTitle", { source: localSource === "ai-toolbox" ? "AI Toolbox" : "Superba" })}</h2>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">{t("wizard.providerHint")}</p>
+            </div>
+            {source === "local" && <ProviderImportPanel key={localSource} source={localSource} onBusyChange={setProviderBusy} />}
+          </>}
         </Tabs.Content>
         <Tabs.Content value="file" forceMount hidden={source !== "file"} className="min-w-0 focus-visible:outline-none"><ExportImport active={source === "file"} onBusyChange={setFileBusy} /></Tabs.Content>
         <Tabs.Content value="backup" className="min-w-0 focus-visible:outline-none"><BackupExport onBusyChange={setFileBusy} /></Tabs.Content>
